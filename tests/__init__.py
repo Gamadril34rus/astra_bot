@@ -1,0 +1,3 @@
+"""
+ASTRA BOT — Tests
+"""
