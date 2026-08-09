@@ -7,29 +7,28 @@ import asyncio
 import logging
 import os
 import sys
-from pathlib import Path
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 
 # Добавляем проект в путь
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from astra_bot.core.config import load_settings, get_settings
-from astra_bot.core.logger import setup_logging, get_component_logger
-from astra_bot.core.events import get_event_bus
-from astra_bot.data.database import init_database, close_database
-from astra_bot.adapters.okx import OKXClient
-from astra_bot.engines.regime_detector import get_regime_detector
-from astra_bot.engines.risk_engine import get_risk_engine
-from astra_bot.engines.execution_engine import get_execution_engine
-from astra_bot.strategies import MomentumStrategy, MeanReversionStrategy
-from astra_bot.paperengine.paper_engine import PaperTradingEngine
-
-# FastAPI
 from fastapi import FastAPI, HTTPException
 
-# Инициализация логирования - ВАЖНО: /tmp/logs для Render!
+from astra_bot.adapters.okx import OKXClient
+from astra_bot.core.config import get_settings, load_settings
+from astra_bot.core.events import get_event_bus
+from astra_bot.core.logger import get_component_logger, setup_logging
+from astra_bot.data.database import close_database, init_database
+from astra_bot.engines.execution_engine import get_execution_engine
+from astra_bot.engines.regime_detector import get_regime_detector
+from astra_bot.engines.risk_engine import get_risk_engine
+from astra_bot.paperengine.paper_engine import PaperTradingEngine
+from astra_bot.strategies import MeanReversionStrategy, MomentumStrategy
+
+# Инициализация логирования в /tmp/logs (допустимо для записи на Render)
 log_dir = "/tmp/logs"
 Path(log_dir).mkdir(parents=True, exist_ok=True)
 setup_logging(level=os.environ.get("LOG_LEVEL", "INFO"), log_dir=log_dir)
@@ -87,16 +86,24 @@ async def status():
 
 
 class AstraBot:
+
     def __init__(self):
         self.config = None
         self._exchange_client = None
         self._paper_engine = None
+        self._risk_engine = None
         self._running = False
 
     async def initialize(self):
         settings = get_settings()
         self.config = settings
-        
+
+        # Инициализация Risk Engine
+        try:
+            self._risk_engine = get_risk_engine()
+        except Exception as e:
+            logger.warning(f"Risk engine init failed: {e}")
+
         # БД
         if settings.database:
             try:
@@ -110,9 +117,11 @@ class AstraBot:
                 await init_database(db_config)
             except Exception as e:
                 logger.warning(f"Database not available: {e}")
-        
+
         # Exchange
-        if "okx" in settings.exchanges and settings.exchanges["okx"].get("enabled", False):
+        if "okx" in settings.exchanges and settings.exchanges["okx"].get(
+            "enabled", False
+        ):
             okx_config = settings.exchanges["okx"]
             if okx_config.api_key and okx_config.api_secret:
                 config_dict = {
@@ -127,43 +136,69 @@ class AstraBot:
                     await self._exchange_client.initialize()
                 except Exception as e:
                     logger.warning(f"Exchange init failed: {e}")
-        
+
         # Paper engine
-        self._paper_engine = PaperTradingEngine(initial_capital=Decimal("1000"))
-        
+        self._paper_engine = PaperTradingEngine(
+            initial_capital=Decimal("1000")
+        )
+
         # Стратегии
         if settings.strategies.get("momentum", {}).get("enabled", True):
             self._paper_engine.add_strategy("momentum", MomentumStrategy())
         if settings.strategies.get("mean_reversion", {}).get("enabled", True):
-            self._paper_engine.add_strategy("mean_reversion", MeanReversionStrategy())
+            self._paper_engine.add_strategy(
+                "mean_reversion", MeanReversionStrategy()
+            )
+
+    def get_status(self):
+        return {
+            "running": self._running,
+            "exchange_connected": self._exchange_client is not None,
+            "paper_engine": self._paper_engine is not None,
+            "risk_engine": self._risk_engine is not None,
+            "equity": (
+                str(self._paper_engine.account.equity)
+                if self._paper_engine
+                else "1000"
+            ),
+            "timestamp": datetime.utcnow().isoformat(),
+        }
 
     async def run_one_iteration(self):
         try:
             settings = get_settings()
-            current_equity = self._paper_engine.account.equity if self._paper_engine else Decimal("1000")
-            
+            current_equity = (
+                self._paper_engine.account.equity
+                if self._paper_engine
+                else Decimal("1000")
+            )
+
             if self._risk_engine:
                 self._risk_engine.set_capital(current_equity, Decimal("1000"))
-            
+
             if self._paper_engine:
                 self._paper_engine.account.update_equity(current_equity)
-            
+
             return {
                 "status": "ok",
                 "timestamp": datetime.utcnow().isoformat(),
                 "equity": str(current_equity),
-                "iteration": "completed"
+                "iteration": "completed",
             }
         except Exception as e:
             logger.error(f"Iteration error: {e}")
-            return {"status": "error", "error": str(e), "timestamp": datetime.utcnow().isoformat()}
-    
+            return {
+                "status": "error",
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+
     async def start(self):
         self._running = True
         while self._running:
             await self.run_one_iteration()
             await asyncio.sleep(60)
-    
+
     async def stop(self):
         self._running = False
         if self._exchange_client:
@@ -176,6 +211,7 @@ def run_web_mode():
     host = "0.0.0.0"
     logger.info(f"Starting web server on {host}:{port}")
     import uvicorn
+
     uvicorn.run(app, host=host, port=port, log_level="info")
 
 
