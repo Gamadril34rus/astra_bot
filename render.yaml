@@ -1,0 +1,59 @@
+# ASTRA BOT — Render Blueprint
+# https://render.com/docs/blueprint-spec
+
+databases:
+  - name: astra-db
+    databaseName: astra_bot
+    user: astra
+    plan: free
+
+services:
+  # Background Worker — основной бот
+  - type: worker
+    name: astra-bot
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m astra_bot.main --env paper
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: astra-db
+          property: connectionString
+      - key: OKX_API_KEY
+        sync: false
+      - key: OKX_API_SECRET
+        sync: false
+      - key: OKX_PASSPHRASE
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_USER_ID
+        sync: false
+      - key: PAPER_TRADING
+        value: "true"
+      - key: ENVIRONMENT
+        value: "paper"
+      - key: LOG_LEVEL
+        value: "INFO"
+
+  # Cron Job — ежедневный отчёт
+  - type: cron
+    name: daily-report
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python scripts/daily_report.py
+    schedule: "0 9 * * *"   # 9:00 UTC каждый день
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: astra-db
+          property: connectionString
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_USER_ID
+        sync: false
+
+# Retention — если нужно автоматическое бэкапирование
+# (Render Free не поддерживает автоматические бэкапы БД)
