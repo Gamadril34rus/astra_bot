@@ -1,4 +1,5 @@
-ASTRA BOT — Database Module
+"""
+ASTRA BOT - Database Module
 Минимальная реализация
 """
 
