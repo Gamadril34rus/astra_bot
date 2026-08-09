@@ -1,6 +1,5 @@
-"""
 ASTRA BOT — Database Module
-Минимальная реализация для работы с PostgreSQL
+Минимальная реализация
 """
 
 import logging
