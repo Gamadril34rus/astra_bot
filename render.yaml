@@ -2,7 +2,7 @@ previews:
   generation: automatic
 
 services:
-  # === Основной бот-торговец (Background Worker) ===
+  # Background Worker — бот
   - type: worker
     name: astra-bot
     runtime: python
@@ -31,14 +31,13 @@ services:
       - key: LOG_LEVEL
         value: "INFO"
 
-  # === Ежедневный отчёт (Cron Job) ===
+  # Cron Job — ежедневный отчёт (без plan)
   - type: cron
     name: daily-report
     runtime: python
     schedule: "0 9 * * *"
     buildCommand: pip install -r requirements.txt
     startCommand: python scripts/daily_report.py
-    plan: free
     envVars:
       - key: DATABASE_URL
         fromDatabase:
