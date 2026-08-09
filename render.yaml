@@ -2,13 +2,13 @@ previews:
   generation: automatic
 
 services:
-  # Основной бот — Web Service (бесплатно)
+  # Основной бот — Web Service
   - type: web
     name: astra-bot
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python -m astra_bot.main --web
+    startCommand: uvicorn astra_bot.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -37,7 +37,7 @@ services:
       - key: LOG_DIR
         value: "/tmp/logs"
 
-  # Ежедневный отчёт — Cron Job (бесплатно)
+  # Ежедневный отчёт — Cron Job
   - type: cron
     name: daily-report
     runtime: python
