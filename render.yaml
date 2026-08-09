@@ -2,7 +2,7 @@ previews:
   generation: automatic
 
 services:
-  # === Основной бот — Web Service ===
+  # Основной бот — Web Service (бесплатно)
   - type: web
     name: astra-bot
     runtime: python
@@ -37,7 +37,7 @@ services:
       - key: LOG_DIR
         value: "/tmp/logs"
 
-  # === Ежедневный отчёт ===
+  # Ежедневный отчёт — Cron Job (бесплатно)
   - type: cron
     name: daily-report
     runtime: python
