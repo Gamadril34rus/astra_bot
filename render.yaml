@@ -2,13 +2,13 @@ previews:
   generation: automatic
 
 services:
-  # Background Worker — бот
-  - type: worker
+  # === Основной бот — Web Service ===
+  - type: web
     name: astra-bot
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python -m astra_bot.main --env paper
+    startCommand: python -m astra_bot.main --web
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -28,10 +28,16 @@ services:
         value: "true"
       - key: ENVIRONMENT
         value: "paper"
+      - key: RENDER_WEB
+        value: "true"
+      - key: PORT
+        value: "8000"
       - key: LOG_LEVEL
         value: "INFO"
+      - key: LOG_DIR
+        value: "/tmp/logs"
 
-  # Cron Job — ежедневный отчёт (без plan)
+  # === Ежедневный отчёт ===
   - type: cron
     name: daily-report
     runtime: python
