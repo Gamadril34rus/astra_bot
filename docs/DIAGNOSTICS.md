@@ -176,7 +176,10 @@ self._equity = self._equity + unrealized   # ❌
   только как namespace packages).
 - Добавлен CI (`.github/workflows/ci.yml`) на Python 3.11/3.12 с
   `ruff check .` и `pytest --cov`, а также Dependabot для pip/docker/
-  github-actions.
+  github-actions. *(Сам файл workflow не был запушен в ветку из-за
+  ограничений GitHub-токена сессии на изменение `.github/workflows/` —
+  он остаётся в рабочем дереве; чтобы включить CI, закоммитьте его
+  отдельно с правами `workflows`.)*
 - Добавлены интеграционные тесты FastAPI-приложения
   (`tests/integration/test_web_app.py`) на все эндпоинты.
 - Все 17 настоящих ошибок класса F (unused imports, undefined names,
