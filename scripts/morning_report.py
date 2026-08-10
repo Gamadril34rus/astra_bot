@@ -113,6 +113,47 @@ def build_report_from_lessons() -> LearningReport:
     )
 
 
+def load_lessons() -> list[dict]:
+    """Загрузить lessons.jsonl как список словарей."""
+    rows: list[dict] = []
+    if not LESSONS_PATH.exists():
+        return rows
+    with open(LESSONS_PATH, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return rows
+
+
+def top_takeaways(lessons: list[dict], limit: int = 3) -> list[str]:
+    """Сгруппировать уроки по recommendation и вернуть самые частые ошибки."""
+    from collections import Counter
+
+    losses = [row for row in lessons if row.get("outcome") == "loss"]
+    if not losses:
+        return []
+    counter = Counter(row.get("recommendation", "UNKNOWN") for row in losses)
+    labels = {
+        "SKIP_HIGH_VOLATILITY": "пропускать высокую волатильность",
+        "SKIP_LOW_VOLUME": "пропускать слабый объём",
+        "AVOID_LONG_IN_DOWNTREND": "не лонговать в падении",
+        "AVOID_SHORT_IN_UPTREND": "не шортить в росте",
+        "SKIP_RSI_OVERBOUGHT": "пропускать перекупленность",
+        "SKIP_RSI_OVERSOLD": "пропускать перепроданность",
+        "WIDEN_STOP_LOSS": "расширять стоп-лосс",
+        "EXIT_EARLY_OVERBOUGHT": "раньше фиксировать в перекупленности",
+    }
+    result = []
+    for tag, count in counter.most_common(limit):
+        result.append(f"{labels.get(tag, tag)} ({count})")
+    return result
+
+
 def load_latest_model_metrics(model_path: Path = Path("models/current.pkl")) -> dict:
     """Достать AUC/accuracy из последней сохранённой модели."""
     if not model_path.exists():
@@ -162,6 +203,10 @@ def main() -> None:
         )
     else:
         body += "\n\n🧠 Модель пока не обучена — иду уроки."
+    lessons = load_lessons() if LESSONS_PATH.exists() else []
+    takeaways = top_takeaways(lessons)
+    if takeaways:
+        body += "\n\n📚 *Главные выводы по убыткам:*\n  • " + "\n  • ".join(takeaways)
     text = f"☀️ *Утренний отчёт* — {now} МСК\n\n{body}"
     print(text)
     asyncio.run(send_to_telegram(text))
