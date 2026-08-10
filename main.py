@@ -212,62 +212,6 @@ async def retrain(min_samples: int = 200):
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.get("/plan")
-async def daily_plan(
-    min_ml_probability: float = 0.58,
-    min_rr: float = 1.2,
-    top_k: int = 5,
-):
-    """План сделок на ближайшие 24 часа по текущему рынку."""
-    try:
-        from astra_bot.adapters.okx import OKXClient
-        from astra_bot.ml.daily_plan import build_daily_plan, format_plan
-        from astra_bot.ml.historical_training import fetch_historical_candles
-        from astra_bot.strategies import (
-            MeanReversionStrategy,
-            MomentumStrategy,
-        )
-
-        settings = get_settings()
-        symbols = list(getattr(settings, "instruments", ()) or ()) or [
-            "BTC/USDT", "ETH/USDT", "SOL/USDT",
-        ]
-
-        client = OKXClient({
-            "api_key": "", "api_secret": "",
-            "sandbox": False, "enabled": True, "rate_limit_qps": 5,
-        })
-        await client.initialize()
-        history = {}
-        try:
-            for symbol in symbols:
-                bars = await fetch_historical_candles(
-                    client=client,
-                    symbol=symbol.replace("/", "-"),
-                    timeframe="1h",
-                    lookback_days=21,
-                )
-                for bar in bars:
-                    bar.symbol = symbol
-                history[symbol] = bars
-        finally:
-            await client.close()
-
-        plan = await build_daily_plan(
-            history=history,
-            strategies=[MomentumStrategy(), MeanReversionStrategy()],
-            min_ml_probability=min_ml_probability,
-            min_rr=min_rr,
-            top_k=top_k,
-        )
-        return {
-            "count": len(plan),
-            "plan": [t.to_dict() for t in plan],
-            "text": format_plan(plan),
-        }
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
 
 class AstraBot:
 

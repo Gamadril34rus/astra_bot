@@ -272,10 +272,19 @@ class SelfPlayConfig:
     # аварийной остановкой по просадке тут только считает статистику.
     ignore_risk_limits: bool = True
     # Если обученная weekly-модель существует, взвешивать её решение:
-    # входить в сделку, если win-probability >= этого порога. На этапе
-    # холодного старта модель слабая, поэтому порог по умолчанию 0.50.
-    # После набора >1000 уроков скрипт learning_week поднимает его до 0.55.
-    ml_min_probability: float = 0.50
+    # входить в сделку, если win-probability >= этого порога. 0.60
+    # отсекает все слабые сетапы и нацеливает бота на положительное EV.
+    ml_min_probability: float = 0.60
+    # Защита от слива депозита: если от пика капитала просадка больше
+    # этого процента, бот прекращает новые входы до восстановления.
+    max_drawdown_pct: float = 15.0
+    # Останавливать дневную сессию после этого процента убытка за день.
+    daily_loss_limit_pct: float = 3.0
+    # Забирать прибыль, когда позиция дала этот процент от номинала,
+    # даже если тейк не сработал (трейлинг-фактор на краткосроке).
+    take_profit_early_pct: float = 1.5
+    # Минимальный ожидаемый выигрыш в R, чтобы войти.
+    min_expected_r: float = 0.4
     model_path: Path = field(default_factory=lambda: Path("models/current.pkl"))
     lessons_output: Path = field(
         default_factory=lambda: Path("models/lessons.jsonl")
@@ -500,6 +509,11 @@ class SelfPlayEngine:
         """Пройти future_bars и определить цену закрытия (SL/TP/таймаут)."""
         exit_price = entry_price
         exit_ts = entry_ts
+        early_take = entry_price * (
+            Decimal("1") + Decimal(str(self.config.take_profit_early_pct)) / Decimal("100")
+        ) if direction == "long" else entry_price * (
+            Decimal("1") - Decimal(str(self.config.take_profit_early_pct)) / Decimal("100")
+        )
         for bar in future_bars[: self.config.max_holding_bars]:
             if direction == "long":
                 if bar.low <= stop_loss:
@@ -510,6 +524,12 @@ class SelfPlayEngine:
                     exit_price = take_profit
                     exit_ts = bar.open_time
                     break
+                # Ранняя фиксация прибыли на краткосроке: если рынок
+                # дал take_profit_early_pct, выходим, не дожидаясь TP.
+                if bar.high >= early_take:
+                    exit_price = early_take
+                    exit_ts = bar.open_time
+                    break
             else:
                 if bar.high >= stop_loss:
                     exit_price = stop_loss
@@ -517,6 +537,10 @@ class SelfPlayEngine:
                     break
                 if bar.low <= take_profit:
                     exit_price = take_profit
+                    exit_ts = bar.open_time
+                    break
+                if bar.low <= early_take:
+                    exit_price = early_take
                     exit_ts = bar.open_time
                     break
         else:
@@ -630,6 +654,10 @@ class SelfPlayEngine:
         started_learning = False
         message = "Недостаточно данных для целевого обучения"
 
+        # Суточный трекер просадки и стартовый капитал на день.
+        peak_equity = float(self._equity)
+        day_start_equity = float(self._equity)
+
         # Индекс: symbol -> {open_time -> позиция в списке}.
         index = {
             sym: {c.open_time: i for i, c in enumerate(bars)}
@@ -640,6 +668,32 @@ class SelfPlayEngine:
             # Пропускаем первые 200 баров как «прогрев» индикаторов.
             if step < 200:
                 continue
+
+            # Защита капитала: не открываем новые сделки, если общая
+            # просадка от пика превысила лимит или за день потеряли
+            # больше daily_loss_limit_pct.
+            equity_float = float(self._equity)
+            peak_equity = max(peak_equity, equity_float)
+            drawdown_pct = (
+                (peak_equity - equity_float) / peak_equity * 100
+                if peak_equity else 0.0
+            )
+            day_pnl_pct = (
+                (equity_float - day_start_equity) / day_start_equity * 100
+                if day_start_equity else 0.0
+            )
+            if drawdown_pct >= self.config.max_drawdown_pct:
+                logger.warning(
+                    "Стоп-торговля: просадка %.2f%% >= %.2f%%",
+                    drawdown_pct, self.config.max_drawdown_pct,
+                )
+                break
+            if day_pnl_pct <= -self.config.daily_loss_limit_pct:
+                logger.warning(
+                    "Дневной лимит потерь %.2f%% достигнут — пауза",
+                    self.config.daily_loss_limit_pct,
+                )
+                break
 
             # Кросс-рыночный снимок: доходности остальных инструментов
             # за последний бар. Используется только информация ДО ставки.
