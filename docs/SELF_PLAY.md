@@ -97,3 +97,50 @@ python scripts/self_play.py --days 365 --target-trades 3000
   (`HOLD_WINNER`, `SKIP_HIGH_VOLATILITY`, `WIDEN_STOP_LOSS`...).
 
 Эти поля потом попадают в тренировочный датасет LightGBM.
+
+## План на ближайшие 24 часа
+
+`astra_bot/ml/daily_plan.py` каждое утро строит торговый shortlist:
+
+* запрашивает сигналы у momentum/mean-reversion по всем инструментам;
+* прогоняет их через `models/current.pkl`;
+* оставляет только сделки с `P(win) >= min_ml_probability` (по умолчанию 0.58)
+  и `R:R >= min_rr` (1.2);
+* сортирует по expected value и возвращает топ-5.
+
+Использование:
+
+```bash
+# Из CLI после запуска self-play и обучения:
+python -m astra_bot.scripts_daily_plan
+
+# Через веб:
+curl 'http://localhost:8000/plan?min_ml_probability=0.6&top_k=5'
+
+# В Telegram:
+/plan          # или кнопка «📋 План»
+```
+
+Пример вывода:
+
+```
+📋 План на ближайшие 24 часа — 1 сделок:
+
+*1. BTC/USDT* — 🟢 Лонг (momentum)
+  Вход: 50 000.00
+  Стоп: 49 500.00 / Тейк: 51 000.00
+  R:R = 2.00, ML win = 65%
+  EV = +650.00, режим: BULL_TREND
+  Причина: ML win prob 65%
+```
+
+Если моделей ещё нет, план выдаёт только стратегии с уверенностью >= 0.6
+и помечает это как решение «без ML». Когда модель плохая или рынок без
+чётких сетапов — бот отвечает «сделок нет, лучше побыть вне рынка».
+
+## Версии моделей
+
+`MLModel.save(path, version=...)` и `MLModel.load` теперь сохраняют и
+читают строку версии и `saved_at`. Weekly-learner проставляет
+`ML-weekly-YYYYMMDD-HHMM`, поэтому в утреннем отчёте можно сравнивать,
+какая версия модели что предсказывала.
