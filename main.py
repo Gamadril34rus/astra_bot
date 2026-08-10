@@ -4,29 +4,26 @@ ASTRA BOT - Main Entry Point
 """
 
 import asyncio
-import logging
 import os
 import sys
-from datetime import datetime
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
-# Добавляем проект в путь
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
-from fastapi import FastAPI, HTTPException
+# Подстраховка для запуска `python main.py` из произвольной рабочей директории.
+PROJECT_ROOT = Path(__file__).resolve().parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from astra_bot.adapters.okx import OKXClient
 from astra_bot.core.config import get_settings, load_settings
-from astra_bot.core.events import get_event_bus
 from astra_bot.core.logger import get_component_logger, setup_logging
 from astra_bot.data.database import close_database, init_database
-from astra_bot.engines.execution_engine import get_execution_engine
-from astra_bot.engines.regime_detector import get_regime_detector
 from astra_bot.engines.risk_engine import get_risk_engine
 from astra_bot.paperengine.paper_engine import PaperTradingEngine
 from astra_bot.strategies import MeanReversionStrategy, MomentumStrategy
+from fastapi import FastAPI, HTTPException
 
 # Инициализация логирования в /tmp/logs (допустимо для записи на Render)
 log_dir = "/tmp/logs"
@@ -35,20 +32,28 @@ setup_logging(level=os.environ.get("LOG_LEVEL", "INFO"), log_dir=log_dir)
 
 logger = get_component_logger("main")
 
-# FastAPI приложение
-app = FastAPI(title="ASTRA BOT", version="1.0.0")
-
 # Глобальные переменные
 _bot_instance = None
 
 
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    """Управление жизненным циклом FastAPI-приложения."""
     global _bot_instance
     logger.info("FastAPI startup...")
     _bot_instance = AstraBot()
-    await _bot_instance.initialize()
-    logger.info("ASTRA BOT ready")
+    try:
+        await _bot_instance.initialize()
+        logger.info("ASTRA BOT ready")
+        yield
+    finally:
+        if _bot_instance is not None:
+            await _bot_instance.stop()
+        logger.info("ASTRA BOT shut down")
+
+
+# FastAPI приложение
+app = FastAPI(title="ASTRA BOT", version="1.0.0", lifespan=lifespan)
 
 
 @app.get("/")
@@ -58,12 +63,12 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "healthy", "timestamp": datetime.now(UTC).isoformat()}
 
 
 @app.get("/ping")
 async def ping():
-    return {"pong": True, "timestamp": datetime.utcnow().isoformat()}
+    return {"pong": True, "timestamp": datetime.now(UTC).isoformat()}
 
 
 @app.get("/tick")
@@ -95,7 +100,11 @@ class AstraBot:
         self._running = False
 
     async def initialize(self):
-        settings = get_settings()
+        try:
+            settings = get_settings()
+        except RuntimeError:
+            # Настройки ещё не загружены — подхватываем дефолтный конфиг.
+            settings = load_settings()
         self.config = settings
 
         # Инициализация Risk Engine
@@ -118,24 +127,22 @@ class AstraBot:
             except Exception as e:
                 logger.warning(f"Database not available: {e}")
 
-        # Exchange
-        if "okx" in settings.exchanges and settings.exchanges["okx"].get(
-            "enabled", False
-        ):
-            okx_config = settings.exchanges["okx"]
-            if okx_config.api_key and okx_config.api_secret:
-                config_dict = {
-                    "api_key": okx_config.api_key,
-                    "api_secret": okx_config.api_secret,
-                    "passphrase": okx_config.passphrase,
-                    "sandbox": True,
-                    "enabled": True,
-                }
-                self._exchange_client = OKXClient(config_dict)
-                try:
-                    await self._exchange_client.initialize()
-                except Exception as e:
-                    logger.warning(f"Exchange init failed: {e}")
+        # Exchange. ``settings.exchanges[name]`` — это ExchangeConfig, а не
+        # словарь, поэтому обращаемся к атрибутам напрямую.
+        okx_config = settings.exchanges.get("okx") if settings.exchanges else None
+        if okx_config and okx_config.enabled and okx_config.api_key and okx_config.api_secret:
+            config_dict = {
+                "api_key": okx_config.api_key,
+                "api_secret": okx_config.api_secret,
+                "passphrase": okx_config.passphrase,
+                "sandbox": okx_config.sandbox,
+                "enabled": True,
+            }
+            self._exchange_client = OKXClient(config_dict)
+            try:
+                await self._exchange_client.initialize()
+            except Exception as e:
+                logger.warning(f"Exchange init failed: {e}")
 
         # Paper engine
         self._paper_engine = PaperTradingEngine(
@@ -161,12 +168,11 @@ class AstraBot:
                 if self._paper_engine
                 else "1000"
             ),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         }
 
     async def run_one_iteration(self):
         try:
-            settings = get_settings()
             current_equity = (
                 self._paper_engine.account.equity
                 if self._paper_engine
@@ -181,7 +187,7 @@ class AstraBot:
 
             return {
                 "status": "ok",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "equity": str(current_equity),
                 "iteration": "completed",
             }
@@ -190,7 +196,7 @@ class AstraBot:
             return {
                 "status": "error",
                 "error": str(e),
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
 
     async def start(self):

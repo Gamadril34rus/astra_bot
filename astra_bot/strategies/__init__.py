@@ -2,16 +2,16 @@
 ASTRA BOT — Trading Strategies
 """
 
-from .base import BaseStrategy, StrategyConfig, Signal
-from .momentum import MomentumStrategy
-from .mean_reversion import MeanReversionStrategy
 from .adaptive_grid import AdaptiveGridStrategy
+from .base import BaseStrategy, Signal, StrategyConfig
+from .mean_reversion import MeanReversionStrategy
+from .momentum import MomentumStrategy
 
 __all__ = [
-    "BaseStrategy",
-    "StrategyConfig",
-    "Signal",
-    "MomentumStrategy",
-    "MeanReversionStrategy",
     "AdaptiveGridStrategy",
+    "BaseStrategy",
+    "MeanReversionStrategy",
+    "MomentumStrategy",
+    "Signal",
+    "StrategyConfig",
 ]

@@ -21,10 +21,10 @@ numpy>=1.26
 pandas>=2.2
 polars>=0.20
 
-# ML (опционально — не включать в продакшене если не нужно)
-# lightgbm>=4.0
+# ML (опционально). Раскомментируйте при включении auto-train/predictor:
+scikit-learn>=1.4
+lightgbm>=4.0
 # xgboost>=2.0
-# scikit-learn>=1.4
 
 # Telegram
 python-telegram-bot>=20.0
