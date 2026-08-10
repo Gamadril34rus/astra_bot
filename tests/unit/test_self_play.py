@@ -10,7 +10,9 @@ from astra_bot.ml.self_play import (
     SelfPlayConfig,
     SelfPlayEngine,
     _classify_regime,
+    _counterfactual,
     _feature_snapshot,
+    _influencing_factor,
     _recommend,
 )
 
@@ -67,8 +69,23 @@ def test_feature_snapshot_has_expected_keys():
         "rsi",
         "volume_ratio",
         "confidence",
+        "cross_btc_1h",
+        "cross_eth_1h",
+        "cross_sol_1h",
     ]:
         assert key in feats
+
+
+def test_counterfactual_and_influencing_factor():
+    feats = {
+        "atr_pct": 5.0,
+        "volume_ratio": 1.0,
+        "return_24h": 0.0,
+        "rsi": 50.0,
+        "cross_btc_1h": 0.0,
+    }
+    assert _influencing_factor(feats, "loss") == "ATR_SPIKE"
+    assert "Не входить" in _counterfactual("loss", "long", feats)
 
 
 def test_recommend_skips_high_volatility_on_loss():

@@ -83,6 +83,19 @@ def build_report_from_lessons() -> LearningReport:
         if peak > 0:
             max_dd = max(max_dd, (peak - equity) / peak * 100.0)
 
+    by_symbol: dict[str, dict[str, float]] = {}
+    for row in lessons:
+        sym = row.get("symbol", "UNKNOWN")
+        bucket = by_symbol.setdefault(sym, {"trades": 0, "wins": 0, "pnl": 0.0})
+        bucket["trades"] += 1
+        if row.get("outcome") == "win":
+            bucket["wins"] += 1
+        bucket["pnl"] += float(row.get("pnl", 0.0))
+    for bucket in by_symbol.values():
+        bucket["win_rate"] = (
+            bucket["wins"] / bucket["trades"] * 100 if bucket["trades"] else 0.0
+        )
+
     return LearningReport(
         total_trades=len(lessons),
         wins=wins,
@@ -96,6 +109,7 @@ def build_report_from_lessons() -> LearningReport:
         lessons_path=LESSONS_PATH,
         started_learning=len(lessons) >= 2000,
         message=f"Зафиксировано {len(lessons)} виртуальных сделок",
+        by_symbol=by_symbol,
     )
 
 

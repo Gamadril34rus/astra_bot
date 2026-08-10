@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+@dataclass
 class Lesson:
     """Разбор одной виртуальной сделки."""
 
@@ -54,9 +55,15 @@ class Lesson:
     confidence: float
     features: dict[str, float]
     market_regime: str
+    # Имелся ли новостной всплеск волатильности перед ставкой.
+    news_impulse: bool
+    # Что повлияло на исход (ATR_SPIKE, LOW_VOLUME, RSI_OVERBOUGHT, ...).
+    influencing_factor: str
+    # Как следовало бы поставить с точки зрения пост-фактума.
+    counterfactual: str
     # Краткий вывод, что улучшить в будущем.
     takeaway: str
-    # Что бы изменило решение (STOP_LOSS_WIDER, SKIP_RSI_OVERBOUGHT, ...).
+    # Что бы изменило решение (SKIP_HIGH_VOLATILITY, WIDEN_STOP, ...).
     recommendation: str
 
 
@@ -76,6 +83,9 @@ class LearningReport:
     lessons_path: Path
     started_learning: bool
     message: str
+    # PnL и win-rate в разбивке по инструментам и стратегиям.
+    by_symbol: dict[str, dict[str, float]] = field(default_factory=dict)
+    by_recommendation: dict[str, int] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -112,8 +122,14 @@ def _classify_regime(candles: list[models.Candle]) -> str:
 def _feature_snapshot(
     strategy: BaseStrategy,
     candles: list[models.Candle],
+    cross_snapshot: dict[str, float] | None = None,
 ) -> dict[str, float]:
-    """Признаки, доступные на момент сделки (никакого будущего)."""
+    """Признаки, доступные на момент сделки (никакого будущего).
+
+    ``cross_snapshot`` содержит доходности остальных инструментов на тот
+    же момент — чтобы модель видела общий рыночный фон и «смотрела график
+    по всем инструментам», как просили в ТЗ.
+    """
     closes = [float(c.close) for c in candles]
     volumes = [float(c.volume) for c in candles]
     highs = [float(c.high) for c in candles]
@@ -125,7 +141,7 @@ def _feature_snapshot(
     rsi = calculate_rsi(closes, period=14) or 50.0
     avg_vol = sum(volumes[-20:]) / 20 if len(volumes) >= 20 else 1.0
 
-    return {
+    features = {
         "return_1h": (closes[-1] / closes[-2] - 1) if len(closes) > 2 and closes[-2] else 0.0,
         "return_4h": (closes[-1] / closes[-5] - 1) if len(closes) > 5 and closes[-5] else 0.0,
         "return_24h": (closes[-1] / closes[-25] - 1) if len(closes) > 25 and closes[-25] else 0.0,
@@ -136,6 +152,52 @@ def _feature_snapshot(
         "confidence": float(getattr(strategy, "last_confidence", 0.0)),
     }
 
+    cross = cross_snapshot or {}
+    features["cross_btc_1h"] = float(cross.get("BTC/USDT_1h", 0.0))
+    features["cross_eth_1h"] = float(cross.get("ETH/USDT_1h", 0.0))
+    features["cross_sol_1h"] = float(cross.get("SOL/USDT_1h", 0.0))
+    return features
+
+
+def _influencing_factor(features: dict[str, float], outcome: str) -> str:
+    """Короткая подпись «что повлияло на исход»."""
+    if features["atr_pct"] > 3.0:
+        return "ATR_SPIKE"
+    if features["volume_ratio"] > 1.8:
+        return "VOLUME_SURGE"
+    if features["rsi"] >= 70:
+        return "RSI_OVERBOUGHT"
+    if features["rsi"] <= 30:
+        return "RSI_OVERSOLD"
+    if abs(features.get("cross_btc_1h", 0.0)) > 0.02:
+        return "BTC_MOVED_MARKET"
+    if outcome == "win":
+        return "TREND_CONFIRMED"
+    return "NO_STRONG_CATALYST"
+
+
+def _counterfactual(
+    outcome: str,
+    direction: str,
+    features: dict[str, float],
+) -> str:
+    """«Как следовало бы поставить» (пост-фактум)."""
+    if outcome == "win":
+        return f"Действие верное: держать {direction.upper()} до TP"
+    # Убыток — предлагаем обратное/улучшение.
+    if features["atr_pct"] > 3.0:
+        return "Не входить в новостной волатильности или ждать сужения ATR"
+    if direction == "long" and features["return_24h"] < -0.02:
+        return "Шорт вместо лонга — рынок падал"
+    if direction == "short" and features["return_24h"] > 0.02:
+        return "Лонг вместо шорта — рынок рос"
+    if features["rsi"] >= 70:
+        return "Пропустить перекупленность"
+    if features["rsi"] <= 30:
+        return "Пропустить перепроданность"
+    opposite = "short" if direction == "long" else "long"
+    return f"Вероятно, стоило пойти {opposite}"
+
 
 def _recommend(
     outcome: str,
@@ -143,12 +205,13 @@ def _recommend(
     direction: str,
 ) -> str:
     """Подсказка для модели: что стоило бы сделать иначе."""
+    atr_pct = features.get("atr_pct", 0.0)
     if outcome == "win":
         if features["rsi"] >= 65 and direction == "long":
             return "EXIT_EARLY_OVERBOUGHT"
         return "HOLD_WINNER"
     # Убыток
-    if features["atr_pct"] > 4.0:
+    if atr_pct > 3.0:
         return "SKIP_HIGH_VOLATILITY"
     if features["volume_ratio"] < 0.7:
         return "SKIP_LOW_VOLUME"
@@ -161,6 +224,20 @@ def _recommend(
     if features["rsi"] <= 30:
         return "SKIP_RSI_OVERSOLD"
     return "WIDEN_STOP_LOSS"
+
+
+def news_impulse(candles: list[models.Candle], lookback: int = 6) -> bool:
+    """Определить новостной импульс: большой бар на аномальном объёме."""
+    if len(candles) < lookback + 1:
+        return False
+    recent = candles[-1]
+    window = candles[-lookback - 1 : -1]
+    avg_range = sum(
+        (float(c.high) - float(c.low)) / float(c.close or 1.0) for c in window
+    ) / len(window)
+    cur_range = (float(recent.high) - float(recent.low)) / float(recent.close or 1.0)
+    avg_vol = sum(float(c.volume) for c in window) / len(window)
+    return cur_range > avg_range * 2.0 and float(recent.volume) > avg_vol * 1.8
 
 
 def _takeaway(lesson: Lesson) -> str:
@@ -451,6 +528,9 @@ class SelfPlayEngine:
             confidence=confidence,
             features=features,
             market_regime=regime,
+            news_impulse=features.get("atr_pct", 0.0) > 3.0,
+            influencing_factor=_influencing_factor(features, outcome),
+            counterfactual=_counterfactual(outcome, direction, features),
             takeaway="",
             recommendation=recommendation,
         )
@@ -490,16 +570,43 @@ class SelfPlayEngine:
         started_learning = False
         message = "Недостаточно данных для целевого обучения"
 
+        # Индекс: symbol -> {open_time -> позиция в списке}.
+        index = {
+            sym: {c.open_time: i for i, c in enumerate(bars)}
+            for sym, bars in history.items()
+        }
+
         for step, ts in enumerate(timestamps):
             # Пропускаем первые 200 баров как «прогрев» индикаторов.
             if step < 200:
                 continue
 
-            for symbol, candles in history.items():
-                idx = next(
-                    (i for i, c in enumerate(candles) if c.open_time == ts),
-                    None,
+            # Кросс-рыночный снимок: доходности остальных инструментов
+            # за последний бар. Используется только информация ДО ставки.
+            cross_snapshot: dict[str, float] = {}
+            for sym, bars in history.items():
+                pos = index[sym].get(ts)
+                if pos is None or pos < 2:
+                    continue
+                prev_close = float(bars[pos - 1].close)
+                cur_close = float(bars[pos].close)
+                cross_snapshot[f"{sym}_1h"] = (
+                    cur_close / prev_close - 1 if prev_close else 0.0
                 )
+
+            # Считаем лучший потенциальный сигнал среди инструментов —
+            # бот «смотрит график по всем инструментам» и выбирает, куда
+            # выгоднее поставить.
+            best_signal: models.Signal | None = None
+            best_strat: BaseStrategy | None = None
+            best_symbol = None
+            best_window = None
+            best_future = None
+            best_regime = None
+            best_features: dict[str, float] = {}
+
+            for symbol, candles in history.items():
+                idx = index[symbol].get(ts)
                 if idx is None or idx < 200:
                     continue
                 window = candles[: idx + 1]
@@ -508,9 +615,9 @@ class SelfPlayEngine:
                     continue
 
                 regime = _classify_regime(window)
-                best_signal: models.Signal | None = None
-                best_strat: BaseStrategy | None = None
 
+                signal_candidate: models.Signal | None = None
+                strat_candidate: BaseStrategy | None = None
                 for strategy in self.strategies:
                     try:
                         signal = await strategy.evaluate(
@@ -523,54 +630,73 @@ class SelfPlayEngine:
                         logger.debug("Strategy %s error: %s", strategy.name, exc)
                         continue
                     if signal and signal.risk_reward_ratio >= self.config.min_rr:
-                        if best_signal is None or signal.confidence > best_signal.confidence:
-                            best_signal = signal
-                            best_strat = strategy
+                        if (
+                            signal_candidate is None
+                            or signal.confidence > signal_candidate.confidence
+                        ):
+                            signal_candidate = signal
+                            strat_candidate = strategy
 
-                if not best_signal or not best_strat:
-                    continue
-
-                # Размер позиции: фиксированная доля от НАЧАЛЬНОГО капитала.
-                # Это позволяет пережить серию стопов и набрать 2-5k уроков.
-                notional = (
-                    Decimal(str(self.config.initial_capital))
-                    * self.config.position_fraction
-                )
-                quantity = notional / best_signal.entry_price
-                if quantity <= 0:
-                    continue
-
-                # Risk-engine в режиме ignore_risk_limits ведёт только
-                # статистику; иначе дополнительно проверяем лимиты.
-                if not self.config.ignore_risk_limits:
-                    check = self.risk.check_trade(
-                        symbol=symbol,
-                        side=best_signal.direction.value,
-                        entry_price=best_signal.entry_price,
-                        stop_loss=best_signal.stop_loss,
-                        take_profit=best_signal.take_profit,
-                        proposed_size=quantity,
+                # Выбираем самый уверенный сигнал по всем инструментам.
+                if signal_candidate and strat_candidate and (
+                    best_signal is None
+                    or signal_candidate.confidence > best_signal.confidence
+                ):
+                    best_signal = signal_candidate
+                    best_strat = strat_candidate
+                    best_symbol = symbol
+                    best_window = window
+                    best_future = future
+                    best_regime = regime
+                    best_features = _feature_snapshot(
+                        strat_candidate, window, cross_snapshot
                     )
-                    if not check.approved:
-                        continue
 
-                features = _feature_snapshot(best_strat, window)
-                trade_id = str(uuid.uuid4())
-                self._close_trade(
-                    trade_id=trade_id,
-                    symbol=symbol,
-                    direction=best_signal.direction.value,
+            if not best_signal or not best_strat:
+                continue
+
+            # Пропускаем сделки, если прямо сейчас новостной импульс —
+            # боту выгоднее подождать, а не входить в раздёрганный рынок.
+            if news_impulse(best_window):
+                continue
+
+            # Размер позиции: фиксированная доля от НАЧАЛЬНОГО капитала.
+            notional = (
+                Decimal(str(self.config.initial_capital))
+                * self.config.position_fraction
+            )
+            quantity = notional / best_signal.entry_price
+            if quantity <= 0:
+                continue
+
+            if not self.config.ignore_risk_limits:
+                check = self.risk.check_trade(
+                    symbol=best_symbol,
+                    side=best_signal.direction.value,
                     entry_price=best_signal.entry_price,
                     stop_loss=best_signal.stop_loss,
                     take_profit=best_signal.take_profit,
-                    quantity=quantity,
-                    future_bars=future,
-                    strategy=best_strat,
-                    features=features,
-                    regime=regime,
-                    confidence=float(best_signal.confidence),
-                    entry_ts=ts,
+                    proposed_size=quantity,
                 )
+                if not check.approved:
+                    continue
+
+            trade_id = str(uuid.uuid4())
+            self._close_trade(
+                trade_id=trade_id,
+                symbol=best_symbol,
+                direction=best_signal.direction.value,
+                entry_price=best_signal.entry_price,
+                stop_loss=best_signal.stop_loss,
+                take_profit=best_signal.take_profit,
+                quantity=quantity,
+                future_bars=best_future,
+                strategy=best_strat,
+                features=best_features,
+                regime=best_regime,
+                confidence=float(best_signal.confidence),
+                entry_ts=ts,
+            )
 
             # Прерываем, если набрали целевое число сделок.
             if len(self.lessons) >= self.config.target_trades:
@@ -624,6 +750,27 @@ class SelfPlayEngine:
         std_r = (sum((r - mean_r) ** 2 for r in returns) / len(returns)) ** 0.5
         sharpe = mean_r / std_r if std_r else 0.0
 
+        # Статистика по инструментам — бот видит, на чём выгоднее было.
+        by_symbol: dict[str, dict[str, float]] = {}
+        for lesson in self.lessons:
+            bucket = by_symbol.setdefault(
+                lesson.symbol,
+                {"trades": 0, "wins": 0, "pnl": 0.0},
+            )
+            bucket["trades"] += 1
+            bucket["wins"] += 1 if lesson.outcome == "win" else 0
+            bucket["pnl"] += float(lesson.pnl)
+        for stats in by_symbol.values():
+            stats["win_rate"] = (
+                stats["wins"] / stats["trades"] * 100 if stats["trades"] else 0.0
+            )
+
+        by_recommendation: dict[str, int] = {}
+        for lesson in self.lessons:
+            by_recommendation[lesson.recommendation] = (
+                by_recommendation.get(lesson.recommendation, 0) + 1
+            )
+
         return LearningReport(
             total_trades=len(self.lessons),
             wins=wins,
@@ -637,6 +784,8 @@ class SelfPlayEngine:
             lessons_path=self.config.lessons_output,
             started_learning=started_learning,
             message=message,
+            by_symbol=by_symbol,
+            by_recommendation=by_recommendation,
         )
 
     def _save_lessons(self) -> None:
@@ -651,7 +800,7 @@ class SelfPlayEngine:
 def format_daily_report(report: LearningReport) -> str:
     """Человекочитаемый отчёт для Telegram."""
     pnl_icon = "🟢" if report.total_pnl >= 0 else "🔴"
-    return (
+    body = (
         "🎓 *ОТЧЁТ ОБ ОБУЧЕНИИ*\n\n"
         f"*Виртуальный капитал:* {report.final_equity:,.2f} ₽\n"
         f"*Сделок:* {report.total_trades} "
@@ -661,6 +810,19 @@ def format_daily_report(report: LearningReport) -> str:
         f"{pnl_icon} *PnL:* {report.total_pnl:+,.2f} ₽\n"
         f"*Макс. просадка:* {report.max_drawdown_pct:.2f}%\n"
         f"*Sharpe:* {report.sharpe:.2f}\n\n"
+    )
+    if report.by_symbol:
+        body += "*По инструментам:*\n"
+        for symbol, stats in sorted(
+            report.by_symbol.items(), key=lambda kv: kv[1]["pnl"], reverse=True
+        ):
+            body += (
+                f"  {symbol}: {stats['pnl']:+,.0f} ₽, "
+                f"{stats['win_rate']:.0f}% побед ({int(stats['trades'])})\n"
+            )
+        body += "\n"
+    body += (
         f"📝 {report.message}\n"
         f"🧠 Уроки сохранены: `{report.lessons_path}`"
     )
+    return body
