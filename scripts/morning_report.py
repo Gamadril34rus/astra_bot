@@ -113,6 +113,24 @@ def build_report_from_lessons() -> LearningReport:
     )
 
 
+def load_latest_model_metrics(model_path: Path = Path("models/current.pkl")) -> dict:
+    """Достать AUC/accuracy из последней сохранённой модели."""
+    if not model_path.exists():
+        return {"version": "не обучена", "auc": 0.0, "accuracy": 0.0, "n": 0}
+    try:
+        from astra_bot.ml.model_trainer import MLModel
+
+        m = MLModel.load(str(model_path))
+        return {
+            "version": m.config.model_type if m.config else "unknown",
+            "auc": float(getattr(m.metrics, "roc_auc", 0.0) or 0.0),
+            "accuracy": float(getattr(m.metrics, "accuracy", 0.0) or 0.0),
+            "n": int(getattr(m.metrics, "n_samples", 0) or 0),
+        }
+    except Exception:
+        return {"version": "не загрузилась", "auc": 0.0, "accuracy": 0.0, "n": 0}
+
+
 async def send_to_telegram(text: str) -> None:
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     admin_raw = os.environ.get("TELEGRAM_ADMIN_ID", "")
@@ -136,6 +154,14 @@ def main() -> None:
     now = datetime.now(tz=MOSCOW_TZ).strftime("%d.%m.%Y %H:%M")
     report = build_report_from_lessons()
     body = format_daily_report(report)
+    model = load_latest_model_metrics()
+    if model["version"] not in {"не обучена", "не загрузилась"}:
+        body += (
+            f"\n\n🧠 *Модель:* {model['version']}\n"
+            f"   AUC={model['auc']:.3f}, accuracy={model['accuracy']:.3f}"
+        )
+    else:
+        body += "\n\n🧠 Модель пока не обучена — иду уроки."
     text = f"☀️ *Утренний отчёт* — {now} МСК\n\n{body}"
     print(text)
     asyncio.run(send_to_telegram(text))

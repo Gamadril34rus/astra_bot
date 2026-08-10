@@ -90,8 +90,6 @@ class AstraTelegramBot:
         self._bot: Bot | None = None
         self._application: Application | None = None
         self._running = False
-
-        # Режим счёта и флаг подтверждения реальной торговли.
         self.account_mode: str = "paper"
         self.real_trading_confirmed: bool = False
 
@@ -436,30 +434,55 @@ class AstraTelegramBot:
         logger.info("Trading resumed by user %s", update.effective_user.id)
 
     async def _cmd_train(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Команда /train — запустить walk-forward самообучение."""
+        """Команда /train — self-play + переобучение модели."""
         if not self._is_admin(update.effective_user.id):
             await update.message.reply_text(
                 "❌ Запускать обучение может только администратор"
             )
             return
+        args = context.args or []
+        offline = any(a.startswith("--offline") for a in args)
+        bars = 3000
+        for a in args:
+            if a.startswith("--bars="):
+                try:
+                    bars = int(a.split("=", 1)[1])
+                except ValueError:
+                    pass
+
         await update.message.reply_text(
-            "🎓 Запускаю самообучение на годе истории…\n"
-            "Это займёт несколько минут. После завершения пришлю отчёт."
+            f"🎓 Запускаю self-play ({bars} баров)…\n"
+            "После прохода переобучу LightGBM и пришлю отчёт."
         )
         try:
             from decimal import Decimal
 
-            from ..ml.self_play import SelfPlayConfig, SelfPlayEngine, format_daily_report
+            from ..ml.self_play import (
+                SelfPlayConfig,
+                SelfPlayEngine,
+                format_daily_report,
+            )
+            from ..ml.weekly_learner import train_weekly
 
             engine = SelfPlayEngine(
                 SelfPlayConfig(initial_capital=Decimal("2000"))
             )
-            report = await engine.run(offline_bars=3000)
-            await update.message.reply_text(
-                format_daily_report(report), parse_mode="Markdown"
-            )
+            # Без --offline пытаемся тянуть с OKX (публичный API, без ключей).
+            report = await engine.run(offline_bars=bars if offline else 0)
+            training = train_weekly(min_samples=100)
+            text = format_daily_report(report)
+            if training.trained:
+                text += (
+                    f"\n\n🧠 *Модель:* {training.version}\n"
+                    f"   AUC={training.roc_auc:.3f}, "
+                    f"accuracy={training.accuracy:.3f}, "
+                    f"win-rate={training.positive_rate*100:.1f}%"
+                )
+            else:
+                text += f"\n\n🧠 {training.message}"
+            await update.message.reply_text(text, parse_mode="Markdown")
         except Exception as exc:
-            logger.exception("Self-play training failed")
+            logger.exception("Training command failed")
             await update.message.reply_text(f"❌ Ошибка обучения: {exc}")
 
     # --------------------------------------------------------------- /text

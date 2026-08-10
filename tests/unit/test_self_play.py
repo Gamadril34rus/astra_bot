@@ -122,3 +122,39 @@ async def test_self_play_generates_lessons_without_lookahead():
     assert lesson.features["atr_pct"] != 0.0
     assert lesson.recommendation  # непустая подсказка
     assert lesson.outcome in {"win", "loss", "breakeven"}
+
+
+async def test_self_play_appends_to_existing_lessons(tmp_path):
+    """Повторный запуск не должен перетирать lessons.jsonl."""
+    lessons_path = tmp_path / "lessons.jsonl"
+    cfg1 = SelfPlayConfig(
+        target_trades=10,
+        max_holding_bars=6,
+        position_fraction=Decimal("0.05"),
+        lessons_output=lessons_path,
+    )
+    history = {
+        s: _make_candles(s, 1500, seed=i)
+        for i, s in enumerate(("BTC/USDT", "ETH/USDT", "SOL/USDT"))
+    }
+    e1 = SelfPlayEngine(cfg1)
+    # Без обучения и ML-фильтра первая сессия гарантированно набирает уроки.
+    r1 = await e1.run(history=history, append=False)
+    assert r1.total_trades >= 10
+    with open(lessons_path) as f:
+        first_count = sum(1 for _ in f)
+    assert first_count >= 10
+
+    cfg2 = SelfPlayConfig(
+        target_trades=20,
+        max_holding_bars=6,
+        position_fraction=Decimal("0.05"),
+        lessons_output=lessons_path,
+    )
+    e2 = SelfPlayEngine(cfg2)
+    r2 = await e2.run(history=history, append=True)
+    with open(lessons_path) as f:
+        second_count = sum(1 for _ in f)
+    # При append должны подтянуться старые уроки.
+    assert second_count >= first_count
+    assert r2.total_trades >= r1.total_trades

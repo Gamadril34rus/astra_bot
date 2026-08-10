@@ -590,8 +590,21 @@ class SelfPlayEngine:
         history: dict[str, list[models.Candle]] | None = None,
         client=None,
         offline_bars: int = 0,
+        append: bool = True,
     ) -> LearningReport:
-        """Запустить полный проход self-play."""
+        """Запустить полный проход self-play.
+
+        Если ``append=True`` (по умолчанию), уже накопленные уроки из
+        ``lessons.jsonl`` подгружаются перед проходом — за счёт этого
+        несколько ежедневных запусков складываются в один растущий
+        датасет, а не перезаписывают друг друга.
+        """
+        if append:
+            existing = self._load_existing_lessons()
+            self.lessons = existing + self.lessons
+            if existing:
+                logger.info("Подгружено %d ранее накопленных уроков", len(existing))
+
         if history is None:
             if offline_bars > 0:
                 history = self._generate_synthetic_history(offline_bars)
@@ -846,6 +859,24 @@ class SelfPlayEngine:
             for lesson in self.lessons:
                 f.write(json.dumps(asdict(lesson), ensure_ascii=False) + "\n")
         logger.info("Сохранено %d уроков в %s", len(self.lessons), path)
+
+    def _load_existing_lessons(self) -> list[Lesson]:
+        """Прочитать уже сохранённые уроки (для инкрементального запуска)."""
+        path = self.config.lessons_output
+        if not path.exists():
+            return []
+        loaded: list[Lesson] = []
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    data = json.loads(line)
+                    loaded.append(Lesson(**data))
+                except (TypeError, json.JSONDecodeError) as exc:
+                    logger.debug("Пропускаю битую строку урока: %s", exc)
+        return loaded
 
 
 def format_daily_report(report: LearningReport) -> str:
