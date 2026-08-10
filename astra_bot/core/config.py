@@ -269,10 +269,21 @@ class SystemConfig:
         # Telegram
         if "telegram" in data:
             tg_data = data["telegram"]
+            bot_token = tg_data.get("bot_token", "") or ""
+            # Если подстановка ${...} не была раскрыта (переменная не
+            # задана), считаем Telegram не настроенным.
+            if bot_token.startswith("${") or "your-" in bot_token.lower():
+                bot_token = ""
             config.telegram = TelegramConfig(
-                bot_token=tg_data.get("bot_token", ""),
-                allowed_user_ids=tg_data.get("allowed_user_ids", []),
-                admin_user_ids=tg_data.get("admin_user_ids", []),
+                bot_token=bot_token,
+                allowed_user_ids=[
+                    uid for uid in tg_data.get("allowed_user_ids", [])
+                    if not str(uid).startswith("${")
+                ],
+                admin_user_ids=[
+                    uid for uid in tg_data.get("admin_user_ids", [])
+                    if not str(uid).startswith("${")
+                ],
                 enable_alerts=tg_data.get("enable_alerts", True),
                 daily_report_time=tg_data.get("daily_report_time", "09:00"),
             )

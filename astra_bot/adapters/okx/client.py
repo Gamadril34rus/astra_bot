@@ -2,6 +2,7 @@
 ASTRA BOT — OKX REST API Client
 """
 
+import asyncio
 import hashlib
 import hmac
 import logging
@@ -12,6 +13,8 @@ from typing import Any
 
 import aiohttp
 
+from ...core.exceptions import ExchangeError
+from ...core.metrics import HTTP_REQUEST_LATENCY, HTTP_REQUESTS_TOTAL
 from ..base import (
     AccountBalance,
     Candle,
@@ -77,8 +80,38 @@ class OKXClient(ExchangeAdapter):
         self._rate_limit_remaining = 100
         self._rate_limit_reset = 0.0
 
+        # Client-side rate limiting (token bucket). OKX позволяет 20 req/2s
+        # для публичных эндпоинтов и отдельные лимиты для торговых; по
+        # умолчанию придерживаемся консервативных 10 req/s, значение можно
+        # переопределить через config.
+        self._rate_limit_qps = float(config.get("rate_limit_qps", 10))
+        self._rate_bucket = self._rate_limit_qps
+        self._rate_last = 0.0
+        self._rate_lock = asyncio.Lock()
+
         # Кэш инструментов
         self._instrument_cache: dict[str, Instrument] = {}
+
+    async def _acquire_rate_token(self) -> None:
+        """Забрать один токен из token bucket, при необходимости подождав."""
+        if self._rate_limit_qps <= 0:
+            return
+        async with self._rate_lock:
+            now = asyncio.get_event_loop().time()
+            if self._rate_last == 0.0:
+                self._rate_last = now
+            elapsed = now - self._rate_last
+            self._rate_last = now
+            self._rate_bucket = min(
+                self._rate_limit_qps,
+                self._rate_bucket + elapsed * self._rate_limit_qps,
+            )
+            if self._rate_bucket < 1.0:
+                wait = (1.0 - self._rate_bucket) / self._rate_limit_qps
+                await asyncio.sleep(wait)
+                self._rate_bucket = 0.0
+            else:
+                self._rate_bucket -= 1.0
 
     async def initialize(self):
         """Инициализация клиента"""
@@ -148,34 +181,61 @@ class OKXClient(ExchangeAdapter):
         else:
             headers = {"Content-Type": "application/json"}
 
+        if self._session is None:
+            raise RuntimeError("OKXClient is not initialized; call initialize() first")
+
+        await self._acquire_rate_token()
         try:
             start_time = time.time()
+            http_status = 0
 
             if method == "GET":
                 async with self._session.get(url, params=params, headers=headers) as resp:
-                    latency = (time.time() - start_time) * 1000
-                    self._last_latency = latency
+                    http_status = resp.status
+                    latency_s = time.time() - start_time
+                    self._last_latency = latency_s * 1000
                     data = await resp.json()
             elif method == "POST":
                 async with self._session.post(url, json=body, headers=headers) as resp:
-                    latency = (time.time() - start_time) * 1000
-                    self._last_latency = latency
+                    http_status = resp.status
+                    latency_s = time.time() - start_time
+                    self._last_latency = latency_s * 1000
                     data = await resp.json()
             else:
                 raise ValueError(f"Unsupported method: {method}")
+
+            HTTP_REQUEST_LATENCY.labels(
+                service="okx", endpoint=endpoint
+            ).observe(latency_s)
+            HTTP_REQUESTS_TOTAL.labels(
+                service="okx", method=method, endpoint=endpoint, status=str(http_status)
+            ).inc()
 
             # Проверка на ошибки API
             if data.get("code") != "0":
                 error_msg = data.get("msg", "Unknown error")
                 logger.error(f"OKX API error: {error_msg}, data: {data}")
-                raise Exception(f"OKX API error: {error_msg}")
+                HTTP_REQUESTS_TOTAL.labels(
+                    service="okx", method=method, endpoint=endpoint, status=f"api_{data.get('code')}"
+                ).inc()
+                raise ExchangeError(
+                    f"OKX API error: {error_msg}",
+                    exchange="okx",
+                    operation=endpoint,
+                )
 
             return data.get("data", [])
 
         except TimeoutError:
+            HTTP_REQUESTS_TOTAL.labels(
+                service="okx", method=method, endpoint=endpoint, status="timeout"
+            ).inc()
             logger.error(f"OKX API timeout: {endpoint}")
             raise
         except aiohttp.ClientError as e:
+            HTTP_REQUESTS_TOTAL.labels(
+                service="okx", method=method, endpoint=endpoint, status="client_error"
+            ).inc()
             logger.error(f"OKX API client error: {e}")
             raise
 
@@ -507,7 +567,7 @@ class OKXClient(ExchangeAdapter):
     ) -> Order:
         """Разместить ордер"""
         if not self.enabled:
-            raise Exception("Exchange is disabled")
+            raise ExchangeError("Exchange is disabled", exchange="okx", operation="place_order")
 
         # Валидация
         errors = self.validate_order(symbol, side, order_type, quantity, price)
@@ -552,7 +612,7 @@ class OKXClient(ExchangeAdapter):
                     created_at=datetime.utcnow(),
                 )
 
-            raise Exception("No response from OKX")
+            raise ExchangeError("No response from OKX", exchange="okx", operation="place_order")
 
         except Exception as e:
             logger.error(f"Error placing order: {e}")

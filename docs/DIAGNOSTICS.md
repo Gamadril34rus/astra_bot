@@ -32,16 +32,16 @@
 - устаревшие `@app.on_event` и `datetime.utcnow()`, пустой health-check
   Dockerfile, неработающие ссылки в README (`settings.yaml.example`).
 
-После правок: **119 тестов проходят успешно**, `ruff check .` —
+После правок: **139 тестов проходят успешно**, `ruff check .` —
 **All checks passed!**, web-приложение поднимается и отвечает на
-`/health`, `/status`, `/tick`.
+`/health`, `/status`, `/tick`, `/metrics`.
 
 ## 2. Метрики «до / после»
 
 | Метрика | До | После |
 | --- | --- | --- |
 | Падающие при импорте модули | `models.py`, `risk_engine.py`, `regime_detector.py`, `daily_report.py`, `data/database.py` | 0 |
-| `pytest` | не запускался (нет `sklearn`) | **119 passed** |
+| `pytest` | не запускался (нет `sklearn`) | **139 passed** |
 | `ruff check .` (errors) | 1455 | 0 (`All checks passed!`) |
 | Дубли директорий/конфигов | `data/` + `astra_bot/data/`, `config/` + `astra_bot/config/` | один источник |
 | Конфигурация инструментов качества | `pytest.ini`, нет `pyproject.toml` | `pyproject.toml` |
@@ -224,6 +224,43 @@ self._equity = self._equity + unrealized   # ❌
     (вынесены в per-file-ignores), но для ядра стоило бы ввести
     типизированные исключения из `astra_bot.core.exceptions` и логировать
     `exc_info=True` везде, где это критично.
+
+## 4a. Дополнительные улучшения (второй проход)
+
+После первичной фиксации критических багов сделан ещё один раунд улучшений:
+
+- **Prometheus-мониторинг.** Добавлен модуль `astra_bot/core/metrics.py` с
+  централизованным реестром метрик (счётчики/гэджи/гистограммы) и эндпоинт
+  `GET /metrics` в веб-приложении. Risk-engine экспортирует equity, drawdown,
+  число позиций, risk-state и решения risk-check; OKX-клиент экспортирует
+  латентность и количество запросов/ошибок по эндпоинтам.
+- **OKX rate-limiter.** В `OKXClient` встроен token-bucket (настраивается
+  через `rate_limit_qps`, по умолчанию 10 req/s), чтобы не упереться в
+  лимиты биржи; запросы к ещё не инициализированному клиенту получают
+  понятный `RuntimeError`.
+- **Реальная асинхронная БД.** `DatabaseManager` переведён на SQLAlchemy 2.x
+  async + asyncpg с пулом соединений и health-check. При недоступности базы
+  менеджер прозрачно работает в no-DB режиме (бот стартует), что удобно
+  для локальной разработки и free-tier Render. Поддерживается как
+  `DATABASE_URL`, так и отдельные `DB_*` переменные (URL нормализуется в
+  `postgresql+asyncpg://`).
+- **Контрактные тесты OKX-клиента** (`test_okx_client.py`): orderbook,
+  ticker, candles, обработка ошибок API и неинициализированной сессии.
+- **Конфиг/секреты:** добавлены тесты `_expand_env`, поддержка плоской
+  `trading`-секции и фильтрация нераскрытых `${...}` плейсхолдеров, чтобы
+  бот не пытался логиниться в Telegram с буквальным токеном `"${TELEGRAM_BOT_TOKEN}"`.
+- **Telegram lifecycle:** при наличии `TELEGRAM_BOT_TOKEN` бот поднимается
+  и корректно останавливается вместе с FastAPI-приложением; ошибки
+  Telegram больше не валят весь сервис.
+- **HTTP-middleware:** на каждый ответ добавляется `X-Request-Id`
+  (пробрасывается входящий или генерируется новый), необработанные
+  исключения учитываются в `SYSTEM_ERRORS` и логируются с `exc_info`.
+- **Типизированные исключения:** OKX-клиент теперь выбрасывает
+  `ExchangeError` из `astra_bot.core.exceptions` вместо ванильного
+  `Exception` для API/disabled/no-response ошибок.
+- **.env.example** приведён в безопасный вид без правдоподобных токенов.
+- Добавлены тесты метрик, конфигурации и БД. Итого **139 тестов**,
+  `ruff check .` — `All checks passed!`.
 
 ## 5. Как проверить
 

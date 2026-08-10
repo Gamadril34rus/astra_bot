@@ -19,15 +19,21 @@ if str(PROJECT_ROOT) not in sys.path:
 from astra_bot.adapters.okx import OKXClient
 from astra_bot.core.config import get_settings, load_settings
 from astra_bot.core.logger import get_component_logger, setup_logging
+from astra_bot.core.metrics import SYSTEM_ERRORS, render_metrics
 from astra_bot.data.database import close_database, init_database
 from astra_bot.engines.risk_engine import get_risk_engine
 from astra_bot.paperengine.paper_engine import PaperTradingEngine
 from astra_bot.strategies import MeanReversionStrategy, MomentumStrategy
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
+from fastapi.responses import JSONResponse
 
-# Инициализация логирования в /tmp/logs (допустимо для записи на Render)
-log_dir = "/tmp/logs"
-Path(log_dir).mkdir(parents=True, exist_ok=True)
+# Каталог логов настраивается через LOG_DIR; по умолчанию /tmp/logs,
+# который доступен на запись в контейнере/на Render.
+log_dir = os.environ.get("LOG_DIR", "/tmp/logs")
+try:
+    Path(log_dir).mkdir(parents=True, exist_ok=True)
+except OSError:
+    log_dir = None
 setup_logging(level=os.environ.get("LOG_LEVEL", "INFO"), log_dir=log_dir)
 
 logger = get_component_logger("main")
@@ -54,6 +60,19 @@ async def lifespan(application: FastAPI):
 
 # FastAPI приложение
 app = FastAPI(title="ASTRA BOT", version="1.0.0", lifespan=lifespan)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(_request, exc: Exception):
+    """Поймать необработанное исключение, записать в метрики и логи."""
+    SYSTEM_ERRORS.labels(
+        component="web", error_type=type(exc).__name__
+    ).inc()
+    logger.exception("Unhandled error: %s", exc)
+    return JSONResponse(
+        status_code=500,
+        content={"status": "error", "error": str(exc)},
+    )
 
 
 @app.get("/")
@@ -90,6 +109,24 @@ async def status():
     return _bot_instance.get_status()
 
 
+@app.middleware("http")
+async def add_request_id(request, call_next):
+    """Пробросить/сгенерировать X-Request-Id для трассировки в логах."""
+    request_id = request.headers.get("X-Request-Id") or os.urandom(8).hex()
+    response = await call_next(request)
+    response.headers["X-Request-Id"] = request_id
+    return response
+
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus-метрики в text/exposition-format."""
+    return Response(
+        content=render_metrics(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
+
+
 class AstraBot:
 
     def __init__(self):
@@ -97,6 +134,7 @@ class AstraBot:
         self._exchange_client = None
         self._paper_engine = None
         self._risk_engine = None
+        self._telegram_bot = None
         self._running = False
 
     async def initialize(self):
@@ -113,16 +151,33 @@ class AstraBot:
         except Exception as e:
             logger.warning(f"Risk engine init failed: {e}")
 
-        # БД
-        if settings.database:
+        # БД. На Render передаётся одна переменная DATABASE_URL; локально —
+        # отдельные DB_HOST/DB_PORT/... через YAML.
+        database_url = os.environ.get("DATABASE_URL")
+        if settings.database or database_url:
             try:
                 db_config = {
-                    "host": settings.database.host,
-                    "port": settings.database.port,
-                    "name": settings.database.name,
-                    "user": settings.database.user,
-                    "password": settings.database.password,
+                    "host": settings.database.host if settings.database else "localhost",
+                    "port": settings.database.port if settings.database else 5432,
+                    "name": settings.database.name if settings.database else "astra_bot",
+                    "user": settings.database.user if settings.database else "",
+                    "password": settings.database.password if settings.database else "",
+                    "pool_size": (
+                        settings.database.pool_size if settings.database else 10
+                    ),
                 }
+                if database_url:
+                    # asyncpg требует схему postgresql+asyncpg://, а на
+                    # Render приходит postgres:// — нормализуем.
+                    if database_url.startswith("postgres://"):
+                        database_url = database_url.replace(
+                            "postgres://", "postgresql+asyncpg://", 1
+                        )
+                    elif database_url.startswith("postgresql://"):
+                        database_url = database_url.replace(
+                            "postgresql://", "postgresql+asyncpg://", 1
+                        )
+                    db_config["database_url"] = database_url
                 await init_database(db_config)
             except Exception as e:
                 logger.warning(f"Database not available: {e}")
@@ -156,6 +211,29 @@ class AstraBot:
             self._paper_engine.add_strategy(
                 "mean_reversion", MeanReversionStrategy()
             )
+
+        # Telegram-бот поднимается только если задан токен и хотя бы один
+        # админский ID — иначе приложение спокойно работает без него.
+        await self._init_telegram(settings)
+
+    async def _init_telegram(self, settings) -> None:
+        tg = getattr(settings, "telegram", None)
+        if not tg or not tg.bot_token:
+            return
+        try:
+            from astra_bot.telegram.bot import create_telegram_bot
+
+            self._telegram_bot = await create_telegram_bot(
+                bot_token=tg.bot_token,
+                allowed_user_ids=list(tg.allowed_user_ids or []),
+                admin_user_ids=list(tg.admin_user_ids or []),
+            )
+            await self._telegram_bot.start()
+            logger.info("Telegram bot started")
+        except Exception as exc:
+            # Сбой Telegram не должен ронять весь сервис.
+            logger.warning("Telegram bot init failed: %s", exc)
+            self._telegram_bot = None
 
     def get_status(self):
         return {
@@ -207,6 +285,11 @@ class AstraBot:
 
     async def stop(self):
         self._running = False
+        if self._telegram_bot is not None:
+            try:
+                await self._telegram_bot.stop()
+            except Exception as exc:
+                logger.warning("Telegram stop failed: %s", exc)
         if self._exchange_client:
             await self._exchange_client.close()
         await close_database()

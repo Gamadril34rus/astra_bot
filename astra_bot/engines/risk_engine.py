@@ -11,6 +11,13 @@ from enum import Enum
 
 from ..adapters.base import Instrument
 from ..core import events, models
+from ..core.metrics import (
+    DRAWDOWN_PCT,
+    EQUITY,
+    OPEN_POSITIONS,
+    RISK_DECISIONS,
+    RISK_STATE,
+)
 from ..core.state import RiskState
 
 logger = logging.getLogger(__name__)
@@ -123,6 +130,45 @@ class RiskEngine:
         self._current_equity = equity
         self._initial_capital = initial_capital
         self._update_high_water_mark()
+        self._export_metrics()
+
+    def _export_metrics(self) -> None:
+        """Обновить Prometheus-гэджи, отражающие состояние risk-engine."""
+        EQUITY.labels(account="risk").set(float(self._current_equity))
+        DRAWDOWN_PCT.set(float(self.current_drawdown))
+        OPEN_POSITIONS.labels(engine="risk").set(len(self._open_positions))
+        state_values = {
+            RiskState.NORMAL: 0,
+            RiskState.REDUCED: 1,
+            RiskState.DEFENSIVE: 2,
+            RiskState.STOP: 3,
+            RiskState.EMERGENCY: 4,
+        }
+        RISK_STATE.set(state_values.get(self.risk_state, 0))
+
+    @staticmethod
+    def _label_reason(reason: str | None) -> str:
+        """Схлопнуть человекочитаемую причину в короткий лейбл для метрики."""
+        if not reason:
+            return "approved"
+        lowered = reason.lower()
+        if "drawdown" in lowered:
+            return "drawdown"
+        if "daily" in lowered:
+            return "daily_loss"
+        if "weekly" in lowered:
+            return "weekly_loss"
+        if "stop" in lowered and "distance" in lowered:
+            return "invalid_stop"
+        if "risk" in lowered and "exceed" in lowered:
+            return "risk_per_trade"
+        if "position" in lowered:
+            return "max_positions"
+        if "exposure" in lowered:
+            return "max_exposure"
+        if "disabled" in lowered:
+            return "trading_disabled"
+        return "other"
 
     def _update_high_water_mark(self):
         """Обновить high water mark"""
@@ -180,6 +226,33 @@ class RiskEngine:
         return multiplier
 
     def check_trade(
+        self,
+        symbol: str,
+        side: str,
+        entry_price: Decimal,
+        stop_loss: Decimal,
+        take_profit: Decimal,
+        proposed_size: Decimal,
+        strategy_name: str = "",
+    ) -> RiskCheckResult:
+        """Проверить сделку и записать решение в метрики."""
+        result = self._check_trade_impl(
+            symbol=symbol,
+            side=side,
+            entry_price=entry_price,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            proposed_size=proposed_size,
+            strategy_name=strategy_name,
+        )
+        RISK_DECISIONS.labels(
+            decision="approved" if result.approved else "rejected",
+            reason=self._label_reason(result.reason),
+        ).inc()
+        self._export_metrics()
+        return result
+
+    def _check_trade_impl(
         self,
         symbol: str,
         side: str,
@@ -488,6 +561,7 @@ class RiskEngine:
             f"PnL={pnl:.2f}, Won={won}, "
             f"Total PnL={self._daily_pnl:.2f}"
         )
+        self._export_metrics()
 
     def _check_drawdown_state(self):
         """Проверить состояние просадки"""
@@ -548,10 +622,12 @@ class RiskEngine:
     def add_position(self, position: models.Position):
         """Добавить позицию"""
         self._open_positions[position.id] = position
+        OPEN_POSITIONS.labels(engine="risk").set(len(self._open_positions))
 
     def remove_position(self, position_id: str):
         """Удалить позицию"""
         self._open_positions.pop(position_id, None)
+        OPEN_POSITIONS.labels(engine="risk").set(len(self._open_positions))
 
     def get_open_positions(self) -> dict[str, models.Position]:
         """Получить открытые позиции"""
