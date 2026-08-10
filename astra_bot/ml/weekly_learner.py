@@ -145,12 +145,11 @@ def train_weekly(
     dataset = lessons_to_training_data(lessons)
     config = TrainingConfig(model_type=model_type)
     trainer = ModelTrainer(config)
+    version = "ML-weekly-" + datetime.now(tz=UTC).strftime("%Y%m%d-%H%M")
     model = trainer.train(dataset, model_type=model_type)
 
     model_path.parent.mkdir(parents=True, exist_ok=True)
-    model.save(str(model_path))
-
-    version = "ML-weekly-" + datetime.now(tz=UTC).strftime("%Y%m%d-%H%M")
+    model.save(str(model_path), version=version)
     roc_auc = float(getattr(model.metrics, "roc_auc", 0.0) or 0.0)
     accuracy = float(getattr(model.metrics, "accuracy", 0.0) or 0.0)
 

@@ -43,7 +43,7 @@ MAIN_MENU = ReplyKeyboardMarkup(
         [KeyboardButton("📊 Статус"), KeyboardButton("📈 Отчёт")],
         [KeyboardButton("📍 Позиции"), KeyboardButton("🛡️ Риск")],
         [KeyboardButton("🏥 Здоровье"), KeyboardButton("⚙️ Счёт")],
-        [KeyboardButton("❓ Помощь")],
+        [KeyboardButton("📋 План"), KeyboardButton("❓ Помощь")],
     ],
     resize_keyboard=True,
     input_field_placeholder="Выберите действие",
@@ -112,6 +112,7 @@ class AstraTelegramBot:
         app.add_handler(CommandHandler("pause", self._cmd_pause))
         app.add_handler(CommandHandler("resume", self._cmd_resume))
         app.add_handler(CommandHandler("train", self._cmd_train))
+        app.add_handler(CommandHandler("plan", self._cmd_plan))
 
         # Inline-кнопки
         app.add_handler(
@@ -174,6 +175,7 @@ class AstraTelegramBot:
             "📍 Позиции — открытые сделки\n"
             "🛡️ Риск — лимиты и риск-режим\n"
             "⚙️ Счёт — выбор демо/реального счёта\n"
+            "📋 План — сделки на ближайшие 24 часа\n"
             "❓ Помощь — полный список команд",
             reply_markup=MAIN_MENU,
         )
@@ -194,7 +196,8 @@ class AstraTelegramBot:
             "/positions — открытые позиции\n"
             "/risk — состояние риск-менеджмента\n"
             "/health — здоровье системы\n"
-            "/account — выбор счёта (демо/реальный)\n\n"
+            "/account — выбор счёта (демо/реальный)\n"
+            "/plan — план сделок на 24 часа\n\n"
             "Администратору:\n"
             "/pause — приостановить торговлю\n"
             "/resume — возобновить торговлю\n",
@@ -485,6 +488,58 @@ class AstraTelegramBot:
             logger.exception("Training command failed")
             await update.message.reply_text(f"❌ Ошибка обучения: {exc}")
 
+    async def _cmd_plan(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /plan — shortlist сделок на ближайшие 24 часа."""
+        if not self._is_allowed(update.effective_user.id):
+            await update.message.reply_text("❌ Доступ запрещён")
+            return
+        await update.message.reply_text(
+            "📋 Собираю план на 24 часа…\n"
+            "Опрашиваю стратегии и прогоняю через ML-модель."
+        )
+        try:
+            from astra_bot.adapters.okx import OKXClient
+            from astra_bot.ml.daily_plan import build_daily_plan, format_plan
+            from astra_bot.ml.historical_training import (
+                fetch_historical_candles,
+            )
+            from astra_bot.strategies import (
+                MeanReversionStrategy,
+                MomentumStrategy,
+            )
+
+            symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
+            client = OKXClient({
+                "api_key": "", "api_secret": "",
+                "sandbox": False, "enabled": True, "rate_limit_qps": 5,
+            })
+            await client.initialize()
+            history = {}
+            try:
+                for sym in symbols:
+                    bars = await fetch_historical_candles(
+                        client=client,
+                        symbol=sym.replace("/", "-"),
+                        timeframe="1h",
+                        lookback_days=21,
+                    )
+                    for bar in bars:
+                        bar.symbol = sym
+                    history[sym] = bars
+            finally:
+                await client.close()
+
+            plan = await build_daily_plan(
+                history=history,
+                strategies=[MomentumStrategy(), MeanReversionStrategy()],
+            )
+            await update.message.reply_text(
+                format_plan(plan), parse_mode="Markdown"
+            )
+        except Exception as exc:
+            logger.exception("Plan command failed")
+            await update.message.reply_text(f"❌ Не смог построить план: {exc}")
+
     # --------------------------------------------------------------- /text
     async def _handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
@@ -499,6 +554,7 @@ class AstraTelegramBot:
             "🛡️ Риск": self._cmd_risk,
             "🏥 Здоровье": self._cmd_health,
             "⚙️ Счёт": self._cmd_account,
+            "📋 План": self._cmd_plan,
             "❓ Помощь": self._cmd_help,
         }
         handler = dispatch.get(text)

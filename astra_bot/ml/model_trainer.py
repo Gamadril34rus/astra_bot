@@ -6,7 +6,7 @@ ASTRA BOT — ML Model Trainer
 import logging
 import pickle
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -191,6 +191,9 @@ class MLModel:
         self.metrics = metrics or ModelMetrics()
         self.feature_names = feature_names or []
         self.is_fitted = model is not None
+        # Версия обучения (заполняется при save()).
+        self.version: str = ""
+        self.saved_at: str = ""
 
     def predict(self, features: np.ndarray) -> np.ndarray:
         """Предсказать"""
@@ -235,21 +238,30 @@ class MLModel:
             }
         return {}
 
-    def save(self, path: str):
-        """Сохранить модель"""
+    def save(self, path: str, version: str | None = None):
+        """Сохранить модель.
+
+        ``version`` может быть передана вызывающим кодом (weekly learner)
+        и затем доступна как ``MLModel.version`` после загрузки.
+        """
+        from datetime import datetime
+
+        version = version or self.version or ""
+        saved_at = datetime.now(UTC).isoformat()
         model_data = {
             "model": self.model,
             "config": self.config,
             "metrics": self.metrics,
             "feature_names": self.feature_names,
             "is_fitted": self.is_fitted,
-            "saved_at": datetime.utcnow().isoformat(),
+            "version": version,
+            "saved_at": saved_at,
         }
-
         with open(path, "wb") as f:
             pickle.dump(model_data, f)
-
-        logger.info(f"Model saved to {path}")
+        self.version = version
+        self.saved_at = saved_at
+        logger.info("Model saved to %s (version=%s)", path, version)
 
     @classmethod
     def load(cls, path: str) -> "MLModel":
@@ -264,8 +276,10 @@ class MLModel:
             feature_names=model_data.get("feature_names", []),
         )
         model.is_fitted = model_data.get("is_fitted", False)
+        model.version = model_data.get("version", "")
+        model.saved_at = model_data.get("saved_at", "")
 
-        logger.info(f"Model loaded from {path}")
+        logger.info("Model loaded from %s (version=%s)", path, model.version)
         return model
 
 
