@@ -127,6 +127,37 @@ async def metrics():
     )
 
 
+@app.post("/train")
+async def train(days: int = 365, timeframe: str = "1h", symbol: str = "BTC/USDT"):
+    """Запустить обучение на истории OKX без депозита.
+
+    Эндпоинт предназначен для первичного обучения модели: тянет год
+    свечей публичного рынка, строит walk-forward разметку и обучает
+    ML-классификатор. Реальные ордера не выставляются.
+    """
+    try:
+        from astra_bot.ml.historical_training import (
+            HistoricalTrainingConfig,
+            train_on_historical_data,
+        )
+
+        config = HistoricalTrainingConfig(
+            symbol=symbol,
+            timeframe=timeframe,
+            lookback_days=days,
+        )
+        artifact = await train_on_historical_data(config)
+        return {
+            "status": "ok",
+            "artifact": str(artifact),
+            "days": days,
+            "symbol": symbol,
+            "timeframe": timeframe,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 class AstraBot:
 
     def __init__(self):

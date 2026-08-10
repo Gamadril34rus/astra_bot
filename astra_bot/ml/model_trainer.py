@@ -409,30 +409,27 @@ class ModelTrainer:
 
     def _train_lightgbm(
         self,
-        model: lgb.LGBMClassifier,
+        model: "lgb.LGBMClassifier",
         train_data: TrainingData,
         test_data: TrainingData,
     ):
-        """Обучить LightGBM модель"""
-        # Создаём Dataset объекты
-        train_set = lgb.Dataset(
-            train_data.features,
-            label=train_data.labels,
-            feature_name=train_data.feature_names,
-        )
+        """Обучить LightGBM sklearn-совместимую модель.
 
+        LGBMClassifier.fit() принимает массивы X/y, а не ``lgb.Dataset``.
+        Dataset используется только в low-level API ``lgb.train``.
+        """
         eval_set = [(test_data.features, test_data.labels)]
-
-        model.fit(
-            train_set,
-            eval_set=eval_set,
-            callbacks=[
+        fit_kwargs: dict[str, Any] = {
+            "eval_set": eval_set,
+        }
+        if self.config.early_stopping_rounds > 0 and LIGHTGBM_AVAILABLE:
+            fit_kwargs["callbacks"] = [
                 lgb.early_stopping(
                     self.config.early_stopping_rounds,
                     verbose=False,
                 ),
-            ] if self.config.early_stopping_rounds > 0 else None,
-        )
+            ]
+        model.fit(train_data.features, train_data.labels, **fit_kwargs)
 
     def _train_xgboost(
         self,

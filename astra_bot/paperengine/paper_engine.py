@@ -340,8 +340,12 @@ class PaperTradingEngine:
         self.account.daily_pnl += trade.pnl
         self.account.weekly_pnl += trade.pnl
 
-        # Обновить USDT баланс (в paper Trading просто обновляем equity)
-        # В реальной торговле сюда пришло бы обновление баланса
+        # Фиксируем реализованный результат в USDT-балансе, чтобы
+        # equity после закрытия позиции реально менялся (а не считался
+        # от неизменного баланса + плавающего PnL).
+        self.account.usdt_balance += trade.pnl
+        if self.account.usdt_balance > self.account.high_water_mark:
+            self.account.high_water_mark = self.account.usdt_balance
 
         logger.info(
             f"Paper position closed: {trade_id}, "

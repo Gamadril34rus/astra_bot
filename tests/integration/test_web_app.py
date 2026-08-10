@@ -55,3 +55,10 @@ def test_tick_endpoint_runs_one_iteration(client):
     payload = response.json()
     assert payload["status"] == "ok"
     assert payload["iteration"] == "completed"
+
+
+def test_metrics_endpoint_exposes_prometheus_format(client):
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    assert "text/plain" in response.headers["content-type"]
+    assert b"astra_" in response.content
