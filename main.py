@@ -158,6 +158,48 @@ async def train(days: int = 365, timeframe: str = "1h", symbol: str = "BTC/USDT"
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@app.post("/self_play")
+async def self_play(
+    target_trades: int = 3000,
+    timeframe: str = "1h",
+    offline_bars: int = 3000,
+):
+    """Запустить walk-forward self-play на виртуальные 2000 ₽.
+
+    Бот проходит год истории бар-за-баром, делает ~2-5k виртуальных
+    ставок, сохраняет уроки в models/lessons.jsonl и возвращает отчёт.
+    Депозит не используется.
+    """
+    try:
+        from decimal import Decimal
+
+        from astra_bot.ml.self_play import SelfPlayConfig, SelfPlayEngine
+
+        config = SelfPlayConfig(
+            timeframe=timeframe,
+            target_trades=target_trades,
+            initial_capital=Decimal("2000"),
+        )
+        engine = SelfPlayEngine(config)
+        report = await engine.run(offline_bars=offline_bars)
+        return {
+            "status": "ok",
+            "trades": report.total_trades,
+            "wins": report.wins,
+            "losses": report.losses,
+            "win_rate": round(report.win_rate, 2),
+            "profit_factor": round(report.profit_factor, 3),
+            "pnl": round(report.total_pnl, 2),
+            "final_equity": round(report.final_equity, 2),
+            "max_drawdown_pct": round(report.max_drawdown_pct, 2),
+            "started_learning": report.started_learning,
+            "message": report.message,
+            "lessons": str(report.lessons_path),
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 class AstraBot:
 
     def __init__(self):

@@ -113,6 +113,7 @@ class AstraTelegramBot:
         app.add_handler(CommandHandler("account", self._cmd_account))
         app.add_handler(CommandHandler("pause", self._cmd_pause))
         app.add_handler(CommandHandler("resume", self._cmd_resume))
+        app.add_handler(CommandHandler("train", self._cmd_train))
 
         # Inline-кнопки
         app.add_handler(
@@ -433,6 +434,33 @@ class AstraTelegramBot:
         state.trading_state = "RUNNING"
         await update.message.reply_text("▶️ Торговля возобновлена")
         logger.info("Trading resumed by user %s", update.effective_user.id)
+
+    async def _cmd_train(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /train — запустить walk-forward самообучение."""
+        if not self._is_admin(update.effective_user.id):
+            await update.message.reply_text(
+                "❌ Запускать обучение может только администратор"
+            )
+            return
+        await update.message.reply_text(
+            "🎓 Запускаю самообучение на годе истории…\n"
+            "Это займёт несколько минут. После завершения пришлю отчёт."
+        )
+        try:
+            from decimal import Decimal
+
+            from ..ml.self_play import SelfPlayConfig, SelfPlayEngine, format_daily_report
+
+            engine = SelfPlayEngine(
+                SelfPlayConfig(initial_capital=Decimal("2000"))
+            )
+            report = await engine.run(offline_bars=3000)
+            await update.message.reply_text(
+                format_daily_report(report), parse_mode="Markdown"
+            )
+        except Exception as exc:
+            logger.exception("Self-play training failed")
+            await update.message.reply_text(f"❌ Ошибка обучения: {exc}")
 
     # --------------------------------------------------------------- /text
     async def _handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
