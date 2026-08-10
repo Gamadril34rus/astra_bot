@@ -44,7 +44,9 @@ LESSONS_PATH = PROJECT_ROOT / "models" / "lessons.jsonl"
 
 
 async def daily_cycle() -> None:
-    """Один суточный цикл: подгрузить данные, поиграть, обучить, отчитаться."""
+    """Один суточный цикл: self-play → переобучение → отчёт."""
+    from astra_bot.ml.weekly_learner import train_weekly
+
     logger.info("Запускаю суточный цикл обучения")
     client = OKXClient({
         "api_key": "",
@@ -54,19 +56,32 @@ async def daily_cycle() -> None:
         "rate_limit_qps": 5,
     })
     await client.initialize()
+    report = None
     try:
         engine = SelfPlayEngine(SelfPlayConfig(initial_capital=Decimal("2000")))
-        # Берём последние 30 дней, чтобы накопить уроков, и мержим
-        # с уже существующими (за год). Для реального прода стоит
-        # перейти на инкрементальную догрузку.
+        # Берём последние 30 дней, чтобы накопить уроков поверх годовой
+        # истории (уроки дописываются в один lessons.jsonl).
         history = await engine.load_history(client, lookback_days=30)
         report = await engine.run(history=history)
         logger.info("Сгенерировано %d новых уроков", report.total_trades)
     finally:
         await client.close()
 
-    text = format_daily_report(report)
-    await _send_telegram(text)
+    # Переобучаем модель на актуальных уроках — теперь следующий заход
+    # self-play будет использовать её как фильтр входов.
+    training = train_weekly(min_samples=200)
+    if report is not None:
+        text = format_daily_report(report)
+        if training.trained:
+            text += (
+                f"\n\n🧠 *Модель переобучена:* {training.version}\n"
+                f"   AUC={training.roc_auc:.3f}, "
+                f"accuracy={training.accuracy:.3f}, "
+                f"win-rate={training.positive_rate*100:.1f}%"
+            )
+        else:
+            text += f"\n\n🧠 {training.message}"
+        await _send_telegram(text)
 
 
 async def _send_telegram(text: str) -> None:

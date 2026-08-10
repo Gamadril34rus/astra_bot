@@ -271,6 +271,12 @@ class SelfPlayConfig:
     # Self-play обучается «в любую погоду»: реальный risk-engine с
     # аварийной остановкой по просадке тут только считает статистику.
     ignore_risk_limits: bool = True
+    # Если обученная weekly-модель существует, взвешивать её решение:
+    # входить в сделку, если win-probability >= этого порога. На этапе
+    # холодного старта модель слабая, поэтому порог по умолчанию 0.50.
+    # После набора >1000 уроков скрипт learning_week поднимает его до 0.55.
+    ml_min_probability: float = 0.50
+    model_path: Path = field(default_factory=lambda: Path("models/current.pkl"))
     lessons_output: Path = field(
         default_factory=lambda: Path("models/lessons.jsonl")
     )
@@ -375,6 +381,47 @@ class SelfPlayEngine:
         self.lessons: list[Lesson] = []
         self.equity_curve: list[float] = [float(self.config.initial_capital)]
         self._equity = Decimal(str(self.config.initial_capital))
+
+        # Загружаем последнюю обученную weekly-модель, если она есть.
+        self._ml_model = self._load_ml_model()
+
+    def _load_ml_model(self):
+        """Подгрузить models/current.pkl, если файл существует."""
+        path = self.config.model_path
+        if not path.exists():
+            logger.info("ML-модель ещё не обучена (%s) — self-play идёт без фильтра", path)
+            return None
+        try:
+            from .model_trainer import MLModel
+
+            model = MLModel.load(str(path))
+            if model.is_fitted:
+                logger.info("Загружена ML-модель из %s", path)
+                return model
+        except Exception as exc:  # pragma: no cover
+            logger.warning("Не удалось загрузить ML-модель: %s", exc)
+        return None
+
+    def _ml_approves(self, features: dict[str, float]) -> bool:
+        """Прогнать признаки через weekly-модель; решить, входить ли."""
+        if self._ml_model is None:
+            return True
+        try:
+            import numpy as np
+
+            from .weekly_learner import FEATURE_COLUMNS
+
+            vector = np.array(
+                [[features.get(col, 0.0) for col in FEATURE_COLUMNS]],
+                dtype=float,
+            )
+            proba = self._ml_model.model.predict_proba(vector)[0]
+            # predict_proba возвращает [P(0), P(1)]; P(win) — второй.
+            win_prob = float(proba[1]) if len(proba) > 1 else float(proba[0])
+            return win_prob >= self.config.ml_min_probability
+        except Exception as exc:  # pragma: no cover - защитный путь
+            logger.debug("ML predict failed, пропускаю фильтр: %s", exc)
+            return True
 
     # ------------------------------------------------------------- загрузка
     async def load_history(self, client, lookback_days: int = 365) -> dict[str, list[models.Candle]]:
@@ -658,6 +705,10 @@ class SelfPlayEngine:
             # Пропускаем сделки, если прямо сейчас новостной импульс —
             # боту выгоднее подождать, а не входить в раздёрганный рынок.
             if news_impulse(best_window):
+                continue
+
+            # Если уже есть обученная модель — используем её как фильтр.
+            if not self._ml_approves(best_features):
                 continue
 
             # Размер позиции: фиксированная доля от НАЧАЛЬНОГО капитала.

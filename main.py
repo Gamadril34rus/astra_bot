@@ -200,6 +200,18 @@ async def self_play(
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@app.post("/retrain")
+async def retrain(min_samples: int = 200):
+    """Переобучить weekly-модель на накопленных уроках self-play."""
+    try:
+        from astra_bot.ml.weekly_learner import train_weekly
+
+        result = train_weekly(min_samples=min_samples)
+        return result.to_dict()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 class AstraBot:
 
     def __init__(self):
