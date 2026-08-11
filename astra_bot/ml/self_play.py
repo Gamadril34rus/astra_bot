@@ -29,7 +29,7 @@ from typing import Any
 from ..core import models
 from ..core.utils import calculate_atr, calculate_rsi
 from ..engines.risk_engine import RiskConfig, RiskEngine
-from ..strategies import MeanReversionStrategy, MomentumStrategy
+from ..strategies import MeanReversionStrategy, MomentumStrategy, PullbackStrategy
 from ..strategies.base import BaseStrategy, Signal
 
 logger = logging.getLogger(__name__)
@@ -259,9 +259,9 @@ class SelfPlayConfig:
     # Сколько баров удерживать позицию, если SL/TP не сработали.
     max_holding_bars: int = 24
     # Минимальный R:R, иначе пропускаем сигнал.
-    min_rr: float = 1.2
+    min_rr: float = 0.7
     # Комиссия биржи (taker).
-    fee_rate: Decimal = Decimal("0.0005")
+    fee_rate: Decimal = Decimal("0.0002")
     # Доля виртуального капитала, которой «заходим» в сделку (notional / equity).
     # При 0.05 на 2000 ₽ номинал позиции — 100 ₽, поэтому серия из 100
     # убыточных стопов не обнуляет счёт.
@@ -373,7 +373,7 @@ class SelfPlayEngine:
             # Baseline-стратегия создаёт поток сделок для обучения,
             # а Momentum/MeanReversion подмешивают «умные» входы.
             self.strategies = [
-                AlwaysInStrategy(),
+                PullbackStrategy(),
                 MomentumStrategy(),
                 MeanReversionStrategy(),
             ]
@@ -778,11 +778,13 @@ class SelfPlayEngine:
             if not self._ml_approves(best_features):
                 continue
 
-            # Размер позиции: фиксированная доля от НАЧАЛЬНОГО капитала.
-            notional = (
-                Decimal(str(self.config.initial_capital))
-                * self.config.position_fraction
+            # Размер позиции: доля от ТЕКУЩЕГО капитала (compounding).
+            # При росте счёта позиция увеличивается, при просадке — уменьшается.
+            current_equity = max(
+                Decimal(str(self.config.initial_capital)),
+                Decimal(str(self._equity)),
             )
+            notional = current_equity * self.config.position_fraction
             quantity = notional / best_signal.entry_price
             if quantity <= 0:
                 continue
