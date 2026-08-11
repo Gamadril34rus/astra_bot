@@ -107,6 +107,8 @@ async def test_self_play_generates_lessons_without_lookahead():
             target_trades=50,
             max_holding_bars=6,
             position_fraction=Decimal("0.05"),
+            ml_min_probability=0.0,
+            model_path=__import__("pathlib").Path("/nonexistent.pkl"),
             lessons_output=__import__("pathlib").Path("/tmp/astra_lessons_test.jsonl"),
         )
     )
@@ -131,6 +133,8 @@ async def test_self_play_appends_to_existing_lessons(tmp_path):
         target_trades=10,
         max_holding_bars=6,
         position_fraction=Decimal("0.05"),
+        ml_min_probability=0.0,
+        model_path=tmp_path / "nonexistent.pkl",
         lessons_output=lessons_path,
     )
     history = {
@@ -149,6 +153,8 @@ async def test_self_play_appends_to_existing_lessons(tmp_path):
         target_trades=20,
         max_holding_bars=6,
         position_fraction=Decimal("0.05"),
+        ml_min_probability=0.0,
+        model_path=tmp_path / "nonexistent.pkl",
         lessons_output=lessons_path,
     )
     e2 = SelfPlayEngine(cfg2)
