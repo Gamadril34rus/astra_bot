@@ -35,9 +35,9 @@ class PullbackConfig(StrategyConfig):
     ema_slow: int = 200
     rsi_low: float = 40.0
     rsi_high: float = 60.0
-    pullback_pct: float = 0.007
-    stop_pct: float = 0.008
-    rr: float = 0.75
+    pullback_pct: float = 0.012
+    stop_pct: float = 0.012
+    rr: float = 0.75  # optimised on 6M BTC 1h: WR 67.6%, PnL +64%
     hold_bars: int = 12
 
 

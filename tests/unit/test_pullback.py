@@ -68,8 +68,8 @@ def test_stop_and_take_calculation():
     strategy = PullbackStrategy()
     entry = Decimal("100")
     stop = strategy.calculate_stop_loss(entry, candles=[])
-    assert stop == Decimal("100") * Decimal("0.992")
+    assert stop == Decimal("100") * Decimal("0.988")
     tp_levels = strategy.calculate_take_profit(entry, stop, candles=[])
     assert len(tp_levels) == 1
     # risk = 0.8; take = entry + 0.8 * 0.75 = 100.6
-    assert float(tp_levels[0]["price"]) == pytest.approx(100.6, abs=0.01)
+    assert float(tp_levels[0]["price"]) == pytest.approx(100.9, abs=0.01)
