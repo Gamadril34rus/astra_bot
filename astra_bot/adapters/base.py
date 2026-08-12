@@ -3,14 +3,13 @@ ASTRA BOT — Базовый адаптер биржи
 Exchange Abstraction Layer
 """
 
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Optional, List, Dict, Any
-from uuid import UUID, uuid4
-import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -94,13 +93,13 @@ class Instrument:
     fee_rate: Decimal = Decimal("0.001")
     is_active: bool = True
     contract_type: str = "spot"  # spot, linear, inverse
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    
+    metadata: dict[str, Any] = field(default_factory=dict)
+
     @classmethod
-    def from_exchange_response(cls, exchange: str, data: Dict[str, Any]) -> "Instrument":
+    def from_exchange_response(cls, exchange: str, data: dict[str, Any]) -> "Instrument":
         """Создать из ответа биржи"""
         raise NotImplementedError
-    
+
     def is_valid_quantity(self, quantity: Decimal) -> bool:
         """Проверить валидность количества"""
         if quantity < self.min_quantity:
@@ -108,18 +107,18 @@ class Instrument:
         if quantity <= 0:
             return False
         return True
-    
+
     def is_valid_price(self, price: Decimal) -> bool:
         """Проверить валидность цены"""
         if price <= 0:
             return False
         return True
-    
+
     def format_quantity(self, quantity: Decimal) -> Decimal:
         """Отформатировать количество"""
         quantizer = Decimal(10) ** -self.quantity_precision
         return quantity.quantize(quantizer)
-    
+
     def format_price(self, price: Decimal) -> Decimal:
         """Отформатировать цену"""
         quantizer = Decimal(10) ** -self.price_precision
@@ -140,22 +139,22 @@ class Candle:
     volume: Decimal = Decimal("0")
     quote_volume: Decimal = Decimal("0")
     trades_count: int = 0
-    close_time: Optional[int] = None
-    
+    close_time: int | None = None
+
     @property
     def range(self) -> Decimal:
         return self.high - self.low
-    
+
     @property
     def body(self) -> Decimal:
         return abs(self.close - self.open)
-    
+
     @property
     def change_pct(self) -> Decimal:
         if self.open <= 0:
             return Decimal("0")
         return (self.close - self.open) / self.open * Decimal("100")
-    
+
     def to_dict(self) -> dict:
         return {
             "exchange": self.exchange,
@@ -182,7 +181,7 @@ class Trade:
     side: str
     timestamp: int
     is_taker: bool = False
-    
+
     @property
     def notional(self) -> Decimal:
         return self.price * self.quantity
@@ -201,39 +200,39 @@ class OrderBook:
     """Стакан заявок"""
     symbol: str
     exchange: str
-    bids: List[OrderBookEntry] = field(default_factory=list)
-    asks: List[OrderBookEntry] = field(default_factory=list)
+    bids: list[OrderBookEntry] = field(default_factory=list)
+    asks: list[OrderBookEntry] = field(default_factory=list)
     timestamp: int = field(default_factory=lambda: int(datetime.utcnow().timestamp() * 1000))
-    sequence: Optional[int] = None
-    
+    sequence: int | None = None
+
     @property
-    def best_bid(self) -> Optional[Decimal]:
+    def best_bid(self) -> Decimal | None:
         if not self.bids:
             return None
         return self.bids[0].price
-    
+
     @property
-    def best_ask(self) -> Optional[Decimal]:
+    def best_ask(self) -> Decimal | None:
         if not self.asks:
             return None
         return self.asks[0].price
-    
+
     @property
-    def spread(self) -> Optional[Decimal]:
+    def spread(self) -> Decimal | None:
         bid = self.best_bid
         ask = self.best_ask
         if bid is None or ask is None:
             return None
         return ask - bid
-    
+
     @property
-    def mid_price(self) -> Optional[Decimal]:
+    def mid_price(self) -> Decimal | None:
         bid = self.best_bid
         ask = self.best_ask
         if bid is None or ask is None:
             return None
         return (bid + ask) / Decimal("2")
-    
+
     def get_imbalance(self, depth: int = 10) -> Decimal:
         """Рассчитать дисбаланс"""
         bid_vol = sum(e.quantity for e in self.bids[:depth])
@@ -253,7 +252,7 @@ class AccountBalance:
     free: Decimal = Decimal("0")
     locked: Decimal = Decimal("0")
     total: Decimal = Decimal("0")
-    
+
     @property
     def available(self) -> Decimal:
         return self.free
@@ -262,42 +261,42 @@ class AccountBalance:
 @dataclass
 class Order:
     """Ордер"""
-    id: Optional[str] = None
-    client_order_id: Optional[str] = None
+    id: str | None = None
+    client_order_id: str | None = None
     exchange: str = ""
     symbol: str = ""
     side: str = ""
     order_type: str = ""
     quantity: Decimal = Decimal("0")
-    price: Optional[Decimal] = None
-    stop_price: Optional[Decimal] = None
-    take_profit_price: Optional[Decimal] = None
+    price: Decimal | None = None
+    stop_price: Decimal | None = None
+    take_profit_price: Decimal | None = None
     status: str = "new"
     filled_quantity: Decimal = Decimal("0")
-    filled_price: Optional[Decimal] = None
+    filled_price: Decimal | None = None
     filled_fees: Decimal = Decimal("0")
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
-    filled_at: Optional[datetime] = None
-    exchange_order_id: Optional[str] = None
-    reject_reason: Optional[str] = None
-    
+    filled_at: datetime | None = None
+    exchange_order_id: str | None = None
+    reject_reason: str | None = None
+
     @property
     def is_open(self) -> bool:
         return self.status in ["new", "pending", "partially_filled", "acknowledged"]
-    
+
     @property
     def is_closed(self) -> bool:
         return self.status in ["filled", "canceled", "rejected", "expired"]
-    
+
     @property
     def is_filled(self) -> bool:
         return self.status == "filled"
-    
+
     @property
     def remaining_quantity(self) -> Decimal:
         return self.quantity - self.filled_quantity
-    
+
     def to_dict(self) -> dict:
         return {
             "id": self.id,
@@ -318,21 +317,21 @@ class Order:
 @dataclass
 class Position:
     """Позиция"""
-    id: Optional[str] = None
+    id: str | None = None
     account_id: str = ""
     exchange: str = ""
     symbol: str = ""
     side: str = ""
     quantity: Decimal = Decimal("0")
     entry_price: Decimal = Decimal("0")
-    current_price: Optional[Decimal] = None
+    current_price: Decimal | None = None
     unrealized_pnl: Decimal = Decimal("0")
     realized_pnl: Decimal = Decimal("0")
     status: str = "open"
     strategy_name: str = ""
     open_time: datetime = field(default_factory=datetime.utcnow)
-    close_time: Optional[datetime] = None
-    
+    close_time: datetime | None = None
+
     @property
     def market_value(self) -> Decimal:
         if self.current_price is None:
@@ -353,7 +352,7 @@ class ExchangeHealth:
     maintenance_mode: bool = False
     error_rate: float = 0.0
     last_check: datetime = field(default_factory=datetime.utcnow)
-    
+
     @property
     def health_score(self) -> float:
         """Общий балл здоровья (0-100)"""
@@ -368,7 +367,7 @@ class ExchangeHealth:
         if self.maintenance_mode:
             score = 0
         return max(0, min(100, score))
-    
+
     @property
     def is_healthy(self) -> bool:
         return self.health_score >= 70 and not self.maintenance_mode
@@ -379,12 +378,12 @@ class ExchangeAdapter(ABC):
     Базовый контракт адаптера биржи.
     Каждый адаптер должен реализовать этот интерфейс.
     """
-    
+
     # Название биржи
     exchange_name: str = "base"
     exchange_type: ExchangeType
-    
-    def __init__(self, config: Dict[str, Any]):
+
+    def __init__(self, config: dict[str, Any]):
         self.config = config
         self.api_key = config.get("api_key", "")
         self.api_secret = config.get("api_secret", "")
@@ -393,59 +392,54 @@ class ExchangeAdapter(ABC):
         self.base_url = config.get("base_url")
         self.enabled = config.get("enabled", True)
         self.contract_type = config.get("contract_type", "spot")
-        
+
         self._is_connected = False
         self._last_latency = 0.0
-    
+
     @property
     def is_connected(self) -> bool:
         return self._is_connected
-    
+
     # === Инструменты ===
-    
+
     @abstractmethod
-    async def get_instruments(self, symbol: Optional[str] = None) -> List[Instrument]:
+    async def get_instruments(self, symbol: str | None = None) -> list[Instrument]:
         """Получить метаданные инструментов"""
-        pass
-    
+
     @abstractmethod
-    async def get_instrument(self, symbol: str) -> Optional[Instrument]:
+    async def get_instrument(self, symbol: str) -> Instrument | None:
         """Получить один инструмент"""
-        pass
-    
+
     # === Рыночные данные ===
-    
+
     @abstractmethod
     async def get_candles(
         self,
         symbol: str,
         timeframe: str,
-        since: Optional[int] = None,
+        since: int | None = None,
         limit: int = 1000
-    ) -> List[Candle]:
+    ) -> list[Candle]:
         """Получить исторические свечи"""
-        pass
-    
+
     @abstractmethod
     async def get_recent_candles(
         self,
         symbol: str,
         timeframe: str,
         limit: int = 100
-    ) -> List[Candle]:
+    ) -> list[Candle]:
         """Получить последние свечи"""
-        pass
-    
+
     @abstractmethod
     async def get_trades(
         self,
         symbol: str,
-        since: Optional[int] = None,
+        since: int | None = None,
         limit: int = 100
-    ) -> List[Trade]:
+    ) -> list[Trade]:
         """Получить историю торгов"""
-        pass
-    
+
     @abstractmethod
     async def get_orderbook(
         self,
@@ -453,27 +447,23 @@ class ExchangeAdapter(ABC):
         depth: int = 20
     ) -> OrderBook:
         """Получить стакан заявок"""
-        pass
-    
+
     @abstractmethod
-    async def get_ticker(self, symbol: str) -> Dict[str, Any]:
+    async def get_ticker(self, symbol: str) -> dict[str, Any]:
         """Получить тикер"""
-        pass
-    
+
     # === Аккаунт ===
-    
+
     @abstractmethod
-    async def get_account_balance(self) -> Dict[str, AccountBalance]:
+    async def get_account_balance(self) -> dict[str, AccountBalance]:
         """Получить баланс аккаунта"""
-        pass
-    
+
     @abstractmethod
-    async def get_balances(self, assets: Optional[List[str]] = None) -> Dict[str, Decimal]:
+    async def get_balances(self, assets: list[str] | None = None) -> dict[str, Decimal]:
         """Получить балансы в виде словаря"""
-        pass
-    
+
     # === Ордера ===
-    
+
     @abstractmethod
     async def place_order(
         self,
@@ -481,15 +471,14 @@ class ExchangeAdapter(ABC):
         side: str,
         order_type: str,
         quantity: Decimal,
-        price: Optional[Decimal] = None,
-        stop_price: Optional[Decimal] = None,
-        take_profit_price: Optional[Decimal] = None,
-        client_order_id: Optional[str] = None,
+        price: Decimal | None = None,
+        stop_price: Decimal | None = None,
+        take_profit_price: Decimal | None = None,
+        client_order_id: str | None = None,
         **kwargs
     ) -> Order:
         """Разместить ордер"""
-        pass
-    
+
     @abstractmethod
     async def cancel_order(
         self,
@@ -497,118 +486,109 @@ class ExchangeAdapter(ABC):
         order_id: str
     ) -> bool:
         """Отменить ордер"""
-        pass
-    
+
     @abstractmethod
     async def cancel_all_orders(self, symbol: str) -> int:
         """Отменить все ордера по символу"""
-        pass
-    
+
     @abstractmethod
-    async def get_order(self, symbol: str, order_id: str) -> Optional[Order]:
+    async def get_order(self, symbol: str, order_id: str) -> Order | None:
         """Получить ордер по ID"""
-        pass
-    
+
     @abstractmethod
     async def get_open_orders(
         self,
-        symbol: Optional[str] = None
-    ) -> List[Order]:
+        symbol: str | None = None
+    ) -> list[Order]:
         """Получить открытые ордера"""
-        pass
-    
+
     @abstractmethod
     async def get_order_history(
         self,
         symbol: str,
-        since: Optional[int] = None,
+        since: int | None = None,
         limit: int = 100
-    ) -> List[Order]:
+    ) -> list[Order]:
         """Получить историю ордеров"""
-        pass
-    
+
     # === Позиции ===
-    
+
     @abstractmethod
-    async def get_positions(self) -> List[Position]:
+    async def get_positions(self) -> list[Position]:
         """Получить открытые позиции"""
-        pass
-    
+
     @abstractmethod
     async def close_position(
         self,
         symbol: str,
-        quantity: Optional[Decimal] = None,
-        price: Optional[Decimal] = None
+        quantity: Decimal | None = None,
+        price: Decimal | None = None
     ) -> bool:
         """Закрыть позицию"""
-        pass
-    
+
     # === Здоровье ===
-    
+
     @abstractmethod
     async def get_exchange_health(self) -> ExchangeHealth:
         """Получить метрики здоровья биржи"""
-        pass
-    
+
     @abstractmethod
     async def test_connection(self) -> bool:
         """Проверить соединение"""
-        pass
-    
+
     # === Вспомогательные методы ===
-    
+
     def _generate_client_order_id(self, symbol: str, side: str, timestamp: int = None) -> str:
         """Сгенерировать client_order_id"""
         if timestamp is None:
             timestamp = int(datetime.utcnow().timestamp() * 1000)
         base = f"{symbol.replace('/','-')}/{side}"
         return f"astra_{base}_{timestamp}"
-    
+
     def validate_order(
         self,
         symbol: str,
         side: str,
         order_type: str,
         quantity: Decimal,
-        price: Optional[Decimal] = None
-    ) -> List[str]:
+        price: Decimal | None = None
+    ) -> list[str]:
         """Проверить валидность ордера"""
         errors = []
-        
+
         if quantity <= 0:
             errors.append("Quantity must be positive")
-        
+
         if price is not None and price <= 0:
             errors.append("Price must be positive")
-        
+
         return errors
-    
+
     async def ensure_instrument(self, symbol: str) -> Instrument:
         """Получить или обновить инструмент"""
         instrument = await self.get_instrument(symbol)
         if instrument is None:
             raise ValueError(f"Instrument not found: {symbol}")
         return instrument
-    
+
     async def check_min_order_requirements(
         self,
         symbol: str,
         quantity: Decimal,
-        price: Optional[Decimal] = None
-    ) -> List[str]:
+        price: Decimal | None = None
+    ) -> list[str]:
         """Проверить минимальные требования ордера"""
         errors = []
-        
+
         try:
             instrument = await self.get_instrument(symbol)
-            
+
             if quantity < instrument.min_quantity:
                 errors.append(
                     f"Quantity {quantity} below min {instrument.min_quantity} "
                     f"for {symbol}"
                 )
-            
+
             notional = quantity * (price or Decimal("0"))
             if notional < instrument.min_notional:
                 errors.append(
@@ -618,15 +598,15 @@ class ExchangeAdapter(ABC):
         except Exception as e:
             logger.error(f"Error checking min requirements: {e}")
             errors.append(f"Failed to check requirements: {e}")
-        
+
         return errors
 
 
 class ExchangeFactory:
     """Фабрика адаптеров бирж"""
-    
-    _adapters: Dict[str, ExchangeAdapter] = {}
-    
+
+    _adapters: dict[str, ExchangeAdapter] = {}
+
     @classmethod
     def register(cls, exchange_type: ExchangeType):
         """Декоратор для регистрации адаптера"""
@@ -634,23 +614,23 @@ class ExchangeFactory:
             cls._adapters[exchange_type.value] = adapter_class
             return adapter_class
         return decorator
-    
+
     @classmethod
     def create(
         cls,
         exchange: str,
-        config: Dict[str, Any]
-    ) -> Optional[ExchangeAdapter]:
+        config: dict[str, Any]
+    ) -> ExchangeAdapter | None:
         """Создать адаптер биржи"""
         adapter_class = cls._adapters.get(exchange.lower())
         if adapter_class is None:
             logger.warning(f"No adapter for exchange: {exchange}")
             return None
-        
+
         return adapter_class(config)
-    
+
     @classmethod
-    def get_registered_exchanges(cls) -> List[str]:
+    def get_registered_exchanges(cls) -> list[str]:
         """Получить список зарегистрированных бирж"""
         return list(cls._adapters.keys())
 
@@ -658,9 +638,9 @@ class ExchangeFactory:
 # Регистрация адаптеров
 def _register_adapters():
     """Регистрация всех адаптеров"""
-    from .okx import OKXAdapter
     from .bybit import BybitAdapter
-    
+    from .okx import OKXAdapter
+
     ExchangeFactory.register(ExchangeType.OKX)(OKXAdapter)
     ExchangeFactory.register(ExchangeType.BYBIT)(BybitAdapter)
 

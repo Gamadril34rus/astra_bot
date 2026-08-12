@@ -8,7 +8,8 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn astra_bot.main:app --host 0.0.0.0 --port $PORT
+    # Web-режим живёт в корневом main.py (FastAPI app + /health, /tick, /status).
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
         fromDatabase:

@@ -9,12 +9,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Optional, List, Dict, Any
+from typing import Any
 from uuid import UUID, uuid4
 
 from ..core import events, models
-from ..core.state import get_system_state
-from ..core.utils import ROUND_DOWN
 
 logger = logging.getLogger(__name__)
 
@@ -33,25 +31,25 @@ class StrategyConfig:
     name: str = "strategy"
     enabled: bool = True
     weight: float = 1.0
-    
+
     # Kill switch
     kill_switch: bool = False
     decay_threshold: float = 1.0  # Profit Factor порог для kill switch
-    
+
     # Специфичные параметры
-    parameters: Dict[str, Any] = field(default_factory=dict)
-    
+    parameters: dict[str, Any] = field(default_factory=dict)
+
     # Статистика
     total_trades: int = 0
     wins: int = 0
     losses: int = 0
     net_pnl: float = 0.0
     profit_factor: float = 0.0
-    
+
     @property
     def is_healthy(self) -> bool:
         return not self.kill_switch and self.profit_factor >= self.decay_threshold
-    
+
     def update_performance(self, won: bool, pnl: float):
         """Обновить статистику"""
         self.total_trades += 1
@@ -61,7 +59,7 @@ class StrategyConfig:
         else:
             self.losses += 1
             self.net_pnl -= abs(pnl)
-        
+
         # Простой расчёт profit factor
         if self.losses > 0 and self.wins > 0:
             avg_win = self.net_pnl / self.wins
@@ -84,14 +82,14 @@ class Signal:
     position_size: Decimal = Decimal("0")
     risk_amount: Decimal = Decimal("0")
     confidence: float = 0.0
-    ml_probability: Optional[float] = None
-    expected_value: Optional[float] = None
+    ml_probability: float | None = None
+    expected_value: float | None = None
     market_regime: str = "UNKNOWN"
     timestamp: datetime = field(default_factory=datetime.utcnow)
     status: str = "pending"
-    rejection_reason: Optional[str] = None
-    features: Dict[str, float] = field(default_factory=dict)
-    
+    rejection_reason: str | None = None
+    features: dict[str, float] = field(default_factory=dict)
+
     @property
     def risk_reward_ratio(self) -> float:
         risk = abs(float(self.entry_price - self.stop_loss))
@@ -99,7 +97,7 @@ class Signal:
         if risk <= 0:
             return 0.0
         return reward / risk
-    
+
     def to_dict(self) -> dict:
         return {
             "id": str(self.id),
@@ -123,110 +121,107 @@ class Signal:
 class BaseStrategy(ABC):
     """
     Базовый класс для всех торговых стратегий.
-    
+
     Каждая стратегия должна:
     1. Оценивать рыночные данные
     2. Генерировать сигналы (или None если нет возможности)
     3. Рассчитывать стопы и тейк-профиты
     4. Проверять совместимость с режимом рынка
     """
-    
+
     def __init__(self, config: StrategyConfig):
         self.config = config
         self.name = config.name
         self.enabled = config.enabled
         self.weight = config.weight
         self.kill_switch = config.kill_switch
-        
+
         # Внутреннее состояние
-        self._last_signal_time: Optional[datetime] = None
+        self._last_signal_time: datetime | None = None
         self._consecutive_losses: int = 0
         self._consecutive_wins: int = 0
-        
+
         # Статистика
         self.performance = StrategyConfig(
             name=self.name,
             enabled=True,
             weight=self.weight,
         )
-    
+
     @abstractmethod
     async def evaluate(
         self,
         symbol: str,
-        candles: List[models.Candle],
-        orderbook: Optional[models.OrderBook] = None,
-        current_price: Optional[float] = None,
-        market_regime: Optional[str] = None,
-    ) -> Optional[Signal]:
+        candles: list[models.Candle],
+        orderbook: models.OrderBook | None = None,
+        current_price: float | None = None,
+        market_regime: str | None = None,
+    ) -> Signal | None:
         """
         Оценить возможность торговли.
-        
+
         Args:
             symbol: Торговый символ
             candles: Исторические свечи
             orderbook: Стакан заявок (опционально)
             current_price: Текущая цена (опционально)
             market_regime: Текущий режим рынка (опционально)
-        
+
         Returns:
             Signal если есть возможность, иначе None
         """
-        pass
-    
+
     @abstractmethod
     def calculate_stop_loss(
         self,
         entry_price: Decimal,
-        candles: List[models.Candle],
-        atr: Optional[float] = None,
+        candles: list[models.Candle],
+        atr: float | None = None,
     ) -> Decimal:
         """Рассчитать стоп-лосс цену"""
-        pass
-    
+
     @abstractmethod
     def calculate_take_profit(
         self,
         entry_price: Decimal,
         stop_loss: Decimal,
-        candles: List[models.Candle],
-    ) -> List[Dict]:
+        candles: list[models.Candle],
+    ) -> list[dict]:
         """Рассчитать уровни тейк-профита"""
-        pass
-    
+
     def check_kill_switch(self) -> bool:
         """Проверить kill switch"""
         return self.config.kill_switch or self.performance.kill_switch
-    
+
     def check_regime_compatibility(
         self,
         regime: str,
     ) -> str:
         """
         Проверить совместимость со режимом рынка.
-        
+
         Returns:
             "ON" — можно торговать
             "REDUCED" — можно с ограничениями
             "OFF" — нельзя торговать
         """
         from ..engines.regime_detector import STRATEGY_REGIME_COMPATIBILITY
-        
+
         return STRATEGY_REGIME_COMPATIBILITY.get(self.name, {}).get(
             regime, "OFF"
         )
-    
+
     def update_performance(self, won: bool, pnl: float):
         """Обновить статистику производительности"""
         self.performance.update_performance(won, pnl)
-        
+
         if not won:
             self._consecutive_losses += 1
             self._consecutive_wins = 0
         else:
             self._consecutive_wins += 1
             self._consecutive_losses = 0
-        
+
         # Автоматический kill switch при ухудшении
         if self.performance.profit_factor < self.config.decay_threshold:
             if not self.config.kill_switch:
@@ -236,13 +231,13 @@ class BaseStrategy(ABC):
                 )
                 self.config.kill_switch = True
                 self.performance.kill_switch = True
-                
+
                 events.emit_async(events.EventType.STRATEGY_KILLED, {
                     "strategy": self.name,
                     "profit_factor": self.performance.profit_factor,
                     "reason": "Decay detected",
                 })
-    
+
     def should_skip_signal(self) -> bool:
         """Проверить нужно ли пропустить сигнал"""
         if not self.enabled:
@@ -250,20 +245,20 @@ class BaseStrategy(ABC):
         if self.check_kill_switch():
             return True
         return False
-    
+
     def get_regime_compatibility(
         self,
         regime: str,
     ) -> str:
         """Получить уровень совместимости со режимом"""
         from ..engines.regime_detector import MarketRegime
-        
+
         try:
             regime_enum = MarketRegime(regime)
             return self.check_regime_compatibility(regime_enum.value)
         except ValueError:
             return "OFF"
-    
+
     def to_dict(self) -> dict:
         """Сериализовать состояние"""
         return {

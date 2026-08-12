@@ -1,0 +1,83 @@
+[project]
+name = "astra-bot"
+version = "1.0.0"
+description = "ASTRA BOT — autonomous crypto trading platform"
+requires-python = ">=3.11"
+readme = "README.md"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["astra_bot", "scripts", "tests"]
+extend-exclude = [".venv", "build", "dist", "htmlcov"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+    "PIE",  # flake8-pie
+    "RUF",  # ruff-specific rules
+]
+# SIM102/103/105/108 — стилистические предпочтения, не несущие ценности и
+# конфликтующие с читабельностью в местах с денежной логикой.
+# RUF001/002/003 — в кодовой базе много русскоязычных комментариев и эмодзи,
+# детектор «амбигуитетных» юникодных символов непрактичен.
+extend-ignore = [
+    "RUF001", "RUF002", "RUF003",
+    "SIM102", "SIM103", "SIM105", "SIM108",
+]
+# Исключены «шумные» и стилистически спорные правила:
+#   FURB  — советы по перформансу от refurb (часто ломают Decimal-логику)
+#   DTZ   — временные зоны: в торговом боте время UTC осознанно
+#   BLE001 / S110 / TRY — широкие except и raise-vanilla допустимы в
+#                         инфраструктурных/адаптерных модулях.
+ignore = [
+    "BLE001",
+    "DTZ001",
+    "DTZ003",
+    "DTZ005",
+    "DTZ006",
+    "E501",
+    "RUF012",
+    "RUF013",
+    "S110",
+    "TRY002",
+    "TRY003",
+    "UP007",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011", "PIE790", "SIM117", "UP", "E402"]
+"scripts/**" = ["BLE001", "T201", "E402"]
+"astra_bot/main.py" = ["E402"]
+"main.py" = ["E402"]
+"astra_bot/adapters/**" = ["BLE001"]
+"astra_bot/telegram/**" = ["BLE001"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-q --strict-markers"
+filterwarnings = [
+    "error::RuntimeWarning",
+    # starlette.testclient ругается на связку httpx/starlette — это баг окружения,
+    # а не нашего кода; в CI используем чистый stdout без шума.
+    "ignore:Using `httpx` with `starlette.testclient`",
+]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true

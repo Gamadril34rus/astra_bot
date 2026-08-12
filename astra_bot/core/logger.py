@@ -4,9 +4,8 @@ ASTRA BOT — Логирование
 
 import logging
 import sys
-from pathlib import Path
-from typing import Optional
 from datetime import datetime
+from pathlib import Path
 
 
 def setup_logging(
@@ -17,7 +16,7 @@ def setup_logging(
 ) -> None:
     """
     Настройка логирования системы.
-    
+
     Args:
         level: Уровень логирования
         log_dir: Директория для логов
@@ -29,28 +28,28 @@ def setup_logging(
         "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
-    
+
     # Консольный обработчик
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
     console_handler.setLevel(level)
-    
+
     # Настройка корневого логгера
     root_logger = logging.getLogger()
     root_logger.setLevel(level)
     root_logger.handlers.clear()
     root_logger.addHandler(console_handler)
-    
+
     # Логгер для конкретных компонентов
     # Подавление шума от библиотек
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("ccxt").setLevel(logging.WARNING)
-    
+
     # Файловый логгер (если указано)
     if log_dir:
         log_path = Path(log_dir)
         log_path.mkdir(parents=True, exist_ok=True)
-        
+
         file_handler = logging.FileHandler(
             log_path / f"astra_{datetime.now().strftime('%Y%m%d')}.log"
         )

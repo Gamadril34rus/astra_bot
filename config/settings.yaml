@@ -1,23 +1,20 @@
-# ASTRA BOT — Production Configuration
-# ============================================================
-# ⚠️ ВАЖНО: Все sensitive данные должны быть в .env файле!
-# Не храните реальные ключи в этом файле.
-# ============================================================
+# ASTRA BOT — Configuration
+# ---------------
+# КРИТИЧЕСКИ ВАЖНО: Никогда не храните реальные ключи в этом файле!
+# Используйте переменные окружения для sensitive данных.
 
 system:
   name: "ASTRA BOT"
-  version: "1.0.0"
-  environment: "production"  # development | paper | production
-  paper_trading: false
-  trading_enabled: true  # Только после полной валидации!
+  version: "0.1.0"
+  environment: "development"  # development | paper | production
+  paper_trading: true
+  trading_enabled: false  # Включить только после полной валидации
 
-# ============================================================
-# РЫНОЧНЫЕ ДАННЫЕ
-# ============================================================
+# Рыночные данные
 market_data:
-  poll_interval_ms: 500
-  websocket_reconnect_delay: 3
-  stale_data_timeout_seconds: 3
+  poll_interval_ms: 1000
+  websocket_reconnect_delay: 5
+  stale_data_timeout_seconds: 5
   candle_timeframes:
     - "1m"
     - "5m"
@@ -25,27 +22,17 @@ market_data:
     - "1h"
     - "4h"
     - "1d"
-  max_candles_cache: 50000
-  orderbook_depth: 25
+  max_candles_cache: 10000
+  orderbook_depth: 20
 
-# ============================================================
-# УНИВЕРСУМ ИНСТРУМЕНТОВ
-# ============================================================
+# Универсум инструментов
 trading:
-  # Основной универсум (разрешено)
   instruments:
     - "BTC/USDT"
     - "ETH/USDT"
     - "SOL/USDT"
   
-  # Дополнительный универсум (после liquidity check)
-  # extended_instruments:
-  #   - "XRP/USDT"
-  #   - "BNB/USDT"
-  #   - "DOGE/USDT"
-  #   - "ADA/USDT"
-  
-  # Включённые стратегии
+  # Стратегии
   strategies:
     momentum:
       enabled: true
@@ -54,29 +41,10 @@ trading:
       enabled: true
       weight: 1.0
     adaptive_grid:
-      enabled: false  # Только после тщательных тестов!
+      enabled: false  # Включить только после тщательных тестов
       weight: 1.0
-  
-  # Параметры стратегий
-  strategy_params:
-    momentum:
-      ema_short: 20
-      ema_medium: 50
-      ema_long: 200
-      atr_stop_multiplier: 1.5
-      volume_ratio_threshold: 1.5
-      min_risk_reward: 1.5
-    
-    mean_reversion:
-      bb_period: 20
-      bb_std_dev: 2.0
-      rsi_oversold: 30
-      rsi_overbought: 70
-      zscore_threshold: 2.0
 
-# ============================================================
-# РИСК-ПАРАМЕТРЫ (КРИТИЧЕСКИ ВАЖНО!)
-# ============================================================
+# Риск-параметры (КРИТИЧЕСКИ ВАЖНО)
 risk:
   # Риск на сделку
   risk_per_trade: 0.004  # 0.4% от капитала
@@ -95,12 +63,12 @@ risk:
   max_open_positions: 5
   
   # Волатильность
-  high_volatility_multiplier: 0.5
-  extreme_volatility_threshold: 0.15
+  high_volatility_multiplier: 0.5  # Уменьшение размера при высокой волатильности
+  extreme_volatility_threshold: 0.15  # 15% ATR/price → Risk=0
   volatility_lookback: 20
   
   # Корреляция
-  correlation_limit: 0.7
+  correlation_limit: 0.7  # Если корреляция > 0.7, считать позиции как одну
   
   # Адаптация риска по просадке
   drawdown_adaptation:
@@ -113,162 +81,77 @@ risk:
     - drawdown: 0.08
       risk_multiplier: 0.0
 
-# ============================================================
-# ML НАСТРОЙКИ
-# ============================================================
+# ML настройки
 ml:
-  enabled: true
+  enabled: false  # Включить в V1.0
   model_type: "lightgbm"
-  model_path: "models/production/"
-  model_version: "ML-20260808-001"
+  model_path: "models/"
   auto_train: false
-  auto_deploy: false  # Только после ручного подтверждения!
   retraining_interval_days: 30
   min_training_samples: 1000
   train_split: 0.7
   validation_split: 0.15
-  
-  # Пороги для торговли
-  min_probability: 0.55
-  min_confidence: 0.3
 
-# ============================================================
-# TELEGRAM
-# ============================================================
+# Telegram
 telegram:
-  bot_token: "${TELEGRAM_BOT_TOKEN}"
+  bot_token: "${TELEGRAM_BOT_TOKEN}"  # Установите переменную окружения
   allowed_user_ids:
     - "${TELEGRAM_USER_ID}"
   admin_user_ids:
     - "${TELEGRAM_ADMIN_ID}"
   enable_alerts: true
   daily_report_time: "09:00"
-  alert_on:
-    - risk_warning
-    - risk_stop
-    - emergency_stop
-    - order_filled
-    - order_rejected
-    - strategy_change
-    - regime_change
 
-# ============================================================
-# БАЗА ДАННЫХ
-# ============================================================
+# База данных
 database:
   host: "${DB_HOST:-localhost}"
   port: 5432
   name: "astra_bot"
-  user: "${DB_USER:-astra}"
-  password: "${DB_PASSWORD}"
-  pool_size: 20
-  pool_timeout: 30
+  user: "${DB_USER:-postgres}"
+  password: "${DB_PASSWORD:-}"
+  pool_size: 10
 
-# ============================================================
-# REDIS
-# ============================================================
+# Redis
 redis:
   host: "${REDIS_HOST:-localhost}"
   port: 6379
   db: 0
-  password: "${REDIS_PASSWORD:-}"
-  pool_size: 10
 
-# ============================================================
-# БИРЖИ
-# ============================================================
+# Биржи
 exchanges:
   okx:
     enabled: true
-    sandbox: false  # В production:false
-    api_key: "${OKX_API_KEY}"
-    api_secret: "${OKX_API_SECRET}"
-    passphrase: "${OKX_PASSPHRASE}"
+    sandbox: true
+    api_key: "${OKX_API_KEY}"      # Установите переменную окружения
+    api_secret: "${OKX_API_SECRET}" # Установите переменную окружения
+    passphrase: "${OKX_PASSPHRASE}" # Установите переменную окружения
     contract_type: "spot"
     base_url: "https://www.okx.com"
-    
-    # Настройки для production
-    trading_pairs:
-      - "BTC/USDT"
-      - "ETH/USDT"
-      - "SOL/USDT"
-    
-    # Ограничения
-    max_orders_per_minute: 30
-    max_orders_per_day: 500
-    
+  
   bybit:
     enabled: false
-    # Конфигурация аналогична OKX
+    # Аналогично OKX
 
-# ============================================================
-# БЕЗОПАСНОСТЬ
-# ============================================================
+# Безопасность
 security:
-  # API ключи ОБЯЗАНЫ быть без withdrawal permissions
+  # API ключи ДОЛЖНЫ быть без withdrawal permissions
   require_no_withdrawal: true
   
-  # IP whitelist (если доступно на бирже)
-  ip_whitelist:
-    - "${VPS_IP_ADDRESS}"
+  # Рекомендуемые настройки API ключа:
+  # - Read: YES
+  # - Trade: YES
+  # - Withdraw: NO
   
-  # Использовать отдельную торговую подсчётную запись
+  # IP белый список (если доступно)
+  ip_whitelist: []
+  
+  # Использовать отдельный trading subaccount
   use_subaccount: true
-  subaccount_name: "astra_trading"
-  
-  # Telegram безопасность
-  telegram:
-    require_admin_for_pause: true
-    require_admin_for_resume: true
-    require_admin_for_emergency_stop: false  # Для быстрого реагирования
 
-# ============================================================
-# МОНИТОРИНГ И АЛЕРТИНГ
-# ============================================================
+# Мониторинг
 monitoring:
   enable_metrics: true
-  metrics_port: 8000
-  metrics_path: "/metrics"
-  
-  # Alert каналы
+  metrics_port: 9090
   alert_channels:
     - "telegram"
-  
-  # Логирование
   log_level: "INFO"
-  log_file: "/app/logs/astra_bot.log"
-  log_max_size: "10MB"
-  log_backup_count: 5
-  
-  # Сохранение метрик
-  metrics_retention_days: 30
-
-# ============================================================
-# BACKUP И ВОССТАНОВЛЕНИЕ
-# ============================================================
-backup:
-  enabled: true
-  schedule: "0 2 * * *"  # Ежедневно в 2:00
-  retention_days: 30
-  database_backup: true
-  config_backup: true
-  model_backup: true
-
-# ============================================================
-# СИСТЕМНЫЕ НАСТРОЙКИ
-# ============================================================
-system_settings:
-  # Перезапуск при ошибках
-  auto_restart: true
-  max_restart_attempts: 3
-  restart_delay_seconds: 60
-  
-  # Reconciliation
-  reconciliation_interval_seconds: 60
-  reconciliation_on_start: true
-  
-  # Circuit breaker
-  circuit_breaker:
-    enabled: true
-    failure_threshold: 5
-    recovery_timeout_seconds: 300

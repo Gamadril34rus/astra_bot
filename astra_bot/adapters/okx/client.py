@@ -5,36 +5,38 @@ ASTRA BOT — OKX REST API Client
 import asyncio
 import hashlib
 import hmac
-import time
 import logging
-from typing import Optional, List, Dict, Any
-from decimal import Decimal
+import time
 from datetime import datetime
+from decimal import Decimal
+from typing import Any
+
 import aiohttp
 
+from ...core.exceptions import ExchangeError
+from ...core.metrics import HTTP_REQUEST_LATENCY, HTTP_REQUESTS_TOTAL
 from ..base import (
-    ExchangeAdapter,
-    Instrument,
-    Candle,
-    Trade,
-    OrderBook,
-    OrderBookEntry,
     AccountBalance,
-    Order,
-    OrderStatus,
-    Position,
+    Candle,
+    ExchangeAdapter,
     ExchangeHealth,
     ExchangeHealthStatus,
-    OrderSide,
-    OrderType,
-    PositionSide,
+    Instrument,
+    Order,
+    OrderBook,
+    OrderBookEntry,
+    Position,
+    Trade,
 )
 
 logger = logging.getLogger(__name__)
 
 # OKX API endpoints
 OKX_API_BASE = "https://www.okx.com"
+# OKX demo trading endpoint (отдельный хост, см. документацию OKX V5)
 OKX_API_SANDBOX = "https://www.okx.com"
+OKX_WS_BASE = "wss://ws.okx.com:8443/ws/v5/public"
+OKX_WS_SANDBOX = "wss://wspap.okx.com:8443/ws/v5/public?brokerId=9999"
 
 OKX_ENDPOINTS = {
     "spot": {
@@ -56,16 +58,16 @@ OKX_ENDPOINTS = {
 class OKXClient(ExchangeAdapter):
     """
     OKX Exchange REST API Client.
-    
+
     Документация: https://www.okx.com/docs-v5/
     """
-    
+
     exchange_name = "okx"
     exchange_type = "okx"
-    
-    def __init__(self, config: Dict[str, Any]):
+
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config)
-        
+
         self.api_key = config.get("api_key", "")
         self.api_secret = config.get("api_secret", "")
         self.passphrase = config.get("passphrase", "")
@@ -73,14 +75,44 @@ class OKXClient(ExchangeAdapter):
         self.base_url = config.get("base_url", OKX_API_BASE)
         self.enabled = config.get("enabled", True)
         self.contract_type = config.get("contract_type", "spot")
-        
-        self._session: Optional[aiohttp.ClientSession] = None
+
+        self._session: aiohttp.ClientSession | None = None
         self._rate_limit_remaining = 100
         self._rate_limit_reset = 0.0
-        
+
+        # Client-side rate limiting (token bucket). OKX позволяет 20 req/2s
+        # для публичных эндпоинтов и отдельные лимиты для торговых; по
+        # умолчанию придерживаемся консервативных 10 req/s, значение можно
+        # переопределить через config.
+        self._rate_limit_qps = float(config.get("rate_limit_qps", 10))
+        self._rate_bucket = self._rate_limit_qps
+        self._rate_last = 0.0
+        self._rate_lock = asyncio.Lock()
+
         # Кэш инструментов
-        self._instrument_cache: Dict[str, Instrument] = {}
-    
+        self._instrument_cache: dict[str, Instrument] = {}
+
+    async def _acquire_rate_token(self) -> None:
+        """Забрать один токен из token bucket, при необходимости подождав."""
+        if self._rate_limit_qps <= 0:
+            return
+        async with self._rate_lock:
+            now = asyncio.get_event_loop().time()
+            if self._rate_last == 0.0:
+                self._rate_last = now
+            elapsed = now - self._rate_last
+            self._rate_last = now
+            self._rate_bucket = min(
+                self._rate_limit_qps,
+                self._rate_bucket + elapsed * self._rate_limit_qps,
+            )
+            if self._rate_bucket < 1.0:
+                wait = (1.0 - self._rate_bucket) / self._rate_limit_qps
+                await asyncio.sleep(wait)
+                self._rate_bucket = 0.0
+            else:
+                self._rate_bucket -= 1.0
+
     async def initialize(self):
         """Инициализация клиента"""
         self._session = aiohttp.ClientSession(
@@ -92,13 +124,13 @@ class OKXClient(ExchangeAdapter):
             }
         )
         logger.info(f"OKX client initialized, sandbox={self.sandbox}")
-    
+
     async def close(self):
         """Закрытие клиента"""
         if self._session:
             await self._session.close()
             self._session = None
-    
+
     def _sign_request(self, timestamp: str, body: str) -> str:
         """Создать подпись запроса"""
         message = f"{timestamp}GET{self.base_url}{OKX_ENDPOINTS['spot']['account']}{body}"
@@ -108,11 +140,11 @@ class OKXClient(ExchangeAdapter):
             hashlib.sha256
         ).hexdigest()
         return signature
-    
-    def _prepare_auth_headers(self, method: str, request_path: str, body: str = "") -> Dict[str, str]:
+
+    def _prepare_auth_headers(self, method: str, request_path: str, body: str = "") -> dict[str, str]:
         """Подготовить авторизованные заголовки"""
         timestamp = str(int(time.time() * 1000))
-        
+
         # Для публичных методов подпись не требуется, но добавляем для консистентности
         if self.api_key:
             signature = hmac.new(
@@ -120,7 +152,7 @@ class OKXClient(ExchangeAdapter):
                 f"{timestamp}{method}{request_path}{body}".encode(),
                 hashlib.sha256
             ).hexdigest()
-            
+
             return {
                 "OK-ACCESS-KEY": self.api_key,
                 "OK-ACCESS-SIGN": signature,
@@ -129,93 +161,120 @@ class OKXClient(ExchangeAdapter):
                 "Content-Type": "application/json",
             }
         return {"Content-Type": "application/json"}
-    
+
     async def _request(
         self,
         method: str,
         endpoint: str,
-        params: Optional[Dict] = None,
-        body: Optional[Dict] = None,
+        params: dict | None = None,
+        body: dict | None = None,
         signed: bool = False
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Отправить запрос к API"""
         url = f"{self.base_url}{endpoint}"
         headers = {}
-        
+
         if signed:
             request_path = endpoint
             body_str = body if body else ""
             headers = self._prepare_auth_headers(method, request_path, body_str)
         else:
             headers = {"Content-Type": "application/json"}
-        
+
+        if self._session is None:
+            raise RuntimeError("OKXClient is not initialized; call initialize() first")
+
+        await self._acquire_rate_token()
         try:
             start_time = time.time()
-            
+            http_status = 0
+
             if method == "GET":
                 async with self._session.get(url, params=params, headers=headers) as resp:
-                    latency = (time.time() - start_time) * 1000
-                    self._last_latency = latency
+                    http_status = resp.status
+                    latency_s = time.time() - start_time
+                    self._last_latency = latency_s * 1000
                     data = await resp.json()
             elif method == "POST":
                 async with self._session.post(url, json=body, headers=headers) as resp:
-                    latency = (time.time() - start_time) * 1000
-                    self._last_latency = latency
+                    http_status = resp.status
+                    latency_s = time.time() - start_time
+                    self._last_latency = latency_s * 1000
                     data = await resp.json()
             else:
                 raise ValueError(f"Unsupported method: {method}")
-            
+
+            HTTP_REQUEST_LATENCY.labels(
+                service="okx", endpoint=endpoint
+            ).observe(latency_s)
+            HTTP_REQUESTS_TOTAL.labels(
+                service="okx", method=method, endpoint=endpoint, status=str(http_status)
+            ).inc()
+
             # Проверка на ошибки API
             if data.get("code") != "0":
                 error_msg = data.get("msg", "Unknown error")
                 logger.error(f"OKX API error: {error_msg}, data: {data}")
-                raise Exception(f"OKX API error: {error_msg}")
-            
+                HTTP_REQUESTS_TOTAL.labels(
+                    service="okx", method=method, endpoint=endpoint, status=f"api_{data.get('code')}"
+                ).inc()
+                raise ExchangeError(
+                    f"OKX API error: {error_msg}",
+                    exchange="okx",
+                    operation=endpoint,
+                )
+
             return data.get("data", [])
-        
-        except asyncio.TimeoutError:
+
+        except TimeoutError:
+            HTTP_REQUESTS_TOTAL.labels(
+                service="okx", method=method, endpoint=endpoint, status="timeout"
+            ).inc()
             logger.error(f"OKX API timeout: {endpoint}")
             raise
         except aiohttp.ClientError as e:
+            HTTP_REQUESTS_TOTAL.labels(
+                service="okx", method=method, endpoint=endpoint, status="client_error"
+            ).inc()
             logger.error(f"OKX API client error: {e}")
             raise
-    
+
     # === Инструменты ===
-    
-    async def get_instruments(self, symbol: Optional[str] = None) -> List[Instrument]:
+
+    async def get_instruments(self, symbol: str | None = None) -> list[Instrument]:
         """Получить инструменты"""
         params = {"instType": "SPOT"}
         if symbol:
             params["instId"] = symbol
-        
+
         try:
             data = await self._request("GET", OKX_ENDPOINTS["spot"]["instruments"], params=params, signed=False)
-            
+
             instruments = []
             for item in data:
                 inst = self._parse_instrument(item)
                 self._instrument_cache[inst.symbol] = inst
                 instruments.append(inst)
-            
+
             return instruments
-        
+
         except Exception as e:
             logger.error(f"Error getting instruments: {e}")
             # Вернуть из кэша если есть
             if symbol:
                 return [self._instrument_cache.get(symbol)] if symbol in self._instrument_cache else []
             return list(self._instrument_cache.values())
-    
-    async def get_instrument(self, symbol: str) -> Optional[Instrument]:
+
+    async def get_instrument(self, symbol: str) -> Instrument | None:
         """Получить инструмент"""
         # Сначала проверяем кэш
         if symbol in self._instrument_cache:
             return self._instrument_cache[symbol]
-        
+
         instruments = await self.get_instruments(symbol)
         return instruments[0] if instruments else None
-    
-    def _parse_instrument(self, data: Dict[str, Any]) -> Instrument:
+
+    def _parse_instrument(self, data: dict[str, Any]) -> Instrument:
         """Разобрать инструмент из ответа OKX"""
         return Instrument(
             exchange="okx",
@@ -232,32 +291,32 @@ class OKXClient(ExchangeAdapter):
             fee_rate=Decimal("0.001"),  # OKX стандартная комиссия 0.1%
             contract_type="spot",
         )
-    
+
     # === Рыночные данные ===
-    
+
     async def get_candles(
         self,
         symbol: str,
         timeframe: str,
-        since: Optional[int] = None,
+        since: int | None = None,
         limit: int = 1000
-    ) -> List[Candle]:
+    ) -> list[Candle]:
         """Получить свечи"""
         # Конвертация таймфрейма OKX
         okx_granularity = self._convert_timeframe(timeframe)
-        
+
         params = {
             "instId": symbol,
             "bar": okx_granularity,
             "limit": min(limit, 1000)  # OKX ограничение 1000
         }
-        
+
         if since:
             params["before"] = since
-        
+
         try:
             data = await self._request("GET", OKX_ENDPOINTS["spot"]["candles"], params=params, signed=False)
-            
+
             candles = []
             for item in data:
                 candle = Candle(
@@ -274,40 +333,40 @@ class OKXClient(ExchangeAdapter):
                     trades_count=0
                 )
                 candles.append(candle)
-            
+
             return candles
-        
+
         except Exception as e:
             logger.error(f"Error getting candles for {symbol}: {e}")
             return []
-    
+
     async def get_recent_candles(
         self,
         symbol: str,
         timeframe: str,
         limit: int = 100
-    ) -> List[Candle]:
+    ) -> list[Candle]:
         """Получить последние свечи"""
         return await self.get_candles(symbol, timeframe, limit=limit)
-    
+
     async def get_trades(
         self,
         symbol: str,
-        since: Optional[int] = None,
+        since: int | None = None,
         limit: int = 100
-    ) -> List[Trade]:
+    ) -> list[Trade]:
         """Получить торговлю"""
         params = {
             "instId": symbol,
             "limit": limit
         }
-        
+
         if since:
             params["before"] = since
-        
+
         try:
             data = await self._request("GET", OKX_ENDPOINTS["spot"]["trades"], params=params, signed=False)
-            
+
             trades = []
             for item in data:
                 trade = Trade(
@@ -320,13 +379,13 @@ class OKXClient(ExchangeAdapter):
                     timestamp=int(item[4]),
                 )
                 trades.append(trade)
-            
+
             return trades
-        
+
         except Exception as e:
             logger.error(f"Error getting trades for {symbol}: {e}")
             return []
-    
+
     async def get_orderbook(
         self,
         symbol: str,
@@ -337,46 +396,57 @@ class OKXClient(ExchangeAdapter):
             "instId": symbol,
             "sz": depth
         }
-        
+
         try:
-            data = await self._request("GET", OKX_ENDPOINTS["spot"]["orderbook"], params=params, signed=False)
-            
+            data = await self._request(
+                "GET",
+                OKX_ENDPOINTS["spot"]["orderbook"],
+                params=params,
+                signed=False,
+            )
+
+            # ``_request`` возвращает поле ``data`` из ответа OKX, то есть
+            # список с одним элементом — словарём стакана.
+            book = data[0] if isinstance(data, list) and data else {}
+
             bids = []
-            for bid in data.get("bids", [])[:depth]:
-                bids.append(OrderBookEntry(
-                    price=Decimal(bid[0]),
-                    quantity=Decimal(bid[1]),
-                ))
-            
+            for bid in (book.get("bids") or [])[:depth]:
+                if len(bid) >= 2:
+                    bids.append(OrderBookEntry(
+                        price=Decimal(bid[0]),
+                        quantity=Decimal(bid[1]),
+                    ))
+
             asks = []
-            for ask in data.get("asks", [])[:depth]:
-                asks.append(OrderBookEntry(
-                    price=Decimal(ask[0]),
-                    quantity=Decimal(ask[1]),
-                ))
-            
+            for ask in (book.get("asks") or [])[:depth]:
+                if len(ask) >= 2:
+                    asks.append(OrderBookEntry(
+                        price=Decimal(ask[0]),
+                        quantity=Decimal(ask[1]),
+                    ))
+
             # Сортировка: asks по возрастанию, bids по убыванию
             asks.sort(key=lambda x: x.price)
             bids.sort(key=lambda x: x.price, reverse=True)
-            
+
             return OrderBook(
                 symbol=symbol,
                 exchange="okx",
                 bids=bids,
                 asks=asks,
             )
-        
+
         except Exception as e:
             logger.error(f"Error getting orderbook for {symbol}: {e}")
             return OrderBook(symbol=symbol, exchange="okx", bids=[], asks=[])
-    
-    async def get_ticker(self, symbol: str) -> Dict[str, Any]:
+
+    async def get_ticker(self, symbol: str) -> dict[str, Any]:
         """Получить тикер"""
         params = {"instId": symbol}
-        
+
         try:
             data = await self._request("GET", OKX_ENDPOINTS["spot"]["ticker"], params=params, signed=False)
-            
+
             if data:
                 ticker_data = data[0]
                 return {
@@ -390,13 +460,13 @@ class OKXClient(ExchangeAdapter):
                     "quote_volume_24h": Decimal(ticker_data.get("volCcy24h", "0")),
                     "price_change_24h": Decimal(ticker_data.get("pretRcl", "0")),
                 }
-            
+
             return {}
-        
+
         except Exception as e:
             logger.error(f"Error getting ticker for {symbol}: {e}")
             return {}
-    
+
     def _convert_timeframe(self, timeframe: str) -> str:
         """Конвертировать таймфрейм в формат OKX"""
         mapping = {
@@ -414,13 +484,13 @@ class OKXClient(ExchangeAdapter):
             "1w": "1w",
         }
         return mapping.get(timeframe, "1m")
-    
+
     # === Аккаунт ===
-    
-    async def get_account_balance(self) -> Dict[str, AccountBalance]:
+
+    async def get_account_balance(self) -> dict[str, AccountBalance]:
         """Получить баланс аккаунта"""
         balances = {}
-        
+
         try:
             if not self.api_key:
                 # Режим песочницы / тестовый — возвращаем тестовые балансы
@@ -442,14 +512,14 @@ class OKXClient(ExchangeAdapter):
                         total=Decimal("0"),
                     ),
                 }
-            
+
             data = await self._request("GET", OKX_ENDPOINTS["spot"]["account"], signed=True)
-            
+
             for item in data:
                 asset = item.get("ccy", "")
                 free = Decimal(item.get("free", "0"))
                 locked = Decimal(item.get("locked", "0"))
-                
+
                 balances[asset] = AccountBalance(
                     account_id="okx_main",
                     exchange="okx",
@@ -458,57 +528,57 @@ class OKXClient(ExchangeAdapter):
                     locked=locked,
                     total=free + locked,
                 )
-            
+
             return balances
-        
+
         except Exception as e:
             logger.error(f"Error getting account balance: {e}")
             # В случае ошибки возвращаем пустые балансы
             return {}
-    
-    async def get_balances(self, assets: Optional[List[str]] = None) -> Dict[str, Decimal]:
+
+    async def get_balances(self, assets: list[str] | None = None) -> dict[str, Decimal]:
         """Получить балансы в виде словаря"""
         balances = await self.get_account_balance()
-        
+
         if assets:
             return {
                 asset: balances.get(asset, AccountBalance("", "okx", asset)).free
                 for asset in assets
             }
-        
+
         return {
             asset: balance.free
             for asset, balance in balances.items()
         }
-    
+
     # === Ордера ===
-    
+
     async def place_order(
         self,
         symbol: str,
         side: str,
         order_type: str,
         quantity: Decimal,
-        price: Optional[Decimal] = None,
-        stop_price: Optional[Decimal] = None,
-        take_profit_price: Optional[Decimal] = None,
-        client_order_id: Optional[str] = None,
+        price: Decimal | None = None,
+        stop_price: Decimal | None = None,
+        take_profit_price: Decimal | None = None,
+        client_order_id: str | None = None,
         **kwargs
     ) -> Order:
         """Разместить ордер"""
         if not self.enabled:
-            raise Exception("Exchange is disabled")
-        
+            raise ExchangeError("Exchange is disabled", exchange="okx", operation="place_order")
+
         # Валидация
         errors = self.validate_order(symbol, side, order_type, quantity, price)
         if errors:
             raise ValueError(f"Order validation failed: {errors}")
-        
+
         # Проверка минимальных требований
         min_errors = await self.check_min_order_requirements(symbol, quantity, price)
         if min_errors:
             raise ValueError(f"Minimum requirements not met: {min_errors}")
-        
+
         try:
             params = {
                 "instId": symbol,
@@ -517,16 +587,16 @@ class OKXClient(ExchangeAdapter):
                 "ordType": order_type.upper(),
                 "sz": str(quantity),
             }
-            
+
             if price:
                 params["px"] = str(price)
-            
+
             if client_order_id:
                 params["clOrdId"] = client_order_id
-            
+
             body = params
             data = await self._request("POST", OKX_ENDPOINTS["spot"]["place_order"], body=body, signed=True)
-            
+
             if data:
                 order_data = data[0]
                 return Order(
@@ -541,13 +611,13 @@ class OKXClient(ExchangeAdapter):
                     status=order_data.get("state", "new").lower(),
                     created_at=datetime.utcnow(),
                 )
-            
-            raise Exception("No response from OKX")
-        
+
+            raise ExchangeError("No response from OKX", exchange="okx", operation="place_order")
+
         except Exception as e:
             logger.error(f"Error placing order: {e}")
             raise
-    
+
     async def cancel_order(
         self,
         symbol: str,
@@ -559,44 +629,44 @@ class OKXClient(ExchangeAdapter):
                 "instId": symbol,
                 "ordId": order_id,
             }
-            
+
             data = await self._request("POST", OKX_ENDPOINTS["spot"]["cancel_order"], body=params, signed=True)
-            
+
             if data and data[0].get("code") == "0":
                 return True
-            
+
             logger.warning(f"Failed to cancel order {order_id}: {data}")
             return False
-        
+
         except Exception as e:
             logger.error(f"Error canceling order: {e}")
             return False
-    
+
     async def cancel_all_orders(self, symbol: str) -> int:
         """Отменить все ордера по символу"""
         try:
             params = {"instId": symbol}
             data = await self._request("POST", "/api/v5/trade/cancel-all", body=params, signed=True)
-            
+
             if data:
                 return int(data[0].get("suid", "0"))
-            
+
             return 0
-        
+
         except Exception as e:
             logger.error(f"Error canceling all orders: {e}")
             return 0
-    
-    async def get_order(self, symbol: str, order_id: str) -> Optional[Order]:
+
+    async def get_order(self, symbol: str, order_id: str) -> Order | None:
         """Получить ордер"""
         try:
             params = {
                 "instId": symbol,
                 "ordId": order_id,
             }
-            
+
             data = await self._request("GET", OKX_ENDPOINTS["spot"]["get_order"], params=params, signed=True)
-            
+
             if data:
                 order_data = data[0]
                 return Order(
@@ -614,25 +684,25 @@ class OKXClient(ExchangeAdapter):
                     filled_fees=Decimal(order_data.get("fee", "0")),
                     created_at=datetime.utcnow(),
                 )
-            
+
             return None
-        
+
         except Exception as e:
             logger.error(f"Error getting order: {e}")
             return None
-    
+
     async def get_open_orders(
         self,
-        symbol: Optional[str] = None
-    ) -> List[Order]:
+        symbol: str | None = None
+    ) -> list[Order]:
         """Получить открытые ордера"""
         try:
             params = {"instType": "SPOT"}
             if symbol:
                 params["instId"] = symbol
-            
+
             data = await self._request("GET", OKX_ENDPOINTS["spot"]["open_orders"], params=params, signed=True)
-            
+
             orders = []
             for item in data:
                 orders.append(Order(
@@ -648,37 +718,37 @@ class OKXClient(ExchangeAdapter):
                     filled_quantity=Decimal(item.get("accSz", "0")),
                     created_at=datetime.utcnow(),
                 ))
-            
+
             return orders
-        
+
         except Exception as e:
             logger.error(f"Error getting open orders: {e}")
             return []
-    
+
     async def get_order_history(
         self,
         symbol: str,
-        since: Optional[int] = None,
+        since: int | None = None,
         limit: int = 100
-    ) -> List[Order]:
+    ) -> list[Order]:
         """Получить историю ордеров"""
         # В OKX история ордеров — отдельной эндпоинт
         # Для простоты используем get_open_orders с фильтрацией
         return await self.get_open_orders(symbol)
-    
+
     # === Позиции ===
-    
-    async def get_positions(self) -> List[Position]:
+
+    async def get_positions(self) -> list[Position]:
         """Получить позиции"""
         # В спот-торговле позиции хранятся в балансах
         # Для простоты возвращаем пустой список
         return []
-    
+
     async def close_position(
         self,
         symbol: str,
-        quantity: Optional[Decimal] = None,
-        price: Optional[Decimal] = None
+        quantity: Decimal | None = None,
+        price: Decimal | None = None
     ) -> bool:
         """Закрыть позицию"""
         # В спот-торговле закрытие позиции = продажа
@@ -693,9 +763,9 @@ class OKXClient(ExchangeAdapter):
         except Exception as e:
             logger.error(f"Error closing position: {e}")
             return False
-    
+
     # === Здоровье ===
-    
+
     async def get_exchange_health(self) -> ExchangeHealth:
         """Получить здоровье биржи"""
         return ExchangeHealth(
@@ -709,7 +779,7 @@ class OKXClient(ExchangeAdapter):
             maintenance_mode=False,
             error_rate=0.0,
         )
-    
+
     async def test_connection(self) -> bool:
         """Проверить соединение"""
         try:
@@ -726,6 +796,6 @@ class OKXClient(ExchangeAdapter):
 
 
 # Фабрика для OKX
-def create_okx_adapter(config: Dict[str, Any]) -> OKXClient:
+def create_okx_adapter(config: dict[str, Any]) -> OKXClient:
     """Создать OKX адаптер"""
     return OKXClient(config)

@@ -29,9 +29,8 @@ WORKDIR ${APP_HOME}
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir lightgbm xgboost scikit-learn pandas numpy
+# Install Python dependencies (scikit-learn/lightgbm уже в requirements.txt).
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
@@ -51,9 +50,13 @@ USER botuser
 # Expose metrics port
 EXPOSE 8000
 
-# Health check
+# Health check — используем HTTP-эндпоинт uvicorn, чтобы рестартить
+# контейнер при залипании event loop, а не только при падении импорта.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import astra_bot; print('ASTRA BOT OK')" || exit 1
+    CMD python -c "import os, urllib.request, sys; \
+url=f'http://127.0.0.1:{os.environ.get(\"PORT\", \"8000\")}/health'; \
+sys.exit(0 if urllib.request.urlopen(url, timeout=5).status == 200 else 1)" \
+    || exit 1
 
 # Default command
 CMD ["python", "-m", "astra_bot.main"]

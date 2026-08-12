@@ -3,11 +3,10 @@ ASTRA BOT — OKX Exchange Adapter
 """
 
 from .client import OKXClient
+from .order_manager import OKXOrderManager
+from .websocket import OKXWebSocket
 
 # OKXClient serves as the adapter
 OKXAdapter = OKXClient
 
-from .websocket import OKXWebSocket
-from .order_manager import OKXOrderManager
-
-__all__ = ["OKXAdapter", "OKXClient", "OKXWebSocket", "OKXOrderManager"]
+__all__ = ["OKXAdapter", "OKXClient", "OKXOrderManager", "OKXWebSocket"]

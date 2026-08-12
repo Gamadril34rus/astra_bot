@@ -3,10 +3,10 @@ ASTRA BOT — Domain модели
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
-from decimal import Decimal
+from datetime import datetime, timedelta
+from decimal import ROUND_DOWN, Decimal
 from enum import Enum
-from typing import Optional, List, Dict, Any
+from typing import Any
 from uuid import UUID, uuid4
 
 
@@ -92,13 +92,13 @@ class Instrument:
     trading_status: str = "trading"
     fee_rate: Decimal = Decimal("0.001")  # 0.1% по умолчанию
     is_active: bool = True
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    
+    metadata: dict[str, Any] = field(default_factory=dict)
+
     @property
     def contract_size(self) -> Decimal:
         """Размер контракта (для фьючерсов)"""
         return Decimal("1")
-    
+
     def is_valid_quantity(self, quantity: Decimal) -> bool:
         """Проверить валидность количества"""
         if quantity < self.min_quantity:
@@ -108,7 +108,7 @@ class Instrument:
         if remainder > Decimal("0") and remainder > self.step_size * Decimal("0.01"):
             return False
         return True
-    
+
     def is_valid_price(self, price: Decimal) -> bool:
         """Проверить валидность цены"""
         if price <= 0:
@@ -118,12 +118,12 @@ class Instrument:
         if remainder > Decimal("0") and remainder > self.tick_size * Decimal("0.01"):
             return False
         return True
-    
+
     def format_quantity(self, quantity: Decimal) -> Decimal:
         """Отформатировать количество согласно precision"""
         quantizer = Decimal(10) ** -self.quantity_precision
         return quantity.quantize(quantizer, rounding=ROUND_DOWN)
-    
+
     def format_price(self, price: Decimal) -> Decimal:
         """Отформатировать цену согласно precision"""
         quantizer = Decimal(10) ** -self.price_precision
@@ -147,7 +147,7 @@ class Candle:
     taker_buy_base_volume: Decimal = Decimal("0")
     taker_buy_quote_volume: Decimal = Decimal("0")
     close_time: int = field(init=False)
-    
+
     def __post_init__(self):
         # close_time = open_time + timeframe_duration
         timeframe_minutes = {
@@ -156,28 +156,28 @@ class Candle:
         }
         minutes = timeframe_minutes.get(self.timeframe, 1)
         self.close_time = self.open_time + minutes * 60
-    
+
     @property
     def range(self) -> Decimal:
         """Диапазон свечи"""
         return self.high - self.low
-    
+
     @property
     def body(self) -> Decimal:
         """Тело свечи"""
         return abs(self.close - self.open)
-    
+
     @property
     def is_bullish(self) -> bool:
         return self.close >= self.open
-    
+
     @property
     def change_pct(self) -> Decimal:
         """Изменение в процентах"""
         if self.open <= 0:
             return Decimal("0")
         return (self.close - self.open) / self.open * Decimal("100")
-    
+
     def to_dict(self) -> dict:
         return {
             "exchange": self.exchange,
@@ -205,11 +205,11 @@ class Trade:
     timestamp: int
     is_taker: bool = False
     fee: Decimal = Decimal("0")
-    
+
     @property
     def notional(self) -> Decimal:
         return self.price * self.quantity
-    
+
     @property
     def value_usdt(self) -> Decimal:
         return self.notional
@@ -220,7 +220,7 @@ class OrderBookEntry:
     """Запись стакана заявок"""
     price: Decimal
     quantity: Decimal
-    
+
     @property
     def notional(self) -> Decimal:
         return self.price * self.quantity
@@ -231,52 +231,52 @@ class OrderBook:
     """Стакан заявок"""
     symbol: str
     exchange: str
-    bids: List[OrderBookEntry] = field(default_factory=list)
-    asks: List[OrderBookEntry] = field(default_factory=list)
+    bids: list[OrderBookEntry] = field(default_factory=list)
+    asks: list[OrderBookEntry] = field(default_factory=list)
     timestamp: int = field(default_factory=lambda: int(datetime.utcnow().timestamp() * 1000))
-    sequence: Optional[int] = None
-    
+    sequence: int | None = None
+
     @property
-    def best_bid(self) -> Optional[Decimal]:
+    def best_bid(self) -> Decimal | None:
         if not self.bids:
             return None
         return self.bids[0].price
-    
+
     @property
-    def best_ask(self) -> Optional[Decimal]:
+    def best_ask(self) -> Decimal | None:
         if not self.asks:
             return None
         return self.asks[0].price
-    
+
     @property
-    def spread(self) -> Optional[Decimal]:
+    def spread(self) -> Decimal | None:
         bid = self.best_bid
         ask = self.best_ask
         if bid is None or ask is None:
             return None
         return ask - bid
-    
+
     @property
-    def spread_pct(self) -> Optional[Decimal]:
+    def spread_pct(self) -> Decimal | None:
         spread = self.spread
         mid = self.mid_price
         if spread is None or mid is None or mid <= 0:
             return None
         return spread / mid * Decimal("100")
-    
+
     @property
-    def mid_price(self) -> Optional[Decimal]:
+    def mid_price(self) -> Decimal | None:
         bid = self.best_bid
         ask = self.best_ask
         if bid is None or ask is None:
             return None
         return (bid + ask) / Decimal("2")
-    
+
     def get_depth(self, side: str, levels: int = 5) -> Decimal:
         """Получить глубину по указанной стороне"""
         book = self.bids if side == "buy" else self.asks
         return sum(entry.quantity for entry in book[:levels])
-    
+
     def get_imbalance(self, depth: int = 10) -> Decimal:
         """Рассчитать дисбаланс стакана"""
         bid_volume = sum(e.quantity for e in self.bids[:depth])
@@ -302,11 +302,11 @@ class Ticker:
     price_change_24h: Decimal
     price_change_pct_24h: Decimal
     timestamp: int = field(default_factory=lambda: int(datetime.utcnow().timestamp() * 1000))
-    
+
     @property
     def spread(self) -> Decimal:
         return self.ask_price - self.bid_price
-    
+
     @property
     def spread_pct(self) -> Decimal:
         if self.last_price <= 0:
@@ -325,7 +325,7 @@ class AccountBalance:
     total: Decimal = Decimal("0")
     usdt_equivalent: Decimal = Decimal("0")
     last_update: datetime = field(default_factory=datetime.utcnow)
-    
+
     @property
     def is_available(self) -> bool:
         return self.free > 0
@@ -345,11 +345,11 @@ class Fill:
     fee_asset: str
     timestamp: int
     is_maker: bool = False
-    
+
     @property
     def notional(self) -> Decimal:
         return self.price * self.quantity
-    
+
     @property
     def net_notional(self) -> Decimal:
         return self.notional + self.fee if self.side == Side.BUY else self.notional - self.fee
@@ -369,19 +369,19 @@ class Position:
     realized_pnl: Decimal = Decimal("0")
     status: PositionStatus = PositionStatus.OPEN
     strategy_name: str = ""
-    signal_id: Optional[UUID] = None
-    open_order_id: Optional[str] = None
+    signal_id: UUID | None = None
+    open_order_id: str | None = None
     open_time: datetime = field(default_factory=datetime.utcnow)
-    close_time: Optional[datetime] = None
-    
+    close_time: datetime | None = None
+
     @property
     def market_value(self) -> Decimal:
         return self.quantity * self.current_price
-    
+
     @property
     def entry_value(self) -> Decimal:
         return self.quantity * self.entry_price
-    
+
     def update_price(self, current_price: Decimal):
         """Обновить цену позиции"""
         self.current_price = current_price
@@ -403,14 +403,14 @@ class Signal:
     position_size: Decimal = Decimal("0")
     risk_amount: Decimal = Decimal("0")
     confidence: float = 0.0
-    ml_probability: Optional[float] = None
-    expected_value: Optional[float] = None
+    ml_probability: float | None = None
+    expected_value: float | None = None
     market_regime: str = "UNKNOWN"
     timestamp: datetime = field(default_factory=datetime.utcnow)
     status: str = "pending"  # pending, approved, rejected, executed
-    rejection_reason: Optional[str] = None
-    features: Dict[str, float] = field(default_factory=dict)
-    
+    rejection_reason: str | None = None
+    features: dict[str, float] = field(default_factory=dict)
+
     @property
     def risk_reward_ratio(self) -> float:
         risk = abs(float(self.entry_price - self.stop_loss))
@@ -418,7 +418,7 @@ class Signal:
         if risk <= 0:
             return 0.0
         return reward / risk
-    
+
     def to_dict(self) -> dict:
         return {
             "id": str(self.id),
@@ -445,11 +445,11 @@ class RiskEvent:
     event_type: str = ""
     severity: str = "info"  # info, warning, critical, emergency
     description: str = ""
-    current_value: Optional[Decimal] = None
-    limit_value: Optional[Decimal] = None
-    action_taken: Optional[str] = None
+    current_value: Decimal | None = None
+    limit_value: Decimal | None = None
+    action_taken: str | None = None
     timestamp: datetime = field(default_factory=datetime.utcnow)
-    
+
     def to_dict(self) -> dict:
         return {
             "id": str(self.id),
@@ -470,7 +470,7 @@ class NewsEvent:
     summary: str = ""
     source: str = ""
     source_reliability: float = 0.5  # 0-1
-    assets: List[str] = field(default_factory=list)
+    assets: list[str] = field(default_factory=list)
     severity: str = "medium"  # low, medium, high, critical
     confidence: float = 0.5  # 0-1
     event_type: str = "general"  # macro, regulatory, security, listing, unlock, etc.
@@ -478,10 +478,10 @@ class NewsEvent:
     created_at: datetime = field(default_factory=datetime.utcnow)
     expires_at: datetime = field(init=False)
     decay_factor: float = 1.0
-    
+
     def __post_init__(self):
         self.expires_at = self.created_at + timedelta(minutes=self.duration_minutes)
-    
+
     def update_decay(self, elapsed_minutes: int):
         """Обновить decay factor"""
         if self.duration_minutes <= 0:
@@ -489,11 +489,11 @@ class NewsEvent:
         else:
             decay_ratio = elapsed_minutes / self.duration_minutes
             self.decay_factor = max(0, 1 - decay_ratio)
-    
+
     @property
     def is_expired(self) -> bool:
         return datetime.utcnow() > self.expires_at
-    
+
     @property
     def effective_confidence(self) -> float:
         return self.confidence * self.decay_factor
@@ -509,9 +509,9 @@ class MLPrediction:
     prediction: float = 0.5  # Вероятность
     probability: float = 0.0  # Уверенность модели
     confidence: float = 0.0  # Общий confidence
-    features: Dict[str, float] = field(default_factory=dict)
+    features: dict[str, float] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.utcnow)
-    
+
     @property
     def is_profitable_signal(self) -> bool:
         return self.prediction > 0.5
@@ -535,11 +535,11 @@ class StrategyMetrics:
     avg_loss: Decimal = Decimal("0")
     largest_win: Decimal = Decimal("0")
     largest_loss: Decimal = Decimal("0")
-    
+
     @property
     def is_healthy(self) -> bool:
         return self.profit_factor > 1.0 and self.win_rate > 45.0
-    
+
     def to_dict(self) -> dict:
         return {
             "strategy": self.strategy_name,

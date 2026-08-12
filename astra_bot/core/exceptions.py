@@ -5,12 +5,10 @@ ASTRA BOT — Исключения системы
 
 class AstraError(Exception):
     """Базовое исключение ASTRA BOT"""
-    pass
 
 
 class ConfigurationError(AstraError):
     """Ошибка конфигурации"""
-    pass
 
 
 class ValidationError(AstraError):
@@ -23,7 +21,7 @@ class ValidationError(AstraError):
 
 class RiskError(AstraError):
     """Ошибка risk-движка"""
-    def __init__(self, message: str, trade_id: str = None, 
+    def __init__(self, message: str, trade_id: str = None,
                  reason: str = None, current_value: float = None,
                  limit_value: float = None):
         super().__init__(message)
@@ -55,7 +53,6 @@ class OrderError(AstraError):
 
 class PositionError(AstraError):
     """Ошибка позиции"""
-    pass
 
 
 class MarketDataError(AstraError):
@@ -70,7 +67,6 @@ class MarketDataError(AstraError):
 
 class StaleDataError(MarketDataError):
     """Устаревшие рыночные данные"""
-    pass
 
 
 class LiquidityError(AstraError):
@@ -94,12 +90,10 @@ class MLModelError(AstraError):
 
 class TrainingError(AstraError):
     """Ошибка обучения"""
-    pass
 
 
 class PredictionError(AstraError):
     """Ошибка предсказания"""
-    pass
 
 
 class ReconciliationError(AstraError):
@@ -122,7 +116,6 @@ class SecurityError(AstraError):
 
 class UnauthorizedAccessError(SecurityError):
     """Неавторизованный доступ"""
-    pass
 
 
 class PromptInjectionError(SecurityError):
@@ -146,27 +139,22 @@ class CircuitBreakerError(AstraError):
 
 class RecoveryModeError(AstraError):
     """Режим восстановления"""
-    pass
 
 
 class TradingDisabledError(AstraError):
     """Торговля отключена"""
-    pass
 
 
 class MinimumOrderError(ValidationError):
     """Размер ордера ниже минимального"""
-    pass
 
 
 class InsufficientFundsError(ValidationError):
     """Недостаточно средств"""
-    pass
 
 
 class OrderRejectedError(ExchangeError):
     """Ордер отклонён биржей"""
-    pass
 
 
 class PartialFillError(OrderError):
@@ -181,9 +169,7 @@ class PartialFillError(OrderError):
 
 class TimeoutError(AstraError):
     """Таймаут"""
-    pass
 
 
 class WebSocketError(AstraError):
     """Ошибка WebSocket"""
-    pass
