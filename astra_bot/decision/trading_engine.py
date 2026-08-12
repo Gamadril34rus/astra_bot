@@ -47,13 +47,28 @@ class TradingEngine:
     def __init__(
         self,
         okx: OKXClient,
-        pipeline: DecisionPipeline,
+        pipeline: DecisionPipeline | None = None,
         config: TradingEngineConfig | None = None,
         broker: PaperBroker | None = None,
     ):
         self.okx = okx
-        self.pipeline = pipeline
         self.config = config or TradingEngineConfig()
+        if pipeline is None:
+            from ..strategies import (
+                MeanReversionStrategy,
+                MomentumStrategy,
+                PullbackStrategy,
+            )
+            from .config import DecisionConfig
+            pipeline = DecisionPipeline(
+                DecisionConfig(),
+                strategies=[
+                    PullbackStrategy(),
+                    MomentumStrategy(),
+                    MeanReversionStrategy(),
+                ],
+            )
+        self.pipeline = pipeline
         self.broker = broker or PaperBroker(
             state_path=__import__("pathlib").Path(self.config.state_path),
             trades_path=__import__("pathlib").Path(self.config.trades_path),
