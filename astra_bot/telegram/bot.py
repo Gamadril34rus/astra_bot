@@ -514,30 +514,37 @@ class AstraTelegramBot:
         paper = get_paper_engine()
         risk = get_risk_engine()
 
-        lines = ["💰 *БАЛАНС*", ""]
+        # Все суммы движка обучения/бумажного счёта хранятся в USDT.
+        # Для отображения переводим в рубли.
+        from ..core.fx import get_usdrub
+        rate = get_usdrub()
+        def rub(v) -> Decimal:
+            return Decimal(str(v)) * Decimal(str(rate))
+
+        lines = ["💰 *БАЛАНС*", f"_Курс USD/RUB {rate:.2f}_", ""]
 
         # --- Движок обучения (self-play) ---
-        start_cap = ts.get_initial_capital()
-        last_final = Decimal(ts.last_final_equity)
+        start_cap = rub(ts.get_initial_capital())
+        last_final = rub(ts.last_final_equity)
         delta = last_final - start_cap
         lines += [
-            "*🎓 Капитал обучения (демо self-play)*",
+            "*🎓 Капитал обучения (демо)*",
             f"  Текущий (следующий старт): {self._fmt_money(start_cap)}",
             f"  Прошлая сессия: {self._fmt_money(last_final)} "
             f"({self._pnl_icon(delta)} {self._fmt_money(delta).strip()})",
-            f"  Лучший исторический: {self._fmt_money(ts.stats.best_equity)}",
-            f"  Худший исторический: {self._fmt_money(ts.stats.worst_equity)}",
+            f"  Лучший исторический: {self._fmt_money(rub(ts.stats.best_equity))}",
+            f"  Худший исторический: {self._fmt_money(rub(ts.stats.worst_equity))}",
             "",
         ]
 
         # --- Плюсы и минусы по всем учебным сессиям ---
         st = ts.stats
-        total_pnl = Decimal(str(st.total_pnl))
+        total_pnl = rub(st.total_pnl)
         lines += [
             "*📈 Плюсы / минусы (всего учебных сессий: " + str(st.runs) + ")*",
             f"  Сделок: {st.total_trades}  (✅ {st.wins} / ❌ {st.losses})",
             f"  Накопленный PnL: {self._pnl_icon(total_pnl)} {self._fmt_money(total_pnl)}",
-            f"  За последнюю сессию: {self._fmt_money(ts.last_run_pnl)} "
+            f"  За последнюю сессию: {self._fmt_money(rub(ts.last_run_pnl))} "
             f"({ts.last_run_trades} сделок, {ts.last_run_at or '—'})",
             "",
         ]
@@ -545,11 +552,11 @@ class AstraTelegramBot:
         # --- Бумажный счёт бота ---
         if paper is not None:
             acc = paper.get_account_info()
-            eq = Decimal(acc["equity"])
-            init = Decimal(acc["initial_capital"])
-            pnl = Decimal(acc["total_pnl"])
+            eq = rub(acc["equity"])
+            init = rub(acc["initial_capital"])
+            pnl = rub(acc["total_pnl"])
             lines += [
-                "*🤖 Бумажный счёт бота*",
+                "*🤖 Торговый счёт бота (демо)*",
                 f"  Капитал: {self._fmt_money(eq)} (старт {self._fmt_money(init)})",
                 f"  {self._pnl_icon(pnl)} PnL: {self._fmt_money(pnl)} "
                 f"({acc['total_pnl_pct']})",
@@ -659,7 +666,15 @@ class AstraTelegramBot:
 
             if not out:
                 return ["*🏦 OKX demo:* баланс пуст или API недоступен", ""]
-            out.append(f"  💵 Оценка портфеля: ~{total_usdt:,.0f} USDT")
+            # Оценка в рублях (USDT ≈ USD → RUB по курсу ЦБ).
+            from ..core.fx import get_usdrub
+            rate = get_usdrub()
+            total_rub = total_usdt * Decimal(str(rate))
+            # В управлении бота — половина портфеля.
+            managed_rub = total_rub / Decimal("2")
+            out.append(f"  💼 Оценка портфеля: ~{total_rub:,.0f} ₽")
+            out.append(f"  🤖 В управлении бота (50%): ~{managed_rub:,.0f} ₽")
+            out.append(f"  (курс USD/RUB {rate:.2f})")
             out.append("")
             return out
         except Exception as exc:

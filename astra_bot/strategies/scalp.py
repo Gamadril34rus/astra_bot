@@ -24,11 +24,11 @@ class ScalpConfig(StrategyConfig):
     ema_fast: int = 9
     ema_mid: int = 21
     ema_slow: int = 50
-    rsi_low: float = 45.0
-    rsi_high: float = 60.0
-    pullback_pct: float = 0.006   # 0.6% — ближе к EMA21, чем у pullback
-    stop_pct: float = 0.006       # 0.6% стоп
-    rr: float = 1.0               # тейк 0.6% (1:1)
+    rsi_low: float = 40.0
+    rsi_high: float = 65.0
+    pullback_pct: float = 0.010   # 1.0% — шире, больше входов
+    stop_pct: float = 0.008       # 0.8% стоп
+    rr: float = 1.2               # тейк 0.96%
     hold_bars: int = 6            # ~1.5ч на 15m
 
 

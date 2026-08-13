@@ -35,15 +35,18 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TradingEngineConfig:
     symbols: tuple[str, ...] = ("BTC-USDT", "ETH-USDT", "SOL-USDT")
-    # Основной таймфрейм — 15m: больше сигналов для быстрого обучения.
-    timeframes: tuple[str, ...] = ("15m", "1h", "4h")
+    # 15m — основной для частых мелких сделок; 5m ловит быстрые сетапы.
+    timeframes: tuple[str, ...] = ("15m", "5m", "1h", "4h")
     # Сколько баров тянуть для каждого таймфрейма.
     bars_per_tf: dict[str, int] = field(
-        default_factory=lambda: {"15m": 300, "1h": 300, "4h": 200}
+        default_factory=lambda: {"15m": 300, "5m": 300, "1h": 300, "4h": 200}
     )
-    # 0.3% капитала на сделку — мелкие частые ставки, серия стопов не
-    # обнуляет счёт.
-    risk_per_trade_pct: Decimal = Decimal("0.003")
+    # 0.5% риска на сделку. Капитал в управлении — половина демо-портфеля
+    # (~40 000 USDT), поэтому 0.5% = ~200 USDT риска, позиция крупная, но
+    # контролируемая. Это даёт много мелких по риску сделок для обучения.
+    risk_per_trade_pct: Decimal = Decimal("0.005")
+    # Максимум 15% капитала на одну позицию (notional) — защита от раздутия.
+    max_notional_pct: Decimal = Decimal("0.15")
     poll_interval_seconds: int = 60 * 5
     state_path: str = "models/paper_positions.json"
     trades_path: str = "models/paper_trades.jsonl"
@@ -102,36 +105,49 @@ class TradingEngine:
         self._minute_bucket: int | None = None
 
     async def sync_capital(self) -> Decimal:
-        """Подтянуть стартовый капитал брокера под реальный баланс демо OKX.
+        """Синхронизировать торговый капитал с демо-портфелем OKX.
 
-        Тянем USDT-баланс один раз (при первом шаге); дальше paper-брокер
-        считает realized PnL сам. Это даёт сделкам масштаб «сколько есть»,
-        а не зашитые 2000.
+        В управлении бота — ПОЛОВИНА оценки всего демо-портфеля в USDT
+        (BTC+ETH+OKB+USDT по текущим ценам), как просил владелец. Это
+        масштаб «сколько реально есть», а не зашитые 2000.
         """
         if self._capital_synced:
             return self.broker.initial_capital
         try:
             bals = await self.okx.get_account_balance()
-            usdt = bals.get("USDT")
-            if usdt and float(usdt.total) > 0:
-                cap = Decimal(str(usdt.total))
-                # Если уже есть сохранённые позиции — НЕ сбрасываем их и
-                # realized_pnl, продолжаем с текущего капитала брокера.
-                if self.broker.positions:
-                    logger.info(
-                        "Капитал демо OKX=%s USDT, но есть открытые позиции — "
-                        "продолжаю с broker capital=%s", cap, self.broker.initial_capital,
-                    )
+            # Оцениваем портфель в USDT по текущим ценам.
+            total_usdt = Decimal("0")
+            for asset, b in bals.items():
+                if asset == "USDT":
+                    total_usdt += b.total
                 else:
-                    logger.info("Синхронизация капитала с демо OKX: %s USDT", cap)
-                    from .broker import PaperBroker
-                    self.broker = PaperBroker(
-                        state_path=__import__("pathlib").Path(self.config.state_path),
-                        trades_path=__import__("pathlib").Path(self.config.trades_path),
-                        initial_capital=cap,
-                    )
-                self._capital_synced = True
-                return cap
+                    try:
+                        t = await self.okx.get_ticker(f"{asset}-USDT")
+                        if t and t.get("last"):
+                            total_usdt += b.total * Decimal(str(t["last"]))
+                    except Exception:
+                        # Нет пары к USDT — учитываем как есть, не валимся.
+                        continue
+            # Половина бюджета в управлении.
+            cap = (total_usdt / Decimal("2")).quantize(Decimal("0.01"))
+            if self.broker.positions:
+                logger.info(
+                    "Портфель демо=%.2f USDT, половина=%.2f, но есть позиции — "
+                    "продолжаю с %s", total_usdt, cap, self.broker.initial_capital,
+                )
+            else:
+                logger.info(
+                    "Портфель демо OKX=%.2f USDT; в управлении половина=%.2f USDT",
+                    total_usdt, cap,
+                )
+                from .broker import PaperBroker
+                self.broker = PaperBroker(
+                    state_path=__import__("pathlib").Path(self.config.state_path),
+                    trades_path=__import__("pathlib").Path(self.config.trades_path),
+                    initial_capital=cap,
+                )
+            self._capital_synced = True
+            return cap
         except Exception as exc:  # noqa: BLE001
             logger.debug("Не смог синхронизировать капитал: %s", exc)
         self._capital_synced = True
@@ -146,7 +162,7 @@ class TradingEngine:
                 timeframe=tf,
                 limit=self.config.bars_per_tf.get(tf, 300),
             )
-        primary = candles.get("5m") or candles.get("1h") or []
+        primary = candles.get("15m") or candles.get("5m") or candles.get("1h") or []
         if not primary:
             raise RuntimeError(f"Нет данных по {symbol}")
         price = Decimal(str(primary[-1].close))
@@ -175,7 +191,7 @@ class TradingEngine:
             return Decimal("0")
         qty = risk_amount / stop_distance
         # Не допускаем размер больше 30% капитала (notional).
-        max_notional = equity * Decimal("0.30")
+        max_notional = equity * self.config.max_notional_pct
         if qty * entry > max_notional:
             qty = max_notional / entry
         return qty.quantize(Decimal("0.000001"))
