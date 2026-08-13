@@ -1,78 +1,6 @@
 {
   "positions": [
     {
-      "id": "f875b743-90c1-46d9-abc4-7de7a42fa65e",
-      "symbol": "ADA-USDT",
-      "direction": "long",
-      "entry_price": "0.1833",
-      "quantity": "32933.567921",
-      "stop_loss": "0.1823835",
-      "take_profits": [
-        "0.18421650",
-        "0.18494970",
-        "0.18559125"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "32933.567921",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "0.1836",
-      "lowest_price": "0.1832",
-      "strategy": "scalp5m",
-      "opened_at": 1786638724986,
-      "notes": {
-        "score": 62.0,
-        "ml_probability": null,
-        "edge_pct": 0.1508983908563749,
-        "rr": 1.2
-      }
-    },
-    {
-      "id": "f90ec05a-79a5-4678-ae84-3029a3e3f4ef",
-      "symbol": "LINK-USDT",
-      "direction": "long",
-      "entry_price": "8.734",
-      "quantity": "691.175063",
-      "stop_loss": "8.690330",
-      "take_profits": [
-        "8.7776700",
-        "8.8126060",
-        "8.8431750"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "691.175063",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "8.753",
-      "lowest_price": "8.724",
-      "strategy": "scalp5m",
-      "opened_at": 1786638726799,
-      "notes": {
-        "score": 70.0,
-        "ml_probability": null,
-        "edge_pct": 0.2073289872485896,
-        "rr": 1.2
-      }
-    },
-    {
       "id": "f1164ca9-babc-4d48-98d4-b540d46bc652",
       "symbol": "BTC-USDT",
       "direction": "long",
@@ -97,8 +25,8 @@
       "initial_quantity": "0.094992",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "63549.9",
-      "lowest_price": "63512.8",
+      "highest_price": "63666.6",
+      "lowest_price": "63472.3",
       "strategy": "scalp5m",
       "opened_at": 1786641317697,
       "notes": {
@@ -109,16 +37,16 @@
       }
     },
     {
-      "id": "193ca283-3922-4d58-847e-89796255ea61",
-      "symbol": "ETH-USDT",
+      "id": "1c683f6a-2cc6-40ec-9570-c6eedc805e8d",
+      "symbol": "XRP-USDT",
       "direction": "long",
-      "entry_price": "1884.99",
-      "quantity": "3.202523",
-      "stop_loss": "1875.56505",
+      "entry_price": "1.006",
+      "quantity": "5991.717609",
+      "stop_loss": "1.000970",
       "take_profits": [
-        "1894.414950",
-        "1901.954910",
-        "1908.552375"
+        "1.0110300",
+        "1.0150540",
+        "1.0185750"
       ],
       "tp_filled": [
         false,
@@ -130,31 +58,31 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "3.202523",
+      "initial_quantity": "5991.717609",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "1886.15",
-      "lowest_price": "1884.2",
+      "highest_price": "1.006",
+      "lowest_price": "1.0033",
       "strategy": "scalp5m",
-      "opened_at": 1786641318411,
+      "opened_at": 1786644704996,
       "notes": {
-        "score": 51.0,
+        "score": 27.0,
         "ml_probability": null,
-        "edge_pct": 0.20733929621418723,
-        "rr": 1.1999999999999997
+        "edge_pct": 0.2086489832371029,
+        "rr": 1.2
       }
     },
     {
-      "id": "e6aa168a-b282-481b-bacc-cdbc7f9aa862",
-      "symbol": "XRP-USDT",
-      "direction": "long",
-      "entry_price": "1.0103",
-      "quantity": "5975.178660",
-      "stop_loss": "1.0052485",
+      "id": "cd6dbc42-63cb-47d7-a79b-08ddb104c77d",
+      "symbol": "AVAX-USDT",
+      "direction": "short",
+      "entry_price": "6.348",
+      "quantity": "948.824885",
+      "stop_loss": "6.424176",
       "take_profits": [
-        "1.01535150",
-        "1.01939270",
-        "1.02292875"
+        "6.2718240",
+        "6.2108832",
+        "6.1575600"
       ],
       "tp_filled": [
         false,
@@ -166,21 +94,57 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "5975.178660",
+      "initial_quantity": "948.824885",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "1.0103",
-      "lowest_price": "1.01",
-      "strategy": "scalp5m",
-      "opened_at": 1786641319878,
+      "highest_price": "6.361",
+      "lowest_price": "6.34",
+      "strategy": "pullback",
+      "opened_at": 1786644707406,
       "notes": {
-        "score": 62.0,
+        "score": 45.0,
         "ml_probability": null,
-        "edge_pct": 0.1555333790613988,
-        "rr": 1.2000000000000002
+        "edge_pct": 0.4330439493319418,
+        "rr": 0.7500000000000002
+      }
+    },
+    {
+      "id": "9ba03d96-d362-4a39-9fd8-87f663c71bc3",
+      "symbol": "TRX-USDT",
+      "direction": "short",
+      "entry_price": "0.33575",
+      "quantity": "17925.875891",
+      "stop_loss": "0.33742875",
+      "take_profits": [
+        "0.334071250",
+        "0.332728250",
+        "0.331553125"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "17925.875891",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "0.33591",
+      "lowest_price": "0.33573",
+      "strategy": "scalp5m",
+      "opened_at": 1786644709857,
+      "notes": {
+        "score": 55.0,
+        "ml_probability": null,
+        "edge_pct": 0.22134093192147725,
+        "rr": 1.2
       }
     }
   ],
-  "realized_pnl": "0",
+  "realized_pnl": "-120.7344641506465",
   "initial_capital": "40244.82"
 }
