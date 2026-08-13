@@ -35,12 +35,15 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TradingEngineConfig:
     symbols: tuple[str, ...] = ("BTC-USDT", "ETH-USDT", "SOL-USDT")
-    timeframes: tuple[str, ...] = ("1h", "15m", "4h")
+    # Основной таймфрейм — 15m: больше сигналов для быстрого обучения.
+    timeframes: tuple[str, ...] = ("15m", "1h", "4h")
     # Сколько баров тянуть для каждого таймфрейма.
     bars_per_tf: dict[str, int] = field(
-        default_factory=lambda: {"1h": 300, "15m": 300, "4h": 200}
+        default_factory=lambda: {"15m": 300, "1h": 300, "4h": 200}
     )
-    risk_per_trade_pct: Decimal = Decimal("0.005")
+    # 0.3% капитала на сделку — мелкие частые ставки, серия стопов не
+    # обнуляет счёт.
+    risk_per_trade_pct: Decimal = Decimal("0.003")
     poll_interval_seconds: int = 60 * 5
     state_path: str = "models/paper_positions.json"
     trades_path: str = "models/paper_trades.jsonl"
@@ -64,21 +67,22 @@ class TradingEngine:
                 MeanReversionStrategy,
                 MomentumStrategy,
                 PullbackStrategy,
+                ScalpStrategy,
             )
             from .config import DecisionConfig
-            # Пороги согласованы со стратегиями: Pullback оптимизирован
-            # под R:R 0.75 (high win-rate), поэтому min_rr=0.7, а не 1.5,
-            # иначе все его сигналы отбраковывались и сделок не было.
+            # Пороги согласованы со стратегиями. Scalp даёт много мелких
+            # сделок на 15m для быстрого обучения; Pullback — крупнее на 1h.
             cfg = DecisionConfig()
             cfg.min_rr = 0.7
-            cfg.min_ml_probability = 0.0  # ML-модель пока только фильтр
-            cfg.min_expected_edge_pct = 0.0  # EV считаем, но не режем из-за 0.4%
+            cfg.min_ml_probability = 0.0
+            cfg.min_expected_edge_pct = 0.0
             cfg.max_spread_pct = 0.30
             cfg.slippage_buffer_pct = 0.02
-            cfg.min_book_depth = 1_000.0  # не отбраковывать по глубине топ-10 (мелкие суммы)
+            cfg.min_book_depth = 1_000.0
             pipeline = DecisionPipeline(
                 cfg,
                 strategies=[
+                    ScalpStrategy(),
                     PullbackStrategy(),
                     MomentumStrategy(),
                     MeanReversionStrategy(),
@@ -94,7 +98,44 @@ class TradingEngine:
         self.safety = MarketSafety()
         self._last_bar_ts: dict[str, int] = {}
         self._running = False
+        self._capital_synced = False
         self._minute_bucket: int | None = None
+
+    async def sync_capital(self) -> Decimal:
+        """Подтянуть стартовый капитал брокера под реальный баланс демо OKX.
+
+        Тянем USDT-баланс один раз (при первом шаге); дальше paper-брокер
+        считает realized PnL сам. Это даёт сделкам масштаб «сколько есть»,
+        а не зашитые 2000.
+        """
+        if self._capital_synced:
+            return self.broker.initial_capital
+        try:
+            bals = await self.okx.get_account_balance()
+            usdt = bals.get("USDT")
+            if usdt and float(usdt.total) > 0:
+                cap = Decimal(str(usdt.total))
+                # Если уже есть сохранённые позиции — НЕ сбрасываем их и
+                # realized_pnl, продолжаем с текущего капитала брокера.
+                if self.broker.positions:
+                    logger.info(
+                        "Капитал демо OKX=%s USDT, но есть открытые позиции — "
+                        "продолжаю с broker capital=%s", cap, self.broker.initial_capital,
+                    )
+                else:
+                    logger.info("Синхронизация капитала с демо OKX: %s USDT", cap)
+                    from .broker import PaperBroker
+                    self.broker = PaperBroker(
+                        state_path=__import__("pathlib").Path(self.config.state_path),
+                        trades_path=__import__("pathlib").Path(self.config.trades_path),
+                        initial_capital=cap,
+                    )
+                self._capital_synced = True
+                return cap
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Не смог синхронизировать капитал: %s", exc)
+        self._capital_synced = True
+        return self.broker.initial_capital
 
     # ----------------------------------------------------------- market data
     async def fetch_context(self, symbol: str) -> MarketContext:
@@ -227,16 +268,9 @@ class TradingEngine:
                 "rr": cand.risk_reward,
             },
         )
-        self._notify(
-            f"🟢 *Открыта сделка*\n"
-            f"{pos.direction.upper()} {pos.symbol}\n"
-            f"Вход: {float(pos.entry_price):g}\n"
-            f"Стоп: {float(pos.stop_loss):g}\n"
-            f"Т/П1: {float(pos.take_profits[0]):g}\n"
-            f"Объём: {float(pos.quantity):g}\n"
-            f"Стратегия: {pos.strategy}",
-            severity="info",
-        )
+        # Уведомления по каждой сделке отключены: шлём только утренний
+        # отчёт и отвечаем на команды из меню.
+        logger.info("OPEN %s %s entry=%s", pos.direction, pos.symbol, pos.entry_price)
         return closed
 
     def _record_closed(self, closed: list) -> None:
@@ -259,13 +293,6 @@ class TradingEngine:
                     "closed_at": getattr(t, "closed_at", 0),
                 }
                 trades.append(d)
-                icon = "✅" if float(d["pnl"]) >= 0 else "❌"
-                self._notify(
-                    f"{icon} *Сделка закрыта* ({d['exit_reason']})\n"
-                    f"{d['direction'].upper()} {d['symbol']}\n"
-                    f"PnL: {float(d['pnl']):+.2f} ({float(d['pnl_pct']):+.2f}%)",
-                    severity="info" if float(d["pnl"]) >= 0 else "warning",
-                )
             if trades:
                 append_lessons(trades)
         except Exception as exc:  # noqa: BLE001
@@ -283,6 +310,10 @@ class TradingEngine:
             logger.debug("notifier error: %s", exc)
 
     async def step(self) -> None:
+        # Раз при первом шаге подтягиваем реальный капитал демо OKX.
+        if not self._capital_synced:
+            await self.sync_capital()
+
         # Учёт минуты бюджета торговых часов (раз в минуту цикл может
         # вызываться чаще, но тарифицируем только целые минуты).
         from datetime import datetime, timezone as _tz

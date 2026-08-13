@@ -24,7 +24,7 @@ from astra_bot.data.database import close_database, init_database
 from astra_bot.engines.risk_engine import get_risk_engine
 from astra_bot.paperengine.paper_engine import PaperTradingEngine
 from astra_bot.strategies import MeanReversionStrategy, MomentumStrategy
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
 # Каталог логов настраивается через LOG_DIR; по умолчанию /tmp/logs,
@@ -99,6 +99,20 @@ async def tick():
     if result.get("status") == "error":
         raise HTTPException(status_code=500, detail=result.get("error"))
     return result
+
+
+@app.post("/telegram/webhook")
+async def telegram_webhook(request: Request):
+    """Приём обновлений от Telegram в режиме webhook."""
+    if _bot_instance is None or _bot_instance._telegram_bot is None:
+        return JSONResponse(status_code=503, content={"status": "bot not ready"})
+    try:
+        data = await request.json()
+        await _bot_instance._telegram_bot.process_update(data)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Telegram webhook error: %s", exc)
+        return JSONResponse(status_code=500, content={"status": "error"})
+    return {"status": "ok"}
 
 
 @app.get("/status")
@@ -314,10 +328,19 @@ class AstraBot:
                 allowed_user_ids=list(tg.allowed_user_ids or []),
                 admin_user_ids=list(tg.admin_user_ids or []),
             )
-            await self._telegram_bot.start()
-            logger.info("Telegram bot started")
+            # На хостинге (Render) используем webhook: Render задаёт
+            # RENDER_EXTERNAL_URL. Тогда Telegram сам шлёт обновления на
+            # наш HTTP-эндпоинт и сервис просыпается на каждое сообщение.
+            # Локально и в CI работает long-polling.
+            base_url = (
+                os.environ.get("RENDER_EXTERNAL_URL")
+                or os.environ.get("WEBHOOK_BASE_URL")
+                or ""
+            ).rstrip("/")
+            webhook_url = f"{base_url}/telegram/webhook" if base_url else None
+            await self._telegram_bot.start(webhook_url=webhook_url)
+            logger.info("Telegram bot started (webhook=%s)", bool(webhook_url))
         except Exception as exc:
-            # Сбой Telegram не должен ронять весь сервис.
             logger.warning("Telegram bot init failed: %s", exc)
             self._telegram_bot = None
 

@@ -215,6 +215,7 @@ class AstraTelegramBot:
         self._bot: Bot | None = None
         self._application: Application | None = None
         self._running = False
+        self._webhook_mode = False
         self.account_mode: str = "paper"
         self.real_trading_confirmed: bool = False
 
@@ -1071,31 +1072,49 @@ class AstraTelegramBot:
                 logger.error("Не отправил отчёт %s: %s", admin_id, exc)
 
     # --------------------------------------------------------------- lifecycle
-    async def start(self):
+    async def start(self, webhook_url: str | None = None):
+        """Запустить бота.
+
+        Если задан ``webhook_url`` — поднимаемся в режиме webhook (Telegram
+        сам присылает обновления на наш HTTP-эндпоинт). Это надёжно на
+        спящем free-хостинге вроде Render, где long-polling рвётся при
+        засыпании сервиса. Без webhook — обычный long-polling.
+        """
         if not self._application:
             await self.initialize()
         self._running = True
         await self._application.initialize()
         await self._application.start()
-        await self._application.updater.start_polling()
-        # Регистрируем русские команды в меню Telegram после старта polling.
+
+        if webhook_url:
+            self._webhook_mode = True
+            await self._bot.set_webhook(webhook_url, allowed_updates=["message", "callback_query"])
+            logger.info("Telegram webhook set: %s", webhook_url)
+        else:
+            self._webhook_mode = False
+            await self._application.updater.start_polling()
+
+        # Регистрируем русские команды в меню Telegram.
         try:
             await self.set_bot_commands()
         except Exception as exc:
             logger.warning("Не смог зарегистрировать команды меню: %s", exc)
 
-        # Сообщаем админам, что бот поднялся и готов к работе — иначе
-        # создаётся впечатление, что «меню есть, а бот ничего не шлёт».
         asyncio.ensure_future(self._send_to_admins(
             "🤖 *ASTRA BOT на связи*\n\n"
-            "Меню команд доступно слева от поля ввода. Я буду присылать:\n"
-            "• открытие/закрытие сделок на демо OKX;\n"
+            "Команды — в меню слева. Я присылаю только:\n"
             "• утренний отчёт в 09:00 МСК;\n"
-            "• уведомление, когда буду готов к реальному счёту.\n\n"
-            "Нажмите 💰 Баланс или 📊 Статус для проверки.",
+            "• уведомление, когда буду готов к реальному счёту.\n"
+            "По сделкам не пишу — смотрите /баланс или /отчёт.",
             force=True,
         ))
-        logger.info("Telegram bot started")
+        logger.info("Telegram bot started (webhook=%s)", bool(webhook_url))
+
+    async def process_update(self, update_json: dict) -> None:
+        """Обработать входящее обновление Telegram (для webhook-режима)."""
+        if not self._application:
+            return
+        await self._application.process_update(Update.de_json(update_json, self._bot))
 
     async def _startup_message(self) -> None:
         try:
@@ -1118,7 +1137,10 @@ class AstraTelegramBot:
             self._train_task.cancel()
         if self._application:
             try:
-                await self._application.updater.stop()
+                if self._webhook_mode:
+                    await self._bot.delete_webhook(drop_pending_updates=False)
+                else:
+                    await self._application.updater.stop()
                 await self._application.stop()
                 await self._application.shutdown()
             except Exception as exc:

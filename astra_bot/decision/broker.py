@@ -106,6 +106,9 @@ class PaperBroker:
                 else:
                     pos.initial_quantity = Decimal(str(pos.initial_quantity))
             self.realized_pnl = Decimal(str(data.get("realized_pnl", 0)))
+            # Восстанавливаем стартовый капитал из состояния, если он там есть.
+            if data.get("initial_capital"):
+                self.initial_capital = Decimal(str(data["initial_capital"]))
         except Exception as exc:
             logger.warning("Не загрузил состояние paper-брокера: %s", exc)
 
@@ -126,6 +129,7 @@ class PaperBroker:
                 for p in self.positions
             ],
             "realized_pnl": str(self.realized_pnl),
+            "initial_capital": str(self.initial_capital),
         }
         self.state_path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
 
