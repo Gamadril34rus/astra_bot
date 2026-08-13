@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: arena/019fe76b-astra-bot
+          ref: master
 
       - uses: actions/setup-python@v5
         with:
@@ -39,15 +39,15 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
         run: |
-          cat > .env <<EOF
-          ENVIRONMENT=paper
-          PAPER_TRADING=true
-          OKX_API_KEY=$OKX_API_KEY
-          OKX_API_SECRET=$OKX_API_SECRET
-          OKX_API_PASSPHRASE=$OKX_API_PASSPHRASE
-          TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
-          TELEGRAM_ADMIN_ID=$TELEGRAM_ADMIN_ID
-          EOF
+          : > .env
+          echo "ENVIRONMENT=paper" >> .env
+          echo "PAPER_TRADING=true" >> .env
+          echo "OKX_API_KEY=$OKX_API_KEY" >> .env
+          echo "OKX_API_SECRET=$OKX_API_SECRET" >> .env
+          echo "OKX_API_PASSPHRASE=$OKX_API_PASSPHRASE" >> .env
+          echo "TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN" >> .env
+          echo "TELEGRAM_ADMIN_ID=$TELEGRAM_ADMIN_ID" >> .env
+          chmod 600 .env
 
       - name: Connection test
         run: python scripts/test_okx.py
@@ -66,4 +66,4 @@ jobs:
           git config user.email "bot@users.noreply.github.com"
           git add models/ || true
           git commit -m "chore(ci): daily model retrain $(date -u +%Y-%m-%d)" || echo "nothing to commit"
-          git push origin arena/019fe76b-astra-bot || echo "push failed"
+          git push origin master || echo "push failed"
