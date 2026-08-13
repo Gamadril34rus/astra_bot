@@ -7,7 +7,7 @@ import hashlib
 import hmac
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -142,8 +142,13 @@ class OKXClient(ExchangeAdapter):
         return signature
 
     def _prepare_auth_headers(self, method: str, request_path: str, body: str = "") -> dict[str, str]:
-        """Подготовить авторизованные заголовки"""
-        timestamp = str(int(time.time() * 1000))
+        """Подготовить авторизованные заголовки.
+
+        OKX ожидает OK-ACCESS-TIMESTAMP в формате ISO 8601 с миллисекундами,
+        иначе сервер отвечает 50102 Timestamp request expired.
+        """
+        now = datetime.now(timezone.utc)
+        timestamp = now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
 
         # Для публичных методов подпись не требуется, но добавляем для консистентности
         if self.api_key:
@@ -302,11 +307,13 @@ class OKXClient(ExchangeAdapter):
         limit: int = 1000
     ) -> list[Candle]:
         """Получить свечи"""
+        # OKX использует формат "BTC-USDT"; нормализуем "BTC/USDT".
+        okx_symbol = symbol.replace("/", "-")
         # Конвертация таймфрейма OKX
         okx_granularity = self._convert_timeframe(timeframe)
 
         params = {
-            "instId": symbol,
+            "instId": okx_symbol,
             "bar": okx_granularity,
             "limit": min(limit, 1000)  # OKX ограничение 1000
         }
@@ -321,7 +328,7 @@ class OKXClient(ExchangeAdapter):
             for item in data:
                 candle = Candle(
                     exchange="okx",
-                    symbol=symbol,
+                    symbol=okx_symbol,
                     timeframe=timeframe,
                     open_time=int(item[0]),
                     open=Decimal(item[1]),
