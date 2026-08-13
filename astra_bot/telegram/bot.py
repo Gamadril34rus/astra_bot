@@ -298,9 +298,17 @@ class AstraTelegramBot:
         return "🟢" if Decimal(str(value)) >= 0 else "🔴"
 
     async def _reply(self, update: Update, text: str, reply_markup: Any | None = None):
-        await update.message.reply_text(
-            text, parse_mode="Markdown", reply_markup=reply_markup
-        )
+        try:
+            await update.message.reply_text(
+                text, parse_mode="Markdown", reply_markup=reply_markup
+            )
+        except Exception:
+            # Падает, например, на незакрытых символах Markdown в числах —
+            # повторяем без разметки, чтобы пользователь всё равно получил ответ.
+            await update.message.reply_text(
+                text.replace("*", "").replace("_", " ").replace("`", ""),
+                reply_markup=reply_markup,
+            )
 
     async def _deny(self, update: Update, admin_only: bool = False) -> bool:
         uid = update.effective_user.id
@@ -393,10 +401,42 @@ class AstraTelegramBot:
             engine = SelfPlayEngine(
                 SelfPlayConfig(initial_capital=Decimal(str(start_capital)))
             )
+            # По умолчанию тянем реальную историю OKX; если ключей нет
+            # или сеть недоступна — мягкий фолбэк на синтетику, чтобы
+            # команда не падала с ошибкой.
+            client = None
+            use_offline = offline
+            if not offline:
+                try:
+                    import os as _os
+                    from ..adapters.okx import OKXClient as _OKX
+
+                    if _os.environ.get("OKX_API_KEY"):
+                        client = _OKX({
+                            "api_key": _os.environ["OKX_API_KEY"],
+                            "api_secret": _os.environ["OKX_API_SECRET"],
+                            "passphrase": _os.environ.get(
+                                "OKX_API_PASSPHRASE",
+                                _os.environ.get("OKX_PASSPHRASE", ""),
+                            ),
+                            "sandbox": _os.environ.get("OKX_DEMO", "1").lower()
+                                       not in {"0", "false", "no"},
+                        })
+                        await client.initialize()
+                except Exception as exc:  # noqa: BLE001
+                    logger.info("OKX недоступен для /train, иду в офлайн: %s", exc)
+                    client = None
+                    use_offline = True
             report = await engine.run(
-                offline_bars=bars if offline else 0,
+                client=client,
+                offline_bars=bars if use_offline else 0,
                 should_stop=should_stop,
             )
+            if client is not None:
+                try:
+                    await client.close()
+                except Exception:
+                    pass
             # Сохраняем «живой» капитал для следующего запуска.
             next_capital = ts.record_run(
                 final_equity=Decimal(str(report.final_equity)),

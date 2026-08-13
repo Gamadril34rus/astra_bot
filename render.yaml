@@ -25,6 +25,10 @@ services:
         sync: false
       - key: TELEGRAM_USER_ID
         sync: false
+      # Публичный URL сервиса для Telegram webhook (бот отвечает на команды).
+      # Вид: https://<service-name>.onrender.com
+      - key: WEBHOOK_BASE_URL
+        sync: false
       - key: PAPER_TRADING
         value: "true"
       - key: ENVIRONMENT
