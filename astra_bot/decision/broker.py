@@ -101,10 +101,10 @@ class PaperBroker:
                     pos.highest_price = Decimal(str(pos.highest_price))
                 if pos.lowest_price is not None:
                     pos.lowest_price = Decimal(str(pos.lowest_price))
-            if pos.initial_quantity is None or pos.initial_quantity == 0:
-                pos.initial_quantity = pos.quantity
-            else:
-                pos.initial_quantity = Decimal(str(pos.initial_quantity))
+                if pos.initial_quantity is None or pos.initial_quantity == 0:
+                    pos.initial_quantity = pos.quantity
+                else:
+                    pos.initial_quantity = Decimal(str(pos.initial_quantity))
             self.realized_pnl = Decimal(str(data.get("realized_pnl", 0)))
         except Exception as exc:
             logger.warning("Не загрузил состояние paper-брокера: %s", exc)

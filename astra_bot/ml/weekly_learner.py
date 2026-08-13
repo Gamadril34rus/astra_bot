@@ -123,7 +123,20 @@ def train_weekly(
     min_samples: int = 200,
     model_type: str = "lightgbm",
 ) -> WeeklyLearningResult:
-    """Обучить/обновить модель из lessons.jsonl."""
+    """Обновить/обучить модель из lessons.jsonl.
+
+    Перед обучением живые уроки (``live_lessons.jsonl`` из реальной
+    paper-торговли) подмешиваются к self-play уроку — так модель учится
+    на реальных данных рынка, а не только на синтетике.
+    """
+    try:
+        from .live_lessons import merge_into_main_lessons
+        added = merge_into_main_lessons(main_path=lessons_path)
+        if added:
+            logger.info("Подмешано %d live-уроков из реальной торговли", added)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Не смог подмешать live-уроки: %s", exc)
+
     lessons = load_lessons(lessons_path)
     if len(lessons) < min_samples:
         msg = (

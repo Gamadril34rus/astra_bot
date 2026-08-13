@@ -116,13 +116,45 @@ async def amain(args: argparse.Namespace) -> int:
         symbols=tuple(args.symbols),
         poll_interval_seconds=args.interval,
     )
+
+    # Уведомления в Telegram (если задан токен).
+    notifier = None
+    tg_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    tg_admin = os.environ.get("TELEGRAM_ADMIN_ID", "")
+    if tg_token and tg_admin:
+        from telegram import Bot
+
+        bot = Bot(token=tg_token)
+        admin_ids = [int(x) for x in tg_admin.split(",") if x.strip()]
+
+        def notifier(text: str, severity: str = "info"):
+            emoji = {"info": "ℹ️", "warning": "⚠️",
+                     "error": "❌", "critical": "🚨"}.get(severity, "📢")
+            async def _send():
+                for aid in admin_ids:
+                    try:
+                        await bot.send_message(
+                            chat_id=aid,
+                            text=f"{emoji} {text}",
+                            parse_mode="Markdown",
+                        )
+                    except Exception as exc:
+                        logger.warning("Telegram send failed: %s", exc)
+            return asyncio.ensure_future(_send())
+
     engine = TradingEngine(
         okx=okx,
         pipeline=None,  # TradingEngine соберёт Pipeline из стратегий
         config=config,
+        notifier=notifier,
     )
-    # Подсовываем нашу оптимизированную стратегию.
-    engine.pipeline.strategies = [PullbackStrategy()]
+    # Подсовываем наши стратегии.
+    from astra_bot.strategies import MomentumStrategy, MeanReversionStrategy
+    engine.pipeline.strategies = [
+        PullbackStrategy(),
+        MomentumStrategy(),
+        MeanReversionStrategy(),
+    ]
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()

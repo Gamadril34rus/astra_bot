@@ -33,6 +33,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt python-dotenv
 
+      - name: Restore prior paper state
+        # Каждое почасовое исполнение стартует с чистого чекаута.
+        # Состояние позиций/сделок живёт в git (paper_positions.json),
+        # поэтому подтягиваем последние изменения мастера ПЕРЕД шагом.
+        run: |
+          git config user.name "astra-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git pull --no-rebase origin master || true
+
       - name: Write .env
         env:
           OKX_API_KEY: ${{ secrets.OKX_API_KEY }}
@@ -61,6 +70,6 @@ jobs:
         run: |
           git config user.name "astra-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add -f models/paper_*.json models/paper_*.jsonl models/trading_budget.json models/readiness.json 2>/dev/null || true
-          git commit -m "chore(ci): paper state $(date -u +%Y-%m-%dT%H:%MZ)" || echo "nothing to commit"
+          git add -f models/paper_*.json models/paper_*.jsonl models/live_lessons.jsonl models/trading_budget.json models/readiness.json 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "chore(ci): paper state $(date -u +%Y-%m-%dT%H:%MZ)"
           git push origin master || echo "push failed"

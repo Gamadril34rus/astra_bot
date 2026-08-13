@@ -1035,6 +1035,29 @@ class AstraTelegramBot:
             except Exception as exc:
                 logger.error("Не отправил алерт %s: %s", admin_id, exc)
 
+    async def _send_to_admins(
+        self, message: str, severity: str = "info", force: bool = False
+    ):
+        """Отправить сообщение всем админам (с учётом тихих часов)."""
+        if not self._bot:
+            return
+        ts = get_training_state()
+        if not force and not ts.alerts_enabled:
+            return
+        if not force and ts.in_quiet_hours() and severity not in {"error", "critical"}:
+            return
+        emoji = {
+            "info": "ℹ️", "warning": "⚠️", "error": "❌", "critical": "🚨",
+        }.get(severity, "📢")
+        for admin_id in self.admin_user_ids:
+            try:
+                await self._bot.send_message(
+                    chat_id=admin_id, text=f"{emoji} {message}",
+                    parse_mode="Markdown",
+                )
+            except Exception as exc:
+                logger.error("Не отправил сообщение %s: %s", admin_id, exc)
+
     async def send_daily_report(self, report_text: str):
         # Утренний отчёт отправляется всегда, независимо от тихих часов.
         if not self._application or not self._bot:
@@ -1060,7 +1083,34 @@ class AstraTelegramBot:
             await self.set_bot_commands()
         except Exception as exc:
             logger.warning("Не смог зарегистрировать команды меню: %s", exc)
+
+        # Сообщаем админам, что бот поднялся и готов к работе — иначе
+        # создаётся впечатление, что «меню есть, а бот ничего не шлёт».
+        asyncio.ensure_future(self._send_to_admins(
+            "🤖 *ASTRA BOT на связи*\n\n"
+            "Меню команд доступно слева от поля ввода. Я буду присылать:\n"
+            "• открытие/закрытие сделок на демо OKX;\n"
+            "• утренний отчёт в 09:00 МСК;\n"
+            "• уведомление, когда буду готов к реальному счёту.\n\n"
+            "Нажмите 💰 Баланс или 📊 Статус для проверки.",
+            force=True,
+        ))
         logger.info("Telegram bot started")
+
+    async def _startup_message(self) -> None:
+        try:
+            await asyncio.sleep(1.5)
+            await self.send_alert(
+                "🤖 *ASTRA BOT на связи*\n\n"
+                "Меню команд доступно слева от поля ввода. Я буду присылать:\n"
+                "• открытие/закрытие сделок на демо OKX;\n"
+                "• утренний отчёт в 09:00 МСК;\n"
+                "• уведомление, когда буду готов к реальному счёту.\n\n"
+                "Нажмите 💰 Баланс или 📊 Статус для проверки.",
+                severity="info",
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("startup message failed: %s", exc)
 
     async def stop(self):
         self._running = False

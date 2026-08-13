@@ -24,6 +24,7 @@ from ..adapters.okx import OKXClient
 from ..core import models
 from ..core.market_safety import MarketSafety
 from ..core import trading_schedule
+from ..ml.live_lessons import append_lessons
 from .broker import PaperBroker
 from .context import MarketContext
 from .pipeline import DecisionPipeline
@@ -34,10 +35,10 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TradingEngineConfig:
     symbols: tuple[str, ...] = ("BTC-USDT", "ETH-USDT", "SOL-USDT")
-    timeframes: tuple[str, ...] = ("4h", "1h", "15m", "5m")
+    timeframes: tuple[str, ...] = ("1h", "15m", "4h")
     # Сколько баров тянуть для каждого таймфрейма.
     bars_per_tf: dict[str, int] = field(
-        default_factory=lambda: {"4h": 300, "1h": 300, "15m": 300, "5m": 300}
+        default_factory=lambda: {"1h": 300, "15m": 300, "4h": 200}
     )
     risk_per_trade_pct: Decimal = Decimal("0.005")
     poll_interval_seconds: int = 60 * 5
@@ -52,7 +53,10 @@ class TradingEngine:
         pipeline: DecisionPipeline | None = None,
         config: TradingEngineConfig | None = None,
         broker: PaperBroker | None = None,
+        notifier: Any | None = None,
     ):
+        # Колбэк для уведомлений в Telegram: notifier(text, severity).
+        self._notifier = notifier
         self.okx = okx
         self.config = config or TradingEngineConfig()
         if pipeline is None:
@@ -62,8 +66,18 @@ class TradingEngine:
                 PullbackStrategy,
             )
             from .config import DecisionConfig
+            # Пороги согласованы со стратегиями: Pullback оптимизирован
+            # под R:R 0.75 (high win-rate), поэтому min_rr=0.7, а не 1.5,
+            # иначе все его сигналы отбраковывались и сделок не было.
+            cfg = DecisionConfig()
+            cfg.min_rr = 0.7
+            cfg.min_ml_probability = 0.0  # ML-модель пока только фильтр
+            cfg.min_expected_edge_pct = 0.0  # EV считаем, но не режем из-за 0.4%
+            cfg.max_spread_pct = 0.30
+            cfg.slippage_buffer_pct = 0.02
+            cfg.min_book_depth = 1_000.0  # не отбраковывать по глубине топ-10 (мелкие суммы)
             pipeline = DecisionPipeline(
-                DecisionConfig(),
+                cfg,
                 strategies=[
                     PullbackStrategy(),
                     MomentumStrategy(),
@@ -136,6 +150,10 @@ class TradingEngine:
         last_bar = primary[-1]
         closed = self.broker.on_bar(last_bar)
 
+        # Закрытые на этом баре сделки → реальные уроки + уведомления.
+        if closed:
+            self._record_closed(closed)
+
         # Одна позиция на символ.
         if any(p.symbol == symbol for p in self.broker.positions):
             return closed
@@ -194,7 +212,7 @@ class TradingEngine:
             logger.info("%s: size=0, пропускаю", symbol)
             return closed
 
-        self.broker.open_position(
+        pos = self.broker.open_position(
             symbol=symbol,
             direction="long" if cand.direction == "long" else "short",
             entry_price=cand.entry_price,
@@ -209,7 +227,60 @@ class TradingEngine:
                 "rr": cand.risk_reward,
             },
         )
+        self._notify(
+            f"🟢 *Открыта сделка*\n"
+            f"{pos.direction.upper()} {pos.symbol}\n"
+            f"Вход: {float(pos.entry_price):g}\n"
+            f"Стоп: {float(pos.stop_loss):g}\n"
+            f"Т/П1: {float(pos.take_profits[0]):g}\n"
+            f"Объём: {float(pos.quantity):g}\n"
+            f"Стратегия: {pos.strategy}",
+            severity="info",
+        )
         return closed
+
+    def _record_closed(self, closed: list) -> None:
+        """Сохранить закрытые сделки как уроки и уведомить о результате."""
+        try:
+            trades = []
+            for t in closed:
+                d = {
+                    "id": getattr(t, "id", ""),
+                    "symbol": getattr(t, "symbol", ""),
+                    "direction": getattr(t, "direction", ""),
+                    "entry_price": getattr(t, "entry_price", 0.0),
+                    "exit_price": getattr(t, "exit_price", 0.0),
+                    "quantity": getattr(t, "quantity", 0.0),
+                    "pnl": getattr(t, "pnl", 0.0),
+                    "pnl_pct": getattr(t, "pnl_pct", 0.0),
+                    "exit_reason": getattr(t, "exit_reason", ""),
+                    "strategy": getattr(t, "strategy", ""),
+                    "opened_at": getattr(t, "opened_at", 0),
+                    "closed_at": getattr(t, "closed_at", 0),
+                }
+                trades.append(d)
+                icon = "✅" if float(d["pnl"]) >= 0 else "❌"
+                self._notify(
+                    f"{icon} *Сделка закрыта* ({d['exit_reason']})\n"
+                    f"{d['direction'].upper()} {d['symbol']}\n"
+                    f"PnL: {float(d['pnl']):+.2f} ({float(d['pnl_pct']):+.2f}%)",
+                    severity="info" if float(d["pnl"]) >= 0 else "warning",
+                )
+            if trades:
+                append_lessons(trades)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Не смог записать уроки/уведомления: %s", exc)
+
+    def _notify(self, text: str, severity: str = "info") -> None:
+        if self._notifier is None:
+            return
+        try:
+            res = self._notifier(text, severity)
+            if asyncio.iscoroutine(res):
+                # Отправка идёт fire-and-forget, чтобы не блокировать цикл.
+                asyncio.ensure_future(res)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("notifier error: %s", exc)
 
     async def step(self) -> None:
         # Учёт минуты бюджета торговых часов (раз в минуту цикл может

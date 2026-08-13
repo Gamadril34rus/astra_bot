@@ -15,6 +15,8 @@ from typing import Any
 
 from .config import DecisionConfig
 from .context import MarketContext, SignalCandidate
+import asyncio
+import inspect
 from .correlation_engine import CorrelationEngine
 from .derivatives_engine import DerivativesEngine
 from .ev_engine import EVEngine
@@ -86,6 +88,26 @@ class DecisionPipeline:
         self.ev = EVEngine(self.config.min_expected_edge_pct)
 
     # ----------------------------------------------------------- builders
+    def _run_evaluate(self, strategy, **kwargs):
+        """Запустить evaluate стратегии, корректно дождавшись корутины.
+
+        Раньше тут был ``asyncio.run`` внутри синхронного ``decide``, что
+        падало с "asyncio.run cannot be called from a running event loop"
+        в живом движке — поэтому сигналы не генерировались.
+        """
+        maybe = strategy.evaluate(**kwargs)
+        if not inspect.iscoroutine(maybe):
+            return maybe
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(maybe)
+        # Уже внутри event loop: гоняем корутину до завершения в отдельном
+        # потоке со своим циклом, чтобы не ломать вызывающий loop.
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+            return ex.submit(asyncio.run, maybe).result()
+
     def _candidates_from_strategies(
         self,
         ctx: MarketContext,
@@ -97,20 +119,13 @@ class DecisionPipeline:
             return out
         for strategy in self.strategies:
             try:
-                import asyncio
-                import inspect
-
-                maybe = strategy.evaluate(
+                signal = self._run_evaluate(
+                    strategy,
                     symbol=ctx.symbol,
                     candles=primary,
                     orderbook=ctx.orderbook,
                     current_price=float(ctx.current_price),
                     market_regime=regime,
-                )
-                signal = (
-                    asyncio.run(maybe)
-                    if inspect.isawaitable(maybe)
-                    else maybe
                 )
                 if signal is None:
                     continue
