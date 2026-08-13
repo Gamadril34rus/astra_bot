@@ -40,8 +40,8 @@ class OrderBookEngine:
             if best_bid and best_ask and mid_price
             else 0.0
         )
-        bid_depth = sum(float(q.price) * float(q.size) for q in orderbook.bids[:10])
-        ask_depth = sum(float(q.price) * float(q.size) for q in orderbook.asks[:10])
+        bid_depth = sum(float(q.price) * float(q.quantity) for q in orderbook.bids[:10])
+        ask_depth = sum(float(q.price) * float(q.quantity) for q in orderbook.asks[:10])
         total = bid_depth + ask_depth
         imbalance = (bid_depth - ask_depth) / total if total > 0 else 0.0
         is_healthy = spread_pct <= self.max_spread_pct and (bid_depth + ask_depth) >= self.min_depth

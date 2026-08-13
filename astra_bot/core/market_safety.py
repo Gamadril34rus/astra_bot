@@ -58,7 +58,7 @@ class MarketSafety:
         max_news_score: int = 60,
         max_spread_pct: float = 0.25,
         max_volatility_pct: float = 5.0,
-        max_book_imbalance: float = 0.6,
+        max_book_imbalance: float = 0.85,
     ):
         self.news = news_engine or NewsEngine()
         self.max_news_score = max_news_score
