@@ -26,7 +26,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "63666.6",
-      "lowest_price": "63472.3",
+      "lowest_price": "63290.1",
       "strategy": "scalp5m",
       "opened_at": 1786641317697,
       "notes": {
@@ -98,7 +98,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "6.361",
-      "lowest_price": "6.34",
+      "lowest_price": "6.313",
       "strategy": "pullback",
       "opened_at": 1786644707406,
       "notes": {
@@ -141,6 +141,42 @@
         "score": 55.0,
         "ml_probability": null,
         "edge_pct": 0.22134093192147725,
+        "rr": 1.2
+      }
+    },
+    {
+      "id": "7613f514-7ccf-439f-98ac-2e6fec9c0e8f",
+      "symbol": "ETH-USDT",
+      "direction": "short",
+      "entry_price": "1877.41",
+      "quantity": "3.205806",
+      "stop_loss": "1886.79705",
+      "take_profits": [
+        "1868.022950",
+        "1860.513310",
+        "1853.942375"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "3.205806",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "scalp5m",
+      "opened_at": 1786649482288,
+      "notes": {
+        "score": 52.0,
+        "ml_probability": null,
+        "edge_pct": 0.19784173164016605,
         "rr": 1.2
       }
     }
