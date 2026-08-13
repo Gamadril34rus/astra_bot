@@ -150,8 +150,8 @@ class TradingEngine:
         ob = ctx.orderbook
         book_dict = None
         if ob is not None and getattr(ob, "bids", None) and getattr(ob, "asks", None):
-            bids_depth = sum(float(b.price) * float(b.size) for b in ob.bids[:10])
-            asks_depth = sum(float(a.price) * float(a.size) for a in ob.asks[:10])
+            bids_depth = sum(float(b.price) * float(b.quantity) for b in ob.bids[:10])
+            asks_depth = sum(float(a.price) * float(a.quantity) for a in ob.asks[:10])
             book_dict = {
                 "best_bid": float(ob.bids[0].price),
                 "best_ask": float(ob.asks[0].price),
