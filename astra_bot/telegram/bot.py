@@ -576,6 +576,36 @@ class AstraTelegramBot:
 
         await self._reply(update, "\n".join(lines), reply_markup=MAIN_MENU)
 
+    async def _okx_prices(self, assets: list[str]) -> dict[str, float]:
+        """Текущие цены монет в USDT (для оценки портфеля)."""
+        prices: dict[str, float] = {}
+        try:
+            import os
+            from ..adapters.okx import OKXClient
+            client = OKXClient({
+                "api_key": os.environ.get("OKX_API_KEY", ""),
+                "api_secret": os.environ.get("OKX_API_SECRET", ""),
+                "passphrase": os.environ.get("OKX_API_PASSPHRASE", ""),
+                "sandbox": os.environ.get("OKX_DEMO", "1").lower()
+                           not in {"0", "false", "no"},
+            })
+            await client.initialize()
+            try:
+                for asset in set(assets):
+                    if asset in ("USDT", "", None):
+                        continue
+                    try:
+                        t = await client.get_ticker(f"{asset}-USDT")
+                        if t and t.get("last"):
+                            prices[asset] = float(t["last"])
+                    except Exception:
+                        continue
+            finally:
+                await client.close()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("prices fetch failed: %s", exc)
+        return prices
+
     async def _okx_balance_lines(self) -> list[str]:
         """Получить баланс OKX demo (приватный API). В логи секреты не пишем."""
         try:
@@ -608,6 +638,7 @@ class AstraTelegramBot:
 
             out: list[str] = []
             total_usdt = Decimal("0")
+            prices = await self._okx_prices(list(bals.keys()) + list(funding.keys()))
 
             def _emit(title: str, balances) -> None:
                 nonlocal total_usdt
@@ -618,14 +649,17 @@ class AstraTelegramBot:
                     out.append(f"  {asset}: {b.free:f} / всего {b.total:f}")
                     if asset == "USDT":
                         total_usdt += b.total
+                    else:
+                        px = prices.get(asset)
+                        if px and b.total:
+                            total_usdt += b.total * Decimal(str(px))
 
             _emit("*🏦 OKX demo — торговый счёт*", bals)
             _emit("*💼 OKX demo — funding-счёт*", funding)
 
             if not out:
                 return ["*🏦 OKX demo:* баланс пуст или API недоступен", ""]
-            if total_usdt > 0:
-                out.append(f"  Итого USDT (торг.+funding): {total_usdt:,.2f}")
+            out.append(f"  💵 Оценка портфеля: ~{total_usdt:,.0f} USDT")
             out.append("")
             return out
         except Exception as exc:
@@ -1148,15 +1182,32 @@ class AstraTelegramBot:
         except Exception as exc:
             logger.warning("Не смог зарегистрировать команды меню: %s", exc)
 
-        asyncio.ensure_future(self._send_to_admins(
-            "🤖 *ASTRA BOT на связи*\n\n"
-            "Команды — в меню слева. Я присылаю только:\n"
-            "• утренний отчёт в 09:00 МСК;\n"
-            "• уведомление, когда буду готов к реальному счёту.\n"
-            "По сделкам не пишу — смотрите /баланс или /отчёт.",
-            force=True,
-        ))
+        # Стартовое сообщение — не чаще одного раза в сутки, иначе
+        # частые перезапуски (каждые 5 мин на GitHub Actions) спамили бы.
+        asyncio.ensure_future(self._maybe_startup_message())
         logger.info("Telegram bot started (webhook=%s)", bool(webhook_url))
+
+    async def _maybe_startup_message(self) -> None:
+        """Прислать «бот на связи» только раз в сутки (храним дату в состоянии)."""
+        try:
+            from datetime import datetime as _dt, timezone as _tz
+            ts = get_training_state()
+            today = _dt.now(_tz.utc).strftime("%Y-%m-%d")
+            # Поле last_startup_message держим прямо в training_state.
+            if getattr(ts, "last_startup_message", None) == today:
+                return
+            await self._send_to_admins(
+                "🤖 *ASTRA BOT на связи*\n\n"
+                "Режим работы: 08:00–24:00 МСК. Я присылаю только:\n"
+                "• утренний отчёт в 09:00 МСК;\n"
+                "• уведомление, когда буду готов к реальному счёту.\n"
+                "По сделкам не пишу — смотрите /баланс или /отчёт.",
+                force=True,
+            )
+            ts.last_startup_message = today
+            ts.save()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("startup message failed: %s", exc)
 
     async def process_update(self, update_json: dict) -> None:
         """Обработать входящее обновление Telegram (для webhook-режима)."""

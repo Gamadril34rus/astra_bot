@@ -89,6 +89,10 @@ class TrainingState:
     quiet_hours_start: str | None = None  # например "23:00"
     quiet_hours_end: str | None = None    # например "08:00"
 
+    # Дата последнего стартового сообщения «бот на связи» (анти-спам при
+    # частых перезапусках на GitHub Actions).
+    last_startup_message: str | None = None
+
     # Накопленная статистика.
     stats: RunStats = field(default_factory=RunStats)
 
