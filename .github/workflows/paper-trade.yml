@@ -70,6 +70,13 @@ jobs:
         run: |
           git config user.name "astra-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add -f models/paper_*.json models/paper_*.jsonl models/live_lessons.jsonl models/trading_budget.json models/readiness.json 2>/dev/null || true
-          git diff --cached --quiet || git commit -m "chore(ci): paper state $(date -u +%Y-%m-%dT%H:%MZ)"
+          # Добавляем файлы по отдельности: отсутствие одного (нет закрытых
+          # сделок -> нет .jsonl) не должно ронять весь add и терять позиции.
+          for f in models/paper_positions.json models/paper_trades.jsonl \
+                   models/live_lessons.jsonl models/trading_budget.json \
+                   models/readiness.json models/training_state.json; do
+            [ -f "$f" ] && git add -f "$f" || true
+          done
+          git diff --cached --quiet || \
+            git commit -m "chore(ci): paper state $(date -u +%Y-%m-%dT%H:%MZ)"
           git push origin master || echo "push failed"
