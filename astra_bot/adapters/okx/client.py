@@ -3,13 +3,16 @@ ASTRA BOT — OKX REST API Client
 """
 
 import asyncio
+import base64
 import hashlib
 import hmac
+import json
 import logging
 import time
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
+from urllib.parse import urlencode
 
 import aiohttp
 
@@ -115,14 +118,14 @@ class OKXClient(ExchangeAdapter):
 
     async def initialize(self):
         """Инициализация клиента"""
-        self._session = aiohttp.ClientSession(
-            base_url=self.base_url,
-            headers={
-                "Content-Type": "application/json",
-                "OK-ACCESS-KEY": self.api_key if self.api_key else "",
-                "OK-ACCESS-PASSPHRASE": self.passphrase if self.passphrase else "",
-            }
-        )
+        headers = {
+            "Content-Type": "application/json",
+        }
+        if self.sandbox:
+            # Demo-trading shares the www.okx.com host but requires this
+            # header on every authenticated call.
+            headers["x-simulated-trading"] = "1"
+        self._session = aiohttp.ClientSession(base_url=self.base_url, headers=headers)
         logger.info(f"OKX client initialized, sandbox={self.sandbox}")
 
     async def close(self):
@@ -131,36 +134,26 @@ class OKXClient(ExchangeAdapter):
             await self._session.close()
             self._session = None
 
-    def _sign_request(self, timestamp: str, body: str) -> str:
-        """Создать подпись запроса"""
-        message = f"{timestamp}GET{self.base_url}{OKX_ENDPOINTS['spot']['account']}{body}"
-        signature = hmac.new(
-            self.api_secret.encode(),
-            message.encode(),
-            hashlib.sha256
-        ).hexdigest()
-        return signature
+    def _sign(self, timestamp: str, method: str, request_path: str, body: str = "") -> str:
+        """OKX HMAC SHA256 signature, base64-encoded."""
+        message = f"{timestamp}{method.upper()}{request_path}{body}".encode()
+        digest = hmac.new(self.api_secret.encode(), message, hashlib.sha256).digest()
+        return base64.b64encode(digest).decode()
 
     def _prepare_auth_headers(self, method: str, request_path: str, body: str = "") -> dict[str, str]:
         """Подготовить авторизованные заголовки.
 
-        OKX ожидает OK-ACCESS-TIMESTAMP в формате ISO 8601 с миллисекундами,
-        иначе сервер отвечает 50102 Timestamp request expired.
+        OKX ожидает OK-ACCESS-TIMESTAMP в формате ISO 8601 с миллисекундами
+        (50102 Timestamp request expired при unix-ms), а OK-ACCESS-SIGN —
+        base64 от HMAC-SHA256, а не hex (50113 Invalid Sign).
         """
         now = datetime.now(timezone.utc)
         timestamp = now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
 
-        # Для публичных методов подпись не требуется, но добавляем для консистентности
         if self.api_key:
-            signature = hmac.new(
-                self.api_secret.encode(),
-                f"{timestamp}{method}{request_path}{body}".encode(),
-                hashlib.sha256
-            ).hexdigest()
-
             return {
                 "OK-ACCESS-KEY": self.api_key,
-                "OK-ACCESS-SIGN": signature,
+                "OK-ACCESS-SIGN": self._sign(timestamp, method, request_path, body),
                 "OK-ACCESS-TIMESTAMP": timestamp,
                 "OK-ACCESS-PASSPHRASE": self.passphrase,
                 "Content-Type": "application/json",
@@ -176,13 +169,16 @@ class OKXClient(ExchangeAdapter):
         signed: bool = False
     ) -> dict[str, Any]:
         """Отправить запрос к API"""
-        url = f"{self.base_url}{endpoint}"
+        # Build query string once so it can be included in the signature prehash.
+        query = ""
+        if params:
+            query = "?" + urlencode(params)
+        url = f"{self.base_url}{endpoint}{query}"
         headers = {}
 
         if signed:
-            request_path = endpoint
-            body_str = body if body else ""
-            headers = self._prepare_auth_headers(method, request_path, body_str)
+            body_str = json.dumps(body) if body else ""
+            headers = self._prepare_auth_headers(method, endpoint + query, body_str)
         else:
             headers = {"Content-Type": "application/json"}
 
@@ -195,7 +191,7 @@ class OKXClient(ExchangeAdapter):
             http_status = 0
 
             if method == "GET":
-                async with self._session.get(url, params=params, headers=headers) as resp:
+                async with self._session.get(url, headers=headers) as resp:
                     http_status = resp.status
                     latency_s = time.time() - start_time
                     self._last_latency = latency_s * 1000
@@ -482,13 +478,21 @@ class OKXClient(ExchangeAdapter):
             "5m": "5m",
             "15m": "15m",
             "30m": "30m",
-            "1h": "60m",
-            "2h": "120m",
-            "4h": "240m",
-            "6h": "360m",
-            "12h": "720m",
-            "1d": "1d",
-            "1w": "1w",
+            "1H": "1H",
+            "2H": "2H",
+            "4H": "4H",
+            "6H": "6H",
+            "12H": "12H",
+            "1D": "1D",
+            "1W": "1W",
+            # lowercase aliases used throughout the codebase
+            "1h": "1H",
+            "2h": "2H",
+            "4h": "4H",
+            "6h": "6H",
+            "12h": "12H",
+            "1d": "1D",
+            "1w": "1W",
         }
         return mapping.get(timeframe, "1m")
 
@@ -522,10 +526,26 @@ class OKXClient(ExchangeAdapter):
 
             data = await self._request("GET", OKX_ENDPOINTS["spot"]["account"], signed=True)
 
-            for item in data:
-                asset = item.get("ccy", "")
-                free = Decimal(item.get("free", "0"))
-                locked = Decimal(item.get("locked", "0"))
+            # OKX /api/v5/account/balance возвращает список счетов; детали
+            # по активам лежат в details[]. Поля: availBal/cashBal/eq/frozenBal.
+            details: list[dict[str, Any]] = []
+            for account in data:
+                details.extend(account.get("details", []) or [])
+
+            for item in details:
+                asset = item.get("ccy", "").strip()
+                if not asset:
+                    continue
+                # eq = общий баланс; availBal = доступный; frozenBal/ordFroz = заблокированный.
+                total_raw = item.get("eq") or item.get("cashBal") or "0"
+                free_raw = item.get("availBal") or item.get("availableBal") or total_raw
+                locked_raw = item.get("frozenBal") or item.get("ordFroz") or "0"
+                try:
+                    total = Decimal(str(total_raw))
+                    free = Decimal(str(free_raw))
+                    locked = Decimal(str(locked_raw))
+                except Exception:
+                    continue
 
                 balances[asset] = AccountBalance(
                     account_id="okx_main",
@@ -533,7 +553,7 @@ class OKXClient(ExchangeAdapter):
                     asset=asset,
                     free=free,
                     locked=locked,
-                    total=free + locked,
+                    total=total,
                 )
 
             return balances

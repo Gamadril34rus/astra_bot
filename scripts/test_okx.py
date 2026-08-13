@@ -16,6 +16,8 @@ async def main():
         "api_key": os.environ.get("OKX_API_KEY", ""),
         "api_secret": os.environ.get("OKX_API_SECRET", ""),
         "passphrase": os.environ.get("OKX_API_PASSPHRASE") or os.environ.get("OKX_PASSPHRASE", ""),
+        # Ключи выданы для demo-trading (paper): иначе OKX отвечает 50101.
+        "sandbox": os.environ.get("OKX_DEMO", "1").lower() not in {"0", "false", "no"},
     }
     print(f"Using key: {cfg['api_key'][:4]}... passphrase=***")
     c = OKXClient(cfg)
