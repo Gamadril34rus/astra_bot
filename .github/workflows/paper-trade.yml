@@ -2,6 +2,8 @@ name: Paper trade (hourly)
 
 on:
   schedule:
+    # Каждый час. Живая торговля внутри шага сама ограничена расписанием
+    # (бюджет часов в месяц, активные сессии 08–24 МСК) через trading_schedule.
     - cron: "7 * * * *"
   workflow_dispatch:
 
@@ -15,11 +17,11 @@ permissions:
 jobs:
   step:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: arena/019fe76b-astra-bot
+          ref: master
 
       - uses: actions/setup-python@v5
         with:
@@ -39,17 +41,19 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
         run: |
-          cat > .env <<EOF
-          ENVIRONMENT=paper
-          PAPER_TRADING=true
-          OKX_API_KEY=$OKX_API_KEY
-          OKX_API_SECRET=$OKX_API_SECRET
-          OKX_API_PASSPHRASE=$OKX_API_PASSPHRASE
-          TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
-          TELEGRAM_ADMIN_ID=$TELEGRAM_ADMIN_ID
-          EOF
+          {
+            echo "ENVIRONMENT=paper"
+            echo "PAPER_TRADING=true"
+            echo "OKX_DEMO=1"
+            echo "OKX_API_KEY=$OKX_API_KEY"
+            echo "OKX_API_SECRET=$OKX_API_SECRET"
+            echo "OKX_API_PASSPHRASE=$OKX_API_PASSPHRASE"
+            echo "TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN"
+            echo "TELEGRAM_ADMIN_ID=$TELEGRAM_ADMIN_ID"
+          } > .env
+          chmod 600 .env
 
-      - name: One trading step
+      - name: One trading step (10 symbols, safety-gated)
         run: python scripts/run_paper.py --once
 
       - name: Commit state
@@ -57,6 +61,6 @@ jobs:
         run: |
           git config user.name "astra-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add models/ || true
-          git commit -m "chore(ci): paper state $(date -u +%Y-%m-%dT%H:%MZ)" || true
-          git push origin arena/019fe76b-astra-bot || true
+          git add -f models/paper_*.json models/paper_*.jsonl models/trading_budget.json models/readiness.json 2>/dev/null || true
+          git commit -m "chore(ci): paper state $(date -u +%Y-%m-%dT%H:%MZ)" || echo "nothing to commit"
+          git push origin master || echo "push failed"

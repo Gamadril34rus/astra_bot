@@ -37,6 +37,7 @@ except ImportError:
     pass
 
 from astra_bot.adapters.okx import OKXClient
+from astra_bot.core.instruments import TRADING_UNIVERSE, to_okx
 from astra_bot.core.logger import setup_logging
 from astra_bot.decision.trading_engine import (
     TradingEngine,
@@ -46,10 +47,13 @@ from astra_bot.strategies import PullbackStrategy
 
 logger = logging.getLogger("paper_runner")
 
+# 10 ликвидных пар к USDT в OKX-формате.
+DEFAULT_SYMBOLS = [to_okx(s) for s in TRADING_UNIVERSE]
+
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
-    p.add_argument("--symbols", nargs="+", default=["BTC-USDT", "ETH-USDT", "SOL-USDT"])
+    p.add_argument("--symbols", nargs="+", default=DEFAULT_SYMBOLS)
     p.add_argument("--interval", type=int, default=300, help="polling interval, seconds")
     p.add_argument("--capital", type=float, default=2000.0)
     p.add_argument(
@@ -76,12 +80,15 @@ async def amain(args: argparse.Namespace) -> int:
         )
         return 2
 
+    # OKX_DEMO=1 (по умолчанию) — ключи от demo-trading; для реального
+    # счёта выставить OKX_DEMO=0 и заменить ключи.
+    demo = os.environ.get("OKX_DEMO", "1").lower() not in {"0", "false", "no"}
     okx = OKXClient(
         {
             "api_key": api_key,
             "api_secret": api_secret,
             "passphrase": passphrase,
-            "sandbox": False,
+            "sandbox": demo,
             "enabled": True,
             "rate_limit_qps": 4,
         }

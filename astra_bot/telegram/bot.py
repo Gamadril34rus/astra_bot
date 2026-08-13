@@ -68,6 +68,8 @@ BOT_COMMANDS: list[tuple[str, str]] = [
     ("positions", "📍 Открытые сделки"),
     ("risk", "🛡️ Лимиты и риск-режим"),
     ("health", "🏥 Здоровье системы"),
+    ("schedule", "⏰ Бюджет торговых часов в месяц"),
+    ("ready", "🎯 Готовность к реальному счёту"),
     ("account", "⚙️ Выбор демо/реального счёта"),
     ("pause", "⏸ Приостановить торговлю (админ)"),
     ("resume", "▶️ Возобновить торговлю (админ)"),
@@ -85,6 +87,8 @@ COMMAND_HANDLERS: dict[str, str] = {
     "positions": "_cmd_positions",
     "risk": "_cmd_risk",
     "health": "_cmd_health",
+    "schedule": "_cmd_schedule",
+    "ready": "_cmd_ready",
     "account": "_cmd_account",
     "pause": "_cmd_pause",
     "resume": "_cmd_resume",
@@ -106,6 +110,9 @@ RUSSIAN_ALIASES: dict[str, str] = {
     "позиции": "positions",
     "риск": "risk",
     "здоровье": "health",
+    "расписание": "schedule",
+    "бюджет": "schedule",
+    "готовность": "ready",
     "счет": "account",
     "счёт": "account",
     "пауза": "pause",
@@ -137,7 +144,8 @@ MAIN_MENU = ReplyKeyboardMarkup(
         [KeyboardButton("💰 Баланс"), KeyboardButton("⏰ Настройки")],
         [KeyboardButton("📊 Статус"), KeyboardButton("📈 Отчёт")],
         [KeyboardButton("📍 Позиции"), KeyboardButton("🛡️ Риск")],
-        [KeyboardButton("🏥 Здоровье"), KeyboardButton("⚙️ Счёт")],
+        [KeyboardButton("🏥 Здоровье"), KeyboardButton("⏰ Расписание")],
+        [KeyboardButton("🎯 Готовность"), KeyboardButton("⚙️ Счёт")],
         [KeyboardButton("❓ Помощь")],
     ],
     resize_keyboard=True,
@@ -788,6 +796,43 @@ class AstraTelegramBot:
         )
         await self._reply(update, text, reply_markup=MAIN_MENU)
 
+    # -------------------------------------------------------- /расписание
+    async def _cmd_schedule(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if await self._deny(update):
+            return
+        from ..core import trading_schedule
+        args = context.args or []
+        if args and args[0].isdigit() and self._is_admin(update.effective_user.id):
+            # /расписание 700 — сменить месячный бюджет часов.
+            trading_schedule.set_budget(float(args[0]))
+        st = trading_schedule.get_status()
+        icon = "🟢" if st["can_trade_now"] else "🌙"
+        text = (
+            "⏰ *БЮДЖЕТ ТОРГОВЫХ ЧАСОВ*\n\n"
+            f"{icon} Сейчас торговля: "
+            f"{'разрешена' if st['can_trade_now'] else 'на паузе'}\n"
+            f"Месяц: {st['month']} ({st['days_in_month']} дн.)\n"
+            f"Бюджет: {st['budget_hours']:.0f} ч/мес\n"
+            f"Использовано: {st['used_hours']:.1f} ч\n"
+            f"Осталось: {st['remaining_hours']:.1f} ч\n"
+            f"В сутки: {st['hours_per_day']:.1f} ч\n"
+            f"Осталось сегодня: {st['daily_remaining_minutes']:.0f} мин\n"
+            f"Активные часы: {st['active_hours_msk']} МСК\n\n"
+            "Сменить бюджет (админ): `/расписание 700`"
+        )
+        await self._reply(update, text, reply_markup=MAIN_MENU)
+
+    # -------------------------------------------------------- /готовность
+    async def _cmd_ready(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if await self._deny(update):
+            return
+        try:
+            from ..core import readiness
+            text = readiness.format_report()
+        except Exception as exc:
+            text = f"❌ Не смог оценить готовность: {exc}"
+        await self._reply(update, text, reply_markup=MAIN_MENU)
+
     # ---------------------------------------------------------- /счёт
     async def _cmd_account(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if await self._deny(update):
@@ -951,6 +996,8 @@ class AstraTelegramBot:
             "📍 Позиции": self._cmd_positions,
             "🛡️ Риск": self._cmd_risk,
             "🏥 Здоровье": self._cmd_health,
+            "⏰ Расписание": self._cmd_schedule,
+            "🎯 Готовность": self._cmd_ready,
             "⚙️ Счёт": self._cmd_account,
             "❓ Помощь": self._cmd_help,
         }

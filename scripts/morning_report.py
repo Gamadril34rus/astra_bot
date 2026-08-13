@@ -217,6 +217,35 @@ def main() -> None:
     takeaways = top_takeaways(lessons)
     if takeaways:
         body += "\n\n📚 *Главные выводы по убыткам:*\n  • " + "\n  • ".join(takeaways)
+
+    # Бюджет торговых часов.
+    try:
+        from astra_bot.core import trading_schedule
+        st = trading_schedule.get_status()
+        body += (
+            "\n\n⏰ *Бюджет торговли*\n"
+            f"  Осталось в месяце: {st['remaining_hours']} ч из {st['budget_hours']}\n"
+            f"  В сутки: {st['hours_per_day']} ч ({st['active_hours_msk']} МСК)\n"
+            f"  Сейчас торговля: {'разрешена ✅' if st['can_trade_now'] else 'на паузе 🌙'}"
+        )
+    except Exception:
+        pass
+
+    # Готовность к реальному счёту.
+    try:
+        from astra_bot.core.readiness import evaluate, format_report, should_notify_ready
+        v = evaluate()
+        if should_notify_ready():
+            body += (
+                "\n\n🚀 *БОТ ГОТОВ К РЕАЛЬНОМУ СЧЁТУ*\n"
+                "Все критерии стабильности выполнены. Можно пополнять реальный "
+                "счёт и переключать режим."
+            )
+        else:
+            body += f"\n\n🎯 Готовность к реалу: {v['score']}/{v['threshold']}"
+    except Exception:
+        pass
+
     text = f"☀️ *Утренний отчёт* — {now} МСК\n\n{body}"
     print(text)
     asyncio.run(send_to_telegram(text))

@@ -153,9 +153,14 @@ def _feature_snapshot(
     }
 
     cross = cross_snapshot or {}
-    features["cross_btc_1h"] = float(cross.get("BTC/USDT_1h", 0.0))
-    features["cross_eth_1h"] = float(cross.get("ETH/USDT_1h", 0.0))
-    features["cross_sol_1h"] = float(cross.get("SOL/USDT_1h", 0.0))
+    # Общий рыночный фон по всем 10 инструментам (кросс-доходности).
+    for key, val in cross.items():
+        safe = key.replace("/", "_").replace("-", "_").lower()
+        features[f"cross_{safe}"] = float(val)
+    # Явные «мажоры» для совместимости со старыми обученными моделями.
+    features.setdefault("cross_btc_1h", float(cross.get("BTC/USDT_1h", 0.0)))
+    features.setdefault("cross_eth_1h", float(cross.get("ETH/USDT_1h", 0.0)))
+    features.setdefault("cross_sol_1h", float(cross.get("SOL/USDT_1h", 0.0)))
     return features
 
 
@@ -253,7 +258,13 @@ def _takeaway(lesson: Lesson) -> str:
 class SelfPlayConfig:
     """Параметры self-play."""
 
-    symbols: tuple[str, ...] = ("BTC/USDT", "ETH/USDT", "SOL/USDT")
+    # 10 ликвидных пар к USDT на OKX. Импорт ленивый, чтобы не тянуть
+    # зависимости при сборе документации/тестах.
+    symbols: tuple[str, ...] = field(
+        default_factory=lambda: __import__(
+            "astra_bot.core.instruments", fromlist=["TRADING_UNIVERSE"]
+        ).TRADING_UNIVERSE
+    )
     timeframe: str = "1h"
     initial_capital: Decimal = Decimal("2000")
     # Сколько баров удерживать позицию, если SL/TP не сработали.
@@ -458,13 +469,16 @@ class SelfPlayEngine:
         import random
 
         out: dict[str, list[models.Candle]] = {}
+        # Базовые цены для синтетики (порядок величины реальных цен).
+        base_prices = {
+            "BTC": 60000.0, "ETH": 3000.0, "SOL": 150.0, "XRP": 0.5,
+            "DOGE": 0.1, "ADA": 0.4, "AVAX": 30.0, "LINK": 15.0,
+            "DOT": 6.0, "TRX": 0.12,
+        }
         for idx, symbol in enumerate(self.config.symbols):
             random.seed(idx + 1)
-            base = (
-                30000.0 if "BTC" in symbol
-                else 2000.0 if "ETH" in symbol
-                else 100.0
-            )
+            coin = symbol.split("/")[0]
+            base = base_prices.get(coin, 1.0)
             start = int(
                 datetime(2024, 1, 1, tzinfo=UTC).timestamp() * 1000
             )
@@ -806,11 +820,16 @@ class SelfPlayEngine:
 
             # Размер позиции: доля от ТЕКУЩЕГО капитала (compounding).
             # При росте счёта позиция увеличивается, при просадке — уменьшается.
+            # На альтах заходим половинным номиналом (волатильнее/менее ликвидны).
             current_equity = max(
                 Decimal(str(self.config.initial_capital)),
                 Decimal(str(self._equity)),
             )
-            notional = current_equity * self.config.position_fraction
+            from ..core.instruments import position_fraction_for
+            frac = Decimal(str(position_fraction_for(
+                best_symbol, float(self.config.position_fraction)
+            )))
+            notional = current_equity * frac
             quantity = notional / best_signal.entry_price
             if quantity <= 0:
                 continue

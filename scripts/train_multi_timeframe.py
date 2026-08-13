@@ -19,13 +19,15 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from astra_bot.adapters.okx import OKXClient
+from astra_bot.core.instruments import TRADING_UNIVERSE
 from astra_bot.core.logger import setup_logging
 from astra_bot.core.training_state import get_training_state
 from astra_bot.ml.historical_training import fetch_historical_candles
 from astra_bot.ml.multi_timeframe import run_multi_timeframe
 from astra_bot.ml.weekly_learner import train_weekly
 
-SYMBOLS = ("BTC/USDT", "ETH/USDT", "SOL/USDT")
+# 10 ликвидных пар к USDT на OKX.
+SYMBOLS = TRADING_UNIVERSE
 
 
 async def amain(args: argparse.Namespace) -> int:

@@ -2,7 +2,8 @@ name: Daily train + report
 
 on:
   schedule:
-    - cron: "0 5 * * *"
+    # 06:00 UTC = 09:00 МСК — ежедневный отчёт ровно к 9 утра по Москве.
+    - cron: "0 6 * * *"
   workflow_dispatch:
 
 concurrency:
