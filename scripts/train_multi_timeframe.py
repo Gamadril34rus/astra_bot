@@ -20,6 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from astra_bot.adapters.okx import OKXClient
 from astra_bot.core.logger import setup_logging
+from astra_bot.core.training_state import get_training_state
 from astra_bot.ml.historical_training import fetch_historical_candles
 from astra_bot.ml.multi_timeframe import run_multi_timeframe
 from astra_bot.ml.weekly_learner import train_weekly
@@ -50,16 +51,43 @@ async def amain(args: argparse.Namespace) -> int:
             await client.close()
         return history
 
+    # Живой капитал обучения: берём из персистентного состояния, а не
+    # зашиваем 2000. После каждого прогона финальный капитал сохраняется
+    # и используется при следующем запуске (растёт/падает от результата),
+    # с защитой от слива (мин. 500, макс. переменная окружения).
+    ts = get_training_state()
+    start_capital = float(ts.get_initial_capital())
+    if args.capital and abs(args.capital - 2000.0) > 1e-6:
+        # Явный --capital имеет приоритет (ручной разовый запуск).
+        start_capital = float(args.capital)
+
     report = await run_multi_timeframe(
         history_provider=provider,
         timeframes=tuple(args.timeframes),
         target_trades_per_tf=args.target_trades,
-        initial_capital=args.capital,
+        initial_capital=start_capital,
         output_dir=Path("models"),
     )
     for tf, stats in report.per_timeframe.items():
         print(f"{tf}: {stats.get('total_trades', 0)} сделок, PnL={stats.get('total_pnl', 0):.2f}")
     print(f"Всего уроков: {report.total_lessons}, общий PnL: {report.total_pnl:.2f}")
+
+    # Сохраняем движение капитала для следующего запуска.
+    final_equity = start_capital + float(report.total_pnl)
+    total_trades = sum(int(s.get("total_trades", 0)) for s in report.per_timeframe.values())
+    total_wins = sum(int(s.get("wins", 0)) for s in report.per_timeframe.values())
+    total_losses = sum(int(s.get("losses", 0)) for s in report.per_timeframe.values())
+    next_cap = ts.record_run(
+        final_equity=final_equity,
+        trades=total_trades,
+        wins=total_wins,
+        losses=total_losses,
+        pnl=report.total_pnl,
+    )
+    print(
+        f"Капитал обучения: старт {start_capital:,.2f} → финиш {final_equity:,.2f} ₽ "
+        f"(следующий старт {float(next_cap):,.2f} ₽)"
+    )
 
     training = train_weekly(min_samples=args.min_samples)
     if training.trained:

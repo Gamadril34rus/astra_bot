@@ -30,6 +30,7 @@ except Exception:
     pass
 
 from astra_bot.core.logger import setup_logging
+from astra_bot.core.training_state import get_training_state
 from astra_bot.ml.self_play import LearningReport, format_daily_report
 
 LESSONS_PATH = PROJECT_ROOT / "models" / "lessons.jsonl"
@@ -38,11 +39,14 @@ MOSCOW_TZ = ZoneInfo("Europe/Moscow")
 
 def build_report_from_lessons() -> LearningReport:
     """Собрать LearningReport из ранее сохранённого lessons.jsonl."""
+    # Базовый капитал берём из персистентного состояния обучения, а не
+    # прибиваем гвоздями 2000 ₽ — иначе отчёт не отражает реальный счёт.
+    base_equity = float(get_training_state().get_initial_capital())
     if not LESSONS_PATH.exists():
         return LearningReport(
             total_trades=0, wins=0, losses=0, win_rate=0.0,
             total_pnl=0.0, profit_factor=0.0, max_drawdown_pct=0.0,
-            final_equity=2000.0, sharpe=0.0,
+            final_equity=base_equity, sharpe=0.0,
             lessons_path=LESSONS_PATH,
             started_learning=False,
             message="Сначала запустите самообучение: python scripts/self_play.py",
@@ -60,7 +64,7 @@ def build_report_from_lessons() -> LearningReport:
         return LearningReport(
             total_trades=0, wins=0, losses=0, win_rate=0.0,
             total_pnl=0.0, profit_factor=0.0, max_drawdown_pct=0.0,
-            final_equity=2000.0, sharpe=0.0,
+            final_equity=base_equity, sharpe=0.0,
             lessons_path=LESSONS_PATH,
             started_learning=False,
             message="Файл уроков пуст",
@@ -80,7 +84,7 @@ def build_report_from_lessons() -> LearningReport:
     std = (sum((r - mean) ** 2 for r in rets) / len(rets)) ** 0.5
     sharpe = mean / std if std else 0.0
 
-    equity = 2000.0
+    equity = base_equity
     peak = equity
     max_dd = 0.0
     for row in lessons:
@@ -110,7 +114,7 @@ def build_report_from_lessons() -> LearningReport:
         total_pnl=total_pnl,
         profit_factor=pf,
         max_drawdown_pct=max_dd,
-        final_equity=2000.0 + total_pnl,
+        final_equity=base_equity + total_pnl,
         sharpe=sharpe,
         lessons_path=LESSONS_PATH,
         started_learning=len(lessons) >= 2000,

@@ -66,6 +66,9 @@ jobs:
         run: |
           git config user.name "astra-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add models/ || true
+          # models/ в .gitignore, но состояния обучения и уроки нужно
+          # сохранять между запусками — добавляем явно через -f.
+          git add -f models/training_state.json models/lessons*.jsonl 2>/dev/null || true
+          git add -f models/current.pkl models/*.pkl 2>/dev/null || true
           git commit -m "chore(ci): daily model retrain $(date -u +%Y-%m-%d)" || echo "nothing to commit"
           git push origin master || echo "push failed"

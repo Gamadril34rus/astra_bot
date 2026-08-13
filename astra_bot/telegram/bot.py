@@ -1,18 +1,39 @@
 """
-ASTRA BOT — Telegram-бот.
+ASTRA BOT — Telegram-бот (русскоязычное меню).
 
-Полностью русскоязычный интерфейс с главным меню и выбором режима
-торговли (демо / реальный счёт). Реальный счёт по умолчанию заблокирован
-и требует явного подтверждения администратором.
+Команды меню (русские + английские алиасы), регистрируемые через
+``setMyCommands``:
+
+* /обучение  — запустить self-play + переобучение (берёт «живой» капитал
+  из ``models/training_state.json``, поэтому счёт обучения растёт/падает
+  от прогресса, а не всегда 2000 ₽);
+* /стоп      — прекратить обучение (кооперативная остановка цикла);
+* /баланс    — общий капитал, плюсы и минусы (paper-движок и OKX demo);
+* /настройки — время ежедневного отчёта, тихие часы, вкл/выкл алертов;
+* а также /статус /отчёт /позиции /риск /здоровье /счёт /пауза /возобновить
+  /помощь.
+
+Все русские команды дублируются английскими алиасами для совместимости.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Awaitable, Callable
 
+from telegram import (
+    Bot,
+    BotCommand,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+    Update,
+)
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -22,31 +43,105 @@ from telegram.ext import (
     filters,
 )
 
-from telegram import (
-    Bot,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    KeyboardButton,
-    ReplyKeyboardMarkup,
-    Update,
-)
-
 from ..core.state import get_system_state
+from ..core.training_state import get_training_state
 from ..engines.risk_engine import get_risk_engine
 from ..paperengine.paper_engine import get_paper_engine
 
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------- меню/команды
+
+# Telegram разрешает в командах только латиницу/цифры/подчёркивание,
+# поэтому служебные команды — английские, но описания и кнопки меню —
+# на русском. Сообщения вида «/обучение» пользователь не набирает: он
+# жмёт русскую кнопку меню, которая дёргает соответствующий обработчик.
+# Пары (команда, описание для меню Telegram). Порядок = порядок в меню.
+BOT_COMMANDS: list[tuple[str, str]] = [
+    ("train", "🎓 Запустить обучение (self-play + переобучение)"),
+    ("stop", "⏹ Прекратить обучение"),
+    ("balance", "💰 Баланс: общий, плюсы, минусы"),
+    ("settings", "⏰ Настройки времени оповещений"),
+    ("status", "📊 Текущее состояние бота"),
+    ("report", "📈 Итоги дня и метрики"),
+    ("positions", "📍 Открытые сделки"),
+    ("risk", "🛡️ Лимиты и риск-режим"),
+    ("health", "🏥 Здоровье системы"),
+    ("account", "⚙️ Выбор демо/реального счёта"),
+    ("pause", "⏸ Приостановить торговлю (админ)"),
+    ("resume", "▶️ Возобновить торговлю (админ)"),
+    ("help", "❓ Справка по командам"),
+]
+
+# Имя команды -> метод-обработчик.
+COMMAND_HANDLERS: dict[str, str] = {
+    "train": "_cmd_train",
+    "stop": "_cmd_stop_training",
+    "balance": "_cmd_balance",
+    "settings": "_cmd_settings",
+    "status": "_cmd_status",
+    "report": "_cmd_report",
+    "positions": "_cmd_positions",
+    "risk": "_cmd_risk",
+    "health": "_cmd_health",
+    "account": "_cmd_account",
+    "pause": "_cmd_pause",
+    "resume": "_cmd_resume",
+    "help": "_cmd_help",
+    "start": "_cmd_help",
+}
+
+# Русские «алиасы», которые вводит пользователь текстом (через слеш), —
+# Telegram их не показывает в меню, но мы их распознаём и маршрутизируем
+# так же, как латинские команды.
+RUSSIAN_ALIASES: dict[str, str] = {
+    "обучение": "train",
+    "стоп": "stop",
+    "баланс": "balance",
+    "настройки": "settings",
+    "статус": "status",
+    "отчет": "report",
+    "отчёт": "report",
+    "позиции": "positions",
+    "риск": "risk",
+    "здоровье": "health",
+    "счет": "account",
+    "счёт": "account",
+    "пауза": "pause",
+    "возобновить": "resume",
+    "помощь": "help",
+}
+
+# Обратная совместимость: английский -> русский текст кнопки/документации.
+COMMAND_ALIASES: dict[str, str] = {
+    "train": "обучение",
+    "stop": "стоп",
+    "balance": "баланс",
+    "settings": "настройки",
+    "status": "статус",
+    "report": "отчёт",
+    "positions": "позиции",
+    "risk": "риск",
+    "health": "здоровье",
+    "account": "счёт",
+    "pause": "пауза",
+    "resume": "возобновить",
+    "help": "помощь",
+    "start": "помощь",
+}
+
 MAIN_MENU = ReplyKeyboardMarkup(
     keyboard=[
+        [KeyboardButton("🎓 Обучение"), KeyboardButton("⏹ Стоп")],
+        [KeyboardButton("💰 Баланс"), KeyboardButton("⏰ Настройки")],
         [KeyboardButton("📊 Статус"), KeyboardButton("📈 Отчёт")],
         [KeyboardButton("📍 Позиции"), KeyboardButton("🛡️ Риск")],
         [KeyboardButton("🏥 Здоровье"), KeyboardButton("⚙️ Счёт")],
         [KeyboardButton("❓ Помощь")],
     ],
     resize_keyboard=True,
-    input_field_placeholder="Выберите действие",
+    input_field_placeholder="Выберите действие или введите /команду",
 )
 
 
@@ -74,6 +169,28 @@ def account_mode_keyboard(current_mode: str) -> InlineKeyboardMarkup:
     )
 
 
+def settings_keyboard(state) -> InlineKeyboardMarkup:
+    """Инлайн-клавиатура настроек оповещений."""
+    alerts_label = "🔔 Алерты: ВКЛ" if state.alerts_enabled else "🔕 Алерты: ВЫКЛ"
+    q = "нет" if not state.quiet_hours_start else f"{state.quiet_hours_start}–{state.quiet_hours_end}"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(alerts_label, callback_data="settings:toggle_alerts"),
+            ],
+            [
+                InlineKeyboardButton(f"⏰ Отчёт: {state.daily_report_time} МСК", callback_data="settings:report_help"),
+            ],
+            [
+                InlineKeyboardButton(f"🌙 Тихие часы: {q}", callback_data="settings:quiet_help"),
+            ],
+            [
+                InlineKeyboardButton("ℹ️ Как менять", callback_data="settings:help"),
+            ],
+        ]
+    )
+
+
 class AstraTelegramBot:
     """Русскоязычный Telegram-бот с меню и выбором счёта."""
 
@@ -93,6 +210,19 @@ class AstraTelegramBot:
         self.account_mode: str = "paper"
         self.real_trading_confirmed: bool = False
 
+        # Состояние обучения (флаг стопа, капитал, настройки).
+        self._ts = get_training_state()
+
+        # Ссылка на приложение AstraBot (main.py), если подключена —
+        # используется для запуска multi-timeframe обучения как в CI.
+        self.bot_app: Any = None
+
+        # Текущая фоновая задача обучения (для /стоп).
+        self._train_task: asyncio.Task | None = None
+        self._train_session: str | None = None
+        self._train_started_at: datetime | None = None
+
+    # ----------------------------------------------------------- lifecycle
     async def initialize(self):
         self._bot = Bot(token=self.bot_token)
         self._application = Application.builder().token(self.bot_token).build()
@@ -101,27 +231,37 @@ class AstraTelegramBot:
 
     def _setup_handlers(self):
         app = self._application
-        app.add_handler(CommandHandler("start", self._cmd_start))
-        app.add_handler(CommandHandler("help", self._cmd_help))
-        app.add_handler(CommandHandler("status", self._cmd_status))
-        app.add_handler(CommandHandler("report", self._cmd_report))
-        app.add_handler(CommandHandler("positions", self._cmd_positions))
-        app.add_handler(CommandHandler("risk", self._cmd_risk))
-        app.add_handler(CommandHandler("health", self._cmd_health))
-        app.add_handler(CommandHandler("account", self._cmd_account))
-        app.add_handler(CommandHandler("pause", self._cmd_pause))
-        app.add_handler(CommandHandler("resume", self._cmd_resume))
-        app.add_handler(CommandHandler("train", self._cmd_train))
+
+        # Латинские команды (то, что реально показывается в меню Telegram).
+        for cmd, method_name in COMMAND_HANDLERS.items():
+            app.add_handler(CommandHandler(cmd, getattr(self, method_name)))
 
         # Inline-кнопки
-        app.add_handler(
-            CallbackQueryHandler(self._cb_account, pattern=r"^account:")
-        )
+        app.add_handler(CallbackQueryHandler(self._cb_account, pattern=r"^account:"))
+        app.add_handler(CallbackQueryHandler(self._cb_settings, pattern=r"^settings:"))
 
-        # Текстовое меню
+        # Текстовое меню + русские «команды» (/обучение и т.п.). Русский
+        # слеш Telegram считает обычным текстом, поэтому ловим его тут.
         app.add_handler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_text)
         )
+
+    async def set_bot_commands(self) -> None:
+        """Зарегистрировать русские команды в меню Telegram (setMyCommands)."""
+        if not self._bot:
+            return
+        commands = [BotCommand(cmd, desc) for cmd, desc in BOT_COMMANDS]
+        # Русская локаль — чтобы описание было на русском в русских клиентах,
+        # плюс дефолтный скоуп.
+        await self._bot.set_my_commands(commands)
+        try:
+            from telegram import BotCommandScopeAllPrivateChats
+            await self._bot.set_my_commands(
+                commands, scope=BotCommandScopeAllPrivateChats()
+            )
+        except Exception as exc:  # pragma: no cover
+            logger.debug("Не задал команды для приватных чатов: %s", exc)
+        logger.info("Зарегистрировано %d команд меню Telegram", len(commands))
 
     # ------------------------------------------------------------------ utils
     def _is_allowed(self, user_id: int) -> bool:
@@ -131,11 +271,11 @@ class AstraTelegramBot:
         return user_id in self.admin_user_ids
 
     @staticmethod
-    def _fmt_money(value: Decimal | float | int | str | None) -> str:
+    def _fmt_money(value: Decimal | float | int | str | None, currency: str = "₽") -> str:
         try:
-            return f"{Decimal(str(value if value is not None else 0)):,.2f} ₽"
+            return f"{Decimal(str(value if value is not None else 0)):,.2f} {currency}"
         except Exception:
-            return "0.00 ₽"
+            return f"0.00 {currency}"
 
     @staticmethod
     def _fmt_pct(value: Decimal | float | int | str | None) -> str:
@@ -144,69 +284,395 @@ class AstraTelegramBot:
         except Exception:
             return "0.00%"
 
-    # ------------------------------------------------------------------ /start
-    async def _reply(
-        self,
-        update: Update,
-        text: str,
-        reply_markup: Any | None = None,
-    ) -> None:
+    @staticmethod
+    def _pnl_icon(value) -> str:
+        return "🟢" if Decimal(str(value)) >= 0 else "🔴"
+
+    async def _reply(self, update: Update, text: str, reply_markup: Any | None = None):
         await update.message.reply_text(
             text, parse_mode="Markdown", reply_markup=reply_markup
         )
 
-    async def _cmd_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        user_id = update.effective_user.id
-        if not self._is_allowed(user_id):
+    async def _deny(self, update: Update, admin_only: bool = False) -> bool:
+        uid = update.effective_user.id
+        if not self._is_allowed(uid):
             await update.message.reply_text("❌ Доступ запрещён")
+            return True
+        if admin_only and not self._is_admin(uid):
+            await update.message.reply_text("❌ Только для администратора")
+            return True
+        return False
+
+    # -------------------------------------------------------------- /обучение
+    async def _cmd_train(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if await self._deny(update, admin_only=True):
             return
 
-        is_admin = self._is_admin(user_id)
+        if self._train_task is not None and not self._train_task.done():
+            await self._reply(
+                update,
+                "⚠️ Обучение уже запущено.\n"
+                f"Сессия: `{self._train_session}`\n"
+                "Чтобы остановить — /стоп.",
+            )
+            return
+
+        args = context.args or []
+        offline = any(a.startswith("--offline") for a in args)
+        bars = 3000
+        for a in args:
+            if a.startswith("--bars="):
+                try:
+                    bars = int(a.split("=", 1)[1])
+                except ValueError:
+                    pass
+
+        # «Живой» капитал обучения: берём из персистентного состояния,
+        # а не зашиваем 2000 ₽. После прошлого запуска он может быть
+        # больше (плюс) или меньше (минус), с защитой от слива.
+        ts = get_training_state()
+        start_capital = ts.get_initial_capital()
+
         await self._reply(
             update,
-            "🤖 *ASTRA BOT*\n\n"
-            "Добро пожаловать! Я ваш помощник для автономной торговли.\n"
-            "Все операции по умолчанию идут на *демо-счёте* — пополнять "
-            "реальный депозит не нужно.\n\n"
-            "Команды:\n"
-            "📊 Статус — текущее состояние бота\n"
-            "📈 Отчёт — итоги дня и метрики\n"
-            "📍 Позиции — открытые сделки\n"
-            "🛡️ Риск — лимиты и риск-режим\n"
-            "⚙️ Счёт — выбор демо/реального счёта\n"
-
-            "❓ Помощь — полный список команд",
-            reply_markup=MAIN_MENU,
+            f"🎓 *Запускаю обучение*\n\n"
+            f"Стартовый капитал сессии: {self._fmt_money(start_capital)}\n"
+            f"Режим: {'офлайн ' + str(bars) + ' баров' if offline else 'self-play на истории OKX'}\n"
+            f"Защита: позиция 5%, дневной лимит 3%, макс. просадка 15%.\n\n"
+            "После прохода переобучу LightGBM и пришлю отчёт. "
+            "Остановить — /стоп.",
         )
-        if is_admin:
-            await update.message.reply_text(
-                "Вы администратор. Доступны команды /pause и /resume."
+
+        session = uuid.uuid4().hex[:12]
+        self._train_session = session
+        self._train_started_at = datetime.utcnow()
+        ts.start_session(session)
+
+        loop = asyncio.get_event_loop()
+        self._train_task = loop.create_task(
+            self._run_training(session=session, offline=offline, bars=bars,
+                               start_capital=start_capital, chat_id=update.effective_chat.id)
+        )
+
+        def _on_done(t: asyncio.Task):
+            if t is self._train_task:
+                self._train_task = None
+                self._train_session = None
+                self._train_started_at = None
+
+        self._train_task.add_done_callback(_on_done)
+
+    async def _run_training(
+        self,
+        session: str,
+        offline: bool,
+        bars: int,
+        start_capital: Decimal,
+        chat_id: int,
+    ) -> None:
+        """Фоновый прогон self-play + переобучение. Не бросает исключений
+        наружу — все ошибки уходят в чат как сообщение."""
+        from ..ml.self_play import SelfPlayConfig, SelfPlayEngine, format_daily_report
+        from ..ml.weekly_learner import train_weekly
+
+        ts = get_training_state()
+
+        def should_stop() -> bool:
+            return get_training_state().should_stop()
+
+        try:
+            engine = SelfPlayEngine(
+                SelfPlayConfig(initial_capital=Decimal(str(start_capital)))
+            )
+            report = await engine.run(
+                offline_bars=bars if offline else 0,
+                should_stop=should_stop,
+            )
+            # Сохраняем «живой» капитал для следующего запуска.
+            next_capital = ts.record_run(
+                final_equity=Decimal(str(report.final_equity)),
+                trades=report.total_trades,
+                wins=report.wins,
+                losses=report.losses,
+                pnl=Decimal(str(report.total_pnl)),
+            )
+            training = train_weekly(min_samples=100)
+            text = format_daily_report(report)
+            text += (
+                "\n\n💼 *Движение капитала обучения*\n"
+                f"  Старт сессии: {self._fmt_money(start_capital)}\n"
+                f"  Финиш: {self._fmt_money(report.final_equity)}\n"
+                f"  Следующий старт: {self._fmt_money(next_capital)}\n"
+            )
+            if training.trained:
+                text += (
+                    f"\n🧠 *Модель:* {training.version}\n"
+                    f"   AUC={training.roc_auc:.3f}, "
+                    f"accuracy={training.accuracy:.3f}, "
+                    f"win-rate={training.positive_rate*100:.1f}%"
+                )
+            else:
+                text += f"\n🧠 {training.message}"
+            await self._send(chat_id, text)
+        except asyncio.CancelledError:
+            logger.info("Обучение %s отменено", session)
+            raise
+        except Exception as exc:
+            logger.exception("Training command failed")
+            await self._send(chat_id, f"❌ Ошибка обучения: {exc}")
+
+    async def _send(self, chat_id: int, text: str) -> None:
+        if not self._bot:
+            return
+        try:
+            await self._bot.send_message(
+                chat_id=chat_id, text=text, parse_mode="Markdown"
+            )
+        except Exception as exc:
+            logger.error("Не отправил сообщение в %s: %s", chat_id, exc)
+
+    # -------------------------------------------------------------- /стоп
+    async def _cmd_stop_training(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if await self._deny(update, admin_only=True):
+            return
+        ts = get_training_state()
+
+        running = self._train_task is not None and not self._train_task.done()
+        if not running and not ts.stop_requested:
+            await self._reply(
+                update,
+                "ℹ️ Сейчас обучение не запущено. Команда /стоп остановит "
+                "активную сессию, когда она будет идти.",
+            )
+            return
+
+        ts.request_stop()
+        if self._train_task is not None and not self._train_task.done():
+            self._train_task.cancel()
+        await self._reply(
+            update,
+            "⏹ Отправлен запрос на прекращение обучения.\n"
+            "Текущий цикл допишет уже собранные уроки и сохранит модель.",
+        )
+        logger.info("Training stop requested by user %s", update.effective_user.id)
+
+    # ------------------------------------------------------------ /баланс
+    async def _cmd_balance(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if await self._deny(update):
+            return
+
+        ts = get_training_state()
+        paper = get_paper_engine()
+        risk = get_risk_engine()
+
+        lines = ["💰 *БАЛАНС*", ""]
+
+        # --- Движок обучения (self-play) ---
+        start_cap = ts.get_initial_capital()
+        last_final = Decimal(ts.last_final_equity)
+        delta = last_final - start_cap
+        lines += [
+            "*🎓 Капитал обучения (демо self-play)*",
+            f"  Текущий (следующий старт): {self._fmt_money(start_cap)}",
+            f"  Прошлая сессия: {self._fmt_money(last_final)} "
+            f"({self._pnl_icon(delta)} {self._fmt_money(delta).strip()})",
+            f"  Лучший исторический: {self._fmt_money(ts.stats.best_equity)}",
+            f"  Худший исторический: {self._fmt_money(ts.stats.worst_equity)}",
+            "",
+        ]
+
+        # --- Плюсы и минусы по всем учебным сессиям ---
+        st = ts.stats
+        total_pnl = Decimal(str(st.total_pnl))
+        lines += [
+            "*📈 Плюсы / минусы (всего учебных сессий: " + str(st.runs) + ")*",
+            f"  Сделок: {st.total_trades}  (✅ {st.wins} / ❌ {st.losses})",
+            f"  Накопленный PnL: {self._pnl_icon(total_pnl)} {self._fmt_money(total_pnl)}",
+            f"  За последнюю сессию: {self._fmt_money(ts.last_run_pnl)} "
+            f"({ts.last_run_trades} сделок, {ts.last_run_at or '—'})",
+            "",
+        ]
+
+        # --- Бумажный счёт бота ---
+        if paper is not None:
+            acc = paper.get_account_info()
+            eq = Decimal(acc["equity"])
+            init = Decimal(acc["initial_capital"])
+            pnl = Decimal(acc["total_pnl"])
+            lines += [
+                "*🤖 Бумажный счёт бота*",
+                f"  Капитал: {self._fmt_money(eq)} (старт {self._fmt_money(init)})",
+                f"  {self._pnl_icon(pnl)} PnL: {self._fmt_money(pnl)} "
+                f"({acc['total_pnl_pct']})",
+                f"  Просадка: {acc['current_drawdown']}",
+                f"  Открытых позиций: {acc['open_positions']}",
+                f"  Сделок: {acc['total_trades']} "
+                f"(W {acc['wins']} / L {acc['losses']}, WR {acc['win_rate']})",
+                "",
+            ]
+
+        # --- OKX demo ---
+        okx_lines = await self._okx_balance_lines()
+        if okx_lines:
+            lines += okx_lines
+
+        # --- Риск-лимиты (защита от слива) ---
+        lines += [
+            "*🛡️ Защита от слива*",
+            f"  Риск-режим: {risk.risk_state.value}",
+            f"  Дневной PnL: {self._fmt_money(risk.daily_pnl)}",
+            "  В обучении: 5% на сделку, стоп-день −3%, стоп-сессии −15%, "
+            "минимальный счёт 500 ₽.",
+        ]
+
+        await self._reply(update, "\n".join(lines), reply_markup=MAIN_MENU)
+
+    async def _okx_balance_lines(self) -> list[str]:
+        """Получить баланс OKX demo (приватный API). В логи секреты не пишем."""
+        try:
+            import os
+            from ..adapters.okx import OKXClient
+
+            key = os.environ.get("OKX_API_KEY", "")
+            secret = os.environ.get("OKX_API_SECRET", "")
+            passphrase = os.environ.get("OKX_API_PASSPHRASE") or os.environ.get(
+                "OKX_PASSPHRASE", ""
+            )
+            if not (key and secret and passphrase):
+                return ["*🏦 OKX demo:* ключи не заданы", ""]
+
+            client = OKXClient(
+                {
+                    "api_key": key,
+                    "api_secret": secret,
+                    "passphrase": passphrase,
+                    "sandbox": os.environ.get("OKX_DEMO", "1").lower()
+                               not in {"0", "false", "no"},
+                }
+            )
+            await client.initialize()
+            try:
+                bals = await client.get_account_balance()
+            finally:
+                await client.close()
+
+            if not bals:
+                return ["*🏦 OKX demo:* баланс пуст или API недоступен", ""]
+
+            total_usdt = Decimal("0")
+            out = ["*🏦 OKX demo-счёт*"]
+            for asset, b in bals.items():
+                out.append(
+                    f"  {asset}: свободно {b.free:f} / всего {b.total:f}"
+                )
+                if asset == "USDT":
+                    total_usdt = b.total
+            if total_usdt > 0:
+                out.append(f"  Итого в USDT: {total_usdt:,.2f}")
+            out.append("")
+            return out
+        except Exception as exc:
+            logger.warning("OKX balance fetch failed: %s", exc)
+            return [f"*🏦 OKX demo:* ошибка получения ({type(exc).__name__})", ""]
+
+    # --------------------------------------------------------- /настройки
+    async def _cmd_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if await self._deny(update, admin_only=True):
+            return
+
+        ts = get_training_state()
+        args = context.args or []
+
+        # /настройки отчёт 08:30
+        if args and args[0].lower() in {"отчёт", "отчет", "report"}:
+            if len(args) < 2:
+                await self._reply(update, "Укажите время, например: /настройки отчёт 08:30")
+                return
+            try:
+                value = ts.set_daily_report_time(args[1])
+                await self._reply(update, f"⏰ Время ежедневного отчёта: *{value} МСК*")
+            except ValueError as exc:
+                await self._reply(update, f"❌ {exc}")
+            return
+
+        # /настройки алерты вкл|выкл
+        if args and args[0].lower() in {"алерты", "alerts"}:
+            if len(args) < 2:
+                await self._reply(update, "Укажите вкл/выкл, например: /настройки алерты вкл")
+                return
+            val = args[1].lower() in {"вкл", "on", "1", "да", "true"}
+            ts.set_alerts(val)
+            await self._reply(update, f"🔔 Алерты: {'ВКЛ' if val else 'ВЫКЛ'}")
+            return
+
+        # /настройки тишина 23:00 08:00  (или off)
+        if args and args[0].lower() in {"тишина", "тихие", "quiet"}:
+            if len(args) >= 2 and args[1].lower() in {"off", "выкл", "нет"}:
+                ts.set_quiet_hours(None, None)
+                await self._reply(update, "🌙 Тихие часы отключены")
+                return
+            if len(args) < 3:
+                await self._reply(
+                    update,
+                    "Укажите интервал, например: /настройки тишина 23:00 08:00 "
+                    "(или «/настройки тишина выкл»)",
+                )
+                return
+            try:
+                s, e = ts.set_quiet_hours(args[1], args[2])
+                await self._reply(update, f"🌙 Тихие часы: *{s}–{e} МСК*")
+            except ValueError as exc:
+                await self._reply(update, f"❌ {exc}")
+            return
+
+        # Без аргументов — показать текущие настройки и кнопки.
+        await update.message.reply_text(
+            self._settings_text(ts),
+            parse_mode="Markdown",
+            reply_markup=settings_keyboard(ts),
+        )
+
+    def _settings_text(self, ts) -> str:
+        q = "отключены" if not ts.quiet_hours_start else f"{ts.quiet_hours_start}–{ts.quiet_hours_end} МСК"
+        in_quiet = " (сейчас тихие часы)" if ts.in_quiet_hours() else ""
+        return (
+            "⏰ *НАСТРОЙКИ ОПОВЕЩЕНИЙ*\n\n"
+            f"🔔 Алерты о сделках: {'ВКЛ' if ts.alerts_enabled else 'ВЫКЛ'}\n"
+            f"📨 Ежедневный отчёт: *{ts.daily_report_time} МСК*\n"
+            f"🌙 Тихие часы: {q}{in_quiet}\n\n"
+            "*Команды:*\n"
+            "• `/настройки отчёт 08:30` — время отчёта\n"
+            "• `/настройки алерты вкл|выкл`\n"
+            "• `/настройки тишина 23:00 08:00` — тихие часы\n"
+            "• `/настройки тишина выкл` — отключить тихие часы\n"
+        )
+
+    async def _cb_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query = update.callback_query
+        await query.answer()
+        uid = query.from_user.id
+        if not self._is_admin(uid):
+            await query.edit_message_text("❌ Только для администратора")
+            return
+        ts = get_training_state()
+        action = query.data.split(":", 1)[1]
+        if action == "toggle_alerts":
+            ts.set_alerts(not ts.alerts_enabled)
+            await query.edit_message_text(
+                self._settings_text(ts), parse_mode="Markdown",
+                reply_markup=settings_keyboard(ts),
+            )
+        elif action == "help" or action.endswith("_help"):
+            await query.message.reply_text(
+                "Менять время/алерты удобнее всего командами:\n"
+                "`/настройки отчёт 08:30`\n"
+                "`/настройки алерты вкл`\n"
+                "`/настройки тишина 23:00 08:00`"
             )
 
-    async def _cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not self._is_allowed(update.effective_user.id):
-            await update.message.reply_text("❌ Доступ запрещён")
-            return
-        await self._reply(
-            update,
-            "❓ *Помощь*\n\n"
-            "/status — текущий статус\n"
-            "/report — отчёт\n"
-            "/positions — открытые позиции\n"
-            "/risk — состояние риск-менеджмента\n"
-            "/health — здоровье системы\n"
-            "/account — выбор счёта (демо/реальный)\n"
-            "/plan — план сделок на 24 часа\n\n"
-            "Администратору:\n"
-            "/pause — приостановить торговлю\n"
-            "/resume — возобновить торговлю\n",
-            reply_markup=MAIN_MENU,
-        )
-
-    # --------------------------------------------------------------- /status
+    # --------------------------------------------------------------- /статус
     async def _cmd_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not self._is_allowed(update.effective_user.id):
-            await update.message.reply_text("❌ Доступ запрещён")
+        if await self._deny(update):
             return
 
         state = get_system_state()
@@ -215,11 +681,13 @@ class AstraTelegramBot:
 
         mode = "📄 Демо" if self.account_mode == "paper" else "💵 Реальный"
         running = paper and paper.is_running
+        training = self._train_task is not None and not self._train_task.done()
 
         text = (
             "📊 *СТАТУС*\n\n"
             f"*Счёт:* {mode}\n"
             f"*Торговля:* {'🟢 Работает' if running else '⏸️ Остановлена'}\n"
+            f"*Обучение:* {'🎓 Идёт' if training else '💤 Остановлено'}\n"
             f"*Капитал:* {self._fmt_money(state.current_equity)}\n"
             f"*Просадка:* {self._fmt_pct(state.current_drawdown)}\n"
             f"*Риск-режим:* {state.risk_state.value}\n"
@@ -232,8 +700,7 @@ class AstraTelegramBot:
         await self._reply(update, text, reply_markup=MAIN_MENU)
 
     async def _cmd_report(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not self._is_allowed(update.effective_user.id):
-            await update.message.reply_text("❌ Доступ запрещён")
+        if await self._deny(update):
             return
 
         state = get_system_state()
@@ -241,14 +708,13 @@ class AstraTelegramBot:
 
         total_pnl = state.total_net_pnl
         total_pct = state.total_pnl_pct
-        pnl_icon = "🟢" if total_pnl >= 0 else "🔴"
 
         text = (
             f"📈 *ОТЧЁТ НА {datetime.utcnow().strftime('%d.%m.%Y')}*\n\n"
             "*💰 Капитал*\n"
             f"  Текущий: {self._fmt_money(state.current_equity)}\n"
             f"  Начальный: {self._fmt_money(state.initial_capital)}\n"
-            f"  {pnl_icon} Прибыль: {self._fmt_money(total_pnl)} "
+            f"  {self._pnl_icon(total_pnl)} Прибыль: {self._fmt_money(total_pnl)} "
             f"({self._fmt_pct(total_pct)})\n\n"
             "*📉 Просадка*\n"
             f"  Текущая: {self._fmt_pct(state.current_drawdown)}\n"
@@ -265,8 +731,7 @@ class AstraTelegramBot:
         await self._reply(update, text, reply_markup=MAIN_MENU)
 
     async def _cmd_positions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not self._is_allowed(update.effective_user.id):
-            await update.message.reply_text("❌ Доступ запрещён")
+        if await self._deny(update):
             return
         paper = get_paper_engine()
         positions = paper.get_positions() if paper else []
@@ -289,8 +754,7 @@ class AstraTelegramBot:
         await self._reply(update, "\n".join(lines), reply_markup=MAIN_MENU)
 
     async def _cmd_risk(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not self._is_allowed(update.effective_user.id):
-            await update.message.reply_text("❌ Доступ запрещён")
+        if await self._deny(update):
             return
         risk = get_risk_engine()
         info = risk.to_dict()
@@ -311,8 +775,7 @@ class AstraTelegramBot:
         await self._reply(update, text, reply_markup=MAIN_MENU)
 
     async def _cmd_health(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not self._is_allowed(update.effective_user.id):
-            await update.message.reply_text("❌ Доступ запрещён")
+        if await self._deny(update):
             return
         state = get_system_state()
         text = (
@@ -325,10 +788,9 @@ class AstraTelegramBot:
         )
         await self._reply(update, text, reply_markup=MAIN_MENU)
 
-    # ---------------------------------------------------------- /account
+    # ---------------------------------------------------------- /счёт
     async def _cmd_account(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not self._is_allowed(update.effective_user.id):
-            await update.message.reply_text("❌ Доступ запрещён")
+        if await self._deny(update):
             return
         await update.message.reply_text(
             self._account_text(),
@@ -377,13 +839,13 @@ class AstraTelegramBot:
                 return
             if not self.real_trading_confirmed:
                 await query.edit_message_text(
-                    "⚠️ *Внимание!*\n\n"
+                    "⚠️ *Внимение!*\n\n"
                     "Вы пытаетесь включить *реальную торговлю*. "
                     "Это операции с живыми деньгами. Убедитесь, что:\n"
                     "• API-ключи без прав на вывод;\n"
                     "• риск-параметры проверены;\n"
                     "• стратегии прошли 30 дней демо-теста.\n\n"
-                    "Для подтверждения нажмите кнопу ниже.",
+                    "Для подтверждения нажмите кнопку ниже.",
                     parse_mode="Markdown",
                     reply_markup=account_mode_keyboard(self.account_mode),
                 )
@@ -412,89 +874,78 @@ class AstraTelegramBot:
                 parse_mode="Markdown",
             )
 
-    # ----------------------------------------------------------- /pause /resume
+    # ----------------------------------------------------------- /пауза
     async def _cmd_pause(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not self._is_admin(update.effective_user.id):
-            await update.message.reply_text(
-                "❌ Только администратор может использовать эту команду"
-            )
+        if await self._deny(update, admin_only=True):
             return
+        from ..core.state import TradingState
         state = get_system_state()
-        state.trading_state = "PAUSED"
-        await update.message.reply_text("⏸️ Торговля приостановлена")
+        state.trading_state = TradingState.PAUSED
+        await self._reply(update, "⏸️ Торговля приостановлена")
         logger.info("Trading paused by user %s", update.effective_user.id)
 
     async def _cmd_resume(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not self._is_admin(update.effective_user.id):
-            await update.message.reply_text(
-                "❌ Только администратор может использовать эту команду"
-            )
+        if await self._deny(update, admin_only=True):
             return
+        from ..core.state import TradingState
         state = get_system_state()
-        state.trading_state = "RUNNING"
-        await update.message.reply_text("▶️ Торговля возобновлена")
+        state.trading_state = TradingState.RUNNING
+        await self._reply(update, "▶️ Торговля возобновлена")
         logger.info("Trading resumed by user %s", update.effective_user.id)
 
-    async def _cmd_train(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Команда /train — self-play + переобучение модели."""
-        if not self._is_admin(update.effective_user.id):
-            await update.message.reply_text(
-                "❌ Запускать обучение может только администратор"
-            )
+    # ----------------------------------------------------------- /помощь
+    async def _cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if await self._deny(update):
             return
-        args = context.args or []
-        offline = any(a.startswith("--offline") for a in args)
-        bars = 3000
-        for a in args:
-            if a.startswith("--bars="):
-                try:
-                    bars = int(a.split("=", 1)[1])
-                except ValueError:
-                    pass
-
-        await update.message.reply_text(
-            f"🎓 Запускаю self-play ({bars} баров)…\n"
-            "После прохода переобучу LightGBM и пришлю отчёт."
+        text = (
+            "❓ *Помощь — ASTRA BOT*\n\n"
+            "*Обучение:*\n"
+            "/обучение — запустить self-play + переобучение (капитал "
+            "растёт/падает от результата)\n"
+            "/обучение --offline [--bars=3000] — офлайн на синтетике\n"
+            "/стоп — прекратить обучение\n\n"
+            "*Деньги:*\n"
+            "/баланс — общий капитал, плюсы, минусы (обучение + бумажный "
+            "счёт + OKX demo)\n"
+            "/позиции — открытые сделки\n\n"
+            "*Оповещения:*\n"
+            "/настройки — текущие настройки и кнопки\n"
+            "/настройки отчёт 08:30 — время ежедневного отчёта (МСК)\n"
+            "/настройки алерты вкл|выкл\n"
+            "/настройки тишина 23:00 08:00 — тихие часы\n\n"
+            "*Система:*\n"
+            "/статус /отчёт /риск /здоровье /счёт\n"
+            "/пауза /возобновить (админ)\n"
         )
-        try:
-            from decimal import Decimal
-
-            from ..ml.self_play import (
-                SelfPlayConfig,
-                SelfPlayEngine,
-                format_daily_report,
-            )
-            from ..ml.weekly_learner import train_weekly
-
-            engine = SelfPlayEngine(
-                SelfPlayConfig(initial_capital=Decimal("2000"))
-            )
-            # Без --offline пытаемся тянуть с OKX (публичный API, без ключей).
-            report = await engine.run(offline_bars=bars if offline else 0)
-            training = train_weekly(min_samples=100)
-            text = format_daily_report(report)
-            if training.trained:
-                text += (
-                    f"\n\n🧠 *Модель:* {training.version}\n"
-                    f"   AUC={training.roc_auc:.3f}, "
-                    f"accuracy={training.accuracy:.3f}, "
-                    f"win-rate={training.positive_rate*100:.1f}%"
-                )
-            else:
-                text += f"\n\n🧠 {training.message}"
-            await update.message.reply_text(text, parse_mode="Markdown")
-        except Exception as exc:
-            logger.exception("Training command failed")
-            await update.message.reply_text(f"❌ Ошибка обучения: {exc}")
+        await self._reply(update, text, reply_markup=MAIN_MENU)
 
     # --------------------------------------------------------------- /text
     async def _handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         if not self._is_allowed(user_id):
             return
-        text = (update.message.text or "").strip()
+        raw = (update.message.text or "").strip()
+        text = raw
+
+        # Русские «команды» вида /обучение Telegram отдаёт как обычный
+        # текст (кириллица не валидна для BotCommand). Маршрутизируем их
+        # вручную на латинские команды.
+        if raw.startswith("/"):
+            token = raw[1:].split("@", 1)[0].split()[0].lower()
+            token = RUSSIAN_ALIASES.get(token, token)
+            method_name = COMMAND_HANDLERS.get(token)
+            if method_name is not None:
+                # Прокидываем аргументы после команды.
+                args = raw.split()[1:]
+                context.args = args
+                await getattr(self, method_name)(update, context)
+                return
 
         dispatch = {
+            "🎓 Обучение": self._cmd_train,
+            "⏹ Стоп": self._cmd_stop_training,
+            "💰 Баланс": self._cmd_balance,
+            "⏰ Настройки": self._cmd_settings,
             "📊 Статус": self._cmd_status,
             "📈 Отчёт": self._cmd_report,
             "📍 Позиции": self._cmd_positions,
@@ -509,9 +960,17 @@ class AstraTelegramBot:
         elif text.lower() in {"test", "тест"}:
             await update.message.reply_text("✅ Бот на связи!")
 
-    # --------------------------------------------------------------- lifecycle
+    # --------------------------------------------------------------- alerts
     async def send_alert(self, message: str, severity: str = "info"):
         if not self._application:
+            return
+        ts = get_training_state()
+        # Тихие часы не блокируют критичные алерты и утренний отчёт.
+        is_critical = severity in {"error", "critical"}
+        if not ts.alerts_enabled and not is_critical:
+            return
+        if ts.in_quiet_hours() and not is_critical:
+            logger.info("Алерты подавлены тихими часами: %s", severity)
             return
         emoji = {
             "info": "ℹ️",
@@ -530,19 +989,36 @@ class AstraTelegramBot:
                 logger.error("Не отправил алерт %s: %s", admin_id, exc)
 
     async def send_daily_report(self, report_text: str):
-        await self.send_alert(report_text, "info")
+        # Утренний отчёт отправляется всегда, независимо от тихих часов.
+        if not self._application or not self._bot:
+            return
+        for admin_id in self.admin_user_ids:
+            try:
+                await self._bot.send_message(
+                    chat_id=admin_id, text=report_text, parse_mode="Markdown"
+                )
+            except Exception as exc:
+                logger.error("Не отправил отчёт %s: %s", admin_id, exc)
 
+    # --------------------------------------------------------------- lifecycle
     async def start(self):
         if not self._application:
             await self.initialize()
         self._running = True
-        logger.info("Telegram bot started")
         await self._application.initialize()
         await self._application.start()
         await self._application.updater.start_polling()
+        # Регистрируем русские команды в меню Telegram после старта polling.
+        try:
+            await self.set_bot_commands()
+        except Exception as exc:
+            logger.warning("Не смог зарегистрировать команды меню: %s", exc)
+        logger.info("Telegram bot started")
 
     async def stop(self):
         self._running = False
+        if self._train_task is not None and not self._train_task.done():
+            self._train_task.cancel()
         if self._application:
             try:
                 await self._application.updater.stop()

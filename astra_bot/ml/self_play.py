@@ -615,6 +615,8 @@ class SelfPlayEngine:
         client=None,
         offline_bars: int = 0,
         append: bool = True,
+        should_stop=None,
+        on_progress=None,
     ) -> LearningReport:
         """Запустить полный проход self-play.
 
@@ -622,7 +624,13 @@ class SelfPlayEngine:
         ``lessons.jsonl`` подгружаются перед проходом — за счёт этого
         несколько ежедневных запусков складываются в один растущий
         датасет, а не перезаписывают друг друга.
+
+        ``should_stop`` — опциональный ``callable() -> bool``: если
+        возвращает ``True``, проход прерывается досрочно (команда
+        «Прекратить обучение» из Telegram). ``on_progress(step, total)``
+        вызывается периодически для прогресс-бара.
         """
+        stopped_early = False
         if append:
             existing = self._load_existing_lessons()
             self.lessons = existing + self.lessons
@@ -668,6 +676,24 @@ class SelfPlayEngine:
             # Пропускаем первые 200 баров как «прогрев» индикаторов.
             if step < 200:
                 continue
+
+            # Внешняя команда «Прекратить обучение» (Telegram) — выходим
+            # из цикла досрочно, не теряя уже накопленные уроки.
+            if should_stop is not None:
+                try:
+                    if bool(should_stop()):
+                        logger.info("Self-play остановлен внешней командой на шаге %d/%d",
+                                    step, total_steps)
+                        stopped_early = True
+                        break
+                except Exception:
+                    pass
+
+            if on_progress is not None and step % 50 == 0:
+                try:
+                    on_progress(step, total_steps)
+                except Exception:
+                    pass
 
             # Защита капитала: не открываем новые сделки, если общая
             # просадка от пика превысила лимит или за день потеряли
@@ -825,6 +851,8 @@ class SelfPlayEngine:
         if len(self.lessons) >= self.config.target_trades:
             started_learning = True
             message = f"Обучение запущено на {len(self.lessons)} сделках"
+        elif stopped_early:
+            message = f"Обучение остановлено вручную на {len(self.lessons)} сделках"
 
         report = self._build_report(started_learning, message)
         self._save_lessons()

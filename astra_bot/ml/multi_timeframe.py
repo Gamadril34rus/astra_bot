@@ -77,6 +77,8 @@ async def run_multi_timeframe(
 
         reports[tf] = report.to_dict() if hasattr(report, "to_dict") else {
             "trades": report.total_trades,
+            "wins": getattr(report, "wins", 0),
+            "losses": getattr(report, "losses", 0),
             "pnl": report.total_pnl,
             "win_rate": report.win_rate,
         }
