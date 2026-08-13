@@ -1,0 +1,78 @@
+{
+  "positions": [
+    {
+      "id": "5782b5a0-df0d-4b4f-9a9a-7dcc7c014ecc",
+      "symbol": "BTC-USDT",
+      "direction": "short",
+      "entry_price": "62953.7",
+      "quantity": "0.019856",
+      "stop_loss": "63709.1444",
+      "take_profits": [
+        "62198.25560",
+        "61593.90008",
+        "61065.08900"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "0.019856",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "pullback",
+      "opened_at": 1786611400419,
+      "notes": {
+        "score": 52.0,
+        "ml_probability": null,
+        "edge_pct": 0.351457520915386,
+        "rr": 0.75
+      }
+    },
+    {
+      "id": "da2a0a2c-720d-4007-937e-e092b10f5ffb",
+      "symbol": "LINK-USDT",
+      "direction": "short",
+      "entry_price": "8.14",
+      "quantity": "153.562654",
+      "stop_loss": "8.23768",
+      "take_profits": [
+        "8.042320",
+        "7.964176",
+        "7.895800"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "153.562654",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "pullback",
+      "opened_at": 1786611406642,
+      "notes": {
+        "score": 45.0,
+        "ml_probability": null,
+        "edge_pct": 0.08874024154364317,
+        "rr": 0.75
+      }
+    }
+  ],
+  "realized_pnl": "0",
+  "initial_capital": "5000"
+}
