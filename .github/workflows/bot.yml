@@ -1,0 +1,89 @@
+name: Bot (always-on)
+
+# Бот «постоянно на связи» через частые короткие запуски.
+# Публичный репозиторий → GitHub Actions бесплатны и безлимитны.
+# Каждые 5 минут в активные часы (08:00–23:59 МСК = 05:00–20:59 UTC)
+# поднимается сессия ~3.5 мин: принимает команды и торгует. Вне
+# активных часов запускаемся реже (раз в 30 мин) — только чтобы бот
+# отвечал на команды, без торговли.
+
+on:
+  schedule:
+    # Каждые 5 минут в активные торговые часы МСК (05–20 UTC).
+    - cron: "*/5 5-20 * * *"
+    # В остальное время — раз в 30 минут, чтобы бот оставался отзывчивым.
+    - cron: "0,30 0-4,21-23 * * *"
+  workflow_dispatch:
+
+concurrency:
+  # Не даём двум сессиям работать одновременно (общее состояние в git).
+  group: astra-bot
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          # Подтянем состояние от прошлого запуска (позиции, офсет и т.п.).
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt python-dotenv
+
+      - name: Restore state
+        run: |
+          git config user.name "astra-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git pull --no-rebase origin master || true
+
+      - name: Write .env
+        env:
+          OKX_API_KEY: ${{ secrets.OKX_API_KEY }}
+          OKX_API_SECRET: ${{ secrets.OKX_API_SECRET }}
+          OKX_API_PASSPHRASE: ${{ secrets.OKX_API_PASSPHRASE }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
+        run: |
+          {
+            echo "ENVIRONMENT=paper"
+            echo "PAPER_TRADING=true"
+            echo "OKX_DEMO=1"
+            echo "OKX_API_KEY=$OKX_API_KEY"
+            echo "OKX_API_SECRET=$OKX_API_SECRET"
+            echo "OKX_API_PASSPHRASE=$OKX_API_PASSPHRASE"
+            echo "TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN"
+            echo "TELEGRAM_ADMIN_ID=$TELEGRAM_ADMIN_ID"
+            echo "TELEGRAM_USER_ID=$TELEGRAM_ADMIN_ID"
+          } > .env
+          chmod 600 .env
+
+      - name: Run bot session
+        # ~200 сек слушаем команды и торгуем; укладываемся в 5-мин окно.
+        run: BOT_LISTEN_SECONDS=200 python scripts/run_bot.py
+
+      - name: Save state
+        if: always()
+        run: |
+          for f in models/paper_positions.json models/paper_trades.jsonl \
+                   models/live_lessons.jsonl models/trading_budget.json \
+                   models/readiness.json models/training_state.json \
+                   models/telegram_offset.json; do
+            [ -f "$f" ] && git add -f "$f" || true
+          done
+          git diff --cached --quiet || \
+            git commit -m "chore(ci): bot state $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push origin master || echo "push failed (will retry next run)"

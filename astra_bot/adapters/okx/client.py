@@ -563,6 +563,41 @@ class OKXClient(ExchangeAdapter):
             # В случае ошибки возвращаем пустые балансы
             return {}
 
+    async def get_funding_balance(self) -> dict[str, AccountBalance]:
+        """Баланс funding-аккаунта (куда заводят депозиты).
+
+        В отличие от торгового аккаунта (/account/balance), здесь лежат
+        средства, ещё не переведённые на торговый субсчёт.
+        """
+        balances: dict[str, AccountBalance] = {}
+        if not self.api_key:
+            return balances
+        try:
+            data = await self._request(
+                "GET", "/api/v5/asset/balances", signed=True
+            )
+            for item in data or []:
+                asset = (item.get("ccy") or "").strip()
+                if not asset:
+                    continue
+                try:
+                    total = Decimal(str(item.get("cashBal") or item.get("eq") or "0"))
+                    free = Decimal(str(item.get("availBal") or total))
+                    locked = total - free
+                except Exception:
+                    continue
+                balances[asset] = AccountBalance(
+                    account_id="okx_funding",
+                    exchange="okx",
+                    asset=asset,
+                    free=free,
+                    locked=locked,
+                    total=total,
+                )
+        except Exception as e:
+            logger.warning("Error getting funding balance: %s", e)
+        return balances
+
     async def get_balances(self, assets: list[str] | None = None) -> dict[str, Decimal]:
         """Получить балансы в виде словаря"""
         balances = await self.get_account_balance()

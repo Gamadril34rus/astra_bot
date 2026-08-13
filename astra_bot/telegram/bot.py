@@ -602,22 +602,30 @@ class AstraTelegramBot:
             await client.initialize()
             try:
                 bals = await client.get_account_balance()
+                funding = await client.get_funding_balance()
             finally:
                 await client.close()
 
-            if not bals:
-                return ["*🏦 OKX demo:* баланс пуст или API недоступен", ""]
-
+            out: list[str] = []
             total_usdt = Decimal("0")
-            out = ["*🏦 OKX demo-счёт*"]
-            for asset, b in bals.items():
-                out.append(
-                    f"  {asset}: свободно {b.free:f} / всего {b.total:f}"
-                )
-                if asset == "USDT":
-                    total_usdt = b.total
+
+            def _emit(title: str, balances) -> None:
+                nonlocal total_usdt
+                if not balances:
+                    return
+                out.append(title)
+                for asset, b in balances.items():
+                    out.append(f"  {asset}: {b.free:f} / всего {b.total:f}")
+                    if asset == "USDT":
+                        total_usdt += b.total
+
+            _emit("*🏦 OKX demo — торговый счёт*", bals)
+            _emit("*💼 OKX demo — funding-счёт*", funding)
+
+            if not out:
+                return ["*🏦 OKX demo:* баланс пуст или API недоступен", ""]
             if total_usdt > 0:
-                out.append(f"  Итого в USDT: {total_usdt:,.2f}")
+                out.append(f"  Итого USDT (торг.+funding): {total_usdt:,.2f}")
             out.append("")
             return out
         except Exception as exc:
