@@ -1,37 +1,29 @@
 """
 Юниверс торговых инструментов ASTRA BOT.
 
-10 популярных ликвидных спот-пар к USDT на OKX. Все они проверены через
-``/api/v5/public/instruments`` (state=live). Ликвидность важна: бот
-торгует только там, где узкий спред, глубина стакана и нет проскальзываний
-на крупных объёмах — это часть защиты от слива депозита.
+Ликвидные спот-пары к USDT на OKX, проверенные через
+/api/v5/public/instruments (state=live). Бот сам выбирает, где
+выгодный сетап, не ограничиваясь монетами на счету (торговля
+бумажная, расчёты в USDT).
 """
 
 from __future__ import annotations
 
-# Канонический формат "BASE/USDT" (внутренний) и "BASE-USDT" (для OKX).
 TRADING_UNIVERSE: tuple[str, ...] = (
-    "BTC/USDT",
-    "ETH/USDT",
-    "SOL/USDT",
-    "XRP/USDT",
-    "DOGE/USDT",
-    "ADA/USDT",
-    "AVAX/USDT",
-    "LINK/USDT",
-    "DOT/USDT",
-    "TRX/USDT",
+    # мажоры
+    "BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT",
+    # крупные альты
+    "ADA/USDT", "AVAX/USDT", "DOGE/USDT", "LINK/USDT", "DOT/USDT",
+    "TRX/USDT", "LTC/USDT", "BCH/USDT", "ATOM/USDT", "NEAR/USDT",
+    "APT/USDT", "ARB/USDT", "OP/USDT", "SUI/USDT", "INJ/USDT",
+    "TIA/USDT", "FIL/USDT", "ICP/USDT", "HBAR/USDT", "AAVE/USDT",
+    "UNI/USDT", "FET/USDT",
 )
 
-# «Мажоры» с максимальной ликвидностью — на них приходится основной объём.
-MAJOR_SYMBOLS: frozenset[str] = frozenset({"BTC/USDT", "ETH/USDT", "SOL/USDT"})
-
-# Альткоины из топа — торгуются с пониженным размером позиции (волатильнее).
-ALT_SYMBOLS: tuple[str, ...] = tuple(s for s in TRADING_UNIVERSE if s not in MAJOR_SYMBOLS)
+MAJOR_SYMBOLS: frozenset[str] = frozenset({"BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"})
 
 
 def to_okx(symbol: str) -> str:
-    """BTC/USDT -> BTC-USDT."""
     return symbol.replace("/", "-")
 
 
@@ -40,11 +32,7 @@ def is_alt(symbol: str) -> bool:
 
 
 def position_fraction_for(symbol: str, base_fraction: float) -> float:
-    """Размер позиции под инструмент.
-
-    На альтах (волатильнее и менее ликвидны) заходим меньшим номиналом,
-    чтобы одна плохая сделка не пробивала дневной лимит потерь.
-    """
+    """На альтах — половинный номинал (волатильнее)."""
     if is_alt(symbol):
         return base_fraction * 0.5
     return base_fraction

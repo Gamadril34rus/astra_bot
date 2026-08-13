@@ -48,6 +48,15 @@ class TradingEngineConfig:
     risk_per_trade_pct: Decimal = Decimal("0.005")
     # Максимум 15% капитала на одну позицию (notional) — защита от раздутия.
     max_notional_pct: Decimal = Decimal("0.15")
+    # Сколько позиций держим одновременно. На 28 монетах 8 — достаточно для
+    # диверсификации и при этом не перегружает депозит коррелированными
+    # входами в один момент.
+    max_open_positions: int = 8
+    # Лимит однонаправленных позиций (long или short) — чтобы не открыть
+    # сразу 6 лонгов, которые все стопнутся вместе.
+    max_same_direction: int = 4
+    # Максимальная суммарная экспозиция (notional) в % капитала.
+    max_total_exposure_pct: Decimal = Decimal("0.70")
     poll_interval_seconds: int = 60 * 5
     state_path: str = "models/paper_positions.json"
     trades_path: str = "models/paper_trades.jsonl"
@@ -218,6 +227,21 @@ class TradingEngine:
         if any(p.symbol == symbol for p in self.broker.positions):
             return closed
 
+        # Дисциплина капитала: лимит числа позиций, однонаправленных
+        # входов и суммарной экспозиции. Защищает от пачки
+        # коррелированных сделок, которые стопнутся одновременно.
+        open_positions = list(self.broker.positions)
+        if len(open_positions) >= self.config.max_open_positions:
+            return closed
+        total_notional = sum(
+            float(p.entry_price) * float(p.quantity) for p in open_positions
+        )
+        equity = float(self.broker.equity)
+        if equity > 0 and total_notional / equity >= float(
+            self.config.max_total_exposure_pct
+        ):
+            return closed
+
         # Рыночная «безопасность»: расписание/бюджет часов, новости,
         # волатильность, спред, дисбаланс стакана. Если не прошли —
         # пропускаем вход (это главный щит от слива депозита).
@@ -263,6 +287,19 @@ class TradingEngine:
             return closed
 
         cand = decision.candidate
+
+        # Не набираем слишком много позиций в одну сторону.
+        wanted_dir = "long" if cand.direction == "long" else "short"
+        same_dir = sum(
+            1 for p in self.broker.positions if p.direction == wanted_dir
+        )
+        if same_dir >= self.config.max_same_direction:
+            logger.info(
+                "%s: лимит %s-позиций достигнут (%d), пропуск",
+                symbol, wanted_dir, same_dir,
+            )
+            return closed
+
         size = self._position_size(
             self.broker.equity,
             cand.entry_price,
