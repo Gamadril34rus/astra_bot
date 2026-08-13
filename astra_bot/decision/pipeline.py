@@ -114,7 +114,7 @@ class DecisionPipeline:
         regime: str,
     ) -> list[SignalCandidate]:
         out: list[SignalCandidate] = []
-        primary = ctx.candles_on("1h") or ctx.candles_on("4h") or []
+        primary = ctx.candles_on("5m") or ctx.candles_on("15m") or ctx.candles_on("1h") or ctx.candles_on("4h") or []
         if not primary:
             return out
         for strategy in self.strategies:
@@ -167,7 +167,7 @@ class DecisionPipeline:
         reasons: list[str] = []
 
         # 1. Качество данных.
-        primary = ctx.candles_on("1h") or ctx.candles_on("4h")
+        primary = ctx.candles_on("5m") or ctx.candles_on("15m") or ctx.candles_on("1h") or ctx.candles_on("4h")
         if not primary or len(primary) < self.config.ema_slow + 5:
             return Decision("NO_TRADE", ctx.symbol, ["insufficient_data"])
 

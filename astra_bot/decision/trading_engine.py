@@ -35,11 +35,12 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TradingEngineConfig:
     symbols: tuple[str, ...] = ("BTC-USDT", "ETH-USDT", "SOL-USDT")
-    # 15m — основной для частых мелких сделок; 5m ловит быстрые сетапы.
-    timeframes: tuple[str, ...] = ("15m", "5m", "1h", "4h")
+    # 5m — основной для частых входов; 15m для подтверждения тренда.
+    # Держим только 2 таймфрейма, чтобы шаг по 10 монетам был быстрым.
+    timeframes: tuple[str, ...] = ("5m", "15m")
     # Сколько баров тянуть для каждого таймфрейма.
     bars_per_tf: dict[str, int] = field(
-        default_factory=lambda: {"15m": 300, "5m": 300, "1h": 300, "4h": 200}
+        default_factory=lambda: {"5m": 250, "15m": 200}
     )
     # 0.5% риска на сделку. Капитал в управлении — половина демо-портфеля
     # (~40 000 USDT), поэтому 0.5% = ~200 USDT риска, позиция крупная, но
@@ -71,6 +72,7 @@ class TradingEngine:
                 MomentumStrategy,
                 PullbackStrategy,
                 ScalpStrategy,
+                Scalp5mStrategy,
             )
             from .config import DecisionConfig
             # Пороги согласованы со стратегиями. Scalp даёт много мелких
@@ -85,6 +87,7 @@ class TradingEngine:
             pipeline = DecisionPipeline(
                 cfg,
                 strategies=[
+                    Scalp5mStrategy(),
                     ScalpStrategy(),
                     PullbackStrategy(),
                     MomentumStrategy(),
@@ -162,7 +165,7 @@ class TradingEngine:
                 timeframe=tf,
                 limit=self.config.bars_per_tf.get(tf, 300),
             )
-        primary = candles.get("15m") or candles.get("5m") or candles.get("1h") or []
+        primary = candles.get("5m") or candles.get("15m") or candles.get("1h") or []
         if not primary:
             raise RuntimeError(f"Нет данных по {symbol}")
         price = Decimal(str(primary[-1].close))

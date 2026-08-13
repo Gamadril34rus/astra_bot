@@ -120,7 +120,7 @@ async def amain() -> int:
             except Exception as exc:  # noqa: BLE001
                 logger.exception("Ошибка торгового шага: %s", exc)
             try:
-                await asyncio.wait_for(stop.wait(), timeout=60)
+                await asyncio.wait_for(stop.wait(), timeout=45)
             except asyncio.TimeoutError:
                 pass
 
