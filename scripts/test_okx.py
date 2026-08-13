@@ -17,7 +17,7 @@ async def main():
         "api_secret": os.environ.get("OKX_API_SECRET", ""),
         "passphrase": os.environ.get("OKX_API_PASSPHRASE") or os.environ.get("OKX_PASSPHRASE", ""),
     }
-    print(f"Using key: {cfg['api_key'][:8]}... passphrase={cfg['passphrase'][:3]}***")
+    print(f"Using key: {cfg['api_key'][:4]}... passphrase=***")
     c = OKXClient(cfg)
     await c.initialize()
     try:
@@ -25,7 +25,7 @@ async def main():
         candles = await c.get_candles("BTC-USDT", timeframe="1D", limit=5)
         print(f"Public candles: {len(candles)}")
         for x in candles[-3:]:
-            print(f"  {x.timestamp} O={x.open} H={x.high} L={x.low} C={x.close}")
+            print(f"  open_time={x.open_time} O={x.open} H={x.high} L={x.low} C={x.close}")
         # Private endpoint — проверка ключей
         try:
             bals = await c.get_account_balance()
