@@ -61,7 +61,7 @@
       "initial_quantity": "85590.167531",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.07",
+      "highest_price": "0.07035",
       "lowest_price": "0.06985",
       "strategy": "pullback",
       "opened_at": 1786714548816,
@@ -145,16 +145,16 @@
       }
     },
     {
-      "id": "25dc5fe2-e77b-4f23-858b-4cd8fd46f989",
-      "symbol": "AAVE-USDT",
-      "direction": "short",
-      "entry_price": "87.34",
-      "quantity": "68.450575",
-      "stop_loss": "87.77670",
+      "id": "3e92ac83-a29a-4de5-bf8c-7cdc09ac7de5",
+      "symbol": "ETH-USDT",
+      "direction": "long",
+      "entry_price": "1888.65",
+      "quantity": "3.163100",
+      "stop_loss": "1879.20675",
       "take_profits": [
-        "86.903300",
-        "86.553940",
-        "86.248250"
+        "1898.093250",
+        "1905.647850",
+        "1912.258125"
       ],
       "tp_filled": [
         false,
@@ -166,21 +166,21 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "68.450575",
+      "initial_quantity": "3.163100",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "87.59",
-      "lowest_price": "87.33",
+      "highest_price": null,
+      "lowest_price": null,
       "strategy": "scalp5m",
-      "opened_at": 1786714561767,
+      "opened_at": 1786725095209,
       "notes": {
-        "score": 59.0,
+        "score": 47.0,
         "ml_probability": null,
-        "edge_pct": 0.181818195892066,
-        "rr": 1.2
+        "edge_pct": 0.20902586511304855,
+        "rr": 1.1999999999999997
       }
     }
   ],
-  "realized_pnl": "-365.71198661334050",
+  "realized_pnl": "-395.60435271584050",
   "initial_capital": "40222.20"
 }
