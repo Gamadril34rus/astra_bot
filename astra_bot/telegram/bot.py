@@ -1199,16 +1199,21 @@ class AstraTelegramBot:
 
         # Стартовое сообщение — не чаще одного раза в сутки, иначе
         # частые перезапуски (каждые 5 мин на GitHub Actions) спамили бы.
-        asyncio.ensure_future(self._maybe_startup_message())
+        # Стартовое сообщение НЕ шлём: бот работает постоянно через cron,
+        # а случайные «я на связи» ночью воспринимаются как отчёт не вовремя.
         logger.info("Telegram bot started (webhook=%s)", bool(webhook_url))
 
     async def _maybe_startup_message(self) -> None:
-        """Прислать «бот на связи» только раз в сутки (храним дату в состоянии)."""
+        """Прислать «бот на связи» только раз в сутки по МСК.
+
+        Раньше дата считалась по UTC, и сброс происходил в 03:00 МСК —
+        отсюда ночное сообщение. Считаем сутки по Москве.
+        """
         try:
-            from datetime import datetime as _dt, timezone as _tz
+            from datetime import datetime as _dt, timezone as _tz, timedelta as _td
             ts = get_training_state()
-            today = _dt.now(_tz.utc).strftime("%Y-%m-%d")
-            # Поле last_startup_message держим прямо в training_state.
+            msk = _tz(_td(hours=3))
+            today = _dt.now(msk).strftime("%Y-%m-%d")
             if getattr(ts, "last_startup_message", None) == today:
                 return
             await self._send_to_admins(

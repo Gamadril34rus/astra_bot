@@ -218,6 +218,14 @@ def main() -> None:
     if takeaways:
         body += "\n\n📚 *Главные выводы по убыткам:*\n  • " + "\n  • ".join(takeaways)
 
+    # Реальные paper-сделки (демо OKX) — то, что бот реально торговал.
+    try:
+        from astra_bot.core.paper_report import format_paper_section
+        body += format_paper_section()
+    except Exception as exc:  # noqa: BLE001
+        import logging
+        logging.getLogger("morning_report").warning("paper section failed: %s", exc)
+
     # Бюджет торговых часов.
     try:
         from astra_bot.core import trading_schedule
