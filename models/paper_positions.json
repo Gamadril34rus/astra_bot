@@ -1,42 +1,6 @@
 {
   "positions": [
     {
-      "id": "445c8fef-31f2-4f9d-ad1b-cd3cbebc58d6",
-      "symbol": "ICP-USDT",
-      "direction": "short",
-      "entry_price": "2.179",
-      "quantity": "553.7705370",
-      "stop_loss": "2.1678950",
-      "take_profits": [
-        "2.1681050",
-        "2.1593890",
-        "2.1517625"
-      ],
-      "tp_filled": [
-        true,
-        true,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "2768.852685",
-      "trailing_activated": true,
-      "trailing_distance": null,
-      "highest_price": "2.185",
-      "lowest_price": "2.155",
-      "strategy": "scalp5m",
-      "opened_at": 1786684510680,
-      "notes": {
-        "score": 22.0,
-        "ml_probability": null,
-        "edge_pct": 0.20001555338719024,
-        "rr": 1.2
-      }
-    },
-    {
       "id": "2360469b-d327-4502-8750-baa29062f6e1",
       "symbol": "ETH-USDT",
       "direction": "long",
@@ -98,7 +62,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "610.9",
-      "lowest_price": "609.8",
+      "lowest_price": "609.3",
       "strategy": "scalp5m",
       "opened_at": 1786702793807,
       "notes": {
@@ -134,7 +98,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "3.502",
-      "lowest_price": "3.482",
+      "lowest_price": "3.48",
       "strategy": "pullback",
       "opened_at": 1786702809016,
       "notes": {
@@ -169,7 +133,7 @@
       "initial_quantity": "0.094084",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "63969.2",
+      "highest_price": "64000",
       "lowest_price": "63722.2",
       "strategy": "pullback",
       "opened_at": 1786702855749,
@@ -181,6 +145,6 @@
       }
     }
   ],
-  "realized_pnl": "-197.63529653174550",
+  "realized_pnl": "-191.48567471836050",
   "initial_capital": "40222.20"
 }
