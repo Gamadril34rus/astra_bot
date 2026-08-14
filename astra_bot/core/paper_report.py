@@ -23,11 +23,18 @@ MSK = timezone(timedelta(hours=3))
 
 
 def _load_trades() -> list[dict[str, Any]]:
-    path = Path("models/paper_trades.jsonl")
+    # Источник закрытых сделок: paper_trades.jsonl, а если его нет
+    # (например, после ребейза/конфликта) — live_lessons.jsonl, куда
+    # движок пишет каждую закрытую сделку.
+    candidates = [
+        Path("models/paper_trades.jsonl"),
+        Path("models/live_lessons.jsonl"),
+    ]
+    path = next((c for c in candidates if c.exists()), candidates[0])
     if not path.exists():
         return []
     out = []
-    for line in Path("models/paper_trades.jsonl").read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line:
             continue
