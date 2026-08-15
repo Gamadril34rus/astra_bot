@@ -62,7 +62,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "0.33467",
-      "lowest_price": "0.33253",
+      "lowest_price": "0.33224",
       "strategy": "pullback",
       "opened_at": 1786714551205,
       "notes": {
@@ -133,7 +133,7 @@
       "initial_quantity": "3.185743",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "1883.18",
+      "highest_price": "1883.74",
       "lowest_price": "1864.72",
       "strategy": "pullback",
       "opened_at": 1786771773356,
@@ -181,19 +181,19 @@
       }
     },
     {
-      "id": "24113e0d-e240-4291-b6d5-924d5726791c",
-      "symbol": "HBAR-USDT",
+      "id": "2fdbd8c3-b892-4600-9aec-ede9fe1fc5f1",
+      "symbol": "BTC-USDT",
       "direction": "long",
-      "entry_price": "0.06588",
-      "quantity": "45119.1929850",
-      "stop_loss": "0.06588",
+      "entry_price": "63098.0",
+      "quantity": "0.094252",
+      "stop_loss": "62782.5100",
       "take_profits": [
-        "0.066209400",
-        "0.066472920",
-        "0.066703500"
+        "63413.49000",
+        "63665.88200",
+        "63886.72500"
       ],
       "tp_filled": [
-        true,
+        false,
         false,
         false
       ],
@@ -202,18 +202,18 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "90238.385970",
-      "trailing_activated": true,
+      "initial_quantity": "0.094252",
+      "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.06621",
-      "lowest_price": "0.06585",
+      "highest_price": null,
+      "lowest_price": null,
       "strategy": "scalp5m",
-      "opened_at": 1786793312713,
+      "opened_at": 1786799164719,
       "notes": {
-        "score": 56.0,
+        "score": 52.0,
         "ml_probability": null,
-        "edge_pct": 0.1932153196588774,
-        "rr": 1.2000000000000002
+        "edge_pct": 0.205883804462488,
+        "rr": 1.2
       }
     }
   ],
