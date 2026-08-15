@@ -133,7 +133,7 @@
       "initial_quantity": "3.185743",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "1878",
+      "highest_price": "1878.29",
       "lowest_price": "1872.42",
       "strategy": "pullback",
       "opened_at": 1786771773356,
@@ -145,16 +145,16 @@
       }
     },
     {
-      "id": "1cb534b1-3d1c-4c9b-b926-70140b7ed678",
-      "symbol": "ADA-USDT",
+      "id": "8960aa18-9038-4c00-a0a0-454dadd4237c",
+      "symbol": "ICP-USDT",
       "direction": "long",
-      "entry_price": "0.183",
-      "quantity": "32561.214333",
-      "stop_loss": "0.181536",
+      "entry_price": "2.214",
+      "quantity": "2686.128327",
+      "stop_loss": "2.202930",
       "take_profits": [
-        "0.1844640",
-        "0.1856352",
-        "0.1866600"
+        "2.2250700",
+        "2.2339260",
+        "2.2416750"
       ],
       "tp_filled": [
         false,
@@ -166,21 +166,21 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "32561.214333",
+      "initial_quantity": "2686.128327",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.1831",
-      "lowest_price": "0.182",
-      "strategy": "scalp",
-      "opened_at": 1786773392821,
+      "highest_price": "2.218",
+      "lowest_price": "2.212",
+      "strategy": "scalp5m",
+      "opened_at": 1786778379086,
       "notes": {
-        "score": 73.0,
+        "score": 64.0,
         "ml_probability": null,
-        "edge_pct": 0.30948583994084145,
+        "edge_pct": 0.20536146911458142,
         "rr": 1.2
       }
     }
   ],
-  "realized_pnl": "-497.51851326250450",
+  "realized_pnl": "-574.94588995253650",
   "initial_capital": "40222.20"
 }
