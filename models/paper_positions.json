@@ -77,8 +77,8 @@
       "symbol": "BCH-USDT",
       "direction": "short",
       "entry_price": "205.83",
-      "quantity": "14.5228420",
-      "stop_loss": "205.83",
+      "quantity": "5.8091368",
+      "stop_loss": "203.119960",
       "take_profits": [
         "203.360040",
         "201.384072",
@@ -86,7 +86,7 @@
       ],
       "tp_filled": [
         true,
-        false,
+        true,
         false
       ],
       "tp_fractions": [
@@ -98,7 +98,7 @@
       "trailing_activated": true,
       "trailing_distance": null,
       "highest_price": "206.9",
-      "lowest_price": "202.13",
+      "lowest_price": "200.23",
       "strategy": "pullback",
       "opened_at": 1786714552727,
       "notes": {
@@ -169,7 +169,7 @@
       "initial_quantity": "5932.280123",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "1.0026",
+      "highest_price": "1.0049",
       "lowest_price": "1.0015",
       "strategy": "pullback",
       "opened_at": 1786791434953,
@@ -179,8 +179,44 @@
         "edge_pct": 0.39976618676857434,
         "rr": 0.7500000000000001
       }
+    },
+    {
+      "id": "24113e0d-e240-4291-b6d5-924d5726791c",
+      "symbol": "HBAR-USDT",
+      "direction": "long",
+      "entry_price": "0.06588",
+      "quantity": "90238.385970",
+      "stop_loss": "0.06555060",
+      "take_profits": [
+        "0.066209400",
+        "0.066472920",
+        "0.066703500"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "90238.385970",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "0.06588",
+      "lowest_price": "0.06585",
+      "strategy": "scalp5m",
+      "opened_at": 1786793312713,
+      "notes": {
+        "score": 56.0,
+        "ml_probability": null,
+        "edge_pct": 0.1932153196588774,
+        "rr": 1.2000000000000002
+      }
     }
   ],
-  "realized_pnl": "-628.24138796541650",
+  "realized_pnl": "-589.50088203299090",
   "initial_capital": "40222.20"
 }
