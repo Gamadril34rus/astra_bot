@@ -1,42 +1,6 @@
 {
   "positions": [
     {
-      "id": "83a119ef-a2a9-4d7e-8ee3-34601ad04bfe",
-      "symbol": "UNI-USDT",
-      "direction": "long",
-      "entry_price": "3.489",
-      "quantity": "1720.746548",
-      "stop_loss": "3.447132",
-      "take_profits": [
-        "3.5308680",
-        "3.5643624",
-        "3.5936700"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "1720.746548",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "3.502",
-      "lowest_price": "3.452",
-      "strategy": "pullback",
-      "opened_at": 1786702809016,
-      "notes": {
-        "score": 69.0,
-        "ml_probability": null,
-        "edge_pct": 0.46212259219992097,
-        "rr": 0.7500000000000001
-      }
-    },
-    {
       "id": "19416d55-da7d-496f-b6f0-d38546ef4d44",
       "symbol": "DOGE-USDT",
       "direction": "short",
@@ -169,7 +133,7 @@
       "initial_quantity": "3.185743",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "1875.79",
+      "highest_price": "1876.56",
       "lowest_price": "1873.27",
       "strategy": "pullback",
       "opened_at": 1786771773356,
@@ -179,8 +143,44 @@
         "edge_pct": 0.49873642755913655,
         "rr": 0.75
       }
+    },
+    {
+      "id": "1cb534b1-3d1c-4c9b-b926-70140b7ed678",
+      "symbol": "ADA-USDT",
+      "direction": "long",
+      "entry_price": "0.183",
+      "quantity": "32561.214333",
+      "stop_loss": "0.181536",
+      "take_profits": [
+        "0.1844640",
+        "0.1856352",
+        "0.1866600"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "32561.214333",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "0.1831",
+      "lowest_price": "0.1824",
+      "strategy": "scalp",
+      "opened_at": 1786773392821,
+      "notes": {
+        "score": 73.0,
+        "ml_probability": null,
+        "edge_pct": 0.30948583994084145,
+        "rr": 1.2
+      }
     }
   ],
-  "realized_pnl": "-425.47429679084050",
+  "realized_pnl": "-497.51851326250450",
   "initial_capital": "40222.20"
 }
