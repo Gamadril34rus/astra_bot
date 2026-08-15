@@ -62,7 +62,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "0.33467",
-      "lowest_price": "0.33255",
+      "lowest_price": "0.33253",
       "strategy": "pullback",
       "opened_at": 1786714551205,
       "notes": {
@@ -98,7 +98,7 @@
       "trailing_activated": true,
       "trailing_distance": null,
       "highest_price": "206.9",
-      "lowest_price": "202.54",
+      "lowest_price": "202.13",
       "strategy": "pullback",
       "opened_at": 1786714552727,
       "notes": {
@@ -134,7 +134,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "1883.18",
-      "lowest_price": "1867",
+      "lowest_price": "1864.72",
       "strategy": "pullback",
       "opened_at": 1786771773356,
       "notes": {
@@ -145,16 +145,16 @@
       }
     },
     {
-      "id": "60baf151-a64f-422f-905e-f26360328a95",
-      "symbol": "UNI-USDT",
+      "id": "1004f0cd-36dd-4f16-9d7d-051703e8f2c3",
+      "symbol": "XRP-USDT",
       "direction": "long",
-      "entry_price": "3.249",
-      "quantity": "1829.347939",
-      "stop_loss": "3.232755",
+      "entry_price": "1.0019",
+      "quantity": "5932.280123",
+      "stop_loss": "0.9898772",
       "take_profits": [
-        "3.2652450",
-        "3.2782410",
-        "3.2896125"
+        "1.01392280",
+        "1.02354104",
+        "1.03195700"
       ],
       "tp_filled": [
         false,
@@ -166,21 +166,21 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "1829.347939",
+      "initial_quantity": "5932.280123",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "3.249",
-      "lowest_price": "3.244",
-      "strategy": "scalp5m",
-      "opened_at": 1786788162504,
+      "highest_price": "1.0026",
+      "lowest_price": "1.0015",
+      "strategy": "pullback",
+      "opened_at": 1786791434953,
       "notes": {
-        "score": 57.0,
+        "score": 53.0,
         "ml_probability": null,
-        "edge_pct": 0.18438438799767776,
-        "rr": 1.2000000000000002
+        "edge_pct": 0.39976618676857434,
+        "rr": 0.7500000000000001
       }
     }
   ],
-  "realized_pnl": "-598.52363069636150",
+  "realized_pnl": "-628.24138796541650",
   "initial_capital": "40222.20"
 }
