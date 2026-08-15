@@ -73,42 +73,6 @@
       }
     },
     {
-      "id": "1c633be6-a64a-4cae-a7d2-adcd96309d72",
-      "symbol": "BCH-USDT",
-      "direction": "short",
-      "entry_price": "205.83",
-      "quantity": "5.8091368",
-      "stop_loss": "203.119960",
-      "take_profits": [
-        "203.360040",
-        "201.384072",
-        "199.655100"
-      ],
-      "tp_filled": [
-        true,
-        true,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "29.045684",
-      "trailing_activated": true,
-      "trailing_distance": null,
-      "highest_price": "206.9",
-      "lowest_price": "200.1",
-      "strategy": "pullback",
-      "opened_at": 1786714552727,
-      "notes": {
-        "score": 46.0,
-        "ml_probability": null,
-        "edge_pct": 0.5060566326736047,
-        "rr": 0.7500000000000001
-      }
-    },
-    {
       "id": "4de5f7a9-fe9a-4961-aa7d-e5972a2855a0",
       "symbol": "ETH-USDT",
       "direction": "short",
@@ -133,7 +97,7 @@
       "initial_quantity": "3.185743",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "1885.82",
+      "highest_price": "1886.09",
       "lowest_price": "1864.72",
       "strategy": "pullback",
       "opened_at": 1786771773356,
@@ -205,8 +169,8 @@
       "initial_quantity": "0.094252",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "63180",
-      "lowest_price": "63103.6",
+      "highest_price": "63209.9",
+      "lowest_price": "63014.3",
       "strategy": "scalp5m",
       "opened_at": 1786799164719,
       "notes": {
@@ -217,6 +181,6 @@
       }
     }
   ],
-  "realized_pnl": "-574.6386198637319000",
+  "realized_pnl": "-558.8956267702599000",
   "initial_capital": "40222.20"
 }
