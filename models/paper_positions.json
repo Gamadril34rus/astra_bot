@@ -98,7 +98,7 @@
       "trailing_activated": true,
       "trailing_distance": null,
       "highest_price": "206.9",
-      "lowest_price": "200.23",
+      "lowest_price": "200.1",
       "strategy": "pullback",
       "opened_at": 1786714552727,
       "notes": {
@@ -170,7 +170,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "1.0049",
-      "lowest_price": "1.0015",
+      "lowest_price": "1.0011",
       "strategy": "pullback",
       "opened_at": 1786791434953,
       "notes": {
@@ -185,15 +185,15 @@
       "symbol": "HBAR-USDT",
       "direction": "long",
       "entry_price": "0.06588",
-      "quantity": "90238.385970",
-      "stop_loss": "0.06555060",
+      "quantity": "45119.1929850",
+      "stop_loss": "0.06588",
       "take_profits": [
         "0.066209400",
         "0.066472920",
         "0.066703500"
       ],
       "tp_filled": [
-        false,
+        true,
         false,
         false
       ],
@@ -203,9 +203,9 @@
         0.2
       ],
       "initial_quantity": "90238.385970",
-      "trailing_activated": false,
+      "trailing_activated": true,
       "trailing_distance": null,
-      "highest_price": "0.06588",
+      "highest_price": "0.06621",
       "lowest_price": "0.06585",
       "strategy": "scalp5m",
       "opened_at": 1786793312713,
@@ -217,6 +217,6 @@
       }
     }
   ],
-  "realized_pnl": "-589.50088203299090",
+  "realized_pnl": "-574.6386198637319000",
   "initial_capital": "40222.20"
 }
