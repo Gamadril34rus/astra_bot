@@ -1,4 +1,4 @@
-"""Проверка соединения с OKX и валидности API-ключей."""
+"""Проверка соединения с OKX и валидности API-ключей без вывода секретов."""
 import asyncio
 import os
 import sys
@@ -11,32 +11,39 @@ load_dotenv()
 from astra_bot.adapters.okx import OKXClient
 
 
-async def main():
+async def main() -> int:
+    names = ("OKX_API_KEY", "OKX_API_SECRET", "OKX_API_PASSPHRASE")
+    missing = [name for name in names if not os.environ.get(name)]
+    if missing:
+        print(f"Missing required OKX variables: {', '.join(missing)}")
+        return 1
+
     cfg = {
-        "api_key": os.environ.get("OKX_API_KEY", ""),
-        "api_secret": os.environ.get("OKX_API_SECRET", ""),
-        "passphrase": os.environ.get("OKX_API_PASSPHRASE") or os.environ.get("OKX_PASSPHRASE", ""),
-        # Ключи выданы для demo-trading (paper): иначе OKX отвечает 50101.
+        "api_key": os.environ["OKX_API_KEY"],
+        "api_secret": os.environ["OKX_API_SECRET"],
+        "passphrase": os.environ["OKX_API_PASSPHRASE"],
         "sandbox": os.environ.get("OKX_DEMO", "1").lower() not in {"0", "false", "no"},
     }
-    print(f"Using key: {cfg['api_key'][:4]}... passphrase=***")
+
     c = OKXClient(cfg)
     await c.initialize()
     try:
-        # Public endpoint — проверка сети
         candles = await c.get_candles("BTC-USDT", timeframe="1D", limit=5)
-        print(f"Public candles: {len(candles)}")
-        for x in candles[-3:]:
-            print(f"  open_time={x.open_time} O={x.open} H={x.high} L={x.low} C={x.close}")
-        # Private endpoint — проверка ключей
+        if not candles:
+            print("Public OKX endpoint failed")
+            return 1
+        print(f"Public endpoint: OK ({len(candles)} candles)")
+
         try:
             bals = await c.get_account_balance()
-            print(f"Account balances: {len(bals)}")
-            for asset, b in list(bals.items())[:5]:
-                print(f"  {asset}: free={b.free} locked={b.locked} total={b.total}")
-        except Exception as e:
-            print(f"PRIVATE endpoint failed: {type(e).__name__}: {e}")
+        except Exception as exc:
+            print(f"Private endpoint failed: {type(exc).__name__}")
+            return 1
+
+        print(f"Private endpoint: OK ({len(bals)} balances)")
+        return 0
     finally:
         await c.close()
 
-asyncio.run(main())
+
+raise SystemExit(asyncio.run(main()))
