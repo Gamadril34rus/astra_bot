@@ -1,9 +1,7 @@
 """Новостной слой для ASTRA BOT.
 
 Историческая новость может использовать NewsAPI при наличии ключа.
-Для live-режима без ключа используется GDELT DOC 2.0 как бесплатный
-fallback. Новость не является самостоятельным сигналом: она корректирует
-вероятность входа и записывается в урок сделки.
+Для live-режима без ключа используется GDELT DOC 2.0 как бесплатный fallback.
 """
 
 from __future__ import annotations
@@ -96,7 +94,7 @@ class NewsFeatureService:
             except Exception:
                 self._cache = {}
 
-    def _save_cache(self) -> None:
+    def save_cache(self) -> None:
         import json
         self.cache_path.parent.mkdir(parents=True, exist_ok=True)
         self.cache_path.write_text(
@@ -104,7 +102,6 @@ class NewsFeatureService:
         )
 
     async def current(self, symbol: str) -> NewsSnapshot:
-        """Получить новости за последние сутки."""
         if self.news_api_key:
             return await self._newsapi(symbol, days=1)
         return await self._gdelt(symbol)
@@ -118,26 +115,22 @@ class NewsFeatureService:
             "language": "en", "sortBy": "publishedAt", "pageSize": 100,
         }
         headers = {"X-Api-Key": self.news_api_key}
-        url = "https://newsapi.org/v2/everything"
         try:
             async with aiohttp.ClientSession(timeout=self.timeout) as session:
-                async with session.get(url, params=params, headers=headers) as resp:
+                async with session.get("https://newsapi.org/v2/everything", params=params, headers=headers) as resp:
                     if resp.status != 200:
                         return NewsSnapshot()
                     data = await resp.json()
             articles = data.get("articles") or []
-            if not articles:
+            scores = [_score_text(f"{a.get('title', '')} {a.get('description', '')}") for a in articles]
+            if not scores:
                 return NewsSnapshot(source="newsapi")
-            scores = []
-            for article in articles:
-                text = f"{article.get('title', '')} {article.get('description', '')}"
-                scores.append(_score_text(text))
             avg = sum(scores) / len(scores)
-            confidence = min(1.0, len(scores) / 20.0)
-            shock = avg * min(1.0, len(scores) / 50.0)
             return NewsSnapshot(
-                sentiment=avg, volume=min(1.0, len(scores) / 100.0),
-                shock=shock, confidence=confidence,
+                sentiment=avg,
+                volume=min(1.0, len(scores) / 100.0),
+                shock=avg * min(1.0, len(scores) / 50.0),
+                confidence=min(1.0, len(scores) / 20.0),
                 source="newsapi", articles=len(scores),
             )
         except Exception:
@@ -155,8 +148,7 @@ class NewsFeatureService:
                     if resp.status != 200:
                         return NewsSnapshot()
                     data = await resp.json(content_type=None)
-            timelines = data.get("timeline") or []
-            values = [float(p.get("value", 0.0)) for p in timelines if isinstance(p, dict)]
+            values = [float(p.get("value", 0.0)) for p in (data.get("timeline") or []) if isinstance(p, dict)]
             if not values:
                 return NewsSnapshot(source="gdelt")
             tone = sum(values) / len(values)
@@ -166,17 +158,26 @@ class NewsFeatureService:
                 volume=min(1.0, len(values) / 24.0),
                 shock=normalized,
                 confidence=min(1.0, len(values) / 24.0),
-                source="gdelt",
-                articles=len(values),
+                source="gdelt", articles=len(values),
             )
         except Exception:
             return NewsSnapshot()
 
+    def put_historical(self, symbol: str, timestamp: datetime, snapshot: NewsSnapshot) -> None:
+        self._cache[self._key(symbol, timestamp)] = snapshot.__dict__
+
     def cached_historical(self, symbol: str, timestamp_ms: int) -> NewsSnapshot:
-        """Вернуть сохранённый исторический news snapshot ближайшего часа."""
         dt = datetime.fromtimestamp(timestamp_ms / 1000, tz=UTC)
-        key = f"{symbol}:{dt.strftime('%Y-%m-%d-%H')}"
-        row = self._cache.get(key)
-        if not row:
-            return NewsSnapshot()
-        return NewsSnapshot(**row)
+        for key in (
+            self._key(symbol, dt),
+            f"{symbol}:{dt.strftime('%Y-%m-%d')}",
+            f"{symbol}:{dt.strftime('%Y-%m')}",
+        ):
+            row = self._cache.get(key)
+            if row:
+                return NewsSnapshot(**row)
+        return NewsSnapshot()
+
+    @staticmethod
+    def _key(symbol: str, timestamp: datetime) -> str:
+        return f"{symbol}:{timestamp.strftime('%Y-%m')}"
