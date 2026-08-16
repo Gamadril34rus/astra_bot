@@ -1,0 +1,22 @@
+[Unit]
+Description=ASTRA BOT continuous OKX Demo Trader
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=botuser
+WorkingDirectory=/opt/astra_bot
+EnvironmentFile=/opt/astra_bot/.env
+ExecStart=/opt/astra_bot/venv/bin/python /opt/astra_bot/scripts/demo_trader.py
+Restart=always
+RestartSec=10
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/astra_bot/models /opt/astra_bot/logs
+
+[Install]
+WantedBy=multi-user.target
