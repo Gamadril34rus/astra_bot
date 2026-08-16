@@ -17,6 +17,21 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL_PATH = Path("models/current.pkl")
 DEFAULT_LESSONS_PATH = Path("models/lessons.jsonl")
 
+# Совместимость со старым self-play и внешними импортами.
+FEATURE_COLUMNS = [
+    "return_1h",
+    "return_4h",
+    "return_24h",
+    "sma20_gap",
+    "atr_pct",
+    "rsi",
+    "volume_ratio",
+    "confidence",
+    "cross_btc_1h",
+    "cross_eth_1h",
+    "cross_sol_1h",
+]
+
 
 @dataclass
 class WeeklyLearningResult:
