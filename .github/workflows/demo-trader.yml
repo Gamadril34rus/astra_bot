@@ -6,9 +6,11 @@ on:
     branches: [master]
     paths:
       - "scripts/demo_trader_pro.py"
+      - "scripts/demo_trader_safe.py"
       - "scripts/pretrain_exhaustive_5y.py"
       - "astra_bot/ml/market_understanding.py"
       - "astra_bot/ml/market_memory.py"
+      - "astra_bot/core/readiness.py"
       - ".github/workflows/demo-trader.yml"
   schedule:
     - cron: "0 */6 * * *"
@@ -80,9 +82,11 @@ jobs:
             echo "Market-aware model found: $(du -h models/current.pkl | cut -f1)"
           fi
 
-      - name: Start continuous market-aware demo worker with checkpoints
+      - name: Start continuous safe market-aware demo worker with checkpoints
         env:
           PYTHONPATH: .
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
         run: |
           set -euo pipefail
           mkdir -p logs models
@@ -91,12 +95,12 @@ jobs:
           END_AT=$(( $(date +%s) + 330*60 ))
 
           while [ "$(date +%s)" -lt "$END_AT" ]; do
-            echo "Starting market-aware demo worker session..."
-            timeout "$SESSION_SECONDS" python scripts/demo_trader_pro.py || true
+            echo "Starting safe market-aware demo worker session..."
+            timeout "$SESSION_SECONDS" python scripts/demo_trader_safe.py || true
 
             git config user.name "astra-bot"
             git config user.email "bot@users.noreply.github.com"
-            git add -f models/demo_state.json models/lessons*.jsonl models/current.pkl models/market_memory.json models/market_aware_model.ok models/*.pkl 2>/dev/null || true
+            git add -f models/demo_state.json models/lessons*.jsonl models/current.pkl models/market_memory.json models/market_aware_model.ok models/risk_guard.json models/readiness.json models/*.pkl 2>/dev/null || true
             git commit -m "chore(demo): checkpoint $(date -u +%Y-%m-%dT%H:%M:%SZ)" || true
             git push origin master || echo "checkpoint push failed"
 
@@ -109,6 +113,6 @@ jobs:
         run: |
           git config user.name "astra-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add -f models/demo_state.json models/lessons*.jsonl models/current.pkl models/market_memory.json models/market_aware_model.ok models/*.pkl 2>/dev/null || true
+          git add -f models/demo_state.json models/lessons*.jsonl models/current.pkl models/market_memory.json models/market_aware_model.ok models/risk_guard.json models/readiness.json models/*.pkl 2>/dev/null || true
           git commit -m "chore(demo): final checkpoint $(date -u +%Y-%m-%dT%H:%M:%SZ)" || true
           git push origin master || true
