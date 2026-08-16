@@ -1,11 +1,4 @@
-"""
-Готовность к реальному счёту.
-
-Бот НЕ должен переходить на реальные деньги, пока не докажет стабильность
-на демо. Здесь собираются объективные метрики и вычисляется итоговый вердикт.
-Когда порог пройден — Telegram присылает уведомление, но реальные деньги
-включаются только вручную.
-"""
+"""Readiness gate for considering a real-money deployment."""
 
 from __future__ import annotations
 
@@ -19,15 +12,6 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 _STATE_PATH = Path(__file__).resolve().parents[2] / "models" / "readiness.json"
 READINESS_THRESHOLD = 90
-
-
-@dataclass
-class DayStat:
-    date: str
-    trades: int
-    wins: int
-    pnl: float
-    equity_end: float
 
 
 @dataclass
@@ -56,9 +40,7 @@ def load() -> ReadinessState:
         return ReadinessState()
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
-        return ReadinessState(**{
-            k: v for k, v in data.items() if k in ReadinessState.__dataclass_fields__
-        })
+        return ReadinessState(**{k: v for k, v in data.items() if k in ReadinessState.__dataclass_fields__})
     except Exception as exc:
         logger.warning("Не смог прочитать readiness: %s", exc)
         return ReadinessState()
@@ -93,7 +75,7 @@ def _recompute_aggregates(state: ReadinessState) -> ReadinessState:
     peak = 0.0
     max_dd = 0.0
     for d in state.days:
-        eq = d.get("equity_end") or 0.0
+        eq = float(d.get("equity_end") or 0.0)
         peak = max(peak, eq)
         if peak > 0:
             max_dd = max(max_dd, (peak - eq) / peak * 100.0)
@@ -102,16 +84,16 @@ def _recompute_aggregates(state: ReadinessState) -> ReadinessState:
     streak = 0
     max_streak = 0
     for d in state.days:
-        if d.get("pnl", 0) < 0:
+        if float(d.get("pnl", 0.0)) < 0:
             streak += 1
             max_streak = max(max_streak, streak)
         else:
             streak = 0
     state.longest_loss_streak = max_streak
-    state.total_trades = sum(d.get("trades", 0) for d in state.days)
-    state.total_wins = sum(d.get("wins", 0) for d in state.days)
-    state.total_losses = state.total_trades - state.total_wins
-    state.total_pnl = sum(d.get("pnl", 0) for d in state.days)
+    state.total_trades = sum(int(d.get("trades", 0)) for d in state.days)
+    state.total_wins = sum(int(d.get("wins", 0)) for d in state.days)
+    state.total_losses = max(0, state.total_trades - state.total_wins)
+    state.total_pnl = sum(float(d.get("pnl", 0.0)) for d in state.days)
     return state
 
 
@@ -120,26 +102,32 @@ def evaluate(state: ReadinessState | None = None) -> dict:
     days = state.days
     trading_days = len(days)
     win_rate = state.total_wins / state.total_trades * 100 if state.total_trades else 0.0
-    gross_profit = sum(d["pnl"] for d in days if d["pnl"] > 0)
-    gross_loss = abs(sum(d["pnl"] for d in days if d["pnl"] < 0))
+    gross_profit = sum(float(d.get("pnl", 0.0)) for d in days if float(d.get("pnl", 0.0)) > 0)
+    gross_loss = abs(sum(float(d.get("pnl", 0.0)) for d in days if float(d.get("pnl", 0.0)) < 0))
     profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else float("inf") if gross_profit > 0 else 0.0
-    profitable_days = sum(1 for d in days if d["pnl"] > 0)
+    profitable_days = sum(1 for d in days if float(d.get("pnl", 0.0)) > 0)
     profitable_day_pct = profitable_days / trading_days * 100 if trading_days else 0.0
-    rets = [d["pnl"] for d in days if d["pnl"] != 0]
-    mean = sum(rets) / len(rets) if rets else 0.0
-    var = sum((r - mean) ** 2 for r in rets) / len(rets) if rets else 0.0
-    sharpe = mean / (var ** 0.5) if var > 0 else 0.0
+
+    # Daily equity-return Sharpe, not raw PnL. Raw PnL has units and is not comparable across days.
+    equity = [float(d.get("equity_end", 0.0)) for d in days if float(d.get("equity_end", 0.0)) > 0]
+    returns = [(b / a) - 1.0 for a, b in zip(equity, equity[1:]) if a > 0]
+    if len(returns) >= 2:
+        mean = sum(returns) / len(returns)
+        var = sum((r - mean) ** 2 for r in returns) / (len(returns) - 1)
+        sharpe = mean / (var ** 0.5) if var > 0 else 0.0
+    else:
+        sharpe = 0.0
 
     checks = [
         ("30+ дней на демо", trading_days >= 30, 15),
         ("200+ сделок", state.total_trades >= 200, 15),
-        (f"Win-rate ≥ 55% (сейчас {win_rate:.0f}%)", win_rate >= 55, 20),
+        (f"Win-rate ≥ 55% (сейчас {win_rate:.0f}%)", win_rate >= 55, 15),
         (f"Profit Factor ≥ 1.3 (сейчас {profit_factor:.2f})", profit_factor >= 1.3, 15),
         (f"Просадка ≤ 8% (сейчас {state.max_drawdown_pct:.1f}%)", state.max_drawdown_pct <= 8.0, 15),
         (f"Дней в плюсе ≥ 55% (сейчас {profitable_day_pct:.0f}%)", profitable_day_pct >= 55, 10),
-        (f"Серия убытков < 6 дней (сейчас {state.longest_loss_streak})", state.longest_loss_streak < 6, 5),
+        (f"Серия убыточных дней < 6 (сейчас {state.longest_loss_streak})", state.longest_loss_streak < 6, 5),
         (f"Sharpe ≥ 1.0 (сейчас {sharpe:.2f})", sharpe >= 1.0, 5),
-        (f"Итоговый PnL > 0 (сейчас {state.total_pnl:+.2f})", state.total_pnl > 0, 5),
+        (f"Итоговый PnL > 0 (сейчас {state.total_pnl:+.2f} USDT)", state.total_pnl > 0, 5),
     ]
 
     score = sum(weight for _, passed, weight in checks if passed)
@@ -183,7 +171,7 @@ def format_report() -> str:
         f"Дней на демо: {v['trading_days']}  |  Сделок: {v['total_trades']}",
         f"Win-rate: {v['win_rate']}%  |  PF: {v['profit_factor']}  |  Sharpe: {v['sharpe']}",
         f"Просадка: {v['max_drawdown_pct']}%  |  Дней в плюсе: {v['profitable_day_pct']}%",
-        f"Серия убытков макс: {v['longest_loss_streak']}  |  PnL: {v['total_pnl']:+.2f} ₽",
+        f"Серия убытков макс: {v['longest_loss_streak']}  |  PnL: {v['total_pnl']:+.2f} USDT",
         "",
         "*Чек-лист:*",
     ]
