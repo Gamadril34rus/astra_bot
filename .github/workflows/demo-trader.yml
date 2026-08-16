@@ -52,7 +52,7 @@ jobs:
       - name: Verify OKX private API
         run: python scripts/test_okx.py
 
-      - name: Bootstrap five-year model when needed
+      - name: Bootstrap five-year market-aware model when needed
         env:
           PYTHONPATH: .
           NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
@@ -60,37 +60,35 @@ jobs:
           set -euo pipefail
           mkdir -p logs models
           if [ ! -f models/current.pkl ]; then
-            echo "No trained model found. Starting five-year walk-forward pretrain..."
-            python scripts/pretrain_5y.py --years 5 --target-trades 5000 --min-samples 2000 --capital 10000 --with-news
+            echo "No trained model found. Starting enhanced five-year walk-forward pretrain..."
+            python scripts/pretrain_5y_enhanced.py --years 5 --target-trades 5000 --min-samples 2000 --capital 10000 --with-news
 
             git config user.name "astra-bot"
             git config user.email "bot@users.noreply.github.com"
-            git add -f models/current.pkl models/lessons*.jsonl models/news_cache.json 2>/dev/null || true
-            git commit -m "chore(train): bootstrap five-year demo model" || true
+            git add -f models/current.pkl models/lessons*.jsonl models/news_cache.json models/market_memory.json 2>/dev/null || true
+            git commit -m "chore(train): bootstrap five-year market-aware model" || true
             git push origin master || true
           else
             echo "Existing trained model found: $(du -h models/current.pkl | cut -f1)"
           fi
 
-      - name: Start continuous demo worker with checkpoints
+      - name: Start continuous market-aware demo worker with checkpoints
         env:
           PYTHONPATH: .
         run: |
           set -euo pipefail
           mkdir -p logs models
 
-          # GitHub-hosted runners are finite. Run bounded sessions and persist
-          # state/lessons/model between them so the bot behaves continuously.
           SESSION_SECONDS=3000
           END_AT=$(( $(date +%s) + 330*60 ))
 
           while [ "$(date +%s)" -lt "$END_AT" ]; do
-            echo "Starting demo worker session..."
-            timeout "$SESSION_SECONDS" python scripts/demo_trader.py || true
+            echo "Starting market-aware demo worker session..."
+            timeout "$SESSION_SECONDS" python scripts/demo_trader_pro.py || true
 
             git config user.name "astra-bot"
             git config user.email "bot@users.noreply.github.com"
-            git add -f models/demo_state.json models/lessons*.jsonl models/current.pkl models/*.pkl 2>/dev/null || true
+            git add -f models/demo_state.json models/lessons*.jsonl models/current.pkl models/market_memory.json models/*.pkl 2>/dev/null || true
             git commit -m "chore(demo): checkpoint $(date -u +%Y-%m-%dT%H:%M:%SZ)" || true
             git push origin master || echo "checkpoint push failed"
 
@@ -103,6 +101,6 @@ jobs:
         run: |
           git config user.name "astra-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add -f models/demo_state.json models/lessons*.jsonl models/current.pkl models/*.pkl 2>/dev/null || true
+          git add -f models/demo_state.json models/lessons*.jsonl models/current.pkl models/market_memory.json models/*.pkl 2>/dev/null || true
           git commit -m "chore(demo): final checkpoint $(date -u +%Y-%m-%dT%H:%M:%SZ)" || true
           git push origin master || true
