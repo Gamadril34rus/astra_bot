@@ -59,7 +59,7 @@ jobs:
       - name: Verify OKX private API
         run: python scripts/test_okx.py
 
-      - name: Exhaustive five-year research pass when needed
+      - name: Exhaustive maximum-history research pass when needed
         env:
           PYTHONPATH: .
           NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
@@ -67,14 +67,14 @@ jobs:
           set -euo pipefail
           mkdir -p logs models
           if [ ! -f models/market_aware_model.ok ] || [ ! -f models/current.pkl ]; then
-            echo "Starting exhaustive five-year research pass: up to 500,000 labelled lessons..."
-            python scripts/pretrain_exhaustive_5y.py --years 5 --max-lessons 500000 --min-samples 2000 --with-news
-            printf '%s\n' "market_understanding_v1" > models/market_aware_model.ok
+            echo "Starting maximum-history research pass across the full configured universe..."
+            python scripts/pretrain_exhaustive_5y.py --max-lessons 500000 --min-samples 2000 --with-news
+            printf '%s\n' "market_understanding_v1:max_available_per_instrument" > models/market_aware_model.ok
 
             git config user.name "astra-bot"
             git config user.email "bot@users.noreply.github.com"
             git add -f models/current.pkl models/lessons.jsonl models/news_cache.json models/market_memory.json models/market_aware_model.ok
-            git commit -m "chore(train): exhaustive five-year market research" || true
+            git commit -m "chore(train): exhaustive maximum-history market research" || true
             git push origin master || true
           else
             echo "Market-aware model found: $(du -h models/current.pkl | cut -f1)"
