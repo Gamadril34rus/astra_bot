@@ -13,45 +13,19 @@ import argparse
 import asyncio
 import json
 import uuid
-from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
-import numpy as np
-
 from astra_bot.core import models
 from astra_bot.core.instruments import TRADING_UNIVERSE
-from astra_bot.engines.risk_engine import RiskConfig, RiskEngine
-from astra_bot.ml.market_understanding import compute_market_features
-from astra_bot.ml.news_features import NewsFeatureService
-from astra_bot.ml.self_play import (
-    _classify_regime,
-    _close_trade_result if False else None,
-)
 from astra_bot.ml import self_play as sp
 from astra_bot.ml.historical_training import fetch_historical_candles
-from astra_bot.ml.model_trainer import ModelTrainer, TrainingConfig
+from astra_bot.ml.market_understanding import compute_market_features
+from astra_bot.ml.news_features import NewsFeatureService
 from astra_bot.ml.weekly_learner import train_weekly
 from astra_bot.strategies import MeanReversionStrategy, MomentumStrategy, PullbackStrategy
 
-# Maximum stored lessons for one complete pass. This is intentionally much
-# higher than the old 5,000 target while keeping GitHub runner storage sane.
 MAX_LESSONS = 500_000
-
-
-async def fetch_history(years: int) -> dict[str, list[models.Candle]]:
-    client = sp.OKXClient({
-        "api_key": "", "api_secret": "", "sandbox": False,
-        "enabled": True, "rate_limit_qps": 8,
-    })
-    await client.initialize()
-    try:
-        results = await asyncio.gather(*[
-            _fetch_one(client, symbol, years * 365) for symbol in TRADING_UNIVERSE
-        ])
-        return {symbol: bars for symbol, bars in results if bars}
-    finally:
-        await client.close()
 
 
 async def _fetch_one(client, symbol: str, days: int):
@@ -70,6 +44,21 @@ async def _fetch_one(client, symbol: str, days: int):
         return symbol, []
 
 
+async def fetch_history(years: int) -> dict[str, list[models.Candle]]:
+    client = sp.OKXClient({
+        "api_key": "", "api_secret": "", "sandbox": False,
+        "enabled": True, "rate_limit_qps": 8,
+    })
+    await client.initialize()
+    try:
+        results = await asyncio.gather(*[
+            _fetch_one(client, symbol, years * 365) for symbol in TRADING_UNIVERSE
+        ])
+        return {symbol: bars for symbol, bars in results if bars}
+    finally:
+        await client.close()
+
+
 def _lesson_from_signal(
     signal,
     strategy,
@@ -77,7 +66,7 @@ def _lesson_from_signal(
     future: list[models.Candle],
     cross: dict[str, float],
     news: NewsFeatureService,
-) -> dict | None:
+) -> dict:
     features = compute_market_features(
         window,
         timeframe=window[-1].timeframe,
@@ -94,8 +83,7 @@ def _lesson_from_signal(
     exit_price = entry
     exit_time = window[-1].open_time
 
-    # Pure historical labelling. No capital accounting and no risk stop on the
-    # learning pass. One fixed nominal unit makes PnL comparable across assets.
+    # Pure historical labelling. No capital accounting and no exchange orders.
     for bar in future[:48]:
         if direction == "long":
             if bar.low <= stop:
@@ -126,10 +114,10 @@ def _lesson_from_signal(
     pnl = gross - fee
     outcome = "win" if pnl > 0 else "loss" if pnl < 0 else "breakeven"
 
-    atr_pct = float(features.get("atr_pct", 0.0))
     recommendation = sp._recommend(outcome, features, direction)
     influencing = sp._influencing_factor(features, outcome)
-    lesson = {
+    regime = sp._classify_regime(window)
+    return {
         "trade_id": f"hist-{uuid.uuid4()}",
         "symbol": window[-1].symbol,
         "direction": direction,
@@ -144,21 +132,17 @@ def _lesson_from_signal(
         "strategy": strategy.name,
         "confidence": float(signal.confidence),
         "features": {k: float(v) for k, v in features.items()},
-        "market_regime": _classify_regime(window),
+        "market_regime": regime,
         "news_impulse": abs(float(news_snapshot.shock)) > 0.5,
         "news_source": news_snapshot.source,
         "news_articles": news_snapshot.articles,
         "influencing_factor": influencing,
         "counterfactual": sp._counterfactual(outcome, direction, features),
-        "takeaway": (
-            f"{window[-1].symbol} {direction.upper()} {outcome}; "
-            f"regime={_classify_regime(window)}; atr={atr_pct:.2f}%"
-        ),
+        "takeaway": f"{window[-1].symbol} {direction.upper()} {outcome}; regime={regime}",
         "recommendation": recommendation,
         "training_phase": "five_year_exhaustive_walk_forward",
         "feature_engine": "market_understanding_v1",
     }
-    return lesson
 
 
 async def run(args) -> int:
@@ -169,18 +153,15 @@ async def run(args) -> int:
 
     news = NewsFeatureService(Path("models/news_cache.json"))
     if args.with_news:
-        # The existing monthly cache builder is used here; it writes historical
-        # news snapshots once and all subsequent lessons read only local cache.
         from scripts.pretrain_5y import build_monthly_news_cache
         await build_monthly_news_cache(Path("models/news_cache.json"), args.years)
         news = NewsFeatureService(Path("models/news_cache.json"))
 
     strategies = [PullbackStrategy(), MomentumStrategy(), MeanReversionStrategy()]
     lessons: list[dict] = []
-
-    # Common timestamps, preserving the no-look-ahead property.
     timestamps = sorted(set.intersection(*(set(c.open_time for c in bars) for bars in usable.values())))
     indexes = {s: {c.open_time: i for i, c in enumerate(bars)} for s, bars in usable.items()}
+    limit = min(args.max_lessons, MAX_LESSONS)
 
     for step, ts in enumerate(timestamps):
         if step < 250:
@@ -188,7 +169,7 @@ async def run(args) -> int:
         cross: dict[str, float] = {}
         for symbol, bars in usable.items():
             i = indexes[symbol].get(ts)
-            if i and i >= 1:
+            if i is not None and i >= 1:
                 prev = float(bars[i - 1].close)
                 curr = float(bars[i].close)
                 cross[f"{symbol}_1h"] = curr / prev - 1 if prev else 0.0
@@ -202,7 +183,7 @@ async def run(args) -> int:
             if not future:
                 continue
 
-            regime = _classify_regime(window)
+            regime = sp._classify_regime(window)
             for strategy in strategies:
                 try:
                     signal = await strategy.evaluate(
@@ -215,14 +196,12 @@ async def run(args) -> int:
                     continue
                 if not signal or signal.risk_reward_ratio < 0.5:
                     continue
-                lesson = _lesson_from_signal(signal, strategy, window, future, cross, news)
-                if lesson:
-                    lessons.append(lesson)
-                if len(lessons) >= min(args.max_lessons, MAX_LESSONS):
+                lessons.append(_lesson_from_signal(signal, strategy, window, future, cross, news))
+                if len(lessons) >= limit:
                     break
-            if len(lessons) >= min(args.max_lessons, MAX_LESSONS):
+            if len(lessons) >= limit:
                 break
-        if len(lessons) >= min(args.max_lessons, MAX_LESSONS):
+        if len(lessons) >= limit:
             break
 
     path = Path("models/lessons.jsonl")
@@ -240,18 +219,16 @@ async def run(args) -> int:
         model_path=Path("models/current.pkl"),
         min_samples=args.min_samples,
     )
-    print(
-        json.dumps({
-            "lessons": len(lessons),
-            "symbols": len(usable),
-            "timestamps": len(timestamps),
-            "model_trained": result.trained,
-            "model_message": result.message,
-            "model_auc": result.roc_auc,
-            "model_accuracy": result.accuracy,
-            "memory_patterns": len(memory.data.get("patterns", {})),
-        }, ensure_ascii=False, indent=2)
-    )
+    print(json.dumps({
+        "lessons": len(lessons),
+        "symbols": len(usable),
+        "timestamps": len(timestamps),
+        "model_trained": result.trained,
+        "model_message": result.message,
+        "model_auc": result.roc_auc,
+        "model_accuracy": result.accuracy,
+        "memory_patterns": len(memory.data.get("patterns", {})),
+    }, ensure_ascii=False, indent=2))
     return 0
 
 
@@ -261,8 +238,7 @@ async def main() -> int:
     parser.add_argument("--max-lessons", type=int, default=500000)
     parser.add_argument("--min-samples", type=int, default=2000)
     parser.add_argument("--with-news", action="store_true")
-    args = parser.parse_args()
-    return await run(args)
+    return await run(parser.parse_args())
 
 
 if __name__ == "__main__":
