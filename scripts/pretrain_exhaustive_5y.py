@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Exhaustive five-year market-learning pass.
+"""Exhaustive historical market-learning pass.
 
-This is research only: no money, no exchange orders, no capital constraints.
-Every valid strategy setup across the configured universe is evaluated and
-converted into a labelled lesson. The goal is coverage, not pretending that a
-$10k account limits how much historical information the model may study.
+Research only: no money, no exchange orders, no capital constraints.
+History is requested with a generous upper bound and pagination continues
+until the exchange stops returning older candles. Each instrument therefore
+uses the oldest data actually available for that instrument.
 """
 
 from __future__ import annotations
@@ -26,15 +26,17 @@ from astra_bot.ml.weekly_learner import train_weekly
 from astra_bot.strategies import MeanReversionStrategy, MomentumStrategy, PullbackStrategy
 
 MAX_LESSONS = 500_000
+MAX_HISTORY_YEARS = 25
 
 
-async def _fetch_one(client, symbol: str, days: int):
+async def _fetch_one(client, symbol: str):
     try:
         bars = await fetch_historical_candles(
             client=client,
             symbol=symbol.replace("/", "-"),
             timeframe="1h",
-            lookback_days=days,
+            # Large safety bound; the loader stops at the oldest candle the API exposes.
+            lookback_days=MAX_HISTORY_YEARS * 365,
             sleep_between_requests=0.0,
         )
         for bar in bars:
@@ -44,29 +46,20 @@ async def _fetch_one(client, symbol: str, days: int):
         return symbol, []
 
 
-async def fetch_history(years: int) -> dict[str, list[models.Candle]]:
+async def fetch_history() -> dict[str, list[models.Candle]]:
     client = sp.OKXClient({
         "api_key": "", "api_secret": "", "sandbox": False,
         "enabled": True, "rate_limit_qps": 8,
     })
     await client.initialize()
     try:
-        results = await asyncio.gather(*[
-            _fetch_one(client, symbol, years * 365) for symbol in TRADING_UNIVERSE
-        ])
+        results = await asyncio.gather(*[_fetch_one(client, symbol) for symbol in TRADING_UNIVERSE])
         return {symbol: bars for symbol, bars in results if bars}
     finally:
         await client.close()
 
 
-def _lesson_from_signal(
-    signal,
-    strategy,
-    window: list[models.Candle],
-    future: list[models.Candle],
-    cross: dict[str, float],
-    news: NewsFeatureService,
-) -> dict:
+def _lesson_from_signal(signal, strategy, window, future, cross, news):
     features = compute_market_features(
         window,
         timeframe=window[-1].timeframe,
@@ -83,7 +76,6 @@ def _lesson_from_signal(
     exit_price = entry
     exit_time = window[-1].open_time
 
-    # Pure historical labelling. No capital accounting and no exchange orders.
     for bar in future[:48]:
         if direction == "long":
             if bar.low <= stop:
@@ -113,10 +105,10 @@ def _lesson_from_signal(
     fee = entry * qty * Decimal("0.0005")
     pnl = gross - fee
     outcome = "win" if pnl > 0 else "loss" if pnl < 0 else "breakeven"
-
     recommendation = sp._recommend(outcome, features, direction)
     influencing = sp._influencing_factor(features, outcome)
     regime = sp._classify_regime(window)
+
     return {
         "trade_id": f"hist-{uuid.uuid4()}",
         "symbol": window[-1].symbol,
@@ -140,13 +132,13 @@ def _lesson_from_signal(
         "counterfactual": sp._counterfactual(outcome, direction, features),
         "takeaway": f"{window[-1].symbol} {direction.upper()} {outcome}; regime={regime}",
         "recommendation": recommendation,
-        "training_phase": "five_year_exhaustive_walk_forward",
+        "training_phase": "max_available_history_exhaustive_walk_forward",
         "feature_engine": "market_understanding_v1",
     }
 
 
 async def run(args) -> int:
-    history = await fetch_history(args.years)
+    history = await fetch_history()
     usable = {s: bars for s, bars in history.items() if len(bars) >= 250}
     if len(usable) < 10:
         raise RuntimeError(f"Недостаточно истории: {len(usable)}/{len(TRADING_UNIVERSE)} инструментов")
@@ -154,19 +146,22 @@ async def run(args) -> int:
     news = NewsFeatureService(Path("models/news_cache.json"))
     if args.with_news:
         from scripts.pretrain_5y import build_monthly_news_cache
-        await build_monthly_news_cache(Path("models/news_cache.json"), args.years)
+        # NewsAPI historical depth is provider-limited; keep the provider's own
+        # available range rather than inventing older news.
+        await build_monthly_news_cache(Path("models/news_cache.json"), 5)
         news = NewsFeatureService(Path("models/news_cache.json"))
 
     strategies = [PullbackStrategy(), MomentumStrategy(), MeanReversionStrategy()]
     lessons: list[dict] = []
+    limit = min(args.max_lessons, MAX_LESSONS)
+
     timestamps = sorted(set.intersection(*(set(c.open_time for c in bars) for bars in usable.values())))
     indexes = {s: {c.open_time: i for i, c in enumerate(bars)} for s, bars in usable.items()}
-    limit = min(args.max_lessons, MAX_LESSONS)
 
     for step, ts in enumerate(timestamps):
         if step < 250:
             continue
-        cross: dict[str, float] = {}
+        cross = {}
         for symbol, bars in usable.items():
             i = indexes[symbol].get(ts)
             if i is not None and i >= 1:
@@ -222,6 +217,8 @@ async def run(args) -> int:
     print(json.dumps({
         "lessons": len(lessons),
         "symbols": len(usable),
+        "history_mode": "max_available_per_instrument",
+        "max_history_years_safety_bound": MAX_HISTORY_YEARS,
         "timestamps": len(timestamps),
         "model_trained": result.trained,
         "model_message": result.message,
@@ -234,7 +231,6 @@ async def run(args) -> int:
 
 async def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--years", type=int, default=5)
     parser.add_argument("--max-lessons", type=int, default=500000)
     parser.add_argument("--min-samples", type=int, default=2000)
     parser.add_argument("--with-news", action="store_true")
