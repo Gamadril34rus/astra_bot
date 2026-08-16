@@ -1,0 +1,10 @@
+[Unit]
+Description=ASTRA BOT 09:00 Moscow report timer
+
+[Timer]
+OnCalendar=*-*-* 06:00:00 UTC
+Persistent=true
+Unit=astra-demo-report.service
+
+[Install]
+WantedBy=timers.target
