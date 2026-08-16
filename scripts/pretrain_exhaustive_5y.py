@@ -28,32 +28,48 @@ from astra_bot.strategies import MeanReversionStrategy, MomentumStrategy, Pullba
 
 MAX_LESSONS = 500_000
 MAX_HISTORY_YEARS = 25
+HISTORY_FETCH_CONCURRENCY = 2
+HISTORY_REQUEST_DELAY = 0.25
+HISTORY_RETRIES = 6
 
 
-async def _fetch_one(client, symbol: str):
-    try:
-        bars = await fetch_historical_candles(
-            client=client,
-            symbol=symbol.replace("/", "-"),
-            timeframe="1h",
-            lookback_days=MAX_HISTORY_YEARS * 365,
-            sleep_between_requests=0.0,
-        )
-        for bar in bars:
-            bar.symbol = symbol
-        return symbol, bars
-    except Exception:
+async def _fetch_one(client, symbol: str, semaphore: asyncio.Semaphore):
+    async with semaphore:
+        last_error: Exception | None = None
+        for attempt in range(HISTORY_RETRIES):
+            try:
+                bars = await fetch_historical_candles(
+                    client=client,
+                    symbol=symbol.replace("/", "-"),
+                    timeframe="1h",
+                    lookback_days=MAX_HISTORY_YEARS * 365,
+                    sleep_between_requests=HISTORY_REQUEST_DELAY,
+                )
+                for bar in bars:
+                    bar.symbol = symbol
+                print(f"History {symbol}: {len(bars)} candles")
+                return symbol, bars
+            except Exception as exc:
+                last_error = exc
+                delay = min(30.0, 2.0 ** attempt)
+                print(f"History {symbol}: retry {attempt + 1}/{HISTORY_RETRIES} after error: {exc}")
+                await asyncio.sleep(delay)
+        print(f"History {symbol}: failed after retries: {last_error}")
         return symbol, []
 
 
 async def fetch_history() -> dict[str, list[models.Candle]]:
+    # Do not fan out all 35 instruments at once. OKX returns 50011 on bursts.
     client = OKXClient({
         "api_key": "", "api_secret": "", "sandbox": False,
-        "enabled": True, "rate_limit_qps": 8,
+        "enabled": True, "rate_limit_qps": 2,
     })
     await client.initialize()
+    semaphore = asyncio.Semaphore(HISTORY_FETCH_CONCURRENCY)
     try:
-        results = await asyncio.gather(*[_fetch_one(client, symbol) for symbol in TRADING_UNIVERSE])
+        results = await asyncio.gather(
+            *[_fetch_one(client, symbol, semaphore) for symbol in TRADING_UNIVERSE]
+        )
         return {symbol: bars for symbol, bars in results if bars}
     finally:
         await client.close()
