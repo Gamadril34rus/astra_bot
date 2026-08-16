@@ -3,7 +3,7 @@ ASTRA BOT — Загрузка годичной истории и обучени
 
 Сценарий использования:
 
-1. Подтягиваем ~1 год свечей с OKX (с пагинацией по ``before``).
+1. Подтягиваем исторические свечи с OKX с пагинацией по ``after``.
 2. На исторических данных прогоняем стратегии (paper-бэктест) и собираем
    пары (признаки на момент входа, исход сделки).
 3. Обучаем ML-модель на полученном датасете.
@@ -14,15 +14,15 @@ ASTRA BOT — Загрузка годичной истории и обучени
 
 from __future__ import annotations
 
+import asyncio
 import logging
-import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from ..adapters.okx.client import OKXClient
+from ..adapters.okx.client import OKXClient, OKX_ENDPOINTS
 from ..core import models
 from ..core.utils import calculate_timeframe_minutes
 from .feature_pipeline import FeaturePipeline, get_feature_pipeline
@@ -31,8 +31,8 @@ from .model_trainer import ModelTrainer, TrainingConfig, TrainingData
 
 logger = logging.getLogger(__name__)
 
-# OKX отдаёт максимум 100 свечей за запрос на endpoint /history-candles
-OKX_MAX_CANDLES_PER_REQUEST = 100
+# OKX /market/history-candles поддерживает до 300 свечей за запрос.
+OKX_MAX_CANDLES_PER_REQUEST = 300
 
 
 @dataclass
@@ -46,7 +46,6 @@ class HistoricalTrainingConfig:
     initial_capital: Decimal = Decimal("10000")
     min_samples: int = 200
     output_dir: str = "models"
-    # OKX использует формат "BTC-USDT" вместо "BTC/USDT".
     okx_symbol: str | None = None
 
     @property
@@ -61,14 +60,13 @@ async def fetch_historical_candles(
     symbol: str,
     timeframe: str,
     lookback_days: int,
-    sleep_between_requests: float = 0.15,
+    sleep_between_requests: float = 0.0,
 ) -> list[models.Candle]:
     """Загрузить исторические свечи OKX за ``lookback_days`` дней.
 
-    OKX endpoint ``/market/history-candles`` возвращает данные страницами
-    по 100 свечей и поддерживает курсор ``before`` (timestamp мс): вернёт
-    свечи *старше* переданного значения. Идём от текущего момента назад,
-    пока не наберём запрошенный период.
+    Для GET /api/v5/market/history-candles параметр ``after`` означает
+    пагинацию к более старым свечам. Идём от самых новых данных назад,
+    пока не наберём запрошенный период или пока биржа не вернёт конец истории.
     """
     minutes = calculate_timeframe_minutes(timeframe)
     total_candles = int(lookback_days * 24 * 60 / minutes)
@@ -81,35 +79,56 @@ async def fetch_historical_candles(
     )
 
     collected: dict[int, models.Candle] = {}
-    before: int | None = None
+    after: int | None = None
 
     while len(collected) < total_candles:
-        batch = await client.get_candles(
-            symbol=symbol,
-            timeframe=timeframe,
-            since=before,
-            limit=OKX_MAX_CANDLES_PER_REQUEST,
+        params = {
+            "instId": symbol.replace("/", "-"),
+            "bar": client._convert_timeframe(timeframe),
+            "limit": OKX_MAX_CANDLES_PER_REQUEST,
+        }
+        if after is not None:
+            params["after"] = after
+
+        data = await client._request(
+            "GET",
+            OKX_ENDPOINTS["spot"]["candles"],
+            params=params,
+            signed=False,
         )
-        if not batch:
-            logger.warning("OKX не вернул свечей на курсоре before=%s", before)
+        if not data:
+            logger.warning("OKX не вернул свечей на курсоре after=%s", after)
             break
 
-        for candle in batch:
+        batch: list[models.Candle] = []
+        for item in data:
+            candle = models.Candle(
+                exchange="okx",
+                symbol=symbol.replace("/", "-"),
+                timeframe=timeframe,
+                open_time=int(item[0]),
+                open=Decimal(item[1]),
+                high=Decimal(item[2]),
+                low=Decimal(item[3]),
+                close=Decimal(item[4]),
+                volume=Decimal(item[5]),
+                quote_volume=Decimal(item[6]) if len(item) > 6 else Decimal("0"),
+                trades_count=0,
+            )
+            batch.append(candle)
             collected[candle.open_time] = candle
 
-        # Следующая страница — старше самой ранней свечи.
         oldest = min(c.open_time for c in batch)
-        if oldest == before:
-            # Нет более старых данных.
+        if oldest == after:
+            logger.warning("Курсор OKX не продвинулся: after=%s", after)
             break
-        before = oldest
+        after = oldest
 
         if len(batch) < OKX_MAX_CANDLES_PER_REQUEST:
-            # Достигли начала доступной истории.
             break
 
-        # Гость не без лимитов — спим между запросами.
-        time.sleep(sleep_between_requests)
+        if sleep_between_requests > 0:
+            await asyncio.sleep(sleep_between_requests)
 
     candles = sorted(collected.values(), key=lambda c: c.open_time)
     cutoff = datetime.now(tz=UTC) - timedelta(days=lookback_days)
@@ -126,15 +145,7 @@ def _walk_forward_labels(
     take_profit_pct: float = 0.015,
     stop_loss_pct: float = 0.01,
 ) -> list[dict[str, Any]]:
-    """Сформировать учебные метки без использования реального депозита.
-
-    Для каждой свечи (кроме последних ``forward_periods``) смотрим на
-    движение цены в следующих N барах: если максимум достиг TP раньше, чем
-    минимум — SL, метка 1 (прибыльная сделка), иначе 0.
-
-    Это имитирует реальные выходы стратегии и даёт модели обучаться на
-    годе рыночных данных без совершения сделок и без пополнения счёта.
-    """
+    """Сформировать учебные метки без использования реального депозита."""
     labels: list[dict[str, Any]] = []
     closes = [float(c.close) for c in candles]
     highs = [float(c.high) for c in candles]
@@ -148,7 +159,6 @@ def _walk_forward_labels(
         won = False
         for j in range(i + 1, min(i + 1 + forward_periods, len(candles))):
             if highs[j] >= tp and lows[j] <= sl:
-                # В один и тот же бар — консервативно считаем убыточным.
                 won = False
                 break
             if highs[j] >= tp:
@@ -186,7 +196,6 @@ def build_training_dataset(
     targets: list[int] = []
 
     for label in labels:
-        # Берём все свечи ДО момента сделки.
         idx = next(
             (
                 i
@@ -246,7 +255,6 @@ async def train_on_historical_data(
                 "api_secret": "",
                 "sandbox": False,
                 "enabled": True,
-                # Публичные эндпоинты, уважаем рейт-лимит.
                 "rate_limit_qps": 5,
             }
         )
@@ -265,15 +273,12 @@ async def train_on_historical_data(
             await client.close()
 
     if len(candles) < 100:
-        raise RuntimeError(
-            f"Получено слишком мало свечей: {len(candles)}"
-        )
+        raise RuntimeError(f"Получено слишком мало свечей: {len(candles)}")
 
     dataset = build_training_dataset(candles)
     if dataset.n_samples < cfg.min_samples:
         raise RuntimeError(
-            f"Собрано {dataset.n_samples} примеров, "
-            f"нужно минимум {cfg.min_samples}"
+            f"Собрано {dataset.n_samples} примеров, нужно минимум {cfg.min_samples}"
         )
 
     logger.info(
@@ -301,7 +306,7 @@ async def train_on_historical_data(
                 description=f"Trained on {cfg.lookback_days}d of {cfg.symbol} {cfg.timeframe}",
                 tags=["historical", cfg.symbol, cfg.timeframe],
             )
-        except Exception as exc:  # pragma: no cover - registry опционален
+        except Exception as exc:
             logger.warning("Не удалось зарегистрировать модель: %s", exc)
 
     logger.info("Модель сохранена: %s", artifact)
