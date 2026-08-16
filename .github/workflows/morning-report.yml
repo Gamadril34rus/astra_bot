@@ -1,0 +1,37 @@
+name: ASTRA Morning Report
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 06:00 UTC = 09:00 Europe/Moscow
+    - cron: "0 6 * * *"
+
+concurrency:
+  group: astra-morning-report
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Telegram dependency
+        run: pip install python-telegram-bot
+
+      - name: Send report
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
+        run: python scripts/morning_report.py
