@@ -52,6 +52,26 @@ jobs:
       - name: Verify OKX private API
         run: python scripts/test_okx.py
 
+      - name: Bootstrap five-year model when needed
+        env:
+          PYTHONPATH: .
+          NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p logs models
+          if [ ! -f models/current.pkl ]; then
+            echo "No trained model found. Starting five-year walk-forward pretrain..."
+            python scripts/pretrain_5y.py --years 5 --target-trades 5000 --min-samples 2000 --capital 10000 --with-news
+
+            git config user.name "astra-bot"
+            git config user.email "bot@users.noreply.github.com"
+            git add -f models/current.pkl models/lessons*.jsonl models/news_cache.json 2>/dev/null || true
+            git commit -m "chore(train): bootstrap five-year demo model" || true
+            git push origin master || true
+          else
+            echo "Existing trained model found: $(du -h models/current.pkl | cut -f1)"
+          fi
+
       - name: Start continuous demo worker with checkpoints
         env:
           PYTHONPATH: .
@@ -59,8 +79,8 @@ jobs:
           set -euo pipefail
           mkdir -p logs models
 
-          # Each Python worker session is intentionally bounded. State and lessons
-          # are committed between sessions so a runner restart does not erase memory.
+          # GitHub-hosted runners are finite. Run bounded sessions and persist
+          # state/lessons/model between them so the bot behaves continuously.
           SESSION_SECONDS=3000
           END_AT=$(( $(date +%s) + 330*60 ))
 
@@ -74,7 +94,6 @@ jobs:
             git commit -m "chore(demo): checkpoint $(date -u +%Y-%m-%dT%H:%M:%SZ)" || true
             git push origin master || echo "checkpoint push failed"
 
-            # Refresh repository so the next session starts from the latest model/state.
             git fetch origin master
             git reset --hard origin/master
           done
