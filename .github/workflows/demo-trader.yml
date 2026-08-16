@@ -1,0 +1,89 @@
+name: ASTRA Demo Trader
+
+on:
+  workflow_dispatch:
+  schedule:
+    # GitHub Actions is not a permanent server. Restart the demo worker every 6h.
+    - cron: "0 */6 * * *"
+
+concurrency:
+  group: astra-demo-trader
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  demo-trader:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt python-dotenv
+
+      - name: Write demo environment
+        env:
+          OKX_API_KEY: ${{ secrets.OKX_API_KEY }}
+          OKX_API_SECRET: ${{ secrets.OKX_API_SECRET }}
+          OKX_API_PASSPHRASE: ${{ secrets.OKX_API_PASSPHRASE }}
+        run: |
+          echo "ENVIRONMENT=paper" > .env
+          echo "PAPER_TRADING=true" >> .env
+          echo "OKX_DEMO=1" >> .env
+          echo "OKX_API_KEY=$OKX_API_KEY" >> .env
+          echo "OKX_API_SECRET=$OKX_API_SECRET" >> .env
+          echo "OKX_API_PASSPHRASE=$OKX_API_PASSPHRASE" >> .env
+          chmod 600 .env
+
+      - name: Verify OKX private API
+        run: python scripts/test_okx.py
+
+      - name: Start continuous demo worker with checkpoints
+        env:
+          PYTHONPATH: .
+        run: |
+          set -euo pipefail
+          mkdir -p logs models
+
+          # Each Python worker session is intentionally bounded. State and lessons
+          # are committed between sessions so a runner restart does not erase memory.
+          SESSION_SECONDS=3000
+          END_AT=$(( $(date +%s) + 330*60 ))
+
+          while [ "$(date +%s)" -lt "$END_AT" ]; do
+            echo "Starting demo worker session..."
+            timeout "$SESSION_SECONDS" python scripts/demo_trader.py || true
+
+            git config user.name "astra-bot"
+            git config user.email "bot@users.noreply.github.com"
+            git add -f models/demo_state.json models/lessons*.jsonl models/current.pkl models/*.pkl 2>/dev/null || true
+            git commit -m "chore(demo): checkpoint $(date -u +%Y-%m-%dT%H:%M:%SZ)" || true
+            git push origin master || echo "checkpoint push failed"
+
+            # Refresh repository so the next session starts from the latest model/state.
+            git fetch origin master
+            git reset --hard origin/master
+          done
+
+      - name: Final checkpoint
+        if: always()
+        run: |
+          git config user.name "astra-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add -f models/demo_state.json models/lessons*.jsonl models/current.pkl models/*.pkl 2>/dev/null || true
+          git commit -m "chore(demo): final checkpoint $(date -u +%Y-%m-%dT%H:%M:%SZ)" || true
+          git push origin master || true
