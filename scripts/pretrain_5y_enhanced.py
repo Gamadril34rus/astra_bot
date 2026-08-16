@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Five-year ASTRA pretrain with the full market-understanding feature set.
-
-This wrapper keeps the proven OKX history loader/self-play engine but replaces
-its feature snapshot with the unified chart/structure/news/memory vocabulary.
-The same feature engine is used later by the demo trader.
-"""
+"""Five-year ASTRA pretrain with the full market-understanding feature set."""
 
 from __future__ import annotations
 
@@ -56,7 +51,14 @@ def install_enhanced_self_play() -> None:
     sp.SelfPlayEngine._ml_approves = dynamic_ml_approves
 
 
+def install_news_cache_compat() -> None:
+    # Older pretrain_5y.py calls save_cache(), current implementation exposes _save_cache().
+    if not hasattr(NewsFeatureService, "save_cache"):
+        NewsFeatureService.save_cache = NewsFeatureService._save_cache
+
+
 async def main() -> int:
+    install_news_cache_compat()
     install_enhanced_self_play()
 
     parser = pretrain_5y.argparse.ArgumentParser()
@@ -100,8 +102,6 @@ async def main() -> int:
             f"drawdown={report.max_drawdown_pct:.2f}%"
         )
 
-        # Add historical news fields explicitly to every lesson. The model saw
-        # the same feature vector during decision time via the patched snapshot.
         path = config.lessons_output
         if path.exists():
             rows = []
@@ -114,7 +114,10 @@ async def main() -> int:
                 row["training_phase"] = "five_year_walk_forward"
                 row["feature_engine"] = "market_understanding_v1"
                 rows.append(row)
-            path.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + ("\n" if rows else ""), encoding="utf-8")
+            path.write_text(
+                "\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + ("\n" if rows else ""),
+                encoding="utf-8",
+            )
 
     merged = Path("models/lessons.jsonl")
     with merged.open("w", encoding="utf-8") as out:
@@ -131,7 +134,10 @@ async def main() -> int:
 
     memory = MarketMemory()
     count = memory.build_from_lessons(merged)
-    print(f"Market memory: {count} lessons aggregated into {len(memory.data.get('patterns', {}))} patterns")
+    print(
+        f"Market memory: {count} lessons aggregated into "
+        f"{len(memory.data.get('patterns', {}))} patterns"
+    )
 
     result = __import__("astra_bot.ml.weekly_learner", fromlist=["train_weekly"]).train_weekly(
         lessons_path=merged,
