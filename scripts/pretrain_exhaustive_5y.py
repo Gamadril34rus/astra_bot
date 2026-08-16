@@ -16,6 +16,7 @@ import uuid
 from decimal import Decimal
 from pathlib import Path
 
+from astra_bot.adapters.okx.client import OKXClient
 from astra_bot.core import models
 from astra_bot.core.instruments import TRADING_UNIVERSE
 from astra_bot.ml import self_play as sp
@@ -35,7 +36,6 @@ async def _fetch_one(client, symbol: str):
             client=client,
             symbol=symbol.replace("/", "-"),
             timeframe="1h",
-            # Large safety bound; the loader stops at the oldest candle the API exposes.
             lookback_days=MAX_HISTORY_YEARS * 365,
             sleep_between_requests=0.0,
         )
@@ -47,7 +47,7 @@ async def _fetch_one(client, symbol: str):
 
 
 async def fetch_history() -> dict[str, list[models.Candle]]:
-    client = sp.OKXClient({
+    client = OKXClient({
         "api_key": "", "api_secret": "", "sandbox": False,
         "enabled": True, "rate_limit_qps": 8,
     })
@@ -146,8 +146,6 @@ async def run(args) -> int:
     news = NewsFeatureService(Path("models/news_cache.json"))
     if args.with_news:
         from scripts.pretrain_5y import build_monthly_news_cache
-        # NewsAPI historical depth is provider-limited; keep the provider's own
-        # available range rather than inventing older news.
         await build_monthly_news_cache(Path("models/news_cache.json"), 5)
         news = NewsFeatureService(Path("models/news_cache.json"))
 
