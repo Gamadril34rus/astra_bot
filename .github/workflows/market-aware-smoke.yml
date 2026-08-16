@@ -1,0 +1,46 @@
+name: Market-aware smoke
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt python-dotenv
+      - name: Compile market-aware modules
+        run: |
+          python -m py_compile \
+            astra_bot/ml/market_understanding.py \
+            astra_bot/ml/market_memory.py \
+            scripts/pretrain_5y_enhanced.py \
+            scripts/demo_trader_pro.py
+      - name: Import stack
+        env:
+          PYTHONPATH: .
+        run: |
+          python - <<'PY'
+          from astra_bot.ml.market_understanding import compute_market_features
+          from astra_bot.ml.market_memory import MarketMemory
+          from astra_bot.ml.self_play import SelfPlayEngine
+          from astra_bot.ml.model_trainer import ModelTrainer
+          print("market-aware imports: OK")
+          print("feature engine: OK", compute_market_features.__name__)
+          print("memory engine: OK", MarketMemory.__name__)
+          print("self-play: OK", SelfPlayEngine.__name__)
+          print("trainer: OK", ModelTrainer.__name__)
+          PY
