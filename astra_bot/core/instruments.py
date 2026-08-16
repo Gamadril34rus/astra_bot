@@ -1,26 +1,22 @@
-"""
-Юниверс торговых инструментов ASTRA BOT.
-
-Ликвидные спот-пары к USDT на OKX, проверенные через
-/api/v5/public/instruments (state=live). Бот сам выбирает, где
-выгодный сетап, не ограничиваясь монетами на счету (торговля
-бумажная, расчёты в USDT).
-"""
+"""Юниверс торговых инструментов ASTRA BOT."""
 
 from __future__ import annotations
 
+# Широкий набор известных ликвидных криптоактивов.
+# Перед торговлей worker фильтрует его по фактическим SPOT-инструментам OKX.
 TRADING_UNIVERSE: tuple[str, ...] = (
-    # мажоры
     "BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT",
-    # крупные альты
     "ADA/USDT", "AVAX/USDT", "DOGE/USDT", "LINK/USDT", "DOT/USDT",
     "TRX/USDT", "LTC/USDT", "BCH/USDT", "ATOM/USDT", "NEAR/USDT",
     "APT/USDT", "ARB/USDT", "OP/USDT", "SUI/USDT", "INJ/USDT",
     "TIA/USDT", "FIL/USDT", "ICP/USDT", "HBAR/USDT", "AAVE/USDT",
-    "UNI/USDT", "FET/USDT",
+    "UNI/USDT", "FET/USDT", "TON/USDT", "XLM/USDT", "SHIB/USDT",
+    "PEPE/USDT", "ETC/USDT", "CRO/USDT", "MKR/USDT", "XMR/USDT",
 )
 
-MAJOR_SYMBOLS: frozenset[str] = frozenset({"BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"})
+MAJOR_SYMBOLS: frozenset[str] = frozenset({
+    "BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT",
+})
 
 
 def to_okx(symbol: str) -> str:
@@ -32,7 +28,5 @@ def is_alt(symbol: str) -> bool:
 
 
 def position_fraction_for(symbol: str, base_fraction: float) -> float:
-    """На альтах — половинный номинал (волатильнее)."""
-    if is_alt(symbol):
-        return base_fraction * 0.5
-    return base_fraction
+    """На менее крупных активах уменьшаем номинал позиции."""
+    return base_fraction if not is_alt(symbol) else base_fraction * 0.7
