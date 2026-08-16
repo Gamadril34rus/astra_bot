@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Единый утренний отчёт demo-торговли ASTRA BOT.
-
-Запускать один раз в 09:00 МСК через GitHub Actions.
-Отчёт намеренно короткий: число сделок, прибыльные, убыточные и PnL.
-"""
+"""Единый утренний отчёт ASTRA BOT, 09:00 МСК."""
 
 from __future__ import annotations
 
@@ -16,6 +12,8 @@ from zoneinfo import ZoneInfo
 
 from telegram import Bot
 
+from astra_bot.core import readiness
+
 STATE_PATH = Path("models/demo_state.json")
 MOSCOW_TZ = ZoneInfo("Europe/Moscow")
 
@@ -23,11 +21,10 @@ MOSCOW_TZ = ZoneInfo("Europe/Moscow")
 def load_state() -> dict:
     if not STATE_PATH.exists():
         return {
-            "day": datetime.now(tz=MOSCOW_TZ).strftime("%Y-%m-%d"),
             "daily_trades": 0,
             "daily_wins": 0,
             "daily_losses": 0,
-            "daily_pnl_usdt": 0.0,
+            "daily_pnl": 0.0,
         }
     try:
         return json.loads(STATE_PATH.read_text(encoding="utf-8"))
@@ -55,14 +52,18 @@ def main() -> None:
     trades = int(state.get("daily_trades", 0))
     wins = int(state.get("daily_wins", 0))
     losses = int(state.get("daily_losses", 0))
-    pnl = float(state.get("daily_pnl_usdt", 0.0))
+    pnl = float(state.get("daily_pnl", state.get("daily_pnl_usdt", 0.0)))
+    verdict = readiness.evaluate()
 
     text = (
         f"ASTRA BOT — {now} МСК\n\n"
         f"Сделок за сутки: {trades}\n"
         f"В плюс: {wins}\n"
         f"В минус: {losses}\n"
-        f"PnL: {pnl:+.2f} USDT"
+        f"PnL: {pnl:+.2f} USDT\n\n"
+        f"Готовность к реальному счёту: {'ДА' if verdict['ready'] else 'НЕТ'}\n"
+        f"Demo: {verdict['trading_days']} дн. / {verdict['total_trades']} сделок\n"
+        f"Win-rate: {verdict['win_rate']}% | PF: {verdict['profit_factor']} | DD: {verdict['max_drawdown_pct']}%"
     )
     print(text)
     asyncio.run(send_to_telegram(text))
