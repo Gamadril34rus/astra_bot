@@ -11,25 +11,17 @@ from typing import Any
 
 import numpy as np
 
-from .model_trainer import ModelTrainer, TrainingConfig, TrainingData
+from .model_trainer import TrainingData
+from .temporal_trainer import train_temporal
 
 logger = logging.getLogger(__name__)
 DEFAULT_MODEL_PATH = Path("models/current.pkl")
 DEFAULT_LESSONS_PATH = Path("models/lessons.jsonl")
 
-# Совместимость со старым self-play и внешними импортами.
 FEATURE_COLUMNS = [
-    "return_1h",
-    "return_4h",
-    "return_24h",
-    "sma20_gap",
-    "atr_pct",
-    "rsi",
-    "volume_ratio",
-    "confidence",
-    "cross_btc_1h",
-    "cross_eth_1h",
-    "cross_sol_1h",
+    "return_1h", "return_4h", "return_24h", "sma20_gap", "atr_pct",
+    "rsi", "volume_ratio", "confidence", "cross_btc_1h",
+    "cross_eth_1h", "cross_sol_1h",
 ]
 
 
@@ -64,20 +56,19 @@ def load_lessons(path: Path = DEFAULT_LESSONS_PATH) -> list[dict]:
     with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
-            if line:
-                try:
-                    rows.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
     return rows
 
 
 def lesson_feature_columns(lessons: list[dict]) -> list[str]:
-    """Union feature schema всех накопленных уроков, стабильная сортировка."""
     columns: set[str] = set()
     for lesson in lessons:
-        features = lesson.get("features") or {}
-        columns.update(str(k) for k in features.keys())
+        columns.update(str(k) for k in (lesson.get("features") or {}).keys())
     return sorted(columns)
 
 
@@ -103,11 +94,7 @@ def lessons_to_training_data(lessons: list[dict]) -> TrainingData:
         features=X,
         labels=y,
         feature_names=columns,
-        metadata={
-            "n_samples": len(lessons),
-            "positive_rate": float(np.mean(y)),
-            "source": "continuous_lessons",
-        },
+        metadata={"n_samples": len(lessons), "positive_rate": float(np.mean(y)), "source": "continuous_lessons"},
     )
 
 
@@ -117,7 +104,7 @@ def train_weekly(
     min_samples: int = 200,
     model_type: str = "lightgbm",
 ) -> WeeklyLearningResult:
-    """Переобучить модель, когда накоплена достаточная выборка."""
+    """Переобучить модель на хроно-выборке без перемешивания будущего."""
     try:
         from .live_lessons import merge_into_main_lessons
         merge_into_main_lessons(main_path=lessons_path)
@@ -133,10 +120,11 @@ def train_weekly(
             trained=False, message=msg,
         )
 
+    # Strict chronological order: oldest lessons train, newest lessons test.
+    lessons.sort(key=lambda row: int(row.get("entry_time") or row.get("timestamp") or 0))
     dataset = lessons_to_training_data(lessons)
-    trainer = ModelTrainer(TrainingConfig(model_type=model_type))
-    version = "ML-continuous-" + datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
-    model = trainer.train(dataset, model_type=model_type)
+    model = train_temporal(dataset)
+    version = "ML-temporal-" + datetime.now(tz=UTC).strftime("%Y%m%d-%H%M%S")
     model_path.parent.mkdir(parents=True, exist_ok=True)
     model.save(str(model_path), version=version)
 
@@ -148,5 +136,5 @@ def train_weekly(
         accuracy=float(getattr(model.metrics, "accuracy", 0.0) or 0.0),
         model_path=model_path,
         trained=True,
-        message=f"Модель {version} обучена на {dataset.n_samples} уроках",
+        message=f"Модель {version} обучена на {dataset.n_samples} уроках; validation=chronological",
     )
