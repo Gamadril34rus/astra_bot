@@ -2,13 +2,21 @@ name: ASTRA Demo Trader
 
 on:
   workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - "scripts/demo_trader_pro.py"
+      - "scripts/pretrain_5y_enhanced.py"
+      - "astra_bot/ml/market_understanding.py"
+      - "astra_bot/ml/market_memory.py"
+      - ".github/workflows/demo-trader.yml"
   schedule:
     # GitHub Actions is not a permanent server. Restart the demo worker every 6h.
     - cron: "0 */6 * * *"
 
 concurrency:
   group: astra-demo-trader
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -59,17 +67,18 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p logs models
-          if [ ! -f models/current.pkl ]; then
-            echo "No trained model found. Starting enhanced five-year walk-forward pretrain..."
+          if [ ! -f models/market_aware_model.ok ] || [ ! -f models/current.pkl ]; then
+            echo "Market-aware model marker missing. Starting enhanced five-year walk-forward pretrain..."
             python scripts/pretrain_5y_enhanced.py --years 5 --target-trades 5000 --min-samples 2000 --capital 10000 --with-news
+            printf '%s\n' "market_understanding_v1" > models/market_aware_model.ok
 
             git config user.name "astra-bot"
             git config user.email "bot@users.noreply.github.com"
-            git add -f models/current.pkl models/lessons*.jsonl models/news_cache.json models/market_memory.json 2>/dev/null || true
+            git add -f models/current.pkl models/lessons*.jsonl models/news_cache.json models/market_memory.json models/market_aware_model.ok
             git commit -m "chore(train): bootstrap five-year market-aware model" || true
             git push origin master || true
           else
-            echo "Existing trained model found: $(du -h models/current.pkl | cut -f1)"
+            echo "Market-aware model found: $(du -h models/current.pkl | cut -f1)"
           fi
 
       - name: Start continuous market-aware demo worker with checkpoints
@@ -88,7 +97,7 @@ jobs:
 
             git config user.name "astra-bot"
             git config user.email "bot@users.noreply.github.com"
-            git add -f models/demo_state.json models/lessons*.jsonl models/current.pkl models/market_memory.json models/*.pkl 2>/dev/null || true
+            git add -f models/demo_state.json models/lessons*.jsonl models/current.pkl models/market_memory.json models/market_aware_model.ok models/*.pkl 2>/dev/null || true
             git commit -m "chore(demo): checkpoint $(date -u +%Y-%m-%dT%H:%M:%SZ)" || true
             git push origin master || echo "checkpoint push failed"
 
@@ -101,6 +110,6 @@ jobs:
         run: |
           git config user.name "astra-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add -f models/demo_state.json models/lessons*.jsonl models/current.pkl models/market_memory.json models/*.pkl 2>/dev/null || true
+          git add -f models/demo_state.json models/lessons*.jsonl models/current.pkl models/market_memory.json models/market_aware_model.ok models/*.pkl 2>/dev/null || true
           git commit -m "chore(demo): final checkpoint $(date -u +%Y-%m-%dT%H:%M:%SZ)" || true
           git push origin master || true
