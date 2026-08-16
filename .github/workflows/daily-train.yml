@@ -40,16 +40,14 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
         run: |
-          {
-            echo "ENVIRONMENT=paper"
-            echo "PAPER_TRADING=true"
-            echo "OKX_DEMO=1"
-            echo "OKX_API_KEY=$OKX_API_KEY"
-            echo "OKX_API_SECRET=$OKX_API_SECRET"
-            echo "OKX_API_PASSPHRASE=$OKX_API_PASSPHRASE"
-            echo "TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN"
-            echo "TELEGRAM_ADMIN_ID=$TELEGRAM_ADMIN_ID"
-          } > .env
+          echo "ENVIRONMENT=paper" > .env
+          echo "PAPER_TRADING=true" >> .env
+          echo "OKX_API_KEY=$OKX_API_KEY" >> .env
+          echo "OKX_API_SECRET=$OKX_API_SECRET" >> .env
+          echo "OKX_API_PASSPHRASE=$OKX_API_PASSPHRASE" >> .env
+          echo "TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN" >> .env
+          echo "TELEGRAM_ADMIN_ID=$TELEGRAM_ADMIN_ID" >> .env
+          echo "OKX_DEMO=1" >> .env
           chmod 600 .env
 
       - name: Connection test
