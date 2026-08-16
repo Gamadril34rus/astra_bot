@@ -1,0 +1,11 @@
+[Unit]
+Description=ASTRA BOT 09:00 MSK Telegram report
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=botuser
+WorkingDirectory=/opt/astra_bot
+EnvironmentFile=/opt/astra_bot/.env
+ExecStart=/opt/astra_bot/venv/bin/python /opt/astra_bot/scripts/send_9am_report.py
