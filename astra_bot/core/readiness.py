@@ -2,21 +2,9 @@
 Готовность к реальному счёту.
 
 Бот НЕ должен переходить на реальные деньги, пока не докажет стабильность
-на демо. Здесь собираются объективные метрики и вычисляется итоговый вердикт
-(0..100) с порогом готовности. Когда порог пройден — Telegram присылает
-уведомление «я готов к реальному счёту».
-
-Критерии (как настоящий риск-менеджмент):
-* 30+ торговых дней на демо;
-* win-rate не ниже 55% и profit-factor ≥ 1.3;
-* максимальная просадка ≤ 8%;
-* нет серии из 6+ убытков подряд;
-* доля прибыльных дней ≥ 55%;
-* Sharpe ≥ 1.0;
-* минимум 200 закрытых сделок.
-
-Ни один метрика не гарантирует прибыль (рынок всегда может удивить), но это
-разумный минимум, чтобы не слить депозит в первой же неделе.
+на демо. Здесь собираются объективные метрики и вычисляется итоговый вердикт.
+Когда порог пройден — Telegram присылает уведомление, но реальные деньги
+включаются только вручную.
 """
 
 from __future__ import annotations
@@ -29,10 +17,8 @@ from datetime import date
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
-
 _STATE_PATH = Path(__file__).resolve().parents[2] / "models" / "readiness.json"
-
-READINESS_THRESHOLD = 85  # из 100
+READINESS_THRESHOLD = 90
 
 
 @dataclass
@@ -70,8 +56,9 @@ def load() -> ReadinessState:
         return ReadinessState()
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
-        return ReadinessState(**{k: v for k, v in data.items()
-                                  if k in ReadinessState.__dataclass_fields__})
+        return ReadinessState(**{
+            k: v for k, v in data.items() if k in ReadinessState.__dataclass_fields__
+        })
     except Exception as exc:
         logger.warning("Не смог прочитать readiness: %s", exc)
         return ReadinessState()
@@ -85,62 +72,24 @@ def save(state: ReadinessState) -> None:
     tmp.replace(p)
 
 
-def record_day(
-    *,
-    day: date | None = None,
-    trades: int = 0,
-    wins: int = 0,
-    pnl: float = 0.0,
-    equity_end: float = 0.0,
-) -> ReadinessState:
-    """Записать итог торгового дня и пересчитать агрегаты."""
+def record_day(*, day: date | None = None, trades: int = 0, wins: int = 0,
+               pnl: float = 0.0, equity_end: float = 0.0) -> ReadinessState:
     state = load()
     day = day or date.today()
     ds = day.isoformat()
-
     if state.first_trade_date is None and trades > 0:
         state.first_trade_date = ds
-
-    # Заменяем запись за сегодня, если перезаписываем итог дня.
     state.days = [d for d in state.days if d["date"] != ds]
     if trades > 0 or pnl != 0:
-        state.days.append({
-            "date": ds, "trades": trades, "wins": wins,
-            "pnl": pnl, "equity_end": equity_end,
-        })
-    # Ограничиваем историю 180 днями.
+        state.days.append({"date": ds, "trades": trades, "wins": wins,
+                           "pnl": pnl, "equity_end": equity_end})
     state.days = state.days[-180:]
-
-    # Пересчёт агрегатов (заодно пересчитывает max-drawdown и streak).
     _recompute_aggregates(state)
-
-    # Max drawdown по дневным эквити.
-    peak = 0.0
-    max_dd = 0.0
-    for d in state.days:
-        eq = d["equity_end"] or 0.0
-        peak = max(peak, eq)
-        if peak > 0:
-            max_dd = max(max_dd, (peak - eq) / peak * 100.0)
-    state.max_drawdown_pct = round(max_dd, 2)
-
-    # Самая длинная серия убыточных дней.
-    streak = 0
-    max_streak = 0
-    for d in state.days:
-        if d["pnl"] < 0:
-            streak += 1
-            max_streak = max(max_streak, streak)
-        else:
-            streak = 0
-    state.longest_loss_streak = max_streak
-
     save(state)
     return state
 
 
 def _recompute_aggregates(state: ReadinessState) -> ReadinessState:
-    """Пересчитать max-drawdown и streak по дням (на случай загрузки сырого файла)."""
     peak = 0.0
     max_dd = 0.0
     for d in state.days:
@@ -149,6 +98,7 @@ def _recompute_aggregates(state: ReadinessState) -> ReadinessState:
         if peak > 0:
             max_dd = max(max_dd, (peak - eq) / peak * 100.0)
     state.max_drawdown_pct = round(max_dd, 2)
+
     streak = 0
     max_streak = 0
     for d in state.days:
@@ -166,21 +116,19 @@ def _recompute_aggregates(state: ReadinessState) -> ReadinessState:
 
 
 def evaluate(state: ReadinessState | None = None) -> dict:
-    """Вернуть вердикт готовности с разбивкой по критериям."""
     state = _recompute_aggregates(state or load())
     days = state.days
-
     trading_days = len(days)
-    win_rate = (state.total_wins / state.total_trades * 100) if state.total_trades else 0.0
+    win_rate = state.total_wins / state.total_trades * 100 if state.total_trades else 0.0
     gross_profit = sum(d["pnl"] for d in days if d["pnl"] > 0)
     gross_loss = abs(sum(d["pnl"] for d in days if d["pnl"] < 0))
     profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else float("inf") if gross_profit > 0 else 0.0
     profitable_days = sum(1 for d in days if d["pnl"] > 0)
-    profitable_day_pct = (profitable_days / trading_days * 100) if trading_days else 0.0
+    profitable_day_pct = profitable_days / trading_days * 100 if trading_days else 0.0
     rets = [d["pnl"] for d in days if d["pnl"] != 0]
     mean = sum(rets) / len(rets) if rets else 0.0
     var = sum((r - mean) ** 2 for r in rets) / len(rets) if rets else 0.0
-    sharpe = (mean / (var ** 0.5)) if var > 0 else 0.0
+    sharpe = mean / (var ** 0.5) if var > 0 else 0.0
 
     checks = [
         ("30+ дней на демо", trading_days >= 30, 15),
@@ -191,11 +139,11 @@ def evaluate(state: ReadinessState | None = None) -> dict:
         (f"Дней в плюсе ≥ 55% (сейчас {profitable_day_pct:.0f}%)", profitable_day_pct >= 55, 10),
         (f"Серия убытков < 6 дней (сейчас {state.longest_loss_streak})", state.longest_loss_streak < 6, 5),
         (f"Sharpe ≥ 1.0 (сейчас {sharpe:.2f})", sharpe >= 1.0, 5),
+        (f"Итоговый PnL > 0 (сейчас {state.total_pnl:+.2f})", state.total_pnl > 0, 5),
     ]
 
     score = sum(weight for _, passed, weight in checks if passed)
-    ready = score >= READINESS_THRESHOLD
-
+    ready = score >= READINESS_THRESHOLD and state.total_pnl > 0
     return {
         "ready": ready,
         "score": score,
@@ -215,7 +163,6 @@ def evaluate(state: ReadinessState | None = None) -> dict:
 
 
 def should_notify_ready() -> bool:
-    """Если только что перешли порог и ещё не уведомляли — True."""
     state = load()
     verdict = evaluate(state)
     if verdict["ready"] and not state.notified_ready:
@@ -243,9 +190,5 @@ def format_report() -> str:
     for c in v["checks"]:
         lines.append(f"  {'✅' if c['passed'] else '⬜'} {c['name']}")
     if not v["ready"]:
-        lines += [
-            "",
-            "Переход на реальный счёт будет возможен после выполнения всех "
-            "критериев. Бот сообщит, когда будет готов.",
-        ]
+        lines += ["", "Переход на реальный счёт будет возможен только после выполнения критериев."]
     return "\n".join(lines)
