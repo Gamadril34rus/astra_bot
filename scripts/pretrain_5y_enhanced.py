@@ -11,9 +11,9 @@ import numpy as np
 
 from astra_bot.ml import self_play as sp
 from astra_bot.ml.market_memory import MarketMemory
-from astra_bot.ml.market_research import research_history
 from astra_bot.ml.market_understanding import compute_market_features
 from astra_bot.ml.news_features import NewsFeatureService
+from astra_bot.ml.research_engine import research_history_v2
 from scripts import pretrain_5y
 
 
@@ -72,34 +72,43 @@ async def main() -> int:
     pretrain_5y.setup_logging()
     days = args.years * 365
     history = await pretrain_5y.fetch_history(days)
-    usable = {s: bars for s, bars in history.items() if len(bars) >= 200}
+    usable = {s: bars for s, bars in history.items() if len(bars) >= 240}
     if not usable:
         raise RuntimeError("Не удалось получить достаточную историю")
 
     if args.with_news:
         await pretrain_5y.build_monthly_news_cache(Path("models/news_cache.json"), args.years)
 
-    # Research comes before trading simulation. It studies events and their
-    # consequences on multiple horizons; trade count is not the learning KPI.
-    research_stats = research_history(
-        usable,
-        output=Path("models/research_observations.jsonl"),
-        hypotheses_output=Path("models/research_hypotheses.json"),
-        sample_every={"1h": 12, "4h": 3, "1d": 1},
-    )
-    print(
-        "Research-first: "
-        f"symbols={research_stats['symbols']} "
-        f"observations={research_stats['observations']} "
-        f"events={research_stats['events']}"
-    )
-
     news = NewsFeatureService(Path("models/news_cache.json"))
+    research_summary = {}
+    research_files: list[Path] = []
+
+    # Research is the primary learning stage. It does not need trades and
+    # separates discovery from a final out-of-sample period.
     for tf, hours in (("1h", 1), ("4h", 4), ("1d", 24)):
         tf_history = {
             symbol: (bars if hours == 1 else pretrain_5y.resample_candles(bars, hours))
             for symbol, bars in usable.items()
         }
+        obs_path = Path(f"models/research_observations_{tf}.jsonl")
+        hyp_path = Path(f"models/research_hypotheses_{tf}.json")
+        stats = research_history_v2(
+            tf_history,
+            output=obs_path,
+            hypotheses_output=hyp_path,
+            sample_every={"1h": 6, "4h": 1, "1d": 1},
+            validation_fraction=0.30,
+            min_samples=30,
+            news_service=news,
+        )
+        research_summary[tf] = stats
+        research_files.append(obs_path)
+        print(
+            f"Research {tf}: symbols={stats['symbols']} "
+            f"observations={stats['observations']} events={stats['events']} "
+            f"oos={stats['validation_observations']}"
+        )
+
         config = sp.SelfPlayConfig(
             timeframe=tf,
             symbols=tuple(tf_history.keys()),
@@ -133,6 +142,17 @@ async def main() -> int:
                 "\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + ("\n" if rows else ""),
                 encoding="utf-8",
             )
+
+    merged_research = Path("models/research_observations.jsonl")
+    with merged_research.open("w", encoding="utf-8") as out:
+        for path in research_files:
+            if path.exists():
+                out.write(path.read_text(encoding="utf-8"))
+
+    Path("models/research_summary.json").write_text(
+        json.dumps(research_summary, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
     merged = Path("models/lessons.jsonl")
     with merged.open("w", encoding="utf-8") as out:
