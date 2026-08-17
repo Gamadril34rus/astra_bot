@@ -27,6 +27,7 @@ jobs:
           python -m py_compile \
             astra_bot/ml/market_understanding.py \
             astra_bot/ml/market_memory.py \
+            astra_bot/ml/market_research.py \
             scripts/pretrain_5y_enhanced.py \
             scripts/demo_trader_pro.py
       - name: Import stack
@@ -36,11 +37,13 @@ jobs:
           python - <<'PY'
           from astra_bot.ml.market_understanding import compute_market_features
           from astra_bot.ml.market_memory import MarketMemory
+          from astra_bot.ml.market_research import research_history
           from astra_bot.ml.self_play import SelfPlayEngine
           from astra_bot.ml.model_trainer import ModelTrainer
           print("market-aware imports: OK")
           print("feature engine: OK", compute_market_features.__name__)
           print("memory engine: OK", MarketMemory.__name__)
+          print("research engine: OK", research_history.__name__)
           print("self-play: OK", SelfPlayEngine.__name__)
           print("trainer: OK", ModelTrainer.__name__)
           PY
