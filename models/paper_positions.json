@@ -179,6 +179,42 @@
         "edge_pct": 0.2164851814144209,
         "rr": 1.2
       }
+    },
+    {
+      "id": "ec49cca0-eb00-498c-b803-5971ef710a5a",
+      "symbol": "BNB-USDT",
+      "direction": "long",
+      "entry_price": "606.0",
+      "quantity": "9.796246",
+      "stop_loss": "602.9700",
+      "take_profits": [
+        "609.03000",
+        "611.45400",
+        "613.57500"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "9.796246",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "606.2",
+      "lowest_price": "605.7",
+      "strategy": "scalp5m",
+      "opened_at": 1786984923943,
+      "notes": {
+        "score": 70.0,
+        "ml_probability": null,
+        "edge_pct": 0.18185078712320069,
+        "rr": 1.2000000000000002
+      }
     }
   ],
   "realized_pnl": "-645.3668559376999000",
