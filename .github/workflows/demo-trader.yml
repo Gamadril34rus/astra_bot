@@ -7,7 +7,6 @@ on:
     paths:
       - "scripts/demo_trader_pro.py"
       - "scripts/demo_trader_safe.py"
-      - "scripts/pretrain_exhaustive_5y.py"
       - "astra_bot/ml/market_understanding.py"
       - "astra_bot/ml/market_memory.py"
       - "astra_bot/core/readiness.py"
@@ -50,6 +49,7 @@ jobs:
           OKX_API_SECRET: ${{ secrets.OKX_API_SECRET }}
           OKX_API_PASSPHRASE: ${{ secrets.OKX_API_PASSPHRASE }}
         run: |
+          set -euo pipefail
           echo "ENVIRONMENT=paper" > .env
           echo "PAPER_TRADING=true" >> .env
           echo "OKX_DEMO=1" >> .env
@@ -61,26 +61,28 @@ jobs:
       - name: Verify OKX private API
         run: python scripts/test_okx.py
 
-      - name: Exhaustive maximum-history research pass when needed
+      - name: Validate trained model and lesson memory
         env:
           PYTHONPATH: .
-          NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
         run: |
           set -euo pipefail
-          mkdir -p logs models
-          if [ ! -f models/market_aware_model.ok ] || [ ! -f models/current.pkl ]; then
-            echo "Starting maximum-history research pass across the full configured universe..."
-            python scripts/pretrain_exhaustive_5y.py --max-lessons 500000 --min-samples 2000 --with-news
-            printf '%s\n' "market_understanding_v1:max_available_per_instrument" > models/market_aware_model.ok
+          test -s models/current.pkl
+          test -s models/lessons.jsonl
+          python - <<'PY'
+          from pathlib import Path
+          import pickle
 
-            git config user.name "astra-bot"
-            git config user.email "bot@users.noreply.github.com"
-            git add -f models/current.pkl models/lessons.jsonl models/news_cache.json models/market_memory.json models/market_aware_model.ok
-            git commit -m "chore(train): exhaustive maximum-history market research" || true
-            git push origin master || true
-          else
-            echo "Market-aware model found: $(du -h models/current.pkl | cut -f1)"
-          fi
+          model_path = Path("models/current.pkl")
+          lessons_path = Path("models/lessons.jsonl")
+          with model_path.open("rb") as fh:
+              pickle.load(fh)
+          lessons = sum(1 for line in lessons_path.open(encoding="utf-8") if line.strip())
+          print(f"Model: {model_path.stat().st_size} bytes")
+          print(f"Historical lessons: {lessons}")
+          if lessons < 100:
+              raise SystemExit("Lesson memory is too small for Demo Trader")
+          print("Trained model and lesson memory are valid")
+          PY
 
       - name: Start continuous safe market-aware demo worker with checkpoints
         env:
