@@ -41,7 +41,7 @@ jobs:
           echo "NEWS_API_KEY=$NEWS_API_KEY" >> .env
           chmod 600 .env
 
-      - name: Five-year market-aware walk-forward pretrain
+      - name: Five-year research-first pretrain
         run: |
           if [ "${{ inputs.with_news }}" = "true" ]; then
             python scripts/pretrain_5y_enhanced.py --years 5 --target-trades 5000 --min-samples 2000 --capital 10000 --with-news
@@ -49,10 +49,10 @@ jobs:
             python scripts/pretrain_5y_enhanced.py --years 5 --target-trades 5000 --min-samples 2000 --capital 10000
           fi
 
-      - name: Persist lessons, market memory and model
+      - name: Persist research, lessons, memory and model
         run: |
           git config user.name "astra-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add -f models/current.pkl models/lessons*.jsonl models/news_cache.json models/market_memory.json models/training_state.json 2>/dev/null || true
-          git commit -m "chore(training): five-year market-aware pretrain $(date -u +%Y-%m-%d)" || true
+          git add -f models/current.pkl models/lessons*.jsonl models/news_cache.json models/market_memory.json models/training_state.json models/research_observations.jsonl models/research_hypotheses.json 2>/dev/null || true
+          git commit -m "chore(training): research-first pretrain $(date -u +%Y-%m-%d)" || true
           git push origin master || true
