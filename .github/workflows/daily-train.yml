@@ -49,10 +49,29 @@ jobs:
             python scripts/pretrain_5y_enhanced.py --years 5 --target-trades 5000 --min-samples 2000 --capital 10000
           fi
 
+      - name: Validate research artifacts
+        run: |
+          test -s models/research_observations.jsonl
+          test -s models/research_hypotheses.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path("models/research_hypotheses.json").read_text(encoding="utf-8"))
+          stats = data.get("stats", {})
+          hypotheses = data.get("hypotheses", {})
+          if stats.get("observations", 0) <= 0:
+              raise SystemExit("Research produced zero observations")
+          print(f"research observations={stats.get('observations', 0)} hypotheses={len(hypotheses)} baseline={stats.get('baseline_observations', 0)}")
+          PY
+
       - name: Persist research, lessons, memory and model
         run: |
           git config user.name "astra-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add -f models/current.pkl models/lessons*.jsonl models/news_cache.json models/market_memory.json models/training_state.json models/research_observations.jsonl models/research_hypotheses.json 2>/dev/null || true
-          git commit -m "chore(training): research-first pretrain $(date -u +%Y-%m-%d)" || true
-          git push origin master || true
+          git add -f models/current.pkl models/lessons*.jsonl models/news_cache.json models/market_memory.json models/training_state.json models/research_observations.jsonl models/research_hypotheses.json
+          if git diff --cached --quiet; then
+            echo "No training artifacts changed"
+          else
+            git commit -m "chore(training): research-first pretrain $(date -u +%Y-%m-%d)"
+            git push origin master
+          fi
