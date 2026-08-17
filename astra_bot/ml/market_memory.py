@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import math
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -65,23 +67,40 @@ class MarketMemory:
         row.setdefault("recommendations", {})[recommendation] = row.setdefault("recommendations", {}).get(recommendation, 0) + 1
 
     def observe_research(self, row: dict[str, Any]) -> None:
-        """Store aggregated causal/event evidence independently of trades."""
-        for event in row.get("events", []):
-            key = f"{event}|{row.get('timeframe', '?')}|{row.get('market_regime', '?')}"
+        """Store observations as research evidence, independently of trades."""
+        timeframe = row.get("timeframe", "?")
+        regime = row.get("market_regime", "?")
+        events = row.get("events") or ["baseline"]
+        forward = row.get("forward") or row.get("forward_returns") or {}
+        for event in events:
+            key = f"{event}|{timeframe}|{regime}"
             target = self.data.setdefault("research", {}).setdefault(key, {
                 "observations": 0,
-                "positive_1h": 0,
-                "negative_1h": 0,
-                "returns_1h": [],
-                "conclusions": [],
+                "positive": {},
+                "negative": {},
+                "returns": {},
+                "max_up": {},
+                "max_down": {},
             })
             target["observations"] += 1
-            r = row.get("forward_returns", {}).get("60")
-            if isinstance(r, (int, float)):
-                target["positive_1h"] += int(r > 0)
-                target["negative_1h"] += int(r < 0)
-                if len(target["returns_1h"]) < 1000:
-                    target["returns_1h"].append(float(r))
+            for horizon, value in forward.items():
+                if isinstance(value, dict):
+                    ret = value.get("return")
+                    max_up = value.get("max_up")
+                    max_down = value.get("max_down")
+                else:
+                    ret, max_up, max_down = value, None, None
+                if not isinstance(ret, (int, float)):
+                    continue
+                target["positive"][horizon] = int(target["positive"].get(horizon, 0)) + int(ret > 0)
+                target["negative"][horizon] = int(target["negative"].get(horizon, 0)) + int(ret < 0)
+                values = target["returns"].setdefault(horizon, [])
+                if len(values) < 2000:
+                    values.append(float(ret))
+                if isinstance(max_up, (int, float)):
+                    target["max_up"].setdefault(horizon, []).append(float(max_up))
+                if isinstance(max_down, (int, float)):
+                    target["max_down"].setdefault(horizon, []).append(float(max_down))
 
     def import_research(self, path: Path = Path("models/research_observations.jsonl")) -> int:
         if not path.exists():
@@ -97,7 +116,6 @@ class MarketMemory:
                     continue
                 self.observe_research(row)
                 count += 1
-        from datetime import UTC, datetime
         self.data["updated"] = datetime.now(tz=UTC).isoformat()
         self.save()
         return count
@@ -105,7 +123,6 @@ class MarketMemory:
     def build_from_lessons(self, lessons_path: Path = Path("models/lessons.jsonl")) -> int:
         if not lessons_path.exists():
             return 0
-        # Preserve research memory while rebuilding trade-pattern memory.
         research = self.data.get("research", {})
         self.data = {"patterns": {}, "research": research, "updated": None}
         count = 0
@@ -117,28 +134,31 @@ class MarketMemory:
                     continue
                 self.observe(lesson)
                 count += 1
-        from datetime import UTC, datetime
         self.data["updated"] = datetime.now(tz=UTC).isoformat()
         self.save()
         return count
 
     def research_features_for(self, features: dict[str, float], timeframe: str = "1h", regime: str = "unknown") -> dict[str, float]:
-        """Expose historical event evidence as model features without turning it into a trade rule."""
+        """Expose historical research as model features, not deterministic rules."""
         result = {"research_seen": 0.0, "research_samples": 0.0, "research_positive_rate_1h": 0.5}
-        candidates = []
-        for event in ("breakout_up", "breakout_down", "retest_support", "retest_resistance", "bullish_engulfing", "bearish_engulfing", "candle_hammer", "candle_shooting_star"):
-            if features.get(event, 0.0) > 0.5:
-                candidates.append(f"{event}|{timeframe}|{regime}")
-        for key in candidates:
+        candidates = [
+            event for event in (
+                "breakout_up", "breakout_down", "retest_support", "retest_resistance",
+                "bullish_engulfing", "bearish_engulfing", "candle_hammer", "candle_shooting_star",
+                "volume_spike", "atr_expansion", "trend_acceleration", "trend_deceleration",
+            ) if features.get(event, 0.0) > 0.5
+        ]
+        for event in candidates:
+            key = f"{event}|{timeframe}|{regime}"
             row = self.data.get("research", {}).get(key)
-            if not row:
+            if not row or int(row.get("observations", 0)) <= 0:
                 continue
-            samples = int(row.get("observations", 0))
-            if samples <= 0:
-                continue
+            samples = int(row["observations"])
+            pos = int(row.get("positive", {}).get("1h", 0))
+            neg = int(row.get("negative", {}).get("1h", 0))
             result["research_seen"] = 1.0
             result["research_samples"] = max(result["research_samples"], float(samples))
-            result["research_positive_rate_1h"] = (int(row.get("positive_1h", 0)) + 1.0) / (int(row.get("positive_1h", 0)) + int(row.get("negative_1h", 0)) + 2.0)
+            result["research_positive_rate_1h"] = (pos + 1.0) / (pos + neg + 2.0)
             break
         return result
 
@@ -146,19 +166,12 @@ class MarketMemory:
         key = self.pattern_key(features)
         row = self.data.get("patterns", {}).get(key)
         if not row:
-            return {
-                "memory_pattern_seen": 0.0,
-                "memory_pattern_win_rate": 0.5,
-                "memory_pattern_count_log": 0.0,
-                "memory_pattern_pnl": 0.0,
-            }
+            return {"memory_pattern_seen": 0.0, "memory_pattern_win_rate": 0.5, "memory_pattern_count_log": 0.0, "memory_pattern_pnl": 0.0}
         trades = max(int(row.get("trades", 0)), 0)
         wins = max(int(row.get("wins", 0)), 0)
-        win_rate = (wins + 1.0) / (trades + 2.0)
-        import math
         return {
             "memory_pattern_seen": 1.0,
-            "memory_pattern_win_rate": float(win_rate),
+            "memory_pattern_win_rate": float((wins + 1.0) / (trades + 2.0)),
             "memory_pattern_count_log": float(math.log1p(trades)),
             "memory_pattern_pnl": float(row.get("pnl", 0.0)),
         }
