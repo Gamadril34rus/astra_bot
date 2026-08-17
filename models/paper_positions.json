@@ -143,6 +143,42 @@
         "edge_pct": 0.18185078712320069,
         "rr": 1.2000000000000002
       }
+    },
+    {
+      "id": "02e31911-eef1-4f40-8352-d353d35aa7b3",
+      "symbol": "LINK-USDT",
+      "direction": "short",
+      "entry_price": "9.378",
+      "quantity": "632.551814",
+      "stop_loss": "9.424890",
+      "take_profits": [
+        "9.3311100",
+        "9.2935980",
+        "9.2607750"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "632.551814",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "9.383",
+      "lowest_price": "9.376",
+      "strategy": "scalp5m",
+      "opened_at": 1786993465084,
+      "notes": {
+        "score": 62.0,
+        "ml_probability": null,
+        "edge_pct": 0.21190577616381268,
+        "rr": 1.2
+      }
     }
   ],
   "realized_pnl": "-675.0606097574999000",
