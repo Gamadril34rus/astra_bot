@@ -1,388 +1,218 @@
 # ASTRA BOT
 
-### Adaptive research & demo-trading platform for cryptocurrency markets
+> **Адаптивная исследовательская и demo-трейдинговая система для криптовалютного рынка.**
 
-ASTRA is an experimental **market-aware quantitative trading system** built around one core idea:
+ASTRA предназначена для исторического исследования, виртуального обучения, накопления структурированных уроков, ML-обучения и длительной работы в **OKX Demo Trading**. Реальные деньги сейчас отключены, автоматического перехода на реальный счёт нет.
 
-> **Learn from as much historical market context as the data source can provide, verify decisions out-of-sample, accumulate explicit lessons, and only then consider real capital.**
-
-The project is currently designed to run **without real money**. Historical research is simulated, and the live worker uses **OKX Demo Trading** only.
-
----
-
-## 🧠 What ASTRA actually studies
-
-ASTRA does not rely on one indicator or one strategy. It converts the chart into a structured feature space and learns combinations of market conditions.
-
-### Market / chart understanding
-
-- 🕯️ Candlestick geometry and patterns
-- 📈 Trend direction and multi-horizon momentum
-- 🔺 HH / HL / LH / LL market structure
-- 🧱 Support / resistance and pivot levels
-- 📐 Trend lines and regression channels
-- 🚀 Breakouts and retests
-- 📏 Fibonacci retracement context
-- 📊 Volume, volume anomalies, OBV and VWAP
-- 📉 RSI, Stochastic, CCI, ATR, ADX-like trend strength
-- 📐 EMA stacks and Bollinger Bands
-- 🔀 Cross-market / major-asset context
-- 📰 News sentiment and news shock context when historical data is available
-- 📚 Historical pattern memory derived from previous outcomes
-- 📖 Counterfactual lessons: what should have been done differently after a losing setup
-
-The feature engine is designed so that **the same market representation is used during historical research and during Demo Trading**. This avoids training a model on one set of signals and deploying it with another.
-
----
-
-## 🔬 Learning pipeline
+## 🎯 Как работает ASTRA
 
 ```text
-Historical market data
-        │
-        ├── candles / volume
-        ├── chart structure
-        ├── indicators
-        ├── levels / channels
-        ├── cross-market context
-        └── news context
-        │
-        ▼
-Walk-forward historical simulation
-        │
-        ▼
-Virtual trades / labelled lessons
-        │
-        ├── outcome
-        ├── PnL
-        ├── influencing factors
-        ├── counterfactual
-        └── recommendation
-        │
-        ▼
-Pattern Memory + ML dataset
-        │
-        ▼
-Temporal / out-of-sample model validation
-        │
-        ▼
-Current ML model
-        │
-        ▼
+История рынка
+    ↓
+Свечи + объём + структура + индикаторы
+    ↓
+Новости + ликвидность + контекст крупных активов
+    ↓
+Walk-forward симуляция
+    ↓
+Виртуальные сделки
+    ↓
+Результат / PnL / факторы / counterfactual
+    ↓
+Lesson Memory + Pattern Memory
+    ↓
+Temporal / out-of-sample validation
+    ↓
+ML-модель
+    ↓
 OKX Demo Trading
-        │
-        ▼
-New lessons from Demo
-        │
-        ▼
-Periodic retraining
+    ↓
+Новые Demo-уроки
+    ↓
+Переобучение + контроль drift
 ```
 
-Historical learning is **research-only**. It does not place exchange orders and does not consume a trading balance.
+### Рыночный анализ
 
----
+ASTRA работает не с одним индикатором. В feature/decision pipeline используются свечи и бары, тренды, momentum, HH/HL/LH/LL, уровни, pivots, каналы, пробои и ретесты, Fibonacci-контекст, объём, OBV, VWAP, RSI, Stochastic, CCI, ATR, ADX-подобные признаки, EMA, Bollinger Bands, корреляции, ликвидность/order book, новостной контекст и режим рынка.
 
-## 🌍 Historical coverage
+Наличие отдельного инструмента в коде не считается доказательством его эффективности. Все признаки должны проверяться в общем временном контуре без утечки будущих данных.
 
-ASTRA is configured to use a broad universe of liquid crypto assets. The current target universe contains **35 USDT pairs** and is filtered against instruments actually available on OKX.
+## 🌍 Историческое обучение
 
-The historical learner is designed for **MAX_HISTORY** mode rather than an arbitrary fixed five-year window:
+Целевой universe содержит около **35 ликвидных USDT-пар**. Перед торговым циклом список сверяется с актуальными SPOT-инструментами OKX, поэтому недоступные пары не должны генерировать ошибки внутри worker.
 
-- fetch the oldest data the source can actually provide;
-- use each asset's own first available date;
-- continue pagination until the source stops returning older candles;
-- never invent missing history;
-- use the longest available history for older assets and shorter history for newer listings.
+Исторический learner работает в режиме **MAX_HISTORY**: он пытается использовать максимально доступную историю конкретного инструмента. Для нового токена это может быть меньше пяти лет, для старого — больше. Несуществующие данные не выдумываются.
 
-The exact depth therefore depends on the instrument and on the historical data source.
+Запросы к OKX идут через централизованный rate limiter с retry/backoff. Исторический этап не совершает реальные ордера.
 
----
+## 📚 Память
 
-## 📚 Explicit memory, not just a model file
+### Lesson Memory
 
-ASTRA keeps two different kinds of memory.
+Закрытые виртуальные и Demo-сделки могут сохраняться как структурированные уроки: инструмент, время, направление, вход/выход, режим рынка, признаки, PnL, повлиявший фактор, counterfactual и рекомендация.
 
-### 1. Lesson memory
+### Pattern Memory
 
-Every closed historical or Demo trade can become a structured lesson containing:
+`models/market_memory.json` агрегирует повторяющиеся сочетания условий и хранит количество наблюдений, wins/losses, сглаженный win-rate, PnL и типичные рекомендации.
 
-- entry / exit context;
-- market regime;
-- feature vector;
-- outcome and PnL;
-- influencing factor;
-- counterfactual decision;
-- recommendation for future setups.
-
-### 2. Pattern memory
-
-`models/market_memory.json` aggregates recurring combinations of chart conditions and stores:
-
-- number of observations;
-- wins / losses;
-- smoothed historical win rate;
-- cumulative PnL;
-- recurring recommendations.
-
-This gives the system a second signal layer such as:
-
-```text
-similar pattern seen: 148 times
-smoothed historical win rate: 67%
-historical PnL: positive
-common failure mode: high volatility + weak retest
-```
-
-A single lucky trade is deliberately prevented from dominating memory through smoothing and minimum-observation logic.
-
----
-
-## 🧪 Historical research mode
-
-The historical pass is intentionally **capital-free**.
-
-There is no artificial `$10,000 account` limiting how much historical knowledge ASTRA can collect. A virtual position is only a labelling device used to measure what happened after a hypothetical signal.
-
-The exhaustive learner can generate a large number of lessons across:
-
-- the full configured universe;
-- every valid historical timestamp;
-- multiple strategy families;
-- multiple market regimes;
-- different chart structures and indicator states.
-
-Current technical storage cap for one exhaustive pass: **up to 500,000 labelled lessons**.
-
-That cap is an infrastructure/storage safeguard, not a trading limit.
-
----
+Память дополняет ML, но не заменяет статистическую проверку.
 
 ## 🤖 Demo Trading
 
-After the research model is created, ASTRA can run continuously in **OKX Demo Trading**.
-
-### Demo rules
-
-| Parameter | Current policy |
+| Параметр | Политика |
 |---|---:|
-| Real funds | **Disabled** |
-| OKX mode | **Demo only** |
-| Capital allocated to trading logic | **50% of Demo equity** |
-| Capital reserve | **50%** |
-| Max simultaneous positions | 8 |
-| Risk per trade | 0.4% of allocated capital |
-| Max position fraction | 10% of allocated capital |
-| Minimum ML probability | 0.60 |
-| Max holding time | 48 h |
-| Retraining trigger | every 200 new lessons |
+| Реальные деньги | **Отключены** |
+| Режим | **OKX Demo / paper** |
+| Доля выделенного капитала | **50% Demo equity** |
+| Резерв | **50%** |
+| Максимум позиций | 8 |
+| Риск на сделку | 0,4% выделенного капитала |
+| Максимальная позиция | 10% выделенного капитала |
+| ML threshold | 0,60 |
+| Максимальное удержание | 48 ч |
+| Circuit breaker | включён |
+| Реальный счёт | **не включается автоматически** |
 
-The Demo worker is designed to survive GitHub Actions runner restarts by checkpointing state, lessons and the current model back to the repository.
+GitHub Actions используется как временная инфраструктура. Worker должен сохранять state/checkpoint, уроки и модель, чтобы следующий runner мог продолжить работу.
 
----
+## 🛡️ Readiness Gate
 
-## 🛡️ Real-money gate
+ASTRA не обещает невозможного: гарантировать отсутствие убытков на реальном рынке нельзя. Перед рассмотрением реального счёта используется многоступенчатый фильтр.
 
-ASTRA **does not automatically switch to real trading**.
-
-Before a real account can even be considered, the Demo track must satisfy the readiness gate implemented in `astra_bot/core/readiness.py`.
-
-Current baseline criteria:
-
-| Metric | Requirement |
+| Метрика | Базовый порог |
 |---|---:|
-| Demo trading history | ≥ 30 trading days |
-| Closed trades | ≥ 200 |
+| Demo history | ≥ 30 торговых дней |
+| Закрытые сделки | ≥ 200 |
 | Win rate | ≥ 55% |
-| Profit factor | ≥ 1.3 |
+| Profit factor | ≥ 1,3 |
 | Max drawdown | ≤ 8% |
-| Profitable days | ≥ 55% |
-| Max loss streak | < 6 days |
-| Sharpe | ≥ 1.0 |
-| Readiness score | ≥ 85 / 100 |
+| Прибыльные дни | ≥ 55% |
+| Максимальная серия убытков | < 6 дней |
+| Sharpe | ≥ 1,0 |
+| Readiness score | ≥ 85/100 |
 
-**Important:** no software can guarantee that a real market position will never lose money. These criteria are a safety gate, not a profit guarantee.
-
-The system sends a Telegram notification only when the readiness threshold is reached for the first time. It does not enable live trading by itself.
-
----
+Даже прохождение gate не гарантирует прибыль. Реальный запуск остаётся отдельным ручным решением.
 
 ## 📲 Telegram
 
-The intended operating model is deliberately quiet.
-
-### Morning report — 09:00 MSK
-
-The daily Telegram report is focused on the actual trading result:
+Основной отчёт отправляется **один раз в день в 09:00 по Москве** и содержит:
 
 ```text
-ASTRA BOT — morning report
+ASTRA BOT — утренний отчёт
 
-Trades: 24
-Wins: 15
-Losses: 9
-PnL: +38.42 USDT
+Сделок: 24
+В плюс: 15
+В минус: 9
+PnL: +38,42 USDT
 ```
 
-The readiness system can additionally notify when the Demo history reaches the configured real-account gate.
+Критические события допускают отдельное уведомление: circuit breaker, потеря связи, ошибка данных, инфраструктурная ошибка или изменение readiness.
 
----
-
-## ☁️ Temporary GitHub-hosted operation
-
-The current Demo environment is designed to run on **GitHub Actions** while the project does not yet have a paid VPS.
-
-Because GitHub-hosted runners are not permanent machines, the worker uses a bounded-session architecture:
-
-```text
-runner starts
-   ↓
-Demo worker runs
-   ↓
-checkpoint state + lessons + model
-   ↓
-commit to master
-   ↓
-runner ends
-   ↓
-scheduled workflow starts again
-   ↓
-resume from checkpoint
-```
-
-Later the same Python trading worker can be moved to a VPS / Docker / systemd deployment without changing the core learning architecture.
-
----
-
-## 🏗️ Repository structure
+## 🏗️ Структура проекта
 
 ```text
 astra_bot/
-├── astra_bot/
-│   ├── adapters/             # OKX and exchange adapters
-│   ├── core/                 # state, risk, config, readiness, utilities
-│   ├── engines/              # trading / risk engines
-│   ├── ml/
-│   │   ├── market_understanding.py   # chart → feature vector
-│   │   ├── market_memory.py          # persistent pattern memory
-│   │   ├── model_trainer.py          # model training / persistence
-│   │   ├── weekly_learner.py         # continuous retraining
-│   │   ├── self_play.py              # walk-forward simulation
-│   │   └── news_features.py          # news context
-│   └── strategies/           # strategy implementations
-│
-├── scripts/
-│   ├── pretrain_exhaustive_5y.py     # historical research pass
-│   ├── demo_trader_pro.py             # continuous Demo trader
-│   ├── morning_report.py              # Telegram reporting
-│   └── test_okx.py                    # safe private-API check
-│
-├── models/
-│   ├── lessons.jsonl
-│   ├── market_memory.json
-│   ├── current.pkl
-│   └── demo_state.json
-│
-├── .github/workflows/
-│   ├── demo-trader.yml
-│   ├── daily-train.yml
-│   └── morning-report.yml
-│
-├── tests/
-├── requirements.txt
-└── README.md
+├── astra_bot/                 # основной Python-пакет
+│   ├── adapters/              # OKX, другие биржи, WebSocket
+│   ├── backtester/            # бэктестинг
+│   ├── core/                  # состояние, конфиг, риск, readiness
+│   ├── data/                  # данные
+│   ├── decision/              # торговое решение
+│   ├── engines/               # execution / risk / regime
+│   ├── ml/                    # признаки, память, обучение, drift
+│   ├── paperengine/           # виртуальное исполнение
+│   ├── strategies/            # стратегии
+│   ├── telegram/              # Telegram
+│   └── main.py
+├── scripts/                   # CLI и операционные сценарии
+├── tests/                     # unit + integration
+├── config/                    # конфигурация
+├── docs/                      # документация
+├── deploy/                    # VPS/systemd
+├── monitoring/                # Prometheus/Grafana
+├── models/                    # state и исследовательские артефакты
+├── .github/workflows/         # CI/CD и scheduled jobs
+├── Dockerfile
+├── docker-compose.yml
+├── pyproject.toml
+└── requirements.txt
 ```
 
----
+### Основные точки входа
 
-## 🔐 Security rules
+| Задача | Файл |
+|---|---|
+| Исторический research | `scripts/pretrain_exhaustive_5y.py` |
+| Защищённый Demo worker | `scripts/demo_trader_safe.py` |
+| Проверка OKX private API | `scripts/test_okx.py` |
+| Утренний отчёт | `scripts/morning_report.py` |
+| Decision pipeline | `astra_bot/decision/pipeline.py` |
+| Market understanding | `astra_bot/ml/market_understanding.py` |
+| Pattern memory | `astra_bot/ml/market_memory.py` |
+| ML training | `astra_bot/ml/model_trainer.py` |
+| Temporal validation | `astra_bot/ml/temporal_trainer.py` |
+| Risk engine | `astra_bot/engines/risk_engine.py` |
+| Readiness gate | `astra_bot/core/readiness.py` |
 
-**Never commit secrets into the repository.**
+## ⚙️ GitHub Actions
 
-OKX credentials and Telegram credentials belong in GitHub Secrets or a secure runtime environment.
+| Workflow | Назначение |
+|---|---|
+| `demo-trader.yml` | исторический research + защищённый Demo worker |
+| `daily-train.yml` | ежедневное обучение/обновление |
+| `morning-report.yml` | Telegram-отчёт в 09:00 MSK |
+| `bot.yml` | периодический worker |
+| `market-aware-smoke.yml` | быстрый smoke-test |
 
-Recommended OKX permissions:
+## 🔐 Безопасность
+
+OKX и Telegram credentials хранятся только в GitHub Secrets/runtime environment. Они не должны попадать в исходники, README, артефакты или логи.
+
+Рекомендуемые права OKX:
 
 ```text
-Read     ✅
-Trade    ✅ only when real trading is intentionally enabled
-Withdraw ❌ NEVER
+Read       ✅
+Trade      ❌ до отдельного ручного разрешения
+Withdraw   ❌ НИКОГДА
 ```
 
-The private API verification script checks connectivity/authentication without printing secret values.
+Если секрет когда-либо оказался в Git, его следует считать скомпрометированным и заменить. Удаление файла из последнего коммита не удаляет его из истории.
 
----
+## 🧪 Проверки
 
-## ⚙️ Local development
+```bash
+python scripts/test_okx.py
+python -m pytest tests/unit
+python -m pytest tests/integration
+python scripts/preflight.py
+```
+
+Локальная установка:
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate        # Linux/macOS
+# .venv\Scripts\activate       # Windows
 pip install -r requirements.txt
-
-# Safe OKX private-endpoint check
-python scripts/test_okx.py
-
-# Historical research
-python scripts/pretrain_exhaustive_5y.py --years 5 --max-lessons 500000 --min-samples 2000 --with-news
-
-# Demo trader
-python scripts/demo_trader_pro.py
 ```
 
-For Windows, use the equivalent `.venv\\Scripts\\activate` environment activation.
+## 📖 Документация
 
----
+Начинать с `docs/INDEX.md`. Далее: `ARCHITECTURE.md` → `DECISION_PIPELINE.md` → `SELF_PLAY.md` → `PROFIT_AND_TRAINING.md` → `RISK_AND_GOALS.md` → `GITHUB_ACTIONS.md`.
 
-## 🧭 Project status
+## 🚧 Статус
 
-### Implemented
+**Реализовано:** OKX integration, Demo-контур, risk layer, walk-forward simulation, lesson/pattern memory, ML pipeline, Telegram reporting, GitHub Actions и временный GitHub-hosted runtime.
 
-- [x] OKX integration
-- [x] Demo trading mode
-- [x] Risk engine
-- [x] Walk-forward historical simulation
-- [x] Structured lesson memory
-- [x] Market-understanding feature engine
-- [x] Pattern memory
-- [x] ML model persistence
-- [x] Continuous retraining
-- [x] Five-year / maximum-history research path
-- [x] 35-asset trading universe
-- [x] Telegram morning report
-- [x] Demo readiness gate
-- [x] GitHub Actions temporary runtime
+**В работе:** MAX_HISTORY, длительная Demo-валидация, calibration/drift, надёжный checkpoint/resume и перенос на VPS.
 
-### In progress
+**Запрещено:** автоматическое включение реальной торговли.
 
-- [ ] Long-running validation of the new market-aware model
-- [ ] Continuous Demo performance analysis
-- [ ] Temporal model validation / calibration improvements
-- [ ] VPS deployment profile for permanent operation
+## ⚠️ Дисклеймер
 
-### Not enabled
+ASTRA — экспериментальная система количественного анализа и автоматизации торговли. Исторические результаты, backtest, Demo PnL, ML-метрики и readiness score не гарантируют будущую прибыльность и не исключают убытки.
 
-- [ ] Automatic real-money trading
+## Лицензия
 
----
-
-## ⚠️ Disclaimer
-
-ASTRA is an experimental software system for quantitative research and automated trading.
-
-Historical performance, backtests, Demo results, ML metrics and readiness scores **do not guarantee future profitability**.
-
-Real-money trading should remain disabled until the operator independently reviews the system, the risk limits, the Demo track record and the exchange configuration.
-
----
-
-## 📄 License
-
-MIT License
-
----
-
-## 🔗 Documentation
-
-- [OKX API Documentation](https://www.okx.com/docs-v5/)
-- [Telegram Bot API](https://core.telegram.org/bots/api)
-- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+MIT
