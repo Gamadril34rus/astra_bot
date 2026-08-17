@@ -28,7 +28,7 @@ from astra_bot.core.logger import setup_logging
 from astra_bot.ml.news_features import ASSET_ALIASES, NewsFeatureService, NewsSnapshot, _score_text
 from astra_bot.ml.self_play import SelfPlayConfig, SelfPlayEngine
 from astra_bot.ml.weekly_learner import train_weekly
-from astra_bot.ml.historical_training import fetch_historical_candles
+from astra_bot.ml.historical_training import OKXRateLimiter, fetch_historical_candles
 
 LOGGER = logging.getLogger("pretrain_5y")
 
@@ -64,17 +64,19 @@ def resample_candles(candles, hours: int):
     return out
 
 
-async def _fetch_symbol(client: OKXClient, symbol: str, days: int):
+async def _fetch_symbol(client: OKXClient, symbol: str, days: int, limiter: OKXRateLimiter):
     try:
         bars = await fetch_historical_candles(
             client=client,
             symbol=symbol.replace("/", "-"),
             timeframe="1h",
             lookback_days=days,
-            sleep_between_requests=0.0,
+            sleep_between_requests=0.25,
+            limiter=limiter,
         )
         for bar in bars:
             bar.symbol = symbol
+        LOGGER.info("history %s: %d candles", symbol, len(bars))
         return symbol, bars
     except Exception as exc:
         LOGGER.exception("history failed %s: %s", symbol, exc)
@@ -82,14 +84,22 @@ async def _fetch_symbol(client: OKXClient, symbol: str, days: int):
 
 
 async def fetch_history(days: int) -> dict[str, list]:
+    """Fetch all symbols through one shared limiter.
+
+    The previous implementation created a separate limiter per symbol and then
+    launched all 35 downloads concurrently. That defeated throttling entirely
+    and produced OKX 50011 bursts. A single limiter serializes requests while
+    allowing symbol-level tasks to overlap their waiting periods.
+    """
     client = OKXClient({
         "api_key": "", "api_secret": "", "sandbox": False,
-        "enabled": True, "rate_limit_qps": 8,
+        "enabled": True, "rate_limit_qps": 1.2,
     })
+    limiter = OKXRateLimiter(0.25)
     await client.initialize()
     try:
         results = await asyncio.gather(*[
-            _fetch_symbol(client, symbol, days) for symbol in TRADING_UNIVERSE
+            _fetch_symbol(client, symbol, days, limiter) for symbol in TRADING_UNIVERSE
         ])
         return {symbol: bars for symbol, bars in results}
     finally:
