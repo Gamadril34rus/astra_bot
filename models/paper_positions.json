@@ -109,42 +109,6 @@
       }
     },
     {
-      "id": "ec49cca0-eb00-498c-b803-5971ef710a5a",
-      "symbol": "BNB-USDT",
-      "direction": "long",
-      "entry_price": "606.0",
-      "quantity": "9.796246",
-      "stop_loss": "602.9700",
-      "take_profits": [
-        "609.03000",
-        "611.45400",
-        "613.57500"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "9.796246",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "606.2",
-      "lowest_price": "603.8",
-      "strategy": "scalp5m",
-      "opened_at": 1786984923943,
-      "notes": {
-        "score": 70.0,
-        "ml_probability": null,
-        "edge_pct": 0.18185078712320069,
-        "rr": 1.2000000000000002
-      }
-    },
-    {
       "id": "02e31911-eef1-4f40-8352-d353d35aa7b3",
       "symbol": "LINK-USDT",
       "direction": "short",
@@ -170,7 +134,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "9.383",
-      "lowest_price": "9.376",
+      "lowest_price": "9.358",
       "strategy": "scalp5m",
       "opened_at": 1786993465084,
       "notes": {
@@ -181,6 +145,6 @@
       }
     }
   ],
-  "realized_pnl": "-675.0606097574999000",
+  "realized_pnl": "-704.7432351374999000",
   "initial_capital": "40222.20"
 }
