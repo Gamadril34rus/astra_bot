@@ -32,6 +32,7 @@ jobs:
 
       - name: Send report
         env:
+          PYTHONPATH: ${{ github.workspace }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
-        run: python scripts/morning_report.py
+        run: python -m scripts.morning_report
