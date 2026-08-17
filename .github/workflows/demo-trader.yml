@@ -40,6 +40,7 @@ jobs:
 
       - name: Install
         run: |
+          set -euo pipefail
           python -m pip install --upgrade pip
           pip install -r requirements.txt python-dotenv
 
@@ -53,6 +54,7 @@ jobs:
           echo "ENVIRONMENT=paper" > .env
           echo "PAPER_TRADING=true" >> .env
           echo "OKX_DEMO=1" >> .env
+          echo "PAPER_STARTING_CAPITAL=10000" >> .env
           echo "OKX_API_KEY=$OKX_API_KEY" >> .env
           echo "OKX_API_SECRET=$OKX_API_SECRET" >> .env
           echo "OKX_API_PASSPHRASE=$OKX_API_PASSPHRASE" >> .env
@@ -71,7 +73,6 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import pickle
-
           model_path = Path("models/current.pkl")
           lessons_path = Path("models/lessons.jsonl")
           with model_path.open("rb") as fh:
@@ -80,7 +81,7 @@ jobs:
           print(f"Model: {model_path.stat().st_size} bytes")
           print(f"Historical lessons: {lessons}")
           if lessons < 100:
-              print("WARNING: lesson memory is below the historical-training threshold (100); paper mode continues, while the training workflow must replenish memory.")
+              print("WARNING: lesson memory is below 100; paper mode continues and will accumulate new lessons.")
           else:
               print("Trained model and lesson memory are valid")
           PY
@@ -92,8 +93,6 @@ jobs:
           TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
         run: |
           set -euo pipefail
-          # demo_trader_pro reads credentials from os.environ directly.
-          # Export the .env created above without ever printing its values.
           set -a
           . ./.env
           set +a
@@ -103,8 +102,16 @@ jobs:
           END_AT=$(( $(date +%s) + 330*60 ))
 
           while [ "$(date +%s)" -lt "$END_AT" ]; do
-            echo "Starting safe market-aware demo worker session..."
-            timeout "$SESSION_SECONDS" python scripts/demo_trader_safe.py || true
+            echo "Starting safe market-aware virtual-paper session..."
+            rc=0
+            timeout "$SESSION_SECONDS" python scripts/demo_trader_safe.py || rc=$?
+            if [ "$rc" -ne 0 ] && [ "$rc" -ne 124 ]; then
+              echo "Demo worker failed with exit code $rc"
+              exit "$rc"
+            fi
+            if [ "$rc" -eq 124 ]; then
+              echo "Demo worker reached the checkpoint interval normally."
+            fi
 
             git config user.name "astra-bot"
             git config user.email "bot@users.noreply.github.com"
