@@ -8,6 +8,8 @@ on:
         required: false
         default: true
         type: boolean
+  push:
+    branches: [master]
   schedule:
     - cron: "0 3 * * *"
 
@@ -16,6 +18,8 @@ permissions:
 
 jobs:
   pretrain:
+    # Training artifact commits are intentionally ignored to prevent a self-trigger loop.
+    if: github.actor != 'astra-bot'
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
@@ -54,9 +58,9 @@ jobs:
           WITH_NEWS="${{ inputs.with_news }}"
           if [ -z "$WITH_NEWS" ]; then WITH_NEWS="true"; fi
           if [ "$WITH_NEWS" = "true" ]; then
-            python scripts/pretrain_5y_enhanced.py --years 5 --target-trades 5000 --min-samples 2000 --capital 10000 --with-news
+            python scripts/pretrain_research_runtime.py --years 5 --target-trades 5000 --min-samples 2000 --capital 10000 --with-news
           else
-            python scripts/pretrain_5y_enhanced.py --years 5 --target-trades 5000 --min-samples 2000 --capital 10000
+            python scripts/pretrain_research_runtime.py --years 5 --target-trades 5000 --min-samples 2000 --capital 10000
           fi
 
       - name: Validate research artifacts
