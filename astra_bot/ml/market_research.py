@@ -1,8 +1,7 @@
 """Research-first market study engine.
 
-The engine studies what happens after market conditions/events instead of
-counting profitable trades. It records observations, forward returns and
-aggregated hypotheses for multiple horizons.
+Studies what happens after market conditions/events instead of counting
+profitable trades. Observations are kept separately from trade lessons.
 """
 from __future__ import annotations
 
@@ -16,7 +15,11 @@ import numpy as np
 
 from .market_understanding import compute_market_features
 
-HORIZONS = (5, 15, 60, 240, 1440)
+HORIZONS = {
+    "1h": {"1h": 1, "4h": 4, "1d": 24, "3d": 72, "7d": 168},
+    "4h": {"4h": 1, "1d": 6, "3d": 18, "7d": 42, "30d": 180},
+    "1d": {"1d": 1, "3d": 3, "7d": 7, "30d": 30, "90d": 90},
+}
 EVENT_KEYS = (
     "breakout_up", "breakout_down", "retest_support", "retest_resistance",
     "structure_hh", "structure_hl", "structure_lh", "structure_ll",
@@ -47,27 +50,26 @@ def research_history(
     history: dict[str, list[Any]],
     output: Path = Path("models/research_observations.jsonl"),
     hypotheses_output: Path = Path("models/research_hypotheses.json"),
-    sample_every: dict[str, int] | None = None,
+    sample_every: int = 12,
+    append: bool = False,
 ) -> dict[str, int]:
     """Study historical market events and their forward consequences."""
-    sample_every = sample_every or {"1h": 12, "4h": 3, "1d": 1}
-    aggregates: dict[str, dict[str, Any]] = defaultdict(lambda: {
-        "observations": 0, "positive": 0, "negative": 0,
-        "returns": {str(h): [] for h in HORIZONS},
-    })
+    aggregates: dict[str, dict[str, Any]] = defaultdict(lambda: {"observations": 0, "returns": defaultdict(list)})
     stats = {"observations": 0, "events": 0, "symbols": 0}
     output.parent.mkdir(parents=True, exist_ok=True)
+    mode = "a" if append else "w"
 
-    with output.open("w", encoding="utf-8") as out:
+    with output.open(mode, encoding="utf-8") as out:
         for symbol, candles in history.items():
             if len(candles) < 220:
                 continue
             stats["symbols"] += 1
             timeframe = getattr(candles[-1], "timeframe", "1h") or "1h"
-            step = max(1, int(sample_every.get(timeframe, 12)))
+            horizons = HORIZONS.get(timeframe, HORIZONS["1h"])
+            step = max(1, int(sample_every))
             closes = np.asarray([float(c.close) for c in candles], dtype=float)
-            for i in range(200, len(candles) - 5, step):
-                # Feature engine is explicitly causal: only candles through i.
+            max_forward = max(horizons.values())
+            for i in range(200, len(candles) - max_forward, step):
                 features = compute_market_features(candles[: i + 1], timeframe=timeframe)
                 events = _events(features)
                 if not events:
@@ -75,21 +77,13 @@ def research_history(
                 stats["observations"] += 1
                 stats["events"] += len(events)
                 regime = _regime(features)
-                returns: dict[str, float | None] = {}
-                for horizon in HORIZONS:
-                    j = i + horizon if i + horizon < len(closes) else None
-                    returns[str(horizon)] = None if j is None else float(closes[j] / closes[i] - 1.0)
+                returns = {label: float(closes[i + bars] / closes[i] - 1.0) for label, bars in horizons.items()}
                 for event in events:
                     key = f"{event}|{timeframe}|{regime}"
                     agg = aggregates[key]
                     agg["observations"] += 1
-                    for h, value in returns.items():
-                        if value is not None:
-                            agg["returns"][h].append(value)
-                            if value > 0:
-                                agg["positive"] += 1 if h == "60" else 0
-                            elif value < 0:
-                                agg["negative"] += 1 if h == "60" else 0
+                    for label, value in returns.items():
+                        agg["returns"][label].append(value)
                 row = {
                     "record_type": "market_research",
                     "symbol": symbol,
@@ -107,34 +101,27 @@ def research_history(
         if agg["observations"] < 20:
             continue
         horizon_stats = {}
-        for h, values in agg["returns"].items():
-            if not values:
-                continue
+        for label, values in agg["returns"].items():
             arr = np.asarray(values, dtype=float)
-            mean = float(np.mean(arr))
-            median = float(np.median(arr))
-            positive_rate = float(np.mean(arr > 0))
-            horizon_stats[h] = {
+            if not len(arr):
+                continue
+            horizon_stats[label] = {
                 "samples": int(len(arr)),
-                "mean_return": mean,
-                "median_return": median,
-                "positive_rate": positive_rate,
+                "mean_return": float(np.mean(arr)),
+                "median_return": float(np.median(arr)),
+                "positive_rate": float(np.mean(arr > 0)),
                 "std": float(np.std(arr)),
             }
         hypotheses[key] = {
             "observations": agg["observations"],
             "horizons": horizon_stats,
             "status": "candidate",
-            "note": "Requires out-of-sample confirmation before being treated as a rule.",
+            "note": "Candidate only; require out-of-sample confirmation before using as a rule.",
         }
 
     hypotheses_output.parent.mkdir(parents=True, exist_ok=True)
     hypotheses_output.write_text(
-        json.dumps({
-            "updated": datetime.now(tz=UTC).isoformat(),
-            "stats": stats,
-            "hypotheses": hypotheses,
-        }, ensure_ascii=False, indent=2),
+        json.dumps({"updated": datetime.now(tz=UTC).isoformat(), "stats": stats, "hypotheses": hypotheses}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     return stats
