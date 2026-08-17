@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Five-year ASTRA pretrain with the full market-understanding feature set."""
+"""Five-year ASTRA pretrain with research-first market understanding."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import numpy as np
 
 from astra_bot.ml import self_play as sp
 from astra_bot.ml.market_memory import MarketMemory
+from astra_bot.ml.market_research import research_history
 from astra_bot.ml.market_understanding import compute_market_features
 from astra_bot.ml.news_features import NewsFeatureService
 from scripts import pretrain_5y
@@ -52,7 +53,6 @@ def install_enhanced_self_play() -> None:
 
 
 def install_news_cache_compat() -> None:
-    # Older pretrain_5y.py calls save_cache(), current implementation exposes _save_cache().
     if not hasattr(NewsFeatureService, "save_cache"):
         NewsFeatureService.save_cache = NewsFeatureService._save_cache
 
@@ -78,6 +78,21 @@ async def main() -> int:
 
     if args.with_news:
         await pretrain_5y.build_monthly_news_cache(Path("models/news_cache.json"), args.years)
+
+    # Research comes before trading simulation. It studies events and their
+    # consequences on multiple horizons; trade count is not the learning KPI.
+    research_stats = research_history(
+        usable,
+        output=Path("models/research_observations.jsonl"),
+        hypotheses_output=Path("models/research_hypotheses.json"),
+        sample_every={"1h": 12, "4h": 3, "1d": 1},
+    )
+    print(
+        "Research-first: "
+        f"symbols={research_stats['symbols']} "
+        f"observations={research_stats['observations']} "
+        f"events={research_stats['events']}"
+    )
 
     news = NewsFeatureService(Path("models/news_cache.json"))
     for tf, hours in (("1h", 1), ("4h", 4), ("1d", 24)):
