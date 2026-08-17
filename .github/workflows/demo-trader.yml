@@ -7,6 +7,8 @@ on:
     paths:
       - "scripts/demo_trader_pro.py"
       - "scripts/demo_trader_safe.py"
+      - "scripts/pretrain_5y_enhanced.py"
+      - "astra_bot/ml/research_engine.py"
       - "astra_bot/ml/market_understanding.py"
       - "astra_bot/ml/market_memory.py"
       - "astra_bot/core/readiness.py"
@@ -81,10 +83,30 @@ jobs:
           print(f"Model: {model_path.stat().st_size} bytes")
           print(f"Historical lessons: {lessons}")
           if lessons < 100:
-              print("WARNING: lesson memory is below 100; paper mode continues and will accumulate new lessons.")
+              print("WARNING: trade lessons are below 100; research memory is the primary learning source.")
           else:
               print("Trained model and lesson memory are valid")
           PY
+
+      - name: Validate research memory
+        env:
+          PYTHONPATH: .
+        run: |
+          set -euo pipefail
+          if [ -s models/research_summary.json ]; then
+            python - <<'PY'
+          import json
+          from pathlib import Path
+          summary = json.loads(Path("models/research_summary.json").read_text(encoding="utf-8"))
+          observations = sum(int(v.get("observations", 0)) for v in summary.values())
+          oos = sum(int(v.get("validation_observations", 0)) for v in summary.values())
+          print(f"Research memory: observations={observations} oos={oos}")
+          if observations <= 0:
+              raise SystemExit("Research memory exists but contains no observations")
+          PY
+          else
+            echo "Research memory not present yet; demo mode can continue."
+          fi
 
       - name: Start continuous safe market-aware demo worker with checkpoints
         env:
