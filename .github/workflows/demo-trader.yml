@@ -92,6 +92,11 @@ jobs:
           TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
         run: |
           set -euo pipefail
+          # demo_trader_pro reads credentials from os.environ directly.
+          # Export the .env created above without ever printing its values.
+          set -a
+          . ./.env
+          set +a
           mkdir -p logs models
 
           SESSION_SECONDS=3000
@@ -114,6 +119,7 @@ jobs:
       - name: Final checkpoint
         if: always()
         run: |
+          set -euo pipefail
           git config user.name "astra-bot"
           git config user.email "bot@users.noreply.github.com"
           git add -f models/demo_state.json models/lessons*.jsonl models/current.pkl models/market_memory.json models/market_aware_model.ok models/risk_guard.json models/readiness.json models/*.pkl 2>/dev/null || true
