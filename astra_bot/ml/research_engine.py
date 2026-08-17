@@ -46,8 +46,47 @@ def _regime(f: dict[str, float]) -> str:
     return "transition"
 
 
-def _events(f: dict[str, float]) -> list[str]:
-    return [name for name in EVENT_FEATURES if float(f.get(name, 0.0)) > 0.5]
+def _events(
+    f: dict[str, float],
+    closes: np.ndarray,
+    highs: np.ndarray,
+    lows: np.ndarray,
+    volumes: np.ndarray,
+    i: int,
+) -> list[str]:
+    """Combine explicit feature flags with raw OHLCV-derived event flags."""
+    labels = [name for name in EVENT_FEATURES if float(f.get(name, 0.0)) > 0.5]
+    if i >= 20:
+        recent_volume = volumes[max(0, i - 20):i]
+        median_volume = float(np.median(recent_volume)) if len(recent_volume) else 0.0
+        if median_volume > 0 and volumes[i] >= median_volume * 2.0:
+            labels.append("volume_spike")
+    if i >= 21:
+        recent_atr = []
+        for j in range(i - 20, i + 1):
+            prev = closes[j - 1]
+            tr = max(highs[j] - lows[j], abs(highs[j] - prev), abs(lows[j] - prev))
+            recent_atr.append(tr / max(closes[j], 1e-12))
+        current_atr = recent_atr[-1]
+        base_atr = float(np.median(recent_atr[:-1])) if len(recent_atr) > 1 else 0.0
+        if base_atr > 0 and current_atr >= base_atr * 1.5:
+            labels.append("atr_expansion")
+    rsi = float(f.get("rsi_14", 50.0))
+    if rsi >= 70:
+        labels.append("rsi_overbought")
+    elif rsi <= 30:
+        labels.append("rsi_oversold")
+    bb_width = f.get("bb_width_pct")
+    if bb_width is not None and float(bb_width) <= 2.0:
+        labels.append("bollinger_squeeze")
+    slope20 = float(f.get("trend_slope_20", 0.0))
+    slope50 = float(f.get("trend_slope_50", 0.0))
+    if abs(slope20) > abs(slope50) * 1.35 and abs(slope20) > 0.01:
+        labels.append("trend_acceleration")
+    elif abs(slope20) < abs(slope50) * 0.65 and abs(slope50) > 0.01:
+        labels.append("trend_deceleration")
+    # Preserve order while removing duplicates.
+    return list(dict.fromkeys(labels))
 
 
 def _forward(closes: np.ndarray, highs: np.ndarray, lows: np.ndarray, i: int, bars: int) -> dict[str, float]:
@@ -121,9 +160,8 @@ def research_history_v2(
         "count": 0, "validation_count": 0,
     })
     stats = {"symbols": 0, "observations": 0, "events": 0, "baseline_observations": 0, "validation_observations": 0}
-    mode = "w"
 
-    with output.open(mode, encoding="utf-8") as out:
+    with output.open("w", encoding="utf-8") as out:
         for symbol, candles in history.items():
             if len(candles) < 240:
                 continue
@@ -134,6 +172,7 @@ def research_history_v2(
             closes = np.asarray([float(c.close) for c in candles], dtype=float)
             highs = np.asarray([float(c.high) for c in candles], dtype=float)
             lows = np.asarray([float(c.low) for c in candles], dtype=float)
+            volumes = np.asarray([float(c.volume) for c in candles], dtype=float)
             split = int(len(candles) * (1.0 - validation_fraction))
             max_forward = max(horizons.values())
             for i in range(200, len(candles) - max_forward, step):
@@ -145,7 +184,7 @@ def research_history_v2(
                     except Exception:
                         pass
                 regime = _regime(f)
-                events = _events(f)
+                events = _events(f, closes, highs, lows, volumes, i)
                 labels = events or ["baseline"]
                 if events:
                     stats["events"] += len(events)
@@ -184,19 +223,18 @@ def research_history_v2(
     hypotheses: dict[str, Any] = {}
     p_candidates: list[tuple[str, float]] = []
     for key, agg in aggregates.items():
-        if len(agg["discovery"].get(next(iter(HORIZONS["1h"])), [])) < min_samples and agg["count"] < min_samples:
+        if agg["count"] < min_samples:
             continue
         horizons: dict[str, Any] = {}
         for horizon, values in agg["discovery"].items():
             if len(values) < min_samples:
                 continue
             s = _summary(values)
-            # Approximate two-sided normal-tail p-value from the discovery t-stat.
             t = abs(float(s.get("t_stat", 0.0)))
             p = math.erfc(t / math.sqrt(2.0)) if t else 1.0
             val = _summary(agg["validation"].get(horizon, []))
             horizons[horizon] = {"discovery": s, "validation": val, "discovery_p": p}
-            if horizon == "1h":
+            if horizon == next(iter(horizons)):
                 p_candidates.append((key, p))
         if horizons:
             hypotheses[key] = {
@@ -212,10 +250,10 @@ def research_history_v2(
     confirmed = 0
     for key, item in hypotheses.items():
         q = qvalues.get(key, 1.0)
-        item["fdr_q_1h"] = q
-        one = item["horizons"].get("1h", {})
-        val = one.get("validation", {})
-        discovery_mean = float(one.get("discovery", {}).get("mean", 0.0))
+        item["fdr_q"] = q
+        primary = next(iter(item["horizons"].values()), {})
+        val = primary.get("validation", {})
+        discovery_mean = float(primary.get("discovery", {}).get("mean", 0.0))
         validation_mean = float(val.get("mean", 0.0))
         stable_sign = discovery_mean == 0 or validation_mean == 0 or (discovery_mean > 0) == (validation_mean > 0)
         enough_oos = int(val.get("samples", 0)) >= min_samples
