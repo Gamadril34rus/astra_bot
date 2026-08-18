@@ -1,6 +1,6 @@
-"""Historical OKX loader with conservative serialized throttling and retries."""
+"""Historical OKX loader with conservative serialized throttling, retries and progress checkpoints."""
 from __future__ import annotations
-import asyncio, logging, random, time
+import asyncio, json, logging, random, time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -14,14 +14,14 @@ from .model_registry import ModelRegistry
 from .model_trainer import ModelTrainer, TrainingConfig, TrainingData
 logger = logging.getLogger(__name__)
 OKX_MAX_CANDLES_PER_REQUEST = 100
-OKX_MIN_REQUEST_INTERVAL = 0.75
-OKX_MAX_RETRIES = 10
-OKX_MAX_BACKOFF = 90.0
+OKX_MIN_REQUEST_INTERVAL = 0.9
+OKX_MAX_RETRIES = 6
+OKX_MAX_BACKOFF = 60.0
 
 class OKXRateLimiter:
-    """One process-wide serialized request stream prevents 50011 bursts."""
+    """One serialized request stream shared by the whole historical scan."""
     def __init__(self, min_interval: float = OKX_MIN_REQUEST_INTERVAL) -> None:
-        self.min_interval = min_interval
+        self.min_interval = max(min_interval, OKX_MIN_REQUEST_INTERVAL)
         self._lock = asyncio.Lock()
         self._last_request = 0.0
     async def wait(self) -> None:
@@ -43,7 +43,7 @@ async def _request_with_retry(client: OKXClient, params: dict[str, Any], limiter
             rate_limited = "50011" in text or "Too Many Requests" in text or "429" in text
             if not rate_limited and attempt >= 2:
                 raise
-            delay = min(OKX_MAX_BACKOFF, 2.0 ** min(attempt, 6)) + random.uniform(0.2, 1.2)
+            delay = min(OKX_MAX_BACKOFF, 2.0 ** min(attempt + 1, 6)) + random.uniform(0.2, 1.2)
             logger.warning("OKX request failed (%s), retry %d/%d in %.1fs", exc, attempt + 1, OKX_MAX_RETRIES, delay)
             await asyncio.sleep(delay)
     raise RuntimeError(f"OKX request failed after retries: {last_error}")
@@ -69,23 +69,33 @@ async def fetch_historical_candles(client: OKXClient, symbol: str, timeframe: st
     collected: dict[int, models.Candle] = {}
     after: int | None = None
     seen: set[int] = set()
+    checkpoint = Path("artifacts/history_checkpoint.json")
+    checkpoint.parent.mkdir(parents=True, exist_ok=True)
+    key = f"{symbol}|{timeframe}|{lookback_days}"
     while len(collected) < total_candles:
         params: dict[str, Any] = {"instId": symbol.replace("/", "-"), "bar": client._convert_timeframe(timeframe), "limit": OKX_MAX_CANDLES_PER_REQUEST}
         if after is not None: params["after"] = after
         data = await _request_with_retry(client, params, limiter)
-        if not data: break
+        if not data:
+            break
         oldest: int | None = None
         for item in data:
             candle = models.Candle(exchange="okx", symbol=symbol.replace("/", "-"), timeframe=timeframe, open_time=int(item[0]), open=Decimal(item[1]), high=Decimal(item[2]), low=Decimal(item[3]), close=Decimal(item[4]), volume=Decimal(item[5]), quote_volume=Decimal(item[6]) if len(item) > 6 else Decimal("0"), trades_count=0)
             collected[candle.open_time] = candle
             oldest = candle.open_time if oldest is None else min(oldest, candle.open_time)
-        if oldest is None or oldest in seen or oldest == after: break
+        if oldest is None or oldest in seen or oldest == after:
+            break
         seen.add(oldest); after = oldest
-        if len(data) < OKX_MAX_CANDLES_PER_REQUEST: break
+        if len(data) < OKX_MAX_CANDLES_PER_REQUEST:
+            break
+        if len(collected) % 1000 < len(data):
+            logger.info("history progress %s: %d/%d candles", key, len(collected), total_candles)
+        checkpoint.write_text(json.dumps({"key": key, "candles": len(collected), "oldest": after, "updated_at": time.time()}), encoding="utf-8")
     candles = sorted(collected.values(), key=lambda c: c.open_time)
     cutoff_ms = int((datetime.now(tz=UTC) - timedelta(days=lookback_days)).timestamp() * 1000)
-    return [c for c in candles if c.open_time >= cutoff_ms]
-
+    result = [c for c in candles if c.open_time >= cutoff_ms]
+    logger.info("history complete %s: %d candles", key, len(result))
+    return result
 
 def _walk_forward_labels(candles: list[models.Candle], forward_periods: int = 4, take_profit_pct: float = 0.015, stop_loss_pct: float = 0.01) -> list[dict[str, Any]]:
     labels=[]; closes=[float(c.close) for c in candles]; highs=[float(c.high) for c in candles]; lows=[float(c.low) for c in candles]
