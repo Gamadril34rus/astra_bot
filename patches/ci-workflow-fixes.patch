@@ -1,0 +1,86 @@
+diff --git a/.github/workflows/daily-train.yml b/.github/workflows/daily-train.yml
+index 55f29b3..56c086a 100644
+--- a/.github/workflows/daily-train.yml
++++ b/.github/workflows/daily-train.yml
+@@ -90,20 +90,54 @@ jobs:
+       - name: Persist research, lessons, memory and model
+         run: |
+           set -euo pipefail
++          shopt -s nullglob
+           git config user.name "astra-bot"
+           git config user.email "bot@users.noreply.github.com"
+-          git add -f \
+-            models/current.pkl \
+-            models/lessons*.jsonl \
+-            models/news_cache.json \
+-            models/market_memory.json \
+-            models/pretrain_progress.json \
+-            models/research_observations*.jsonl \
+-            models/research_hypotheses*.json \
++          # Не все артефакты обязательны: без NEWS_API_KEY не создаётся
++          # news_cache.json, при недостатке уроков current.pkl не пересоздаётся.
++          # git add на отсутствующем pathspec убивал весь шаг (exit 128).
++          artifacts=(
++            models/current.pkl
++            models/lessons*.jsonl
++            models/news_cache.json
++            models/market_memory.json
++            models/pretrain_progress.json
++            models/research_observations*.jsonl
++            models/research_hypotheses*.json
+             models/research_summary.json
++          )
++          present=()
++          for f in "${artifacts[@]}"; do
++            if [ -f "$f" ]; then
++              present+=("$f")
++            else
++              echo "skip missing artifact: $f"
++            fi
++          done
++          if [ "${#present[@]}" -eq 0 ]; then
++            echo "No training artifacts found"
++            exit 0
++          fi
++          git add -f "${present[@]}"
+           if git diff --cached --quiet; then
+             echo "No training artifacts changed"
+-          else
+-            git commit -m "chore(training): pretrain historical month $(date -u +%Y-%m)"
+-            git push origin master
++            exit 0
++          fi
++          git commit -m "chore(training): pretrain historical month $(date -u +%Y-%m)"
++          # Пока шло обучение (~30 мин), воркфлоу «Bot (always-on)» успевает
++          # влить state-коммиты в master — без rebase push отклоняется
++          # (non-fast-forward), что и роняло каждый запуск.
++          pushed=0
++          for attempt in 1 2 3; do
++            if git push origin master; then
++              pushed=1
++              break
++            fi
++            echo "push attempt $attempt rejected; rebasing onto origin/master"
++            git fetch origin master
++            git rebase origin/master
++          done
++          if [ "$pushed" -ne 1 ]; then
++            echo "Failed to push training artifacts after 3 attempts"
++            exit 1
+           fi
+diff --git a/.github/workflows/morning-report.yml b/.github/workflows/morning-report.yml
+index 2ddd8f6..aa5ce96 100644
+--- a/.github/workflows/morning-report.yml
++++ b/.github/workflows/morning-report.yml
+@@ -27,8 +27,9 @@ jobs:
+         with:
+           python-version: "3.11"
+ 
+-      - name: Install Telegram dependency
+-        run: pip install python-telegram-bot
++      - name: Install dependencies
++        # morning_report импортирует astra_bot.core → core/config.py требует yaml.
++        run: pip install python-telegram-bot pyyaml
+ 
+       - name: Send report
+         env:
