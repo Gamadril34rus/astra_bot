@@ -11,17 +11,22 @@ on:
   push:
     branches: [master]
   schedule:
-    - cron: "0 3 * * *"
+    # One bounded historical month per run. The progress file advances automatically.
+    - cron: "0 */2 * * *"
 
 permissions:
   contents: write
 
+concurrency:
+  group: astra-pretrain-monthly
+  cancel-in-progress: false
+
 jobs:
   pretrain:
-    # Training artifact commits are intentionally ignored to prevent a self-trigger loop.
     if: github.actor != 'astra-bot'
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    # A single month is finite; do not let a long historical run consume the whole runner indefinitely.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,7 +55,7 @@ jobs:
           echo "NEWS_API_KEY=$NEWS_API_KEY" >> .env
           chmod 600 .env
 
-      - name: Five-year research-first pretrain
+      - name: Five-year research-first pretrain (one month)
         env:
           PYTHONPATH: .
         run: |
@@ -70,16 +75,17 @@ jobs:
           set -euo pipefail
           test -s models/research_observations.jsonl
           test -s models/research_summary.json
+          test -s models/pretrain_progress.json
           python - <<'PY'
           import json
           from pathlib import Path
           summary = json.loads(Path("models/research_summary.json").read_text(encoding="utf-8"))
+          progress = json.loads(Path("models/pretrain_progress.json").read_text(encoding="utf-8"))
           observations = sum(int(v.get("observations", 0)) for v in summary.values())
           oos = sum(int(v.get("validation_observations", 0)) for v in summary.values())
-          events = sum(int(v.get("events", 0)) for v in summary.values())
           if observations <= 0 or oos <= 0:
               raise SystemExit("Research did not produce discovery and OOS observations")
-          print(f"research observations={observations} events={events} oos={oos}")
+          print(f"month={progress['completed_months'][-1] if progress['completed_months'] else 'n/a'} observations={observations} oos={oos} next={progress['next_month']}")
           PY
 
       - name: Persist research, lessons, memory and model
@@ -92,13 +98,13 @@ jobs:
             models/lessons*.jsonl \
             models/news_cache.json \
             models/market_memory.json \
-            models/training_state.json \
+            models/pretrain_progress.json \
             models/research_observations*.jsonl \
             models/research_hypotheses*.json \
             models/research_summary.json
           if git diff --cached --quiet; then
             echo "No training artifacts changed"
           else
-            git commit -m "chore(training): research-first pretrain $(date -u +%Y-%m-%d)"
+            git commit -m "chore(training): pretrain historical month $(date -u +%Y-%m)"
             git push origin master
           fi
