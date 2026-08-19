@@ -30,6 +30,8 @@ EVENT_FEATURES = (
     "channel_breakout_up_50", "channel_breakout_down_50", "volume_spike",
     "rsi_overbought", "rsi_oversold", "bollinger_squeeze", "atr_expansion",
     "trend_acceleration", "trend_deceleration",
+    # «Простая книга торговли»: формы свечей из раздела 2, которых не было.
+    "candle_spinning_top", "three_white_soldiers", "three_black_crows",
 )
 
 
@@ -85,6 +87,43 @@ def _events(
         labels.append("trend_acceleration")
     elif abs(slope20) < abs(slope50) * 0.65 and abs(slope50) > 0.01:
         labels.append("trend_deceleration")
+
+    # --- «Простая книга торговли»: контекстные события разделов 2–3. ---
+    # Книга подчёркивает, что форма свечи работает только в контексте
+    # тренда: молот — после снижения у поддержки (стр. 13), повешенный —
+    # в конце восходящего тренда (стр. 18), и т.д.
+    prior_down = slope20 < -0.005
+    prior_up = slope20 > 0.005
+    if float(f.get("candle_hammer", 0.0)) > 0.5 and prior_down:
+        labels.append("book_hammer_reversal")
+    if float(f.get("candle_hammer", 0.0)) > 0.5 and prior_up:
+        labels.append("book_hanging_man_top")
+    if float(f.get("candle_shooting_star", 0.0)) > 0.5 and prior_up:
+        labels.append("book_shooting_star_top")
+    # «Три солдата/вороны» надёжнее с подтверждением RSI (стр. 16).
+    if float(f.get("three_white_soldiers", 0.0)) > 0.5 and rsi < 70:
+        labels.append("book_soldiers_reversal_up")
+    if float(f.get("three_black_crows", 0.0)) > 0.5 and rsi > 30:
+        labels.append("book_crows_reversal_down")
+    # Доджи/волчок — нерешительность: книга велит подождать несколько
+    # свечей (стр. 24); исследуем, что происходит после такой паузы.
+    if float(f.get("candle_doji", 0.0)) > 0.5 or float(f.get("candle_spinning_top", 0.0)) > 0.5:
+        labels.append("book_indecision_pause")
+    # Ключевой сетап раздела 3: пробой уровня → ретест → подтверждающая
+    # свеча в сторону пробоя. Цена на/над пробитым сопротивлением
+    # (pivot_high_distance_atr <= 0) в зоне ретеста + бычья свеча.
+    if (
+        float(f.get("retest_resistance", 0.0)) > 0.5
+        and float(f.get("pivot_high_distance_atr", 0.0)) <= 0.05
+        and float(f.get("candle_bull", 0.0)) > 0.5
+    ):
+        labels.append("book_breakout_retest_long")
+    if (
+        float(f.get("retest_support", 0.0)) > 0.5
+        and float(f.get("pivot_low_distance_atr", 0.0)) >= -0.05
+        and float(f.get("candle_bear", 0.0)) > 0.5
+    ):
+        labels.append("book_breakout_retest_short")
     # Preserve order while removing duplicates.
     return list(dict.fromkeys(labels))
 

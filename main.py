@@ -311,6 +311,14 @@ class AstraBot:
             self._paper_engine.add_strategy(
                 "mean_reversion", MeanReversionStrategy()
             )
+        # Стратегия из «Простой книги торговли»: пробой → ретест →
+        # подтверждающая свеча (анти-FOMO, сетапы 1–7 книги).
+        if settings.strategies.get("book_breakout", {}).get("enabled", False):
+            from astra_bot.strategies.book_breakout import BookBreakoutStrategy
+
+            self._paper_engine.add_strategy(
+                "book_breakout", BookBreakoutStrategy()
+            )
 
         # Telegram-бот поднимается только если задан токен и хотя бы один
         # админский ID — иначе приложение спокойно работает без него.

@@ -17,12 +17,16 @@
 from __future__ import annotations
 
 import math
-from typing import Iterable
 
 import numpy as np
 
 from ..core import models
-from ..core.utils import calculate_atr, calculate_bollinger_bands, calculate_rsi, exponential_moving_average
+from ..core.utils import (
+    calculate_atr,
+    calculate_bollinger_bands,
+    calculate_rsi,
+    exponential_moving_average,
+)
 
 
 def _arr(candles: list[models.Candle]):
@@ -229,6 +233,11 @@ def _candle_features(open_: np.ndarray, high: np.ndarray, low: np.ndarray, close
         "candle_doji": float(body <= rng * 0.10),
         "candle_hammer": float(lower >= body * 2.0 and upper <= body * 0.75),
         "candle_shooting_star": float(upper >= body * 2.0 and lower <= body * 0.75),
+        # Spinning top / волчок (книга, стр. 25): короткое тело посередине
+        # свечи, обе тени длиннее тела — знак нерешительности/консолидации.
+        "candle_spinning_top": float(
+            body <= rng * 0.32 and upper >= body and lower >= body
+        ),
         "candle_inside_bar": float(h <= ph and l >= pl),
         "candle_range_vs_prev": _safe(rng / max(ph - pl, 1e-9)),
     })
@@ -242,6 +251,35 @@ def _candle_features(open_: np.ndarray, high: np.ndarray, low: np.ndarray, close
         mid1 = (oo + cc) / 2.0
         out["morning_star"] = float(cc < oo and close[-2] > open_[-2] and c > mid1)
         out["evening_star"] = float(cc > oo and close[-2] < open_[-2] and c < mid1)
+
+        # «Три белых солдата» (книга, стр. 16): три длинных зелёных свечи
+        # подряд, каждая открывается и закрывается выше предыдущей.
+        # «Три чёрные вороны» (стр. 22): зеркально — длинные красные свечи
+        # с короткими тенями, каждая закрывается заметно ниже.
+        o3, o2_, o1_ = float(open_[-3]), float(open_[-2]), o
+        c3, c2_, c1_ = cc, float(close[-2]), c
+        bulls3 = c3 > o3 and c2_ > o2_ and c1_ > o1_
+        bears3 = c3 < o3 and c2_ < o2_ and c1_ < o1_
+        rising3 = c3 < c2_ < c1_
+        falling3 = c3 > c2_ > c1_
+        long_bodies = []
+        long_bodies_down = []
+        for j in (3, 2, 1):
+            hj, lj = float(high[-j]), float(low[-j])
+            oj, cj = float(open_[-j]), float(close[-j])
+            rng_j = max(hj - lj, 1e-9)
+            body_j = abs(cj - oj)
+            upper_j = hj - max(oj, cj)
+            long_bodies.append(body_j >= rng_j * 0.5)
+            long_bodies_down.append(
+                body_j >= rng_j * 0.6 and upper_j <= rng_j * 0.25
+            )
+        out["three_white_soldiers"] = float(
+            bulls3 and rising3 and o3 <= o2_ <= o1_ and all(long_bodies)
+        )
+        out["three_black_crows"] = float(
+            bears3 and falling3 and o3 >= o2_ >= o1_ and all(long_bodies_down)
+        )
     return out
 
 
