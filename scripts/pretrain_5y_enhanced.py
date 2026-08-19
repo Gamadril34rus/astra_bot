@@ -14,7 +14,6 @@ from astra_bot.ml.research_engine import research_history_v2
 from scripts import pretrain_5y
 PROGRESS=Path("models/pretrain_progress.json")
 
-
 def install_enhanced_self_play():
     original_snapshot=sp._feature_snapshot; news_service=NewsFeatureService(Path("models/news_cache.json"))
     def enhanced_snapshot(strategy,candles,cross_snapshot=None):
@@ -49,24 +48,19 @@ def merge_jsonl(pattern:str,target:Path):
                 if line.strip(): out.write(line+"\n")
 
 async def main()->int:
-    pretrain_5y.setup_logging(); pretrain_5y.argparse.ArgumentParser
+    pretrain_5y.setup_logging()
     parser=pretrain_5y.argparse.ArgumentParser(description="ASTRA monthly historical pretrain")
     parser.add_argument("--years",type=int,default=5); parser.add_argument("--target-trades",type=int,default=5000); parser.add_argument("--min-samples",type=int,default=2000); parser.add_argument("--capital",type=float,default=10000.0); parser.add_argument("--with-news",action="store_true"); args=parser.parse_args()
     install_enhanced_self_play(); state=load_progress(args.years); month=state["next_month"]; start,end=month_bounds(month); now=datetime.now(tz=UTC)
     if start>=now: print(f"PRETRAIN COMPLETE: {len(state['completed_months'])} months"); return 0
-    end=min(end,now); month_days=max(31,(end-start).days); warmup_days=300
+    is_partial=end>now; end=min(end,now); month_days=max(31,(end-start).days); warmup_days=300
     print(f"MONTH START {month}: {start.date()} -> {end.date()} | warmup={warmup_days}d",flush=True)
     history=await pretrain_5y.fetch_history(month_days+warmup_days,end_time_ms=int(end.timestamp()*1000))
     usable={s:bars for s,bars in history.items() if len(bars)>=240}
     if not usable: raise RuntimeError("Не удалось получить достаточную историю за месяц")
-    # Keep warmup for indicators, but research/self-play only score candles inside the target month.
-    start_ms=int(start.timestamp()*1000); end_ms=int(end.timestamp()*1000)
-    month_history={}
+    start_ms=int(start.timestamp()*1000); end_ms=int(end.timestamp()*1000); month_history={}
     for symbol,bars in usable.items():
-        month_history[symbol]=[b for b in bars if b.open_time<=end_ms and b.open_time>=start_ms]
-        # Research engine gets warmup + target month to avoid cold indicators.
-        warm=[b for b in history[symbol] if b.open_time<start_ms][-260:]
-        month_history[symbol]=warm+month_history[symbol]
+        target=[b for b in bars if start_ms<=b.open_time<=end_ms]; warm=[b for b in bars if b.open_time<start_ms][-260:]; month_history[symbol]=warm+target
     news=NewsFeatureService(Path("models/news_cache.json"))
     if args.with_news: await pretrain_5y.build_monthly_news_cache(Path("models/news_cache.json"),args.years,start,end); news=NewsFeatureService(Path("models/news_cache.json"))
     summary={}
@@ -78,14 +72,12 @@ async def main()->int:
         cfg=sp.SelfPlayConfig(timeframe=tf,symbols=tuple(tf_history.keys()),initial_capital=__import__("decimal").Decimal(str(args.capital)),target_trades=args.target_trades,position_fraction=__import__("decimal").Decimal("0.05"),ml_min_probability=0.60,lessons_output=Path(f"models/lessons_{month}_{tf}.jsonl"))
         report=await sp.SelfPlayEngine(cfg).run(history=tf_history,append=False)
         print(f"Paper {month} {tf}: trades={report.total_trades} wins={report.wins} losses={report.losses} pnl={report.total_pnl:.2f} drawdown={report.max_drawdown_pct:.2f}%",flush=True)
-    # Aggregate everything accumulated so far, then rebuild memory/model from the complete lesson set.
-    merge_jsonl("research_observations_????-??_*.jsonl",Path("models/research_observations.jsonl"))
-    merge_jsonl("lessons_????-??_*.jsonl",Path("models/lessons.jsonl"))
-    memory=MarketMemory(); count=memory.build_from_lessons(Path("models/lessons.jsonl")); memory.save()
+    merge_jsonl("research_observations_????-??_*.jsonl",Path("models/research_observations.jsonl")); merge_jsonl("lessons_????-??_*.jsonl",Path("models/lessons.jsonl"))
+    memory=MarketMemory(); research_count=memory.import_research(Path("models/research_observations.jsonl")); count=memory.build_from_lessons(Path("models/lessons.jsonl")); memory.save()
     result=__import__("astra_bot.ml.weekly_learner",fromlist=["train_weekly"]).train_weekly(lessons_path=Path("models/lessons.jsonl"),model_path=Path("models/current.pkl"),min_samples=args.min_samples)
     Path("models/research_summary.json").write_text(json.dumps(summary,ensure_ascii=False,indent=2),encoding="utf-8")
-    state["completed_months"].append(month); state["next_month"]=(end+relativedelta(days=1)).strftime("%Y-%m") if end>=now else end.strftime("%Y-%m"); save_progress(state)
-    print(f"MONTH COMPLETE {month}: lessons={count}; model={result.message}; next={state['next_month']}",flush=True)
+    state["completed_months"].append(month); state["next_month"]=(start+relativedelta(months=1)).strftime("%Y-%m"); save_progress(state)
+    print(f"MONTH COMPLETE {month}: research={research_count} lessons={count}; model={result.message}; next={state['next_month']}; partial={is_partial}",flush=True)
     return 0
 
 if __name__=="__main__": raise SystemExit(asyncio.run(main()))
