@@ -8,8 +8,6 @@ on:
         required: false
         default: true
         type: boolean
-  push:
-    branches: [master]
   schedule:
     # One bounded historical month per run. The progress file advances automatically.
     - cron: "0 */2 * * *"
@@ -17,6 +15,8 @@ on:
 permissions:
   contents: write
 
+# Never cancel an active month because another scheduled/manual run appeared.
+# There is intentionally no push trigger: training commits must not retrigger training.
 concurrency:
   group: astra-pretrain-monthly
   cancel-in-progress: false
@@ -25,7 +25,6 @@ jobs:
   pretrain:
     if: github.actor != 'astra-bot'
     runs-on: ubuntu-latest
-    # A single month is finite; do not let a long historical run consume the whole runner indefinitely.
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
