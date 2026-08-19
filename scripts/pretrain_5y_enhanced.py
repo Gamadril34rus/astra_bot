@@ -1,187 +1,91 @@
 #!/usr/bin/env python3
-"""Five-year ASTRA pretrain with research-first market understanding."""
-
+"""Research-first pretrain executed as resumable calendar-month stages."""
 from __future__ import annotations
-
-import asyncio
-import json
+import asyncio, json
+from datetime import UTC, datetime
 from pathlib import Path
-
 import numpy as np
-
+from dateutil.relativedelta import relativedelta
 from astra_bot.ml import self_play as sp
 from astra_bot.ml.market_memory import MarketMemory
 from astra_bot.ml.market_understanding import compute_market_features
 from astra_bot.ml.news_features import NewsFeatureService
 from astra_bot.ml.research_engine import research_history_v2
 from scripts import pretrain_5y
+PROGRESS=Path("models/pretrain_progress.json")
 
 
-def install_enhanced_self_play() -> None:
-    original_snapshot = sp._feature_snapshot
-    news_service = NewsFeatureService(Path("models/news_cache.json"))
-
-    def enhanced_snapshot(strategy, candles, cross_snapshot=None):
-        base = original_snapshot(strategy, candles, cross_snapshot)
-        enhanced = compute_market_features(
-            candles,
-            timeframe=getattr(candles[-1], "timeframe", "1h"),
-            extra_features=base,
-        )
-        symbol = candles[-1].symbol
-        ts = candles[-1].open_time
-        snap = news_service.cached_historical(symbol, ts)
-        enhanced.update(snap.to_features())
-        return enhanced
-
-    sp._feature_snapshot = enhanced_snapshot
-
-    def dynamic_ml_approves(self, features):
-        if self._ml_model is None:
-            return True
+def install_enhanced_self_play():
+    original_snapshot=sp._feature_snapshot; news_service=NewsFeatureService(Path("models/news_cache.json"))
+    def enhanced_snapshot(strategy,candles,cross_snapshot=None):
+        base=original_snapshot(strategy,candles,cross_snapshot); enhanced=compute_market_features(candles[-260:],timeframe=getattr(candles[-1],"timeframe","1h"),extra_features=base); enhanced.update(news_service.cached_historical(candles[-1].symbol,candles[-1].open_time).to_features()); return enhanced
+    sp._feature_snapshot=enhanced_snapshot
+    def dynamic_ml_approves(self,features):
+        if self._ml_model is None: return True
         try:
-            names = list(getattr(self._ml_model, "feature_names", []) or [])
-            if not names:
-                return True
-            vector = np.asarray([[float(features.get(name, 0.0)) for name in names]], dtype=float)
-            probability = float(self._ml_model.predict_probability(vector))
-            return probability >= self.config.ml_min_probability
-        except Exception:
-            return True
+            names=list(getattr(self._ml_model,"feature_names",[]) or [])
+            if not names: return True
+            vector=np.asarray([[float(features.get(n,0.0)) for n in names]],dtype=float)
+            return float(self._ml_model.predict_probability(vector))>=self.config.ml_min_probability
+        except Exception: return True
+    sp.SelfPlayEngine._ml_approves=dynamic_ml_approves
 
-    sp.SelfPlayEngine._ml_approves = dynamic_ml_approves
+def load_progress(years:int)->dict:
+    if PROGRESS.exists():
+        try: return json.loads(PROGRESS.read_text(encoding="utf-8"))
+        except (OSError,json.JSONDecodeError): pass
+    start=datetime.now(tz=UTC)-relativedelta(years=years); return {"years":years,"next_month":start.strftime("%Y-%m"),"completed_months":[]}
 
+def save_progress(state):
+    PROGRESS.parent.mkdir(parents=True,exist_ok=True); PROGRESS.write_text(json.dumps(state,ensure_ascii=False,indent=2),encoding="utf-8")
 
-def install_news_cache_compat() -> None:
-    if not hasattr(NewsFeatureService, "save_cache"):
-        NewsFeatureService.save_cache = NewsFeatureService._save_cache
+def month_bounds(value:str):
+    start=datetime.strptime(value,"%Y-%m").replace(tzinfo=UTC); return start,start+relativedelta(months=1)
 
-
-async def main() -> int:
-    install_news_cache_compat()
-    install_enhanced_self_play()
-
-    parser = pretrain_5y.argparse.ArgumentParser()
-    parser.add_argument("--years", type=int, default=5)
-    parser.add_argument("--target-trades", type=int, default=5000)
-    parser.add_argument("--min-samples", type=int, default=2000)
-    parser.add_argument("--capital", type=float, default=10000.0)
-    parser.add_argument("--with-news", action="store_true")
-    args = parser.parse_args()
-
-    pretrain_5y.setup_logging()
-    days = args.years * 365
-    history = await pretrain_5y.fetch_history(days)
-    usable = {s: bars for s, bars in history.items() if len(bars) >= 240}
-    if not usable:
-        raise RuntimeError("Не удалось получить достаточную историю")
-
-    if args.with_news:
-        await pretrain_5y.build_monthly_news_cache(Path("models/news_cache.json"), args.years)
-
-    news = NewsFeatureService(Path("models/news_cache.json"))
-    research_summary = {}
-    research_files: list[Path] = []
-
-    # Research is the primary learning stage. It does not need trades and
-    # separates discovery from a final out-of-sample period.
-    for tf, hours in (("1h", 1), ("4h", 4), ("1d", 24)):
-        tf_history = {
-            symbol: (bars if hours == 1 else pretrain_5y.resample_candles(bars, hours))
-            for symbol, bars in usable.items()
-        }
-        obs_path = Path(f"models/research_observations_{tf}.jsonl")
-        hyp_path = Path(f"models/research_hypotheses_{tf}.json")
-        stats = research_history_v2(
-            tf_history,
-            output=obs_path,
-            hypotheses_output=hyp_path,
-            sample_every={"1h": 6, "4h": 1, "1d": 1},
-            validation_fraction=0.30,
-            min_samples=30,
-            news_service=news,
-        )
-        research_summary[tf] = stats
-        research_files.append(obs_path)
-        print(
-            f"Research {tf}: symbols={stats['symbols']} "
-            f"observations={stats['observations']} events={stats['events']} "
-            f"oos={stats['validation_observations']}"
-        )
-
-        config = sp.SelfPlayConfig(
-            timeframe=tf,
-            symbols=tuple(tf_history.keys()),
-            initial_capital=__import__("decimal").Decimal(str(args.capital)),
-            target_trades=args.target_trades,
-            position_fraction=__import__("decimal").Decimal("0.05"),
-            ml_min_probability=0.60,
-            lessons_output=Path(f"models/lessons_{tf}.jsonl"),
-        )
-        engine = sp.SelfPlayEngine(config)
-        report = await engine.run(history=tf_history, append=False)
-        print(
-            f"{tf}: trades={report.total_trades} wins={report.wins} "
-            f"losses={report.losses} pnl={report.total_pnl:.2f} "
-            f"drawdown={report.max_drawdown_pct:.2f}%"
-        )
-
-        path = config.lessons_output
-        if path.exists():
-            rows = []
+def merge_jsonl(pattern:str,target:Path):
+    with target.open("w",encoding="utf-8") as out:
+        for path in sorted(Path("models").glob(pattern)):
             for line in path.read_text(encoding="utf-8").splitlines():
-                if not line.strip():
-                    continue
-                row = json.loads(line)
-                snap = news.cached_historical(row.get("symbol", ""), int(row.get("entry_time", 0)))
-                row.setdefault("features", {}).update(snap.to_features())
-                row["training_phase"] = "five_year_walk_forward"
-                row["feature_engine"] = "market_understanding_v1"
-                rows.append(row)
-            path.write_text(
-                "\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + ("\n" if rows else ""),
-                encoding="utf-8",
-            )
+                if line.strip(): out.write(line+"\n")
 
-    merged_research = Path("models/research_observations.jsonl")
-    with merged_research.open("w", encoding="utf-8") as out:
-        for path in research_files:
-            if path.exists():
-                out.write(path.read_text(encoding="utf-8"))
-
-    Path("models/research_summary.json").write_text(
-        json.dumps(research_summary, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-
-    merged = Path("models/lessons.jsonl")
-    with merged.open("w", encoding="utf-8") as out:
-        for tf in ("1h", "4h", "1d"):
-            path = Path(f"models/lessons_{tf}.jsonl")
-            if not path.exists():
-                continue
-            for line in path.read_text(encoding="utf-8").splitlines():
-                if not line.strip():
-                    continue
-                row = json.loads(line)
-                row["timeframe"] = tf
-                out.write(json.dumps(row, ensure_ascii=False) + "\n")
-
-    memory = MarketMemory()
-    count = memory.build_from_lessons(merged)
-    print(
-        f"Market memory: {count} lessons aggregated into "
-        f"{len(memory.data.get('patterns', {}))} patterns"
-    )
-
-    result = __import__("astra_bot.ml.weekly_learner", fromlist=["train_weekly"]).train_weekly(
-        lessons_path=merged,
-        model_path=Path("models/current.pkl"),
-        min_samples=args.min_samples,
-    )
-    print(result.message)
+async def main()->int:
+    pretrain_5y.setup_logging(); pretrain_5y.argparse.ArgumentParser
+    parser=pretrain_5y.argparse.ArgumentParser(description="ASTRA monthly historical pretrain")
+    parser.add_argument("--years",type=int,default=5); parser.add_argument("--target-trades",type=int,default=5000); parser.add_argument("--min-samples",type=int,default=2000); parser.add_argument("--capital",type=float,default=10000.0); parser.add_argument("--with-news",action="store_true"); args=parser.parse_args()
+    install_enhanced_self_play(); state=load_progress(args.years); month=state["next_month"]; start,end=month_bounds(month); now=datetime.now(tz=UTC)
+    if start>=now: print(f"PRETRAIN COMPLETE: {len(state['completed_months'])} months"); return 0
+    end=min(end,now); month_days=max(31,(end-start).days); warmup_days=300
+    print(f"MONTH START {month}: {start.date()} -> {end.date()} | warmup={warmup_days}d",flush=True)
+    history=await pretrain_5y.fetch_history(month_days+warmup_days,end_time_ms=int(end.timestamp()*1000))
+    usable={s:bars for s,bars in history.items() if len(bars)>=240}
+    if not usable: raise RuntimeError("Не удалось получить достаточную историю за месяц")
+    # Keep warmup for indicators, but research/self-play only score candles inside the target month.
+    start_ms=int(start.timestamp()*1000); end_ms=int(end.timestamp()*1000)
+    month_history={}
+    for symbol,bars in usable.items():
+        month_history[symbol]=[b for b in bars if b.open_time<=end_ms and b.open_time>=start_ms]
+        # Research engine gets warmup + target month to avoid cold indicators.
+        warm=[b for b in history[symbol] if b.open_time<start_ms][-260:]
+        month_history[symbol]=warm+month_history[symbol]
+    news=NewsFeatureService(Path("models/news_cache.json"))
+    if args.with_news: await pretrain_5y.build_monthly_news_cache(Path("models/news_cache.json"),args.years,start,end); news=NewsFeatureService(Path("models/news_cache.json"))
+    summary={}
+    for tf,hours in (("1h",1),("4h",4),("1d",24)):
+        tf_history={s:(bars if hours==1 else pretrain_5y.resample_candles(bars,hours)) for s,bars in month_history.items()}
+        obs=Path(f"models/research_observations_{month}_{tf}.jsonl"); hyp=Path(f"models/research_hypotheses_{month}_{tf}.json")
+        stats=research_history_v2(tf_history,output=obs,hypotheses_output=hyp,sample_every={"1h":6,"4h":1,"1d":1},validation_fraction=0.30,min_samples=30,news_service=news); summary[tf]=stats
+        print(f"Research {month} {tf}: symbols={stats['symbols']} observations={stats['observations']} events={stats['events']} oos={stats['validation_observations']}",flush=True)
+        cfg=sp.SelfPlayConfig(timeframe=tf,symbols=tuple(tf_history.keys()),initial_capital=__import__("decimal").Decimal(str(args.capital)),target_trades=args.target_trades,position_fraction=__import__("decimal").Decimal("0.05"),ml_min_probability=0.60,lessons_output=Path(f"models/lessons_{month}_{tf}.jsonl"))
+        report=await sp.SelfPlayEngine(cfg).run(history=tf_history,append=False)
+        print(f"Paper {month} {tf}: trades={report.total_trades} wins={report.wins} losses={report.losses} pnl={report.total_pnl:.2f} drawdown={report.max_drawdown_pct:.2f}%",flush=True)
+    # Aggregate everything accumulated so far, then rebuild memory/model from the complete lesson set.
+    merge_jsonl("research_observations_????-??_*.jsonl",Path("models/research_observations.jsonl"))
+    merge_jsonl("lessons_????-??_*.jsonl",Path("models/lessons.jsonl"))
+    memory=MarketMemory(); count=memory.build_from_lessons(Path("models/lessons.jsonl")); memory.save()
+    result=__import__("astra_bot.ml.weekly_learner",fromlist=["train_weekly"]).train_weekly(lessons_path=Path("models/lessons.jsonl"),model_path=Path("models/current.pkl"),min_samples=args.min_samples)
+    Path("models/research_summary.json").write_text(json.dumps(summary,ensure_ascii=False,indent=2),encoding="utf-8")
+    state["completed_months"].append(month); state["next_month"]=(end+relativedelta(days=1)).strftime("%Y-%m") if end>=now else end.strftime("%Y-%m"); save_progress(state)
+    print(f"MONTH COMPLETE {month}: lessons={count}; model={result.message}; next={state['next_month']}",flush=True)
     return 0
 
-
-if __name__ == "__main__":
-    raise SystemExit(asyncio.run(main()))
+if __name__=="__main__": raise SystemExit(asyncio.run(main()))
