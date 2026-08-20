@@ -40,6 +40,9 @@ trading:
     mean_reversion:
       enabled: true
       weight: 1.0
+    book_breakout:
+      enabled: true  # «Простая книга торговли»: пробой → ретест → подтверждение
+      weight: 1.0
     adaptive_grid:
       enabled: false  # Включить только после тщательных тестов
       weight: 1.0

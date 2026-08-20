@@ -68,7 +68,7 @@ def load_lessons(path: Path = DEFAULT_LESSONS_PATH) -> list[dict]:
 def lesson_feature_columns(lessons: list[dict]) -> list[str]:
     columns: set[str] = set()
     for lesson in lessons:
-        columns.update(str(k) for k in (lesson.get("features") or {}).keys())
+        columns.update(str(k) for k in (lesson.get("features") or {}))
     return sorted(columns)
 
 
@@ -106,8 +106,14 @@ def train_weekly(
 ) -> WeeklyLearningResult:
     """Переобучить модель на хроно-выборке без перемешивания будущего."""
     try:
-        from .live_lessons import merge_into_main_lessons
-        merge_into_main_lessons(main_path=lessons_path)
+        # Live-уроки берём из каталога рядом с lessons_path, а не из глобального
+        # models/: иначе вызов с нестандартным путём (тесты, эксперименты)
+        # молча подмешивает продовые уроки в чужой датасет.
+        from .live_lessons import DEFAULT_LIVE_LESSONS, merge_into_main_lessons
+        merge_into_main_lessons(
+            live_path=Path(lessons_path).parent / DEFAULT_LIVE_LESSONS.name,
+            main_path=lessons_path,
+        )
     except Exception as exc:
         logger.debug("live-lessons merge skipped: %s", exc)
 
