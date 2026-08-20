@@ -1,42 +1,6 @@
 {
   "positions": [
     {
-      "id": "19416d55-da7d-496f-b6f0-d38546ef4d44",
-      "symbol": "DOGE-USDT",
-      "direction": "short",
-      "entry_price": "0.06985",
-      "quantity": "85590.167531",
-      "stop_loss": "0.07068820",
-      "take_profits": [
-        "0.069011800",
-        "0.068341240",
-        "0.067754500"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "85590.167531",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "0.07055",
-      "lowest_price": "0.06925",
-      "strategy": "pullback",
-      "opened_at": 1786714548816,
-      "notes": {
-        "score": 42.0,
-        "ml_probability": null,
-        "edge_pct": 0.4172488341805354,
-        "rr": 0.75
-      }
-    },
-    {
       "id": "e92d7ea7-d4f1-4db3-8301-a435e5dce355",
       "symbol": "TRX-USDT",
       "direction": "short",
@@ -179,8 +143,44 @@
         "edge_pct": 0.21373673233711976,
         "rr": 1.2
       }
+    },
+    {
+      "id": "82e8816b-7769-47f5-93ab-d86c20e0ef19",
+      "symbol": "BNB-USDT",
+      "direction": "short",
+      "entry_price": "615.9",
+      "quantity": "9.510462",
+      "stop_loss": "623.2908",
+      "take_profits": [
+        "608.50920",
+        "602.59656",
+        "597.42300"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "9.510462",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "617.6",
+      "lowest_price": "615.9",
+      "strategy": "pullback",
+      "opened_at": 1787237295703,
+      "notes": {
+        "score": 51.0,
+        "ml_probability": null,
+        "edge_pct": 0.39296977307755465,
+        "rr": 0.7500000000000001
+      }
     }
   ],
-  "realized_pnl": "-1100.499353555798899840",
+  "realized_pnl": "-1172.241031980283099840",
   "initial_capital": "40222.20"
 }
