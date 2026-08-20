@@ -3,6 +3,7 @@
 The engine never creates orders. It studies observable state -> future response,
 keeps discovery and validation periods separate, and records negative findings.
 """
+
 from __future__ import annotations
 
 import json
@@ -23,15 +24,34 @@ HORIZONS = {
 }
 
 EVENT_FEATURES = (
-    "breakout_up", "breakout_down", "retest_support", "retest_resistance",
-    "structure_hh", "structure_hl", "structure_lh", "structure_ll",
-    "bullish_engulfing", "bearish_engulfing", "candle_hammer",
-    "candle_shooting_star", "candle_doji", "morning_star", "evening_star",
-    "channel_breakout_up_50", "channel_breakout_down_50", "volume_spike",
-    "rsi_overbought", "rsi_oversold", "bollinger_squeeze", "atr_expansion",
-    "trend_acceleration", "trend_deceleration",
+    "breakout_up",
+    "breakout_down",
+    "retest_support",
+    "retest_resistance",
+    "structure_hh",
+    "structure_hl",
+    "structure_lh",
+    "structure_ll",
+    "bullish_engulfing",
+    "bearish_engulfing",
+    "candle_hammer",
+    "candle_shooting_star",
+    "candle_doji",
+    "morning_star",
+    "evening_star",
+    "channel_breakout_up_50",
+    "channel_breakout_down_50",
+    "volume_spike",
+    "rsi_overbought",
+    "rsi_oversold",
+    "bollinger_squeeze",
+    "atr_expansion",
+    "trend_acceleration",
+    "trend_deceleration",
     # «Простая книга торговли»: формы свечей из раздела 2, которых не было.
-    "candle_spinning_top", "three_white_soldiers", "three_black_crows",
+    "candle_spinning_top",
+    "three_white_soldiers",
+    "three_black_crows",
 )
 
 
@@ -59,7 +79,7 @@ def _events(
     """Combine explicit feature flags with raw OHLCV-derived event flags."""
     labels = [name for name in EVENT_FEATURES if float(f.get(name, 0.0)) > 0.5]
     if i >= 20:
-        recent_volume = volumes[max(0, i - 20):i]
+        recent_volume = volumes[max(0, i - 20) : i]
         median_volume = float(np.median(recent_volume)) if len(recent_volume) else 0.0
         if median_volume > 0 and volumes[i] >= median_volume * 2.0:
             labels.append("volume_spike")
@@ -128,22 +148,24 @@ def _events(
     return list(dict.fromkeys(labels))
 
 
-def _forward(closes: np.ndarray, highs: np.ndarray, lows: np.ndarray, i: int, bars: int) -> dict[str, float]:
+def _forward(
+    closes: np.ndarray, highs: np.ndarray, lows: np.ndarray, i: int, bars: int
+) -> dict[str, float]:
     end = min(len(closes), i + bars + 1)
     if end <= i + 1:
         return {}
     entry = float(closes[i])
     if entry <= 0:
         return {}
-    c = closes[i + 1:end]
-    h = highs[i + 1:end]
-    l = lows[i + 1:end]
+    c = closes[i + 1 : end]
+    h = highs[i + 1 : end]
+    low_values = lows[i + 1 : end]
     returns = c / entry - 1.0
     step_returns = np.diff(np.r_[entry, c]) / np.maximum(np.r_[entry, c[:-1]], 1e-12)
     return {
         "return": float(returns[-1]),
         "max_up": float(np.max(h) / entry - 1.0),
-        "max_down": float(np.min(l) / entry - 1.0),
+        "max_down": float(np.min(low_values) / entry - 1.0),
         "volatility": float(np.std(step_returns)) if len(step_returns) else 0.0,
     }
 
@@ -190,15 +212,34 @@ def research_history_v2(
     validation_fraction: float = 0.30,
     min_samples: int = 30,
     news_service: Any | None = None,
+    observation_start_ms: int | None = None,
+    observation_end_ms: int | None = None,
 ) -> dict[str, int]:
-    """Run discovery/OOS research over OHLCV without placing trades."""
+    """Run discovery/OOS research over OHLCV without placing trades.
+
+    Candles outside ``observation_start_ms``/``observation_end_ms`` remain
+    available as warm-up and forward-label context, but are not emitted as
+    observations.  This is important for calendar-month jobs: daily features
+    need months of prior history and 90-day labels need future candles.
+    """
     validation_fraction = min(0.45, max(0.15, validation_fraction))
     output.parent.mkdir(parents=True, exist_ok=True)
-    aggregates: dict[str, dict[str, Any]] = defaultdict(lambda: {
-        "all": defaultdict(list), "discovery": defaultdict(list), "validation": defaultdict(list),
-        "count": 0, "validation_count": 0,
-    })
-    stats = {"symbols": 0, "observations": 0, "events": 0, "baseline_observations": 0, "validation_observations": 0}
+    aggregates: dict[str, dict[str, Any]] = defaultdict(
+        lambda: {
+            "all": defaultdict(list),
+            "discovery": defaultdict(list),
+            "validation": defaultdict(list),
+            "count": 0,
+            "validation_count": 0,
+        }
+    )
+    stats = {
+        "symbols": 0,
+        "observations": 0,
+        "events": 0,
+        "baseline_observations": 0,
+        "validation_observations": 0,
+    }
 
     with output.open("w", encoding="utf-8") as out:
         for symbol, candles in history.items():
@@ -207,18 +248,37 @@ def research_history_v2(
             stats["symbols"] += 1
             timeframe = getattr(candles[-1], "timeframe", "1h") or "1h"
             horizons = HORIZONS.get(timeframe, HORIZONS["1h"])
-            step = max(1, int(sample_every.get(timeframe, 12) if isinstance(sample_every, dict) else sample_every))
+            step = max(
+                1,
+                int(
+                    sample_every.get(timeframe, 12)
+                    if isinstance(sample_every, dict)
+                    else sample_every
+                ),
+            )
             closes = np.asarray([float(c.close) for c in candles], dtype=float)
             highs = np.asarray([float(c.high) for c in candles], dtype=float)
             lows = np.asarray([float(c.low) for c in candles], dtype=float)
             volumes = np.asarray([float(c.volume) for c in candles], dtype=float)
-            split = int(len(candles) * (1.0 - validation_fraction))
             max_forward = max(horizons.values())
-            for i in range(200, len(candles) - max_forward, step):
+            eligible = [
+                i
+                for i in range(200, len(candles) - max_forward, step)
+                if (
+                    observation_start_ms is None
+                    or int(candles[i].open_time) >= observation_start_ms
+                )
+                and (observation_end_ms is None or int(candles[i].open_time) < observation_end_ms)
+            ]
+            split_at = int(len(eligible) * (1.0 - validation_fraction))
+            validation_indices = set(eligible[split_at:])
+            for i in eligible:
                 f = compute_market_features(candles[: i + 1], timeframe=timeframe)
                 if news_service is not None:
                     try:
-                        snap = news_service.cached_historical(symbol, int(getattr(candles[i], "open_time", 0)))
+                        snap = news_service.cached_historical(
+                            symbol, int(getattr(candles[i], "open_time", 0))
+                        )
                         f.update(snap.to_features())
                     except Exception:
                         pass
@@ -229,10 +289,12 @@ def research_history_v2(
                     stats["events"] += len(events)
                 else:
                     stats["baseline_observations"] += 1
-                forward = {h: _forward(closes, highs, lows, i, bars) for h, bars in horizons.items()}
+                forward = {
+                    h: _forward(closes, highs, lows, i, bars) for h, bars in horizons.items()
+                }
                 forward = {h: v for h, v in forward.items() if v}
                 stats["observations"] += 1
-                in_validation = i >= split
+                in_validation = i in validation_indices
                 if in_validation:
                     stats["validation_observations"] += 1
                 row = {
@@ -242,7 +304,11 @@ def research_history_v2(
                     "timestamp": int(getattr(candles[i], "open_time", 0)),
                     "market_regime": regime,
                     "events": labels,
-                    "features_before": {k: float(v) for k, v in f.items() if isinstance(v, (int, float)) and math.isfinite(float(v))},
+                    "features_before": {
+                        k: float(v)
+                        for k, v in f.items()
+                        if isinstance(v, (int, float)) and math.isfinite(float(v))
+                    },
                     "forward": forward,
                     "phase": "validation" if in_validation else "discovery",
                     "future_leakage": False,
@@ -294,7 +360,11 @@ def research_history_v2(
         val = primary.get("validation", {})
         discovery_mean = float(primary.get("discovery", {}).get("mean", 0.0))
         validation_mean = float(val.get("mean", 0.0))
-        stable_sign = discovery_mean == 0 or validation_mean == 0 or (discovery_mean > 0) == (validation_mean > 0)
+        stable_sign = (
+            discovery_mean == 0
+            or validation_mean == 0
+            or (discovery_mean > 0) == (validation_mean > 0)
+        )
         enough_oos = int(val.get("samples", 0)) >= min_samples
         if q <= 0.10 and enough_oos and stable_sign:
             item["status"] = "provisional_confirmed"
@@ -304,13 +374,17 @@ def research_history_v2(
 
     hypotheses_output.parent.mkdir(parents=True, exist_ok=True)
     hypotheses_output.write_text(
-        json.dumps({
-            "updated": datetime.now(tz=UTC).isoformat(),
-            "method": "walk_forward_discovery_oos_fdr",
-            "stats": stats,
-            "confirmed_candidates": confirmed,
-            "hypotheses": hypotheses,
-        }, ensure_ascii=False, indent=2),
+        json.dumps(
+            {
+                "updated": datetime.now(tz=UTC).isoformat(),
+                "method": "walk_forward_discovery_oos_fdr",
+                "stats": stats,
+                "confirmed_candidates": confirmed,
+                "hypotheses": hypotheses,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
         encoding="utf-8",
     )
     return stats
