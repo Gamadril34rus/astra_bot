@@ -1,13 +1,2274 @@
 {
-  "updated": "2026-08-20T04:57:09.433076+00:00",
+  "updated": "2026-08-20T15:11:45.379847+00:00",
   "method": "walk_forward_discovery_oos_fdr",
   "stats": {
-    "symbols": 0,
-    "observations": 0,
-    "events": 0,
+    "symbols": 21,
+    "observations": 651,
+    "events": 3554,
     "baseline_observations": 0,
-    "validation_observations": 0
+    "validation_observations": 210
   },
-  "confirmed_candidates": 0,
-  "hypotheses": {}
+  "confirmed_candidates": 6,
+  "hypotheses": {
+    "breakout_up|1d|range": {
+      "observations": 44,
+      "validation_observations": 0,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 44,
+            "mean": 0.014125904593272738,
+            "median": 0.016808843686096475,
+            "positive_rate": 0.5909090909090909,
+            "negative_rate": 0.4090909090909091,
+            "std": 0.053890441553433255,
+            "t_stat": 1.7387248651058353
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 0.08208317013847567
+        },
+        "3d": {
+          "discovery": {
+            "samples": 44,
+            "mean": 0.06921160005631669,
+            "median": 0.05652491421841055,
+            "positive_rate": 0.7954545454545454,
+            "negative_rate": 0.20454545454545456,
+            "std": 0.08713832216393784,
+            "t_stat": 5.268609787897473
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 1.3746081972439607e-07
+        },
+        "7d": {
+          "discovery": {
+            "samples": 44,
+            "mean": 0.14681896782696563,
+            "median": 0.12258144011037442,
+            "positive_rate": 0.9545454545454546,
+            "negative_rate": 0.045454545454545456,
+            "std": 0.12387289450491275,
+            "t_stat": 7.861985147525459
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 3.7809287400141316e-15
+        },
+        "30d": {
+          "discovery": {
+            "samples": 44,
+            "mean": 0.2890112183809055,
+            "median": 0.22190042380762043,
+            "positive_rate": 0.9772727272727273,
+            "negative_rate": 0.022727272727272728,
+            "std": 0.23387962978521876,
+            "t_stat": 8.196881211529174
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 2.4670401757995314e-16
+        },
+        "90d": {
+          "discovery": {
+            "samples": 44,
+            "mean": 0.2746288804081814,
+            "median": 0.22181618677360226,
+            "positive_rate": 0.8181818181818182,
+            "negative_rate": 0.18181818181818182,
+            "std": 0.3040369606088972,
+            "t_stat": 5.9916462201514875
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 2.077274338660893e-09
+        }
+      },
+      "status": "candidate",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 0.09504367068665603
+    },
+    "structure_hl|1d|range": {
+      "observations": 62,
+      "validation_observations": 0,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 62,
+            "mean": 0.021547281055203753,
+            "median": 0.024926298047574402,
+            "positive_rate": 0.7096774193548387,
+            "negative_rate": 0.2903225806451613,
+            "std": 0.0500381800448408,
+            "t_stat": 3.390680087488775
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 0.000697194322090521
+        },
+        "3d": {
+          "discovery": {
+            "samples": 62,
+            "mean": 0.07314333293973599,
+            "median": 0.06668526990676038,
+            "positive_rate": 0.8548387096774194,
+            "negative_rate": 0.14516129032258066,
+            "std": 0.078303351308971,
+            "t_stat": 7.355128099516807
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 1.907441050206887e-13
+        },
+        "7d": {
+          "discovery": {
+            "samples": 62,
+            "mean": 0.1688612723266742,
+            "median": 0.15251304200221105,
+            "positive_rate": 0.9516129032258065,
+            "negative_rate": 0.04838709677419355,
+            "std": 0.12397614854382516,
+            "t_stat": 10.72476442874712
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 7.788527875683747e-27
+        },
+        "30d": {
+          "discovery": {
+            "samples": 62,
+            "mean": 0.37540617395130904,
+            "median": 0.2736095024354752,
+            "positive_rate": 0.9838709677419355,
+            "negative_rate": 0.016129032258064516,
+            "std": 0.3176344108522049,
+            "t_stat": 9.306142749818934
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 1.3255909439351721e-20
+        },
+        "90d": {
+          "discovery": {
+            "samples": 62,
+            "mean": 0.4232849447770845,
+            "median": 0.35661297393581637,
+            "positive_rate": 0.9032258064516129,
+            "negative_rate": 0.0967741935483871,
+            "std": 0.4606905722361144,
+            "t_stat": 7.234680258264989
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 4.666271845509464e-13
+        }
+      },
+      "status": "candidate",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 0.0011798673143070355
+    },
+    "rsi_overbought|1d|range": {
+      "observations": 76,
+      "validation_observations": 0,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 76,
+            "mean": 0.02011198524132895,
+            "median": 0.023320470721846842,
+            "positive_rate": 0.6973684210526315,
+            "negative_rate": 0.3026315789473684,
+            "std": 0.048075233346366285,
+            "t_stat": 3.6470384070454247
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 0.00026528028453630555
+        },
+        "3d": {
+          "discovery": {
+            "samples": 76,
+            "mean": 0.07423608617196238,
+            "median": 0.06806542561294027,
+            "positive_rate": 0.868421052631579,
+            "negative_rate": 0.13157894736842105,
+            "std": 0.07598322865434133,
+            "t_stat": 8.517342664118893
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 1.63255919154167e-17
+        },
+        "7d": {
+          "discovery": {
+            "samples": 76,
+            "mean": 0.16457553930333518,
+            "median": 0.15837953382778824,
+            "positive_rate": 0.9605263157894737,
+            "negative_rate": 0.039473684210526314,
+            "std": 0.1138816309583695,
+            "t_stat": 12.598487365608332
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 2.1523262673420707e-36
+        },
+        "30d": {
+          "discovery": {
+            "samples": 76,
+            "mean": 0.39669023321620883,
+            "median": 0.32614155302793446,
+            "positive_rate": 0.9868421052631579,
+            "negative_rate": 0.013157894736842105,
+            "std": 0.29576367030634365,
+            "t_stat": 11.692664191569232
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 1.3895803323730794e-31
+        },
+        "90d": {
+          "discovery": {
+            "samples": 76,
+            "mean": 0.42041465361764674,
+            "median": 0.37005550593339287,
+            "positive_rate": 0.8552631578947368,
+            "negative_rate": 0.14473684210526316,
+            "std": 0.4714237355108675,
+            "t_stat": 7.774513039811649
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 7.573818915630583e-15
+        }
+      },
+      "status": "candidate",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 0.0005305605690726111
+    },
+    "trend_acceleration|1d|range": {
+      "observations": 73,
+      "validation_observations": 0,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 73,
+            "mean": 0.02245484343225591,
+            "median": 0.025798175598631845,
+            "positive_rate": 0.7123287671232876,
+            "negative_rate": 0.2876712328767123,
+            "std": 0.04937901364661357,
+            "t_stat": 3.8853401924700193
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 0.00010218669411510779
+        },
+        "3d": {
+          "discovery": {
+            "samples": 73,
+            "mean": 0.07430805464561974,
+            "median": 0.06833791208791196,
+            "positive_rate": 0.863013698630137,
+            "negative_rate": 0.136986301369863,
+            "std": 0.07557707075792011,
+            "t_stat": 8.400541206909656
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 4.444255529729556e-17
+        },
+        "7d": {
+          "discovery": {
+            "samples": 73,
+            "mean": 0.16804380123196008,
+            "median": 0.16002181194983245,
+            "positive_rate": 0.958904109589041,
+            "negative_rate": 0.0410958904109589,
+            "std": 0.1158612177674518,
+            "t_stat": 12.392126500733216
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 2.882957950464828e-35
+        },
+        "30d": {
+          "discovery": {
+            "samples": 73,
+            "mean": 0.3815117370069064,
+            "median": 0.3243809111255507,
+            "positive_rate": 1.0,
+            "negative_rate": 0.0,
+            "std": 0.27755336342880677,
+            "t_stat": 11.744183783619366
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 7.564935359541175e-32
+        },
+        "90d": {
+          "discovery": {
+            "samples": 73,
+            "mean": 0.3916820745164329,
+            "median": 0.3695227765726681,
+            "positive_rate": 0.8493150684931506,
+            "negative_rate": 0.1506849315068493,
+            "std": 0.43749585614051745,
+            "t_stat": 7.649290992523786
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 2.0209045560688964e-14
+        }
+      },
+      "status": "candidate",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 0.0002810134088165464
+    },
+    "structure_hh|1d|range": {
+      "observations": 61,
+      "validation_observations": 0,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 61,
+            "mean": 0.022425441885067794,
+            "median": 0.029384159988448566,
+            "positive_rate": 0.7377049180327869,
+            "negative_rate": 0.26229508196721313,
+            "std": 0.046716882124891584,
+            "t_stat": 3.7491436125098794
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 0.00017743945815507943
+        },
+        "3d": {
+          "discovery": {
+            "samples": 61,
+            "mean": 0.07366383442072168,
+            "median": 0.0715081179297814,
+            "positive_rate": 0.9016393442622951,
+            "negative_rate": 0.09836065573770492,
+            "std": 0.059862912025558684,
+            "t_stat": 9.61084116096528
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 7.195870191639988e-22
+        },
+        "7d": {
+          "discovery": {
+            "samples": 61,
+            "mean": 0.13904022150747805,
+            "median": 0.145447453191061,
+            "positive_rate": 0.9508196721311475,
+            "negative_rate": 0.04918032786885246,
+            "std": 0.0856332883077527,
+            "t_stat": 12.681269941007926
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 7.510505853504608e-37
+        },
+        "30d": {
+          "discovery": {
+            "samples": 61,
+            "mean": 0.3459969560052053,
+            "median": 0.3103127471198426,
+            "positive_rate": 0.9836065573770492,
+            "negative_rate": 0.01639344262295082,
+            "std": 0.2479467430647103,
+            "t_stat": 10.898802622299735
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 1.1678395622244817e-27
+        },
+        "90d": {
+          "discovery": {
+            "samples": 61,
+            "mean": 0.4584395674080686,
+            "median": 0.3711340206185567,
+            "positive_rate": 0.8688524590163934,
+            "negative_rate": 0.13114754098360656,
+            "std": 0.5099814503184749,
+            "t_stat": 7.020897486635397
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 2.2044756089780683e-12
+        }
+      },
+      "status": "candidate",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 0.00039036680794117475
+    },
+    "structure_hh|1d|transition": {
+      "observations": 51,
+      "validation_observations": 0,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 51,
+            "mean": 0.012280348452031145,
+            "median": 0.0028706856265436898,
+            "positive_rate": 0.5098039215686274,
+            "negative_rate": 0.49019607843137253,
+            "std": 0.048047150736785185,
+            "t_stat": 1.825274302490623
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 0.06795964604360723
+        },
+        "3d": {
+          "discovery": {
+            "samples": 51,
+            "mean": 0.03094355380568812,
+            "median": 0.03910498463561529,
+            "positive_rate": 0.6470588235294118,
+            "negative_rate": 0.35294117647058826,
+            "std": 0.08413061029148448,
+            "t_stat": 2.626644143700615
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 0.008623146138830263
+        },
+        "7d": {
+          "discovery": {
+            "samples": 51,
+            "mean": 0.05816842380325527,
+            "median": 0.054710604140261854,
+            "positive_rate": 0.7058823529411765,
+            "negative_rate": 0.29411764705882354,
+            "std": 0.08368837274334515,
+            "t_stat": 4.963719830782929
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 6.915568391610607e-07
+        },
+        "30d": {
+          "discovery": {
+            "samples": 51,
+            "mean": 0.2346528409308634,
+            "median": 0.19683432993316918,
+            "positive_rate": 0.7647058823529411,
+            "negative_rate": 0.23529411764705882,
+            "std": 0.2831376544418496,
+            "t_stat": 5.918522113794566
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 3.248473339745238e-09
+        },
+        "90d": {
+          "discovery": {
+            "samples": 51,
+            "mean": 0.6122499253612407,
+            "median": 0.4709648361547165,
+            "positive_rate": 0.9215686274509803,
+            "negative_rate": 0.0784313725490196,
+            "std": 0.539981479840015,
+            "t_stat": 8.097201821891064
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 5.623773090491871e-16
+        }
+      },
+      "status": "candidate",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 0.08306178960885328
+    },
+    "structure_hl|1d|transition": {
+      "observations": 43,
+      "validation_observations": 0,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 43,
+            "mean": 0.009268076192599634,
+            "median": 0.0028706856265436898,
+            "positive_rate": 0.5116279069767442,
+            "negative_rate": 0.4883720930232558,
+            "std": 0.04920015928744894,
+            "t_stat": 1.2352569737924168
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 0.21673488131297253
+        },
+        "3d": {
+          "discovery": {
+            "samples": 43,
+            "mean": 0.026281113070120776,
+            "median": 0.028818531874579723,
+            "positive_rate": 0.5813953488372093,
+            "negative_rate": 0.4186046511627907,
+            "std": 0.09314533590151877,
+            "t_stat": 1.8501923004470777
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 0.06428583830580925
+        },
+        "7d": {
+          "discovery": {
+            "samples": 43,
+            "mean": 0.04190304576716374,
+            "median": 0.03364710594832765,
+            "positive_rate": 0.6976744186046512,
+            "negative_rate": 0.3023255813953488,
+            "std": 0.07400411303110685,
+            "t_stat": 3.712991553370688
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 0.00020482372557430756
+        },
+        "30d": {
+          "discovery": {
+            "samples": 43,
+            "mean": 0.2487623338258038,
+            "median": 0.20821139008303802,
+            "positive_rate": 0.7674418604651163,
+            "negative_rate": 0.23255813953488372,
+            "std": 0.3002573029099542,
+            "t_stat": 5.43281943658104
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 5.547053080140831e-08
+        },
+        "90d": {
+          "discovery": {
+            "samples": 43,
+            "mean": 0.6805812441077159,
+            "median": 0.500733921799138,
+            "positive_rate": 0.9069767441860465,
+            "negative_rate": 0.09302325581395349,
+            "std": 0.5648621362489283,
+            "t_stat": 7.90081222059923
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 2.7709183014862833e-15
+        }
+      },
+      "status": "candidate",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 0.2384083694442698
+    },
+    "rsi_overbought|1d|transition": {
+      "observations": 40,
+      "validation_observations": 0,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 40,
+            "mean": 0.003448892478189555,
+            "median": -0.003034931420546616,
+            "positive_rate": 0.475,
+            "negative_rate": 0.525,
+            "std": 0.04787171445611243,
+            "t_stat": 0.4556492601116369
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 0.6486422142985264
+        },
+        "3d": {
+          "discovery": {
+            "samples": 40,
+            "mean": 0.027704416527553434,
+            "median": 0.03036538314323345,
+            "positive_rate": 0.6,
+            "negative_rate": 0.4,
+            "std": 0.09099699255053381,
+            "t_stat": 1.925537427501892
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 0.054162158277367756
+        },
+        "7d": {
+          "discovery": {
+            "samples": 40,
+            "mean": 0.06580807016125165,
+            "median": 0.058040928124254876,
+            "positive_rate": 0.7,
+            "negative_rate": 0.3,
+            "std": 0.09212841621591446,
+            "t_stat": 4.517680834586434
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 6.252062754592916e-06
+        },
+        "30d": {
+          "discovery": {
+            "samples": 40,
+            "mean": 0.23169387006222336,
+            "median": 0.2025228600081036,
+            "positive_rate": 0.75,
+            "negative_rate": 0.25,
+            "std": 0.2612097780257322,
+            "t_stat": 5.6098998654142775
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 2.024437176935043e-08
+        },
+        "90d": {
+          "discovery": {
+            "samples": 40,
+            "mean": 0.49527694539785383,
+            "median": 0.42285032389696775,
+            "positive_rate": 0.9,
+            "negative_rate": 0.1,
+            "std": 0.4245154701240521,
+            "t_stat": 7.378780422632847
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 1.5974603421358788e-13
+        }
+      },
+      "status": "candidate",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 0.6795299387889324
+    },
+    "breakout_up|1d|transition": {
+      "observations": 37,
+      "validation_observations": 0,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 37,
+            "mean": -0.0011113492755197769,
+            "median": -0.00928505106778088,
+            "positive_rate": 0.3783783783783784,
+            "negative_rate": 0.6216216216216216,
+            "std": 0.04608796294019055,
+            "t_stat": -0.14667764205544256
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 0.8833864667651917
+        },
+        "3d": {
+          "discovery": {
+            "samples": 37,
+            "mean": 0.009868760438406015,
+            "median": 0.022464525564473092,
+            "positive_rate": 0.5405405405405406,
+            "negative_rate": 0.4594594594594595,
+            "std": 0.08147693651807388,
+            "t_stat": 0.7367646450711772
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 0.46126548684729923
+        },
+        "7d": {
+          "discovery": {
+            "samples": 37,
+            "mean": 0.030466417677293103,
+            "median": 0.007096040301175277,
+            "positive_rate": 0.5945945945945946,
+            "negative_rate": 0.40540540540540543,
+            "std": 0.06988064234865278,
+            "t_stat": 2.651950206113504
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 0.008002834308265486
+        },
+        "30d": {
+          "discovery": {
+            "samples": 37,
+            "mean": 0.1362535125552846,
+            "median": 0.10666805841549398,
+            "positive_rate": 0.7027027027027027,
+            "negative_rate": 0.2972972972972973,
+            "std": 0.18480220476797576,
+            "t_stat": 4.4847828619435655
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 7.298822317317059e-06
+        },
+        "90d": {
+          "discovery": {
+            "samples": 37,
+            "mean": 0.550625346197451,
+            "median": 0.41557845708915675,
+            "positive_rate": 0.8918918918918919,
+            "negative_rate": 0.10810810810810811,
+            "std": 0.5308886873364488,
+            "t_stat": 6.308899217435609
+          },
+          "validation": {
+            "samples": 0
+          },
+          "discovery_p": 2.8102703278432475e-10
+        }
+      },
+      "status": "candidate",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 0.8833864667651917
+    },
+    "breakout_up|1d|high_volatility": {
+      "observations": 143,
+      "validation_observations": 19,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 124,
+            "mean": 0.022043759537356346,
+            "median": 0.003024375270345825,
+            "positive_rate": 0.5483870967741935,
+            "negative_rate": 0.45161290322580644,
+            "std": 0.08278409428326741,
+            "t_stat": 2.9651700568207957
+          },
+          "validation": {
+            "samples": 19,
+            "mean": 0.0007515519789590886,
+            "median": -0.0016466175730686095,
+            "positive_rate": 0.47368421052631576,
+            "negative_rate": 0.5263157894736842,
+            "std": 0.09412418589617588,
+            "t_stat": 0.034804435182198695
+          },
+          "discovery_p": 0.0030251565327485937
+        },
+        "3d": {
+          "discovery": {
+            "samples": 124,
+            "mean": 0.08320219756317623,
+            "median": 0.05307424459450072,
+            "positive_rate": 0.7016129032258065,
+            "negative_rate": 0.29838709677419356,
+            "std": 0.15374947101350447,
+            "t_stat": 6.026039991522393
+          },
+          "validation": {
+            "samples": 19,
+            "mean": 0.03195065850319751,
+            "median": 0.023180444932710653,
+            "positive_rate": 0.631578947368421,
+            "negative_rate": 0.3684210526315789,
+            "std": 0.14219563623090953,
+            "t_stat": 0.979423105283332
+          },
+          "discovery_p": 1.6802562381843834e-09
+        },
+        "7d": {
+          "discovery": {
+            "samples": 124,
+            "mean": 0.20351136975608763,
+            "median": 0.10851144420406766,
+            "positive_rate": 0.782258064516129,
+            "negative_rate": 0.21774193548387097,
+            "std": 0.31064579744576376,
+            "t_stat": 7.295146828158838
+          },
+          "validation": {
+            "samples": 19,
+            "mean": 0.1129389651161153,
+            "median": 0.01587475968140617,
+            "positive_rate": 0.5789473684210527,
+            "negative_rate": 0.42105263157894735,
+            "std": 0.27786037885054876,
+            "t_stat": 1.7717154844663805
+          },
+          "discovery_p": 2.9833355179377365e-13
+        },
+        "30d": {
+          "discovery": {
+            "samples": 124,
+            "mean": 0.7030441747920986,
+            "median": 0.324824626759629,
+            "positive_rate": 0.782258064516129,
+            "negative_rate": 0.21774193548387097,
+            "std": 0.8776933240483589,
+            "t_stat": 8.919708501023106
+          },
+          "validation": {
+            "samples": 19,
+            "mean": 0.2981833033630586,
+            "median": 0.3755740037096398,
+            "positive_rate": 0.7894736842105263,
+            "negative_rate": 0.21052631578947367,
+            "std": 0.28947840974569206,
+            "t_stat": 4.489975218367894
+          },
+          "discovery_p": 4.675171138045308e-19
+        },
+        "90d": {
+          "discovery": {
+            "samples": 124,
+            "mean": 1.1955451661606953,
+            "median": 0.5068834844040472,
+            "positive_rate": 0.7661290322580645,
+            "negative_rate": 0.23387096774193547,
+            "std": 1.547592993917038,
+            "t_stat": 8.602408768283752
+          },
+          "validation": {
+            "samples": 19,
+            "mean": 0.7520965824602172,
+            "median": 0.7952027831181911,
+            "positive_rate": 0.8421052631578947,
+            "negative_rate": 0.15789473684210525,
+            "std": 0.6879075586415856,
+            "t_stat": 4.7656301454225805
+          },
+          "discovery_p": 7.806019890343175e-18
+        }
+      },
+      "status": "candidate",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 0.0041595902325293165
+    },
+    "structure_hh|1d|high_volatility": {
+      "observations": 330,
+      "validation_observations": 74,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 256,
+            "mean": 0.02637709425775215,
+            "median": 0.016809988272591503,
+            "positive_rate": 0.65625,
+            "negative_rate": 0.34375,
+            "std": 0.06487197481869386,
+            "t_stat": 6.50563682242673
+          },
+          "validation": {
+            "samples": 74,
+            "mean": 0.002413198071020746,
+            "median": 0.0037828734303541056,
+            "positive_rate": 0.527027027027027,
+            "negative_rate": 0.47297297297297297,
+            "std": 0.07555126475222305,
+            "t_stat": 0.2747685933359503
+          },
+          "discovery_p": 7.736493084188908e-11
+        },
+        "3d": {
+          "discovery": {
+            "samples": 256,
+            "mean": 0.0732801397286134,
+            "median": 0.05755606345701403,
+            "positive_rate": 0.72265625,
+            "negative_rate": 0.27734375,
+            "std": 0.12448289210938976,
+            "t_stat": 9.418822263765303
+          },
+          "validation": {
+            "samples": 74,
+            "mean": 0.012135840914328674,
+            "median": 0.01144236271170973,
+            "positive_rate": 0.5540540540540541,
+            "negative_rate": 0.44594594594594594,
+            "std": 0.09962000597918225,
+            "t_stat": 1.0479466439296856
+          },
+          "discovery_p": 4.561758827941272e-21
+        },
+        "7d": {
+          "discovery": {
+            "samples": 256,
+            "mean": 0.15193641679550152,
+            "median": 0.08528674159201066,
+            "positive_rate": 0.73046875,
+            "negative_rate": 0.26953125,
+            "std": 0.2552580563461076,
+            "t_stat": 9.523627592900826
+          },
+          "validation": {
+            "samples": 74,
+            "mean": 0.09207893065801326,
+            "median": 0.06718421364283589,
+            "positive_rate": 0.7162162162162162,
+            "negative_rate": 0.28378378378378377,
+            "std": 0.15814698005814953,
+            "t_stat": 5.008587021202975
+          },
+          "discovery_p": 1.672369770050471e-21
+        },
+        "30d": {
+          "discovery": {
+            "samples": 256,
+            "mean": 0.593043066275311,
+            "median": 0.24907614586867266,
+            "positive_rate": 0.7109375,
+            "negative_rate": 0.2890625,
+            "std": 0.9021478471651099,
+            "t_stat": 10.517886940840162
+          },
+          "validation": {
+            "samples": 74,
+            "mean": 0.22102780635497377,
+            "median": 0.19416612495901886,
+            "positive_rate": 0.6081081081081081,
+            "negative_rate": 0.3918918918918919,
+            "std": 0.41503620938153407,
+            "t_stat": 4.581173980361124
+          },
+          "discovery_p": 7.145816874895311e-26
+        },
+        "90d": {
+          "discovery": {
+            "samples": 256,
+            "mean": 1.000499800809493,
+            "median": 0.36728387057317224,
+            "positive_rate": 0.69140625,
+            "negative_rate": 0.30859375,
+            "std": 1.523988105836433,
+            "t_stat": 10.50401689596257
+          },
+          "validation": {
+            "samples": 74,
+            "mean": 0.4501040120714719,
+            "median": 0.32259200382563324,
+            "positive_rate": 0.7027027027027027,
+            "negative_rate": 0.2972972972972973,
+            "std": 0.6963256983560866,
+            "t_stat": 5.560531695125879
+          },
+          "discovery_p": 8.27808130053858e-26
+        }
+      },
+      "status": "provisional_confirmed",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 1.7020284785215598e-09
+    },
+    "structure_hl|1d|high_volatility": {
+      "observations": 337,
+      "validation_observations": 123,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 214,
+            "mean": 0.02586668177703895,
+            "median": 0.01414758993730314,
+            "positive_rate": 0.6308411214953271,
+            "negative_rate": 0.3691588785046729,
+            "std": 0.06863645092424597,
+            "t_stat": 5.513060877056012
+          },
+          "validation": {
+            "samples": 123,
+            "mean": 0.0067347026059253285,
+            "median": 0.011794727237659952,
+            "positive_rate": 0.5691056910569106,
+            "negative_rate": 0.43089430894308944,
+            "std": 0.07284292230712537,
+            "t_stat": 1.0253771093354296
+          },
+          "discovery_p": 3.526461848230178e-08
+        },
+        "3d": {
+          "discovery": {
+            "samples": 214,
+            "mean": 0.07353769374605361,
+            "median": 0.05431465913404454,
+            "positive_rate": 0.705607476635514,
+            "negative_rate": 0.29439252336448596,
+            "std": 0.13167623620332392,
+            "t_stat": 8.16976356252195
+          },
+          "validation": {
+            "samples": 123,
+            "mean": 0.02035650060169084,
+            "median": 0.011762705976696264,
+            "positive_rate": 0.5609756097560976,
+            "negative_rate": 0.43902439024390244,
+            "std": 0.10589985478704317,
+            "t_stat": 2.131868013603922
+          },
+          "discovery_p": 3.0899442982691845e-16
+        },
+        "7d": {
+          "discovery": {
+            "samples": 214,
+            "mean": 0.1612997682947582,
+            "median": 0.0778289627713804,
+            "positive_rate": 0.705607476635514,
+            "negative_rate": 0.29439252336448596,
+            "std": 0.27510447213370054,
+            "t_stat": 8.577149498027913
+          },
+          "validation": {
+            "samples": 123,
+            "mean": 0.09793415208380213,
+            "median": 0.049533041730700944,
+            "positive_rate": 0.6910569105691057,
+            "negative_rate": 0.3089430894308943,
+            "std": 0.18637307919137358,
+            "t_stat": 5.827785287564924
+          },
+          "discovery_p": 9.725318138705028e-18
+        },
+        "30d": {
+          "discovery": {
+            "samples": 214,
+            "mean": 0.5821919634640116,
+            "median": 0.21001311325671268,
+            "positive_rate": 0.7009345794392523,
+            "negative_rate": 0.29906542056074764,
+            "std": 0.9066648175474384,
+            "t_stat": 9.393475981925029
+          },
+          "validation": {
+            "samples": 123,
+            "mean": 0.11964183711024844,
+            "median": 0.0031825414867014956,
+            "positive_rate": 0.5040650406504065,
+            "negative_rate": 0.4959349593495935,
+            "std": 0.3920708882392827,
+            "t_stat": 3.3843169742184247
+          },
+          "discovery_p": 5.805211708671577e-21
+        },
+        "90d": {
+          "discovery": {
+            "samples": 214,
+            "mean": 0.9243730763563733,
+            "median": 0.32594506312565275,
+            "positive_rate": 0.6682242990654206,
+            "negative_rate": 0.3317757009345794,
+            "std": 1.5004660573163813,
+            "t_stat": 9.012141432498762
+          },
+          "validation": {
+            "samples": 123,
+            "mean": 0.3277852766940919,
+            "median": 0.1956126392361901,
+            "positive_rate": 0.5853658536585366,
+            "negative_rate": 0.4146341463414634,
+            "std": 0.6596953791361534,
+            "t_stat": 5.510595787709849
+          },
+          "discovery_p": 2.0207150956015583e-19
+        }
+      },
+      "status": "provisional_confirmed",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 1.939554016526598e-07
+    },
+    "rsi_overbought|1d|high_volatility": {
+      "observations": 245,
+      "validation_observations": 38,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 207,
+            "mean": 0.026755995965036545,
+            "median": 0.014485981308411278,
+            "positive_rate": 0.6473429951690821,
+            "negative_rate": 0.3526570048309179,
+            "std": 0.06930162694796224,
+            "t_stat": 5.55472885144971
+          },
+          "validation": {
+            "samples": 38,
+            "mean": 0.0011649184448667752,
+            "median": 0.006419574723599886,
+            "positive_rate": 0.5526315789473685,
+            "negative_rate": 0.4473684210526316,
+            "std": 0.09484471111563589,
+            "t_stat": 0.0757136532905707
+          },
+          "discovery_p": 2.78043021161797e-08
+        },
+        "3d": {
+          "discovery": {
+            "samples": 207,
+            "mean": 0.08262981427757599,
+            "median": 0.06396752633236513,
+            "positive_rate": 0.748792270531401,
+            "negative_rate": 0.25120772946859904,
+            "std": 0.12993342620535073,
+            "t_stat": 9.149577895027186
+          },
+          "validation": {
+            "samples": 38,
+            "mean": 0.021840859498343478,
+            "median": 0.017191100487498168,
+            "positive_rate": 0.5263157894736842,
+            "negative_rate": 0.47368421052631576,
+            "std": 0.14440583417533595,
+            "t_stat": 0.9323452954469476
+          },
+          "discovery_p": 5.715643765676991e-20
+        },
+        "7d": {
+          "discovery": {
+            "samples": 207,
+            "mean": 0.19264688980766168,
+            "median": 0.1418791716583947,
+            "positive_rate": 0.8019323671497585,
+            "negative_rate": 0.19806763285024154,
+            "std": 0.26472279146170435,
+            "t_stat": 10.470220813700399
+          },
+          "validation": {
+            "samples": 38,
+            "mean": 0.12698122182034935,
+            "median": 0.01574164054519578,
+            "positive_rate": 0.5789473684210527,
+            "negative_rate": 0.42105263157894735,
+            "std": 0.2634585797148705,
+            "t_stat": 2.9711115225422633
+          },
+          "discovery_p": 1.1836657354839502e-25
+        },
+        "30d": {
+          "discovery": {
+            "samples": 207,
+            "mean": 0.7257916404221448,
+            "median": 0.36578814500656365,
+            "positive_rate": 0.7922705314009661,
+            "negative_rate": 0.20772946859903382,
+            "std": 0.9270884696505585,
+            "t_stat": 11.263567207794177
+          },
+          "validation": {
+            "samples": 38,
+            "mean": 0.3784696777173955,
+            "median": 0.3839403202466234,
+            "positive_rate": 0.7894736842105263,
+            "negative_rate": 0.21052631578947367,
+            "std": 0.41668867594948966,
+            "t_stat": 5.599009322017372
+          },
+          "discovery_p": 1.9855525445453595e-29
+        },
+        "90d": {
+          "discovery": {
+            "samples": 207,
+            "mean": 1.2121959789865229,
+            "median": 0.47918610493074,
+            "positive_rate": 0.7584541062801933,
+            "negative_rate": 0.24154589371980675,
+            "std": 1.602199501578905,
+            "t_stat": 10.885325484237496
+          },
+          "validation": {
+            "samples": 38,
+            "mean": 0.8522398456491035,
+            "median": 0.8075254780116564,
+            "positive_rate": 0.8157894736842105,
+            "negative_rate": 0.18421052631578946,
+            "std": 0.7740814118153635,
+            "t_stat": 6.786830374969072
+          },
+          "discovery_p": 1.3541401397861672e-27
+        }
+      },
+      "status": "provisional_confirmed",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 1.939554016526598e-07
+    },
+    "morning_star|1d|high_volatility": {
+      "observations": 77,
+      "validation_observations": 25,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 52,
+            "mean": 0.033726522481592684,
+            "median": 0.023720131333141214,
+            "positive_rate": 0.7884615384615384,
+            "negative_rate": 0.21153846153846154,
+            "std": 0.056607281780754505,
+            "t_stat": 4.29636267014023
+          },
+          "validation": {
+            "samples": 25,
+            "mean": -0.008108853270328944,
+            "median": -0.009515370983897098,
+            "positive_rate": 0.36,
+            "negative_rate": 0.64,
+            "std": 0.06288496044024186,
+            "t_stat": -0.6447370892468479
+          },
+          "discovery_p": 1.7362344490979915e-05
+        },
+        "3d": {
+          "discovery": {
+            "samples": 52,
+            "mean": 0.05940537306553083,
+            "median": 0.02973749193831221,
+            "positive_rate": 0.6730769230769231,
+            "negative_rate": 0.3269230769230769,
+            "std": 0.10969765579956312,
+            "t_stat": 3.9050810532761053
+          },
+          "validation": {
+            "samples": 25,
+            "mean": -0.0004561591811198751,
+            "median": -0.024045098941555376,
+            "positive_rate": 0.44,
+            "negative_rate": 0.56,
+            "std": 0.13222957131868304,
+            "t_stat": -0.0172487582229431
+          },
+          "discovery_p": 9.419380902133901e-05
+        },
+        "7d": {
+          "discovery": {
+            "samples": 52,
+            "mean": 0.12197932934194775,
+            "median": 0.049446537759543,
+            "positive_rate": 0.6730769230769231,
+            "negative_rate": 0.3269230769230769,
+            "std": 0.2562276045291552,
+            "t_stat": 3.4329066713735608
+          },
+          "validation": {
+            "samples": 25,
+            "mean": 0.05820583353573814,
+            "median": 0.01587475968140617,
+            "positive_rate": 0.52,
+            "negative_rate": 0.48,
+            "std": 0.21318919269080214,
+            "t_stat": 1.3651215805333217
+          },
+          "discovery_p": 0.0005971476104009568
+        },
+        "30d": {
+          "discovery": {
+            "samples": 52,
+            "mean": 0.5404592534752006,
+            "median": 0.14403165955952724,
+            "positive_rate": 0.6346153846153846,
+            "negative_rate": 0.36538461538461536,
+            "std": 0.9405587671104648,
+            "t_stat": 4.143608286572833
+          },
+          "validation": {
+            "samples": 25,
+            "mean": 0.03463784628022309,
+            "median": -0.1434774995622483,
+            "positive_rate": 0.4,
+            "negative_rate": 0.6,
+            "std": 0.3447407432329289,
+            "t_stat": 0.5023752915799039
+          },
+          "discovery_p": 3.418835217501345e-05
+        },
+        "90d": {
+          "discovery": {
+            "samples": 52,
+            "mean": 0.9235347358816839,
+            "median": 0.2920753630912274,
+            "positive_rate": 0.6153846153846154,
+            "negative_rate": 0.38461538461538464,
+            "std": 1.5649882155422536,
+            "t_stat": 4.255433762151035
+          },
+          "validation": {
+            "samples": 25,
+            "mean": 0.1407474693582242,
+            "median": -0.05326737229636447,
+            "positive_rate": 0.48,
+            "negative_rate": 0.52,
+            "std": 0.5317791457512635,
+            "t_stat": 1.3233639423692065
+          },
+          "discovery_p": 2.0864412736937613e-05
+        }
+      },
+      "status": "candidate",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 5.4567368400222594e-05
+    },
+    "candle_doji|1d|high_volatility": {
+      "observations": 58,
+      "validation_observations": 22,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 36,
+            "mean": 0.025704784414147343,
+            "median": 0.031038912739902558,
+            "positive_rate": 0.6944444444444444,
+            "negative_rate": 0.3055555555555556,
+            "std": 0.05108309303406565,
+            "t_stat": 3.019173220032584
+          },
+          "validation": {
+            "samples": 22,
+            "mean": -0.000981476487671657,
+            "median": 0.009455632530035896,
+            "positive_rate": 0.5909090909090909,
+            "negative_rate": 0.4090909090909091,
+            "std": 0.05098698295313064,
+            "t_stat": -0.09028839360632586
+          },
+          "discovery_p": 0.002534655654432584
+        },
+        "3d": {
+          "discovery": {
+            "samples": 36,
+            "mean": 0.07302529401832984,
+            "median": 0.048399049340931866,
+            "positive_rate": 0.7777777777777778,
+            "negative_rate": 0.2222222222222222,
+            "std": 0.1100606007878042,
+            "t_stat": 3.981004655378281
+          },
+          "validation": {
+            "samples": 22,
+            "mean": 0.016305361182107903,
+            "median": -0.005175154970130602,
+            "positive_rate": 0.45454545454545453,
+            "negative_rate": 0.5454545454545454,
+            "std": 0.12952545224778456,
+            "t_stat": 0.5904547849936591
+          },
+          "discovery_p": 6.862460508643782e-05
+        },
+        "7d": {
+          "discovery": {
+            "samples": 36,
+            "mean": 0.1727992038298834,
+            "median": 0.08738419667092967,
+            "positive_rate": 0.8611111111111112,
+            "negative_rate": 0.1388888888888889,
+            "std": 0.28186566666465745,
+            "t_stat": 3.6783310122435067
+          },
+          "validation": {
+            "samples": 22,
+            "mean": 0.05302319083447416,
+            "median": 0.018258045984796523,
+            "positive_rate": 0.5909090909090909,
+            "negative_rate": 0.4090909090909091,
+            "std": 0.1589228622258032,
+            "t_stat": 1.5649152453142956
+          },
+          "discovery_p": 0.00023476515598529692
+        },
+        "30d": {
+          "discovery": {
+            "samples": 36,
+            "mean": 0.582587191052781,
+            "median": 0.2992886006992318,
+            "positive_rate": 0.7222222222222222,
+            "negative_rate": 0.2777777777777778,
+            "std": 0.8025474000428126,
+            "t_stat": 4.355534820909288
+          },
+          "validation": {
+            "samples": 22,
+            "mean": 0.024185839195235346,
+            "median": -0.14102571745260828,
+            "positive_rate": 0.4090909090909091,
+            "negative_rate": 0.5909090909090909,
+            "std": 0.34359267023285855,
+            "t_stat": 0.3301631587455162
+          },
+          "discovery_p": 1.3274241210537038e-05
+        },
+        "90d": {
+          "discovery": {
+            "samples": 36,
+            "mean": 1.0157288744008772,
+            "median": 0.3672865580911947,
+            "positive_rate": 0.6944444444444444,
+            "negative_rate": 0.3055555555555556,
+            "std": 1.4437683879137317,
+            "t_stat": 4.221157145026377
+          },
+          "validation": {
+            "samples": 22,
+            "mean": 0.19354553267054958,
+            "median": -0.02552489832768412,
+            "positive_rate": 0.5,
+            "negative_rate": 0.5,
+            "std": 0.5794710674457167,
+            "t_stat": 1.5666166400385595
+          },
+          "discovery_p": 2.430514176181561e-05
+        }
+      },
+      "status": "candidate",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 0.0037174949598344563
+    },
+    "candle_spinning_top|1d|high_volatility": {
+      "observations": 109,
+      "validation_observations": 37,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 72,
+            "mean": 0.04330798081986262,
+            "median": 0.03920897416047486,
+            "positive_rate": 0.7361111111111112,
+            "negative_rate": 0.2638888888888889,
+            "std": 0.07440589305927878,
+            "t_stat": 4.9388615322968015
+          },
+          "validation": {
+            "samples": 37,
+            "mean": 0.003934358400406586,
+            "median": 0.011794727237659952,
+            "positive_rate": 0.5945945945945946,
+            "negative_rate": 0.40540540540540543,
+            "std": 0.07072014620855147,
+            "t_stat": 0.33840099521546796
+          },
+          "discovery_p": 7.857998342623482e-07
+        },
+        "3d": {
+          "discovery": {
+            "samples": 72,
+            "mean": 0.0834027625067559,
+            "median": 0.06790762756177593,
+            "positive_rate": 0.8194444444444444,
+            "negative_rate": 0.18055555555555555,
+            "std": 0.10809849683556824,
+            "t_stat": 6.546769177883348
+          },
+          "validation": {
+            "samples": 37,
+            "mean": 0.03450277789814846,
+            "median": 0.006459097607625308,
+            "positive_rate": 0.5135135135135135,
+            "negative_rate": 0.4864864864864865,
+            "std": 0.13257490073872008,
+            "t_stat": 1.5830462887064662
+          },
+          "discovery_p": 5.879512852060654e-11
+        },
+        "7d": {
+          "discovery": {
+            "samples": 72,
+            "mean": 0.17677203131964564,
+            "median": 0.11700089646828105,
+            "positive_rate": 0.875,
+            "negative_rate": 0.125,
+            "std": 0.23314743156663797,
+            "t_stat": 6.433527552775931
+          },
+          "validation": {
+            "samples": 37,
+            "mean": 0.1048119475197678,
+            "median": 0.04843599333781379,
+            "positive_rate": 0.6486486486486487,
+            "negative_rate": 0.35135135135135137,
+            "std": 0.2087856056486558,
+            "t_stat": 3.053592632117029
+          },
+          "discovery_p": 1.246759817949283e-10
+        },
+        "30d": {
+          "discovery": {
+            "samples": 72,
+            "mean": 0.6725573367406766,
+            "median": 0.35130530476684774,
+            "positive_rate": 0.7638888888888888,
+            "negative_rate": 0.2361111111111111,
+            "std": 0.8940151390615897,
+            "t_stat": 6.383379870438649
+          },
+          "validation": {
+            "samples": 37,
+            "mean": 0.062102775316325,
+            "median": -0.13948714120413575,
+            "positive_rate": 0.4594594594594595,
+            "negative_rate": 0.5405405405405406,
+            "std": 0.3985046161098941,
+            "t_stat": 0.9479349032621954
+          },
+          "discovery_p": 1.7322149208002172e-10
+        },
+        "90d": {
+          "discovery": {
+            "samples": 72,
+            "mean": 1.0904775667539823,
+            "median": 0.3795116156202061,
+            "positive_rate": 0.7222222222222222,
+            "negative_rate": 0.2777777777777778,
+            "std": 1.5424084829442093,
+            "t_stat": 5.999065155904783
+          },
+          "validation": {
+            "samples": 37,
+            "mean": 0.2435619840312301,
+            "median": 0.01382933104631201,
+            "positive_rate": 0.5135135135135135,
+            "negative_rate": 0.4864864864864865,
+            "std": 0.6331030898074363,
+            "t_stat": 2.340108165829485
+          },
+          "discovery_p": 1.984567213980259e-09
+        }
+      },
+      "status": "provisional_confirmed",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 2.8812660589619437e-06
+    },
+    "book_indecision_pause|1d|high_volatility": {
+      "observations": 109,
+      "validation_observations": 37,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 72,
+            "mean": 0.04330798081986262,
+            "median": 0.03920897416047486,
+            "positive_rate": 0.7361111111111112,
+            "negative_rate": 0.2638888888888889,
+            "std": 0.07440589305927878,
+            "t_stat": 4.9388615322968015
+          },
+          "validation": {
+            "samples": 37,
+            "mean": 0.003934358400406586,
+            "median": 0.011794727237659952,
+            "positive_rate": 0.5945945945945946,
+            "negative_rate": 0.40540540540540543,
+            "std": 0.07072014620855147,
+            "t_stat": 0.33840099521546796
+          },
+          "discovery_p": 7.857998342623482e-07
+        },
+        "3d": {
+          "discovery": {
+            "samples": 72,
+            "mean": 0.0834027625067559,
+            "median": 0.06790762756177593,
+            "positive_rate": 0.8194444444444444,
+            "negative_rate": 0.18055555555555555,
+            "std": 0.10809849683556824,
+            "t_stat": 6.546769177883348
+          },
+          "validation": {
+            "samples": 37,
+            "mean": 0.03450277789814846,
+            "median": 0.006459097607625308,
+            "positive_rate": 0.5135135135135135,
+            "negative_rate": 0.4864864864864865,
+            "std": 0.13257490073872008,
+            "t_stat": 1.5830462887064662
+          },
+          "discovery_p": 5.879512852060654e-11
+        },
+        "7d": {
+          "discovery": {
+            "samples": 72,
+            "mean": 0.17677203131964564,
+            "median": 0.11700089646828105,
+            "positive_rate": 0.875,
+            "negative_rate": 0.125,
+            "std": 0.23314743156663797,
+            "t_stat": 6.433527552775931
+          },
+          "validation": {
+            "samples": 37,
+            "mean": 0.1048119475197678,
+            "median": 0.04843599333781379,
+            "positive_rate": 0.6486486486486487,
+            "negative_rate": 0.35135135135135137,
+            "std": 0.2087856056486558,
+            "t_stat": 3.053592632117029
+          },
+          "discovery_p": 1.246759817949283e-10
+        },
+        "30d": {
+          "discovery": {
+            "samples": 72,
+            "mean": 0.6725573367406766,
+            "median": 0.35130530476684774,
+            "positive_rate": 0.7638888888888888,
+            "negative_rate": 0.2361111111111111,
+            "std": 0.8940151390615897,
+            "t_stat": 6.383379870438649
+          },
+          "validation": {
+            "samples": 37,
+            "mean": 0.062102775316325,
+            "median": -0.13948714120413575,
+            "positive_rate": 0.4594594594594595,
+            "negative_rate": 0.5405405405405406,
+            "std": 0.3985046161098941,
+            "t_stat": 0.9479349032621954
+          },
+          "discovery_p": 1.7322149208002172e-10
+        },
+        "90d": {
+          "discovery": {
+            "samples": 72,
+            "mean": 1.0904775667539823,
+            "median": 0.3795116156202061,
+            "positive_rate": 0.7222222222222222,
+            "negative_rate": 0.2777777777777778,
+            "std": 1.5424084829442093,
+            "t_stat": 5.999065155904783
+          },
+          "validation": {
+            "samples": 37,
+            "mean": 0.2435619840312301,
+            "median": 0.01382933104631201,
+            "positive_rate": 0.5135135135135135,
+            "negative_rate": 0.4864864864864865,
+            "std": 0.6331030898074363,
+            "t_stat": 2.340108165829485
+          },
+          "discovery_p": 1.984567213980259e-09
+        }
+      },
+      "status": "provisional_confirmed",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 2.8812660589619437e-06
+    },
+    "structure_ll|1d|high_volatility": {
+      "observations": 96,
+      "validation_observations": 32,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 64,
+            "mean": 0.019790249996884206,
+            "median": 0.018850367148949942,
+            "positive_rate": 0.703125,
+            "negative_rate": 0.296875,
+            "std": 0.044625060600442516,
+            "t_stat": 3.54782711428976
+          },
+          "validation": {
+            "samples": 32,
+            "mean": 0.019597236281408203,
+            "median": 0.015327958995942303,
+            "positive_rate": 0.59375,
+            "negative_rate": 0.40625,
+            "std": 0.048569982885112384,
+            "t_stat": 2.282453127459729
+          },
+          "discovery_p": 0.00038842309035002726
+        },
+        "3d": {
+          "discovery": {
+            "samples": 64,
+            "mean": 0.06950569886665044,
+            "median": 0.06402709645749338,
+            "positive_rate": 0.84375,
+            "negative_rate": 0.15625,
+            "std": 0.07089209736746477,
+            "t_stat": 7.843548316125785
+          },
+          "validation": {
+            "samples": 32,
+            "mean": 0.06765263912825101,
+            "median": 0.08327542952354161,
+            "positive_rate": 0.78125,
+            "negative_rate": 0.21875,
+            "std": 0.07107880497360043,
+            "t_stat": 5.384180548395
+          },
+          "discovery_p": 4.37990490254417e-15
+        },
+        "7d": {
+          "discovery": {
+            "samples": 64,
+            "mean": 0.13442657617008824,
+            "median": 0.14251967157153833,
+            "positive_rate": 0.90625,
+            "negative_rate": 0.09375,
+            "std": 0.10644914015267862,
+            "t_stat": 10.102595547678973
+          },
+          "validation": {
+            "samples": 32,
+            "mean": 0.09653902934988393,
+            "median": 0.09998511266948673,
+            "positive_rate": 0.78125,
+            "negative_rate": 0.21875,
+            "std": 0.1265256819814708,
+            "t_stat": 4.316176841471092
+          },
+          "discovery_p": 5.3799082703451464e-24
+        },
+        "30d": {
+          "discovery": {
+            "samples": 64,
+            "mean": 0.6511005590555955,
+            "median": 0.40223736127170806,
+            "positive_rate": 0.828125,
+            "negative_rate": 0.171875,
+            "std": 0.8161932335306811,
+            "t_stat": 6.3818275605061885
+          },
+          "validation": {
+            "samples": 32,
+            "mean": -0.17447205185534542,
+            "median": -0.22699655824481935,
+            "positive_rate": 0.09375,
+            "negative_rate": 0.90625,
+            "std": 0.1616187535674277,
+            "t_stat": -6.106735426243729
+          },
+          "discovery_p": 1.7498694537234617e-10
+        },
+        "90d": {
+          "discovery": {
+            "samples": 64,
+            "mean": 1.2383429667989652,
+            "median": 0.5023344330930969,
+            "positive_rate": 0.8125,
+            "negative_rate": 0.1875,
+            "std": 1.5597428731995238,
+            "t_stat": 6.3515236418871215
+          },
+          "validation": {
+            "samples": 32,
+            "mean": -0.16904021481533815,
+            "median": -0.22946069928653096,
+            "positive_rate": 0.09375,
+            "negative_rate": 0.90625,
+            "std": 0.19611447309926516,
+            "t_stat": -4.875906619238871
+          },
+          "discovery_p": 2.1319264154646305e-10
+        }
+      },
+      "status": "provisional_confirmed",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 0.0007121089989750501
+    },
+    "trend_acceleration|1d|high_volatility": {
+      "observations": 171,
+      "validation_observations": 6,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 165,
+            "mean": 0.02741477942888744,
+            "median": 0.019882641921397326,
+            "positive_rate": 0.703030303030303,
+            "negative_rate": 0.296969696969697,
+            "std": 0.060452007724961926,
+            "t_stat": 5.82526918641039
+          },
+          "validation": {
+            "samples": 6,
+            "mean": -0.020467598882695243,
+            "median": -0.05314382924284994,
+            "positive_rate": 0.3333333333333333,
+            "negative_rate": 0.6666666666666666,
+            "std": 0.13412309595539162,
+            "t_stat": -0.3737997036635437
+          },
+          "discovery_p": 5.702061600081763e-09
+        },
+        "3d": {
+          "discovery": {
+            "samples": 165,
+            "mean": 0.08548305774165338,
+            "median": 0.07105466794118986,
+            "positive_rate": 0.8181818181818182,
+            "negative_rate": 0.18181818181818182,
+            "std": 0.10815549363759498,
+            "t_stat": 10.152510254414992
+          },
+          "validation": {
+            "samples": 6,
+            "mean": -0.054315827289644736,
+            "median": -0.08997618821918951,
+            "positive_rate": 0.3333333333333333,
+            "negative_rate": 0.6666666666666666,
+            "std": 0.10331855811874424,
+            "t_stat": -1.2877266605275044
+          },
+          "discovery_p": 3.229478298161266e-24
+        },
+        "7d": {
+          "discovery": {
+            "samples": 165,
+            "mean": 0.19725465947971307,
+            "median": 0.15485683592943023,
+            "positive_rate": 0.8484848484848485,
+            "negative_rate": 0.15151515151515152,
+            "std": 0.22524126238754455,
+            "t_stat": 11.249190984743924
+          },
+          "validation": {
+            "samples": 6,
+            "mean": -0.06848320329359558,
+            "median": -0.056043974111144756,
+            "positive_rate": 0.3333333333333333,
+            "negative_rate": 0.6666666666666666,
+            "std": 0.12794985087632768,
+            "t_stat": -1.3110519697497607
+          },
+          "discovery_p": 2.3372597760243412e-29
+        },
+        "30d": {
+          "discovery": {
+            "samples": 165,
+            "mean": 0.7742071984966787,
+            "median": 0.36578814500656365,
+            "positive_rate": 0.793939393939394,
+            "negative_rate": 0.20606060606060606,
+            "std": 0.9880073562541196,
+            "t_stat": 10.065584497742076
+          },
+          "validation": {
+            "samples": 6,
+            "mean": 0.5156902932570152,
+            "median": 0.4782098658821843,
+            "positive_rate": 1.0,
+            "negative_rate": 0.0,
+            "std": 0.18074976934460124,
+            "t_stat": 6.988546034477344
+          },
+          "discovery_p": 7.842012172187873e-24
+        },
+        "90d": {
+          "discovery": {
+            "samples": 165,
+            "mean": 1.2761292679984995,
+            "median": 0.4928027613895076,
+            "positive_rate": 0.7393939393939394,
+            "negative_rate": 0.2606060606060606,
+            "std": 1.6738846741932165,
+            "t_stat": 9.79289523382676
+          },
+          "validation": {
+            "samples": 6,
+            "mean": 1.2520335086255943,
+            "median": 1.5521387814747394,
+            "positive_rate": 1.0,
+            "negative_rate": 0.0,
+            "std": 0.6910650485849525,
+            "t_stat": 4.43785030552333
+          },
+          "discovery_p": 1.2078674574193908e-22
+        }
+      },
+      "status": "candidate",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 6.272267760089939e-08
+    },
+    "channel_breakout_up_50|1d|high_volatility": {
+      "observations": 84,
+      "validation_observations": 13,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 71,
+            "mean": 0.035310983215236895,
+            "median": 0.012586844717134227,
+            "positive_rate": 0.6197183098591549,
+            "negative_rate": 0.38028169014084506,
+            "std": 0.09353383148615711,
+            "t_stat": 3.1810482740005948
+          },
+          "validation": {
+            "samples": 13,
+            "mean": -0.00034222290861535704,
+            "median": -0.0016466175730686095,
+            "positive_rate": 0.46153846153846156,
+            "negative_rate": 0.5384615384615384,
+            "std": 0.0949911159144236,
+            "t_stat": -0.01298965943049564
+          },
+          "discovery_p": 0.001467431751088027
+        },
+        "3d": {
+          "discovery": {
+            "samples": 71,
+            "mean": 0.11178772810213035,
+            "median": 0.06332703213610591,
+            "positive_rate": 0.7323943661971831,
+            "negative_rate": 0.2676056338028169,
+            "std": 0.17946455179256554,
+            "t_stat": 5.248613892733588
+          },
+          "validation": {
+            "samples": 13,
+            "mean": 0.020748959709405046,
+            "median": 0.011762705976696264,
+            "positive_rate": 0.5384615384615384,
+            "negative_rate": 0.46153846153846156,
+            "std": 0.16325556265950117,
+            "t_stat": 0.45824740625119764
+          },
+          "discovery_p": 1.5324788511031683e-07
+        },
+        "7d": {
+          "discovery": {
+            "samples": 71,
+            "mean": 0.24951012215205717,
+            "median": 0.1423790882687208,
+            "positive_rate": 0.8309859154929577,
+            "negative_rate": 0.16901408450704225,
+            "std": 0.3563808511522609,
+            "t_stat": 5.8993339635931346
+          },
+          "validation": {
+            "samples": 13,
+            "mean": 0.14212893027118118,
+            "median": 0.01587475968140617,
+            "positive_rate": 0.6153846153846154,
+            "negative_rate": 0.38461538461538464,
+            "std": 0.3012316090668963,
+            "t_stat": 1.701193136427413
+          },
+          "discovery_p": 3.649718393349346e-09
+        },
+        "30d": {
+          "discovery": {
+            "samples": 71,
+            "mean": 0.8951208162001512,
+            "median": 0.7961179494116055,
+            "positive_rate": 0.7746478873239436,
+            "negative_rate": 0.22535211267605634,
+            "std": 0.8730525393579942,
+            "t_stat": 8.639138794483914
+          },
+          "validation": {
+            "samples": 13,
+            "mean": 0.3206434959314412,
+            "median": 0.3755740037096398,
+            "positive_rate": 0.8461538461538461,
+            "negative_rate": 0.15384615384615385,
+            "std": 0.2972503710038565,
+            "t_stat": 3.889302347447167
+          },
+          "discovery_p": 5.663833452937199e-18
+        },
+        "90d": {
+          "discovery": {
+            "samples": 71,
+            "mean": 1.582163638585778,
+            "median": 1.3775158456577339,
+            "positive_rate": 0.8028169014084507,
+            "negative_rate": 0.19718309859154928,
+            "std": 1.615709126372414,
+            "t_stat": 8.251205348037734
+          },
+          "validation": {
+            "samples": 13,
+            "mean": 0.8324699160141643,
+            "median": 0.8198481729051217,
+            "positive_rate": 0.8461538461538461,
+            "negative_rate": 0.15384615384615385,
+            "std": 0.6941838817856961,
+            "t_stat": 4.323801007521632
+          },
+          "discovery_p": 1.5680484235772656e-16
+        }
+      },
+      "status": "candidate",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 0.0023059641802811856
+    },
+    "atr_expansion|1d|high_volatility": {
+      "observations": 87,
+      "validation_observations": 29,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 58,
+            "mean": 0.042617669389022804,
+            "median": 0.016439046953537928,
+            "positive_rate": 0.7068965517241379,
+            "negative_rate": 0.29310344827586204,
+            "std": 0.084468050445224,
+            "t_stat": 3.8424765181243874
+          },
+          "validation": {
+            "samples": 29,
+            "mean": 0.04514421349369583,
+            "median": 0.036605789935401534,
+            "positive_rate": 0.8620689655172413,
+            "negative_rate": 0.13793103448275862,
+            "std": 0.07145572585688263,
+            "t_stat": 3.4022330168324926
+          },
+          "discovery_p": 0.0001217990702820662
+        },
+        "3d": {
+          "discovery": {
+            "samples": 58,
+            "mean": 0.13269472825024714,
+            "median": 0.1054245876035258,
+            "positive_rate": 0.8275862068965517,
+            "negative_rate": 0.1724137931034483,
+            "std": 0.16716534772424024,
+            "t_stat": 6.0453494486501835
+          },
+          "validation": {
+            "samples": 29,
+            "mean": 0.0758664143450012,
+            "median": 0.057185051482955274,
+            "positive_rate": 0.8620689655172413,
+            "negative_rate": 0.13793103448275862,
+            "std": 0.10752763362850125,
+            "t_stat": 3.7995176754814564
+          },
+          "discovery_p": 1.4908650906487541e-09
+        },
+        "7d": {
+          "discovery": {
+            "samples": 58,
+            "mean": 0.18919958918755567,
+            "median": 0.11692584325214561,
+            "positive_rate": 0.7586206896551724,
+            "negative_rate": 0.2413793103448276,
+            "std": 0.2892939016660327,
+            "t_stat": 4.980751874398289
+          },
+          "validation": {
+            "samples": 29,
+            "mean": 0.1384394385953242,
+            "median": 0.07682224428997042,
+            "positive_rate": 0.6551724137931034,
+            "negative_rate": 0.3448275862068966,
+            "std": 0.2546060480043786,
+            "t_stat": 2.9281283712089077
+          },
+          "discovery_p": 6.333770674011814e-07
+        },
+        "30d": {
+          "discovery": {
+            "samples": 58,
+            "mean": 0.5889128362975506,
+            "median": 0.22768985920837426,
+            "positive_rate": 0.7241379310344828,
+            "negative_rate": 0.27586206896551724,
+            "std": 0.7545955277721701,
+            "t_stat": 5.94361664667466
+          },
+          "validation": {
+            "samples": 29,
+            "mean": 0.40604675078174457,
+            "median": 0.392306636783607,
+            "positive_rate": 0.7931034482758621,
+            "negative_rate": 0.20689655172413793,
+            "std": 0.4074235109947185,
+            "t_stat": 5.366967328474844
+          },
+          "discovery_p": 2.7880119112199373e-09
+        },
+        "90d": {
+          "discovery": {
+            "samples": 58,
+            "mean": 0.9661723991205807,
+            "median": 0.2506452238164356,
+            "positive_rate": 0.6724137931034483,
+            "negative_rate": 0.3275862068965517,
+            "std": 1.382109240052566,
+            "t_stat": 5.3238554230132165
+          },
+          "validation": {
+            "samples": 29,
+            "mean": 0.6256681765580253,
+            "median": 0.4797831203765972,
+            "positive_rate": 0.8620689655172413,
+            "negative_rate": 0.13793103448275862,
+            "std": 0.6562615897293986,
+            "t_stat": 5.134120750131964
+          },
+          "discovery_p": 1.0159066172250815e-07
+        }
+      },
+      "status": "candidate",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 0.0002977310606894952
+    },
+    "volume_spike|1d|high_volatility": {
+      "observations": 42,
+      "validation_observations": 12,
+      "horizons": {
+        "1d": {
+          "discovery": {
+            "samples": 30,
+            "mean": 0.04469473830327811,
+            "median": 0.012444141725310498,
+            "positive_rate": 0.7333333333333333,
+            "negative_rate": 0.26666666666666666,
+            "std": 0.0974029087563005,
+            "t_stat": 2.5133044467639767
+          },
+          "validation": {
+            "samples": 12,
+            "mean": 0.03754296663499576,
+            "median": 0.022383445029852123,
+            "positive_rate": 0.75,
+            "negative_rate": 0.25,
+            "std": 0.10951007039504203,
+            "t_stat": 1.187586227350646
+          },
+          "discovery_p": 0.011960606739692108
+        },
+        "3d": {
+          "discovery": {
+            "samples": 30,
+            "mean": 0.1489746628198815,
+            "median": 0.1419473916410775,
+            "positive_rate": 0.7333333333333333,
+            "negative_rate": 0.26666666666666666,
+            "std": 0.2194248793039129,
+            "t_stat": 3.71866597725959
+          },
+          "validation": {
+            "samples": 12,
+            "mean": 0.04268655554793082,
+            "median": 0.03787039883165855,
+            "positive_rate": 0.6666666666666666,
+            "negative_rate": 0.3333333333333333,
+            "std": 0.1540127073550108,
+            "t_stat": 0.9601192561169769
+          },
+          "discovery_p": 0.00020027767685074758
+        },
+        "7d": {
+          "discovery": {
+            "samples": 30,
+            "mean": 0.23021190652594098,
+            "median": 0.1583706229560582,
+            "positive_rate": 0.7333333333333333,
+            "negative_rate": 0.26666666666666666,
+            "std": 0.3567924323824724,
+            "t_stat": 3.534050690720956
+          },
+          "validation": {
+            "samples": 12,
+            "mean": 0.07006682071442043,
+            "median": -0.017379029410709013,
+            "positive_rate": 0.4166666666666667,
+            "negative_rate": 0.5833333333333334,
+            "std": 0.28455068534714917,
+            "t_stat": 0.8529889376589512
+          },
+          "discovery_p": 0.00040924258323208934
+        },
+        "30d": {
+          "discovery": {
+            "samples": 30,
+            "mean": 0.6669588435118732,
+            "median": 0.4231447980851357,
+            "positive_rate": 0.7,
+            "negative_rate": 0.3,
+            "std": 0.7735946087028046,
+            "t_stat": 4.7222201319574255
+          },
+          "validation": {
+            "samples": 12,
+            "mean": 0.45233480254089137,
+            "median": 0.45303840861022704,
+            "positive_rate": 1.0,
+            "negative_rate": 0.0,
+            "std": 0.1375867023563301,
+            "t_stat": 11.388700312089624
+          },
+          "discovery_p": 2.3328398342208166e-06
+        },
+        "90d": {
+          "discovery": {
+            "samples": 30,
+            "mean": 1.0744199195022022,
+            "median": 0.5497573780588346,
+            "positive_rate": 0.7333333333333333,
+            "negative_rate": 0.26666666666666666,
+            "std": 1.3263027542211672,
+            "t_stat": 4.437026344635853
+          },
+          "validation": {
+            "samples": 12,
+            "mean": 1.1661273351612067,
+            "median": 1.38217996038082,
+            "positive_rate": 1.0,
+            "negative_rate": 0.0,
+            "std": 0.6018836950104556,
+            "t_stat": 6.7115683954822005
+          },
+          "discovery_p": 9.12101343099888e-06
+        }
+      },
+      "status": "candidate",
+      "oos_required": true,
+      "research_note": "Association only until walk-forward/OOS stability is demonstrated.",
+      "fdr_q": 0.015478432251366258
+    }
+  }
 }
