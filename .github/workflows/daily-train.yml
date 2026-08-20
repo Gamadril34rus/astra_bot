@@ -9,14 +9,11 @@ on:
         default: true
         type: boolean
   schedule:
-    # One bounded historical month per run. The progress file advances automatically.
     - cron: "0 */2 * * *"
 
 permissions:
   contents: write
 
-# Never cancel an active month because another scheduled/manual run appeared.
-# There is intentionally no push trigger: training commits must not retrigger training.
 concurrency:
   group: astra-pretrain-monthly
   cancel-in-progress: false
@@ -90,20 +87,42 @@ jobs:
       - name: Persist research, lessons, memory and model
         run: |
           set -euo pipefail
+          shopt -s nullglob
           git config user.name "astra-bot"
           git config user.email "bot@users.noreply.github.com"
-          git add -f \
-            models/current.pkl \
-            models/lessons*.jsonl \
-            models/news_cache.json \
-            models/market_memory.json \
-            models/pretrain_progress.json \
-            models/research_observations*.jsonl \
-            models/research_hypotheses*.json \
+          artifacts=(
+            models/current.pkl
+            models/lessons*.jsonl
+            models/news_cache.json
+            models/market_memory.json
+            models/pretrain_progress.json
+            models/research_observations*.jsonl
+            models/research_hypotheses*.json
             models/research_summary.json
+          )
+          existing=()
+          for f in "${artifacts[@]}"; do
+            if [ -f "$f" ]; then
+              existing+=("$f")
+            fi
+          done
+          if [ "${#existing[@]}" -eq 0 ]; then
+            echo "No training artifacts found"
+            exit 1
+          fi
+          git add -f -- "${existing[@]}"
           if git diff --cached --quiet; then
             echo "No training artifacts changed"
-          else
-            git commit -m "chore(training): pretrain historical month $(date -u +%Y-%m)"
-            git push origin master
+            exit 0
           fi
+          git commit -m "chore(training): pretrain historical month $(date -u +%Y-%m)"
+          for attempt in 1 2 3; do
+            git fetch origin master
+            git rebase origin/master && git push origin HEAD:master && exit 0
+            git rebase --abort 2>/dev/null || true
+            if [ "$attempt" -lt 3 ]; then
+              sleep $((attempt * 10))
+            fi
+          done
+          echo "Failed to push training state after 3 attempts" >&2
+          exit 1
