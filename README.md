@@ -251,6 +251,10 @@ python -m pytest tests/integration
 python scripts/preflight.py
 ```
 
+Проверка стратегии из «Простой книги торговли» (`Simple Trading Book_compressed.pdf`
+в корне проекта) на истории: `python scripts/backtest_book_2y.py --years 2` —
+бэктест book_breakout за 2 года на 1h/4h, итоги в `docs/book_backtest_2y/summary.md`.
+
 ## 📖 Документация
 
 Начинать с `docs/INDEX.md`. Далее: `ARCHITECTURE.md` → `DECISION_PIPELINE.md` → `SELF_PLAY.md` → `PROFIT_AND_TRAINING.md` → `RISK_AND_GOALS.md` → `GITHUB_ACTIONS.md`.

@@ -619,9 +619,10 @@ class RiskEngine:
             if t["timestamp"] > week_ago
         ]
 
-    def add_position(self, position: models.Position):
-        """Добавить позицию"""
-        self._open_positions[position.id] = position
+    def add_position(self, position: models.Position | str):
+        """Добавить позицию (объект позиции или её идентификатор)."""
+        position_id = position if isinstance(position, str) else position.id
+        self._open_positions[position_id] = position
         OPEN_POSITIONS.labels(engine="risk").set(len(self._open_positions))
 
     def remove_position(self, position_id: str):

@@ -3,10 +3,12 @@ ASTRA BOT — Backtest Engine
 Event-driven бэктестер
 """
 
+import asyncio
+import inspect
 import logging
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import numpy as np
@@ -20,6 +22,24 @@ from ..engines.risk_engine import RiskConfig, RiskEngine
 from ..strategies import BaseStrategy
 
 logger = logging.getLogger(__name__)
+
+# Единый event loop для синхронного вызова async-стратегий из
+# синхронного цикла бэктеста (все штатные стратегии — async).
+_backtest_loop: asyncio.AbstractEventLoop | None = None
+
+
+def _ts_to_dt(timestamp) -> datetime:
+    """Конвертировать timestamp свечи (мс или с) в datetime UTC."""
+    seconds = int(timestamp) / 1000 if int(timestamp) > 10_000_000_000 else int(timestamp)
+    return datetime.fromtimestamp(seconds, tz=UTC)
+
+
+def _run_coroutine(coro):
+    """Выполнить корутину в потоке бэктеста и вернуть её результат."""
+    global _backtest_loop
+    if _backtest_loop is None or _backtest_loop.is_closed():
+        _backtest_loop = asyncio.new_event_loop()
+    return _backtest_loop.run_until_complete(coro)
 
 
 @dataclass
@@ -224,12 +244,22 @@ class BacktestEngine:
         self._strategies: dict[str, BaseStrategy] = {}
 
         # Risk engine
-        self._risk_engine = RiskEngine(
-            RiskConfig(
-                risk_per_trade=Decimal(str(config.risk_config.get("risk_per_trade", "0.004"))),
-                max_open_positions=config.max_open_positions,
-            )
+        risk_cfg = RiskConfig(
+            risk_per_trade=Decimal(str(config.risk_config.get("risk_per_trade", "0.004"))),
+            max_open_positions=config.max_open_positions,
         )
+        if "drawdown_adaptation" in config.risk_config:
+            # Позволяет отключить адаптацию риска по просадке
+            # (например, для чистой проверки правил книги):
+            # {"drawdown_adaptation": [{"drawdown": 0, "risk_multiplier": 1.0}]}
+            risk_cfg.drawdown_adaptation = [
+                {
+                    "drawdown": Decimal(str(tier["drawdown"])),
+                    "risk_multiplier": Decimal(str(tier["risk_multiplier"])),
+                }
+                for tier in config.risk_config["drawdown_adaptation"]
+            ]
+        self._risk_engine = RiskEngine(risk_cfg)
         self._risk_engine.set_capital(config.initial_capital, config.initial_capital)
 
         # Рыночные данные
@@ -295,12 +325,7 @@ class BacktestEngine:
 
     def _init_equity_curve(self):
         """Инициализировать equity curve"""
-        if self._candles:
-            self._equity_curve.append({
-                "timestamp": self._candles[0]["open_time"],
-                "equity": float(self._equity),
-                "drawdown": 0.0,
-            })
+        self._equity_curve = []
 
     def _process_tick(self):
         """Обработать один тик (свечу)"""
@@ -310,6 +335,10 @@ class BacktestEngine:
 
         # Обновление equity (закрытие позиций по текущей цене для расчёта unrealized PnL)
         self._update_unrealized_pnl(current_price)
+
+        # Проверка выходов по стопам/тейкам на текущей свече (внутрибарно)
+        for trade in list(self._open_positions.values()):
+            self._check_exit_conditions(trade, candle, timestamp)
 
         # Проверка стратегий
         for strategy_name, strategy in self._strategies.items():
@@ -327,13 +356,16 @@ class BacktestEngine:
             if len(model_candles) < lookback:
                 continue
 
-            # Оценка стратегии
+            # Оценка стратегии (штатные стратегии — async, тестовые могут
+            # быть синхронными; поддерживаем оба варианта)
             try:
                 signal = strategy.evaluate(
                     symbol=self.config.symbol,
                     candles=model_candles,
                     current_price=float(current_price),
                 )
+                if inspect.iscoroutine(signal):
+                    signal = _run_coroutine(signal)
 
                 if signal:
                     self._process_signal(signal, current_price, timestamp)
@@ -408,7 +440,7 @@ class BacktestEngine:
         # Открытие позиции
         trade = Trade(
             id=self._trade_id_counter,
-            entry_time=timestamp,
+            entry_time=_ts_to_dt(timestamp),
             entry_price=effective_price,
             side="long",
             quantity=quantity,
@@ -460,7 +492,7 @@ class BacktestEngine:
 
         trade = Trade(
             id=self._trade_id_counter,
-            entry_time=timestamp,
+            entry_time=_ts_to_dt(timestamp),
             entry_price=effective_price,
             side="short",
             quantity=quantity,
@@ -507,18 +539,61 @@ class BacktestEngine:
             trade.pnl_pct = (unrealized / (trade.entry_price * trade.quantity)) * 100 if trade.quantity > 0 else 0
 
     def _close_all_positions(self):
-        """Закрыть все открытые позиции"""
-        for trade_id, _trade in list(self._open_positions.items()):
-            self._close_position(trade_id, "end_of_backtest")
+        """Закрыть все открытые позиции в конце прогона по цене последней свечи."""
+        if not self._candles:
+            for trade_id in list(self._open_positions):
+                self._close_position(trade_id, "end_of_backtest")
+            return
+        last_candle = self._candles[-1]
+        exit_price = Decimal(str(last_candle["close"]))
+        timestamp = last_candle["open_time"]
+        for trade_id in list(self._open_positions):
+            self._close_position(
+                trade_id, "end_of_backtest",
+                exit_price=exit_price, timestamp=timestamp,
+            )
 
-    def _close_position(self, trade_id: int, reason: str):
-        """Закрыть позицию"""
+    def _close_position(
+        self,
+        trade_id: int,
+        reason: str,
+        exit_price: Decimal | None = None,
+        timestamp: int | None = None,
+    ):
+        """Закрыть позицию. Если ``exit_price`` задан, PnL пересчитывается
+        именно по нему (выход по стопу/тейку внутри свечи)."""
         if trade_id not in self._open_positions:
             return
 
         trade = self._open_positions.pop(trade_id)
-        trade.exit_time = datetime.utcnow()
+        self._risk_engine.remove_position(str(trade_id))
+        if timestamp is not None:
+            trade.exit_time = _ts_to_dt(timestamp)
+        else:
+            trade.exit_time = datetime.now(tz=UTC)
         trade.exit_reason = reason
+
+        if exit_price is not None:
+            trade.exit_price = exit_price
+            if trade.side == "long":
+                unrealized = (exit_price - trade.entry_price) * trade.quantity
+            else:
+                unrealized = (trade.entry_price - exit_price) * trade.quantity
+            trade.pnl = unrealized - trade.fees
+            if trade.quantity > 0:
+                trade.pnl_pct = (
+                    unrealized / (trade.entry_price * trade.quantity) * 100
+                )
+        elif trade.quantity > 0:
+            # Цена не передана: PnL уже отмечен по последней свече в
+            # _update_unrealized_pnl — восстановим цену выхода из него.
+            implied = (trade.pnl + trade.fees) / trade.quantity
+            trade.exit_price = (
+                trade.entry_price + implied
+                if trade.side == "long"
+                else trade.entry_price - implied
+            )
+
         trade.result = "won" if trade.pnl > 0 else "lost"
 
         # Фиксируем реализованный PnL (включая уже учтённые комиссии,
@@ -546,24 +621,44 @@ class BacktestEngine:
 
         logger.debug(f"Position closed: {trade_id}, PnL={trade.pnl}, reason={reason}")
 
-    def _check_exit_conditions(self, trade: Trade, current_price: Decimal, timestamp: datetime):
-        """Проверить условия выхода"""
+    def _check_exit_conditions(self, trade: Trade, candle: dict, timestamp: int):
+        """Проверить условия выхода по свече (внутрибарно).
+
+        Стоп/тейк считаются сработавшими, если уровень попал в диапазон
+        [low, high] свечи; выход фиксируется по цене уровня, а не по
+        закрытию (более честная оценка проскальзывания через уровень).
+        """
+        high = Decimal(str(candle["high"]))
+        low = Decimal(str(candle["low"]))
+
         # Стоп-лосс
-        if trade.side == "long" and current_price <= trade.stop_loss:
-            self._close_position(trade.id, "stop_loss")
+        if trade.side == "long" and low <= trade.stop_loss:
+            self._close_position(
+                trade.id, "stop_loss",
+                exit_price=trade.stop_loss, timestamp=timestamp,
+            )
             return
 
-        if trade.side == "short" and current_price >= trade.stop_loss:
-            self._close_position(trade.id, "stop_loss")
+        if trade.side == "short" and high >= trade.stop_loss:
+            self._close_position(
+                trade.id, "stop_loss",
+                exit_price=trade.stop_loss, timestamp=timestamp,
+            )
             return
 
-        # Тейк-профит (упрощённо — фиксированный TP)
-        if trade.side == "long" and current_price >= trade.take_profit:
-            self._close_position(trade.id, "take_profit")
+        # Тейк-профит
+        if trade.side == "long" and high >= trade.take_profit:
+            self._close_position(
+                trade.id, "take_profit",
+                exit_price=trade.take_profit, timestamp=timestamp,
+            )
             return
 
-        if trade.side == "short" and current_price <= trade.take_profit:
-            self._close_position(trade.id, "take_profit")
+        if trade.side == "short" and low <= trade.take_profit:
+            self._close_position(
+                trade.id, "take_profit",
+                exit_price=trade.take_profit, timestamp=timestamp,
+            )
             return
 
     def _update_equity_curve(self, timestamp: int, current_price: Decimal):
@@ -587,6 +682,13 @@ class BacktestEngine:
             if self._current_drawdown > float(self._max_drawdown):
                 self._max_drawdown = self._current_drawdown
 
+        # Точка equity-кривой на каждом баре
+        self._equity_curve.append({
+            "timestamp": timestamp,
+            "equity": float(self._equity),
+            "drawdown": float(self._current_drawdown),
+        })
+
     def _calculate_results(self) -> BacktestResult:
         """Рассчитать результаты"""
         trades = [t for t in self._trades if t.result in ["won", "lost"]]
@@ -600,7 +702,10 @@ class BacktestEngine:
         total_pnl = sum(t.pnl for t in trades)
         total_fees = sum(t.fees for t in self._trades)
         total_slippage = sum(t.slippage for t in self._trades)
-        net_profit = total_pnl - total_fees - total_slippage
+        # Комиссии уже вычтены в ``trade.pnl`` (см. _update_unrealized_pnl),
+        # а проскальзывание заложено в цену входа, поэтому повторно их
+        # вычитать нельзя — иначе расходы учитываются дважды.
+        net_profit = total_pnl
 
         # Profit Factor
         gross_profit = sum(t.pnl for t in trades if t.pnl > 0)
