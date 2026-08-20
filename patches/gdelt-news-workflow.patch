@@ -1,0 +1,31 @@
+diff --git a/.github/workflows/daily-train.yml b/.github/workflows/daily-train.yml
+index 4e4f59d..7ad0e47 100644
+--- a/.github/workflows/daily-train.yml
++++ b/.github/workflows/daily-train.yml
+@@ -4,7 +4,7 @@ on:
+   workflow_dispatch:
+     inputs:
+       with_news:
+-        description: "Use NEWS_API_KEY for historical news enrichment"
++        description: "Use FREE GDELT DOC 2.0 + Free Crypto News API (no key needed)"
+         required: false
+         default: true
+         type: boolean
+@@ -42,13 +42,15 @@ jobs:
+ 
+       - name: Write paper environment
+         env:
+-          NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
++          FREE_CRYPTO_NEWS_ENABLED: "1"
+         run: |
+           set -euo pipefail
+           echo "ENVIRONMENT=paper" > .env
+           echo "PAPER_TRADING=true" >> .env
+           echo "OKX_DEMO=1" >> .env
+-          echo "NEWS_API_KEY=$NEWS_API_KEY" >> .env
++          # Источники новостей бесплатные (GDELT DOC 2.0 + Free Crypto News API),
++          # платные ключи не требуются.
++          echo "FREE_CRYPTO_NEWS_ENABLED=$FREE_CRYPTO_NEWS_ENABLED" >> .env
+           chmod 600 .env
+ 
+       - name: Five-year research-first pretrain (one month)
