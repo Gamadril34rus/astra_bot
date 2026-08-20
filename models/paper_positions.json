@@ -145,16 +145,16 @@
       }
     },
     {
-      "id": "61e83cf0-105a-4a7f-a978-b7135cc7c0bb",
-      "symbol": "PEPE-USDT",
+      "id": "dacf0926-3027-413e-bde0-2e8ba7532302",
+      "symbol": "BCH-USDT",
       "direction": "long",
-      "entry_price": "0.000002608",
-      "quantity": "2254155292.781082",
-      "stop_loss": "0.000002576704",
+      "entry_price": "210.23",
+      "quantity": "27.913500",
+      "stop_loss": "209.17885",
       "take_profits": [
-        "0.0000026392960",
-        "0.0000026643328",
-        "0.0000026862400"
+        "211.281150",
+        "212.122070",
+        "212.857875"
       ],
       "tp_filled": [
         false,
@@ -166,21 +166,21 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "2254155292.781082",
+      "initial_quantity": "27.913500",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.000002619",
-      "lowest_price": "0.000002578",
-      "strategy": "pullback",
-      "opened_at": 1787145338293,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "scalp5m",
+      "opened_at": 1787231426416,
       "notes": {
-        "score": 50.0,
+        "score": 47.0,
         "ml_probability": null,
-        "edge_pct": 0.534001634024665,
-        "rr": 0.7500000000000001
+        "edge_pct": 0.21373673233711976,
+        "rr": 1.2
       }
     }
   ],
-  "realized_pnl": "-1029.953309512922157568",
+  "realized_pnl": "-1100.499353555798899840",
   "initial_capital": "40222.20"
 }
