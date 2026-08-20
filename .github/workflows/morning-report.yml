@@ -28,7 +28,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install Telegram dependency
-        run: pip install python-telegram-bot
+        run: pip install python-telegram-bot pyyaml
 
       - name: Send report
         env:
