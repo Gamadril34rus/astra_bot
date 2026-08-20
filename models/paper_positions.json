@@ -133,7 +133,7 @@
       "initial_quantity": "9.510462",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "617.6",
+      "highest_price": "618",
       "lowest_price": "615.9",
       "strategy": "pullback",
       "opened_at": 1787237295703,
@@ -142,6 +142,42 @@
         "ml_probability": null,
         "edge_pct": 0.39296977307755465,
         "rr": 0.7500000000000001
+      }
+    },
+    {
+      "id": "30f9683e-997a-47f2-a6c4-275a549d4803",
+      "symbol": "ADA-USDT",
+      "direction": "long",
+      "entry_price": "0.1849",
+      "quantity": "31560.590158",
+      "stop_loss": "0.1839755",
+      "take_profits": [
+        "0.18582450",
+        "0.18656410",
+        "0.18721125"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "31560.590158",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "0.1855",
+      "lowest_price": "0.1844",
+      "strategy": "scalp5m",
+      "opened_at": 1787256850850,
+      "notes": {
+        "score": 50.0,
+        "ml_probability": null,
+        "edge_pct": 0.21777362810172646,
+        "rr": 1.2
       }
     }
   ],
