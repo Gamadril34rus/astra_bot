@@ -29,6 +29,18 @@ from .broker import PaperBroker
 from .context import MarketContext
 from .pipeline import DecisionPipeline
 
+# Fire-and-forget задачи (уведомления и т.п.). Ссылки хранятся явно:
+# без них задача может быть собрана GC до выполнения и цикл уронит
+# "Task was destroyed but it is pending".
+_BACKGROUND_TASKS: set[asyncio.Task] = set()
+
+
+def _spawn_background(coro) -> None:
+    """Запустить корутину в фоне текущего event loop, сохранив ссылку."""
+    task = asyncio.ensure_future(coro)
+    _BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_BACKGROUND_TASKS.discard)
+
 logger = logging.getLogger(__name__)
 
 
@@ -361,7 +373,7 @@ class TradingEngine:
             res = self._notifier(text, severity)
             if asyncio.iscoroutine(res):
                 # Отправка идёт fire-and-forget, чтобы не блокировать цикл.
-                asyncio.ensure_future(res)
+                _spawn_background(res)
         except Exception as exc:  # noqa: BLE001
             logger.debug("notifier error: %s", exc)
 

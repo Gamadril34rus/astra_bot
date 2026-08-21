@@ -9,7 +9,6 @@ from astra_bot.core import training_state as ts_mod
 from astra_bot.core.training_state import (
     MIN_CAPITAL,
     TrainingState,
-    get_training_state,
     reload_training_state,
 )
 

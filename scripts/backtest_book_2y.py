@@ -42,7 +42,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from astra_bot.backtester.engine import BacktestConfig, BacktestEngine
+from astra_bot.backtester.engine import BacktestConfig, BacktestEngine, BacktestResult
 from astra_bot.strategies.book_breakout import BookBreakoutStrategy
 
 LOGGER = logging.getLogger("backtest_book_2y")
@@ -118,7 +118,7 @@ def run_timeframe(
     start_dt: datetime,
     end_dt: datetime,
     use_risk_adaptation: bool = False,
-) -> tuple[dict, "BacktestResult"]:
+) -> tuple[dict, BacktestResult]:
     """Один прогон бэктестера на таймфрейме. Возвращает (сводка, результат)."""
     risk_config: dict = {"risk_per_trade": str(risk_per_trade)}
     if not use_risk_adaptation:

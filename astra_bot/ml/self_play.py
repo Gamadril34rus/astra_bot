@@ -36,7 +36,6 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-@dataclass
 class Lesson:
     """Разбор одной виртуальной сделки."""
 

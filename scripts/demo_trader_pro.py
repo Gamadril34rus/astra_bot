@@ -326,7 +326,9 @@ class DemoTraderPro:
                 self._consecutive_tick_errors += 1
                 LOG.exception("demo tick failed (%d/%d)", self._consecutive_tick_errors, MAX_CONSECUTIVE_TICK_ERRORS)
                 if self._consecutive_tick_errors >= MAX_CONSECUTIVE_TICK_ERRORS:
-                    raise RuntimeError("Demo worker stopped after repeated identical-cycle failures")
+                    raise RuntimeError(
+                        "Demo worker stopped after repeated identical-cycle failures"
+                    ) from None
             await asyncio.sleep(max(1.0, SCAN_SECONDS - (time.monotonic() - started)))
 
 
