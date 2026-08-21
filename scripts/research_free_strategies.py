@@ -91,6 +91,22 @@ def keltner(df: pd.DataFrame, n: int = 20, k: float = 2.0):
     return m + k * a, m, m - k * a
 
 
+def _wilder(values: np.ndarray, n: int) -> np.ndarray:
+    """Сглаживание Уайлдера: s = s − s/n + v/n, посев средним первых n."""
+    out = np.empty_like(values, dtype=float)
+    if len(values) >= n:
+        seed = float(np.mean(values[:n]))
+    elif len(values):
+        seed = float(np.mean(values))
+    else:
+        seed = 0.0
+    s = seed
+    for i, v in enumerate(values):
+        s = s - s / n + v / n
+        out[i] = s
+    return out
+
+
 def adx_di(df: pd.DataFrame, n: int = 14):
     h, l = df["high"], df["low"]
     up = h.diff()
@@ -98,11 +114,16 @@ def adx_di(df: pd.DataFrame, n: int = 14):
     plus_dm = pd.Series(np.where((up > dn) & (up > 0), up, 0.0), index=df.index)
     minus_dm = pd.Series(np.where((dn > up) & (dn > 0), dn, 0.0), index=df.index)
     a = atr(df, n).replace(0, np.nan)
-    plus_di = 100 * plus_dm.ewm(alpha=1 / n, adjust=False).mean() / a
-    minus_di = 100 * minus_dm.ewm(alpha=1 / n, adjust=False).mean() / a
-    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
-    adx = dx.ewm(alpha=1 / n, adjust=False).mean()
-    return adx.fillna(0), plus_di.fillna(0), minus_di.fillna(0)
+    plus_di = 100 * _wilder(plus_dm.values, n) / a.values
+    minus_di = 100 * _wilder(minus_dm.values, n) / a.values
+    denom = plus_di + minus_di
+    dx = np.where(denom > 0, 100 * np.abs(plus_di - minus_di) / np.where(denom > 0, denom, 1), 0.0)
+    adx = _wilder(dx, n)
+    return (
+        pd.Series(adx, index=df.index).fillna(0),
+        pd.Series(plus_di, index=df.index).fillna(0),
+        pd.Series(minus_di, index=df.index).fillna(0),
+    )
 
 
 def donchian(df: pd.DataFrame, n: int) -> tuple[pd.Series, pd.Series]:

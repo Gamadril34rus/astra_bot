@@ -365,3 +365,33 @@ class TestBollingerBands:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+def test_calculate_adx_trend_vs_chop():
+    """ADX: высокий на тренде, низкий на чередующемся дрейфе."""
+    from astra_bot.core.utils import calculate_adx
+
+    # Чистый аптренд: монотонные хаи/лоу/закрытия.
+    n = 80
+    highs = [100.0 + i for i in range(n)]
+    lows = [99.0 + i for i in range(n)]
+    closes = [99.5 + i for i in range(n)]
+    assert calculate_adx(highs, lows, closes) >= 50.0
+
+    # Чоп: чередование хаёв/лоу при слабом дрейфе.
+    price = 100.0
+    highs2, lows2, closes2 = [], [], []
+    for i in range(n):
+        price *= 0.9995
+        amp = 0.012
+        if i % 2 == 1:
+            highs2.append(price * (1 + amp))
+            lows2.append(price * (1 - amp * 0.2))
+        else:
+            highs2.append(price * (1 + amp * 0.2))
+            lows2.append(price * (1 - amp))
+        closes2.append(price)
+    assert calculate_adx(highs2, lows2, closes2) < 20.0
+
+    # Недостаточно данных.
+    assert calculate_adx([1.0] * 5, [0.9] * 5, [0.95] * 5) is None

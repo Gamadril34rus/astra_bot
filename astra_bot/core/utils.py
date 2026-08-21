@@ -409,6 +409,67 @@ def calculate_atr(
     return sum(tr_values[-period:]) / period
 
 
+def _wilder_smooth(values: list, period: int) -> list:
+    """Сглаживание Уайлдера с корректным посевом.
+
+    Рекурсия Уайлдера: s = (s·(n−1) + v) / n = s − s/n + v/n.
+    Первое значение — среднее первых ``period`` наблюдений.
+    """
+    if not values:
+        return []
+    seed = sum(values[:period]) / min(period, len(values))
+    out: list[float] = []
+    s = seed
+    for v in values:
+        s = s - s / period + v / period
+        out.append(s)
+    return out
+
+
+def calculate_adx(
+    highs: list,
+    lows: list,
+    closes: list,
+    period: int = 14,
+) -> float | None:
+    """Рассчитать ADX (Average Directional Index) по Уайлдеру.
+
+    Возвращает последнее значение ADX или None при недостатке данных.
+    Используется в ts_momentum как фильтр «входим только в подтверждённый
+    тренд» (правило прошло walk-forward валидацию в scripts/strategy_lab.py).
+    """
+    if len(closes) < 2 * period + 1:
+        return None
+
+    tr_list: list[float] = []
+    plus_dm: list[float] = []
+    minus_dm: list[float] = []
+    for i in range(1, len(closes)):
+        high, low, prev_close = highs[i], lows[i], closes[i - 1]
+        tr = max(high - low, abs(high - prev_close), abs(low - prev_close))
+        tr_list.append(tr)
+        up_move = high - highs[i - 1]
+        down_move = lows[i - 1] - low
+        plus_dm.append(max(up_move, 0.0) if up_move > down_move else 0.0)
+        minus_dm.append(max(down_move, 0.0) if down_move > up_move else 0.0)
+
+    tr_s = _wilder_smooth(tr_list, period)
+    pdm_s = _wilder_smooth(plus_dm, period)
+    mdm_s = _wilder_smooth(minus_dm, period)
+
+    dx_list: list[float] = []
+    for tr, pdm, mdm in zip(tr_s, pdm_s, mdm_s, strict=True):
+        denom = pdm + mdm
+        if denom <= 0 or tr <= 0:
+            dx = 0.0
+        else:
+            dx = 100.0 * abs(pdm - mdm) / denom
+        dx_list.append(dx)
+
+    adx_list = _wilder_smooth(dx_list, period)
+    return adx_list[-1] if adx_list else None
+
+
 def calculate_rsi(closes: list, period: int = 14) -> float | None:
     """
     Рассчитать RSI (Relative Strength Index).

@@ -151,3 +151,87 @@ def test_skip_signal_when_disabled():
     s = TimeSeriesMomentumStrategy(cfg)
     candles = _candles(60, step=0.002)
     assert _run(s.evaluate("BTC/USDT", candles)) is None
+
+
+def _choppy_candles(n: int, tf_ms: int = 3_600_000, start: int = 1_700_000_000_000):
+    """Слабый тренд вниз с чередующимися хаями/лоу: ADX низкий,
+    оба DM активны, но 48-барный импульс отрицательный."""
+    out = []
+    price = 100.0
+    amp = 0.012
+    for i in range(n):
+        op = price
+        cl = price * 0.9995
+        if i % 2 == 1:
+            hi = max(op, cl) * (1 + amp)
+            lo = min(op, cl) * (1 - amp * 0.2)
+        else:
+            hi = max(op, cl) * (1 + amp * 0.2)
+            lo = min(op, cl) * (1 - amp)
+        out.append(
+            models.Candle(
+                exchange="test",
+                symbol="BTC/USDT",
+                timeframe="1h",
+                open_time=start + i * tf_ms,
+                open=Decimal(str(round(op, 6))),
+                high=Decimal(str(round(hi, 6))),
+                low=Decimal(str(round(lo, 6))),
+                close=Decimal(str(round(cl, 6))),
+                volume=Decimal("10"),
+                quote_volume=Decimal("1"),
+            )
+        )
+        price = cl
+    return out
+
+
+def _trend_candles(n: int, step: float, tf_ms: int = 3_600_000,
+                   start: int = 1_700_000_000_000):
+    """Чистый тренд: высокий ADX."""
+    return _candles(n, tf_ms=tf_ms, start=start, step=step,
+                    high_pad=0.001, low_pad=0.001)
+
+
+def test_adx_filter_turns_unconfirmed_flip_into_flat():
+    from astra_bot.core.utils import calculate_adx
+
+    s = TimeSeriesMomentumStrategy(_cfg(lookback_days=2, adx_min=20.0))
+    # 1) Уверенный аптренд → long (ADX высокий, фильтр пропускает).
+    bull = _trend_candles(60, step=0.002)
+    sig = _run(s.evaluate("BTC/USDT", bull))
+    assert sig is not None and sig.direction == models.TradeDirection.LONG
+
+    # 2) Чоппи-снижение: импульс отрицательный, но ADX низкий → flat, не шорт.
+    chop = _choppy_candles(60)
+    adx = calculate_adx(
+        [float(c.high) for c in chop], [float(c.low) for c in chop],
+        [float(c.close) for c in chop],
+    )
+    assert adx is not None and adx < 20.0  # предпосылка теста
+    sig2 = _run(s.evaluate("BTC/USDT", chop))
+    assert sig2 is not None
+    assert sig2.features["tsm_action"] == TSM_ACTION_FLAT
+    assert sig2.features["tsm_to"] == 0.0
+
+    # 3) Пока тренд слабый — новых входов нет (остаёмся flat).
+    assert _run(s.evaluate("BTC/USDT", chop)) is None
+
+
+def test_adx_filter_allows_confirmed_flip():
+    from astra_bot.core.utils import calculate_adx
+
+    s = TimeSeriesMomentumStrategy(_cfg(lookback_days=2, adx_min=20.0))
+    bull = _trend_candles(60, step=0.002)
+    assert _run(s.evaluate("BTC/USDT", bull)) is not None  # long
+
+    bear = _trend_candles(60, step=-0.002)
+    adx = calculate_adx(
+        [float(c.high) for c in bear], [float(c.low) for c in bear],
+        [float(c.close) for c in bear],
+    )
+    assert adx is not None and adx >= 20.0  # чистый тренд → фильтр пропускает
+    sig = _run(s.evaluate("BTC/USDT", bear))
+    assert sig is not None
+    assert sig.direction == models.TradeDirection.SHORT
+    assert sig.features["tsm_action"] == TSM_ACTION_FLIP

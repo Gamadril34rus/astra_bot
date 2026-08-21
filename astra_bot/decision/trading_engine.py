@@ -95,13 +95,15 @@ class TradingEngine:
                 PullbackStrategy,
                 ScalpStrategy,
                 Scalp5mStrategy,
+                TimeSeriesMomentumConfig,
                 TimeSeriesMomentumStrategy,
             )
             from .config import DecisionConfig
             # Пороги согласованы со стратегиями. Scalp даёт много мелких
             # сделок на 15m для быстрого обучения; Pullback — крупнее на 1h;
-            # ts_momentum — флипы по 45-дневному импульсу на 4h (проверен
-            # на истории: scripts/research_free_strategies.py).
+            # ts_momentum — флипы по 45-дневному импульсу на 4h, плюс
+            # вариант с ADX-подтверждением (оба проверены walk-forward'ом
+            # в scripts/strategy_lab.py).
             cfg = DecisionConfig()
             cfg.min_rr = 0.7
             cfg.min_ml_probability = 0.0
@@ -118,6 +120,11 @@ class TradingEngine:
                     MomentumStrategy(),
                     MeanReversionStrategy(),
                     TimeSeriesMomentumStrategy(),
+                    TimeSeriesMomentumStrategy(
+                        TimeSeriesMomentumConfig(
+                            name="ts_momentum_adx", adx_min=20.0
+                        )
+                    ),
                 ],
             )
         self.pipeline = pipeline

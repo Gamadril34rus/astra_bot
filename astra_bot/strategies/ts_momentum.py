@@ -9,7 +9,9 @@ Babypips/Investopedia): держим направление рынка по зн
 
 - 45 дней, 4h, 2 года: +5.7% (PF 1.58, просадка 6.2%) при buy&hold +5.2%
   с просадкой 53% — т.е. тот же результат с в ~9 раз меньшей просадкой;
-- правило положительно на периодах 30–90 дней и на обеих половинах окна.
+- правило положительно на периодах 30–90 дней и на обеих половинах окна;
+- вариант с ``adx_min=20`` (вход только в подтверждённый тренд) прошёл
+  walk-forward: OOS PF 1.30, история 2021–2026 PF 1.37 (strategy_lab.py).
 
 Стратегия работает **переворотами** (flip), а не одиночными входами:
 сигнал подаётся только при смене режима (0→long, long→short, …→0), поэтому
@@ -29,7 +31,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from ..core import models
-from ..core.utils import calculate_atr
+from ..core.utils import calculate_adx, calculate_atr
 from .base import BaseStrategy, Signal, SignalType, StrategyConfig
 
 logger = logging.getLogger(__name__)
@@ -57,6 +59,13 @@ class TimeSeriesMomentumConfig(StrategyConfig):
 
     # Разрешать шорты. Для spot-режима можно выключить (long-only).
     allow_short: bool = True
+
+    # Фильтр подтверждения тренда: новые режимы (long/short) открываются
+    # только при ADX > adx_min. Если импульс развернулся, но тренд слабый —
+    # выходим в flat вместо переворота. 0 — фильтр выключен.
+    # Правило adx_min=20 прошло walk-forward валидацию (strategy_lab.py).
+    adx_min: float = 0.0
+    adx_period: int = 14
 
     # Катастрофический стоп: 6×ATR(14). В норме позиция живёт до смены
     # режима; стоп защищает от резкого обвала тренда.
@@ -124,6 +133,24 @@ class TimeSeriesMomentumStrategy(BaseStrategy):
 
         desired = self._desired_direction(momentum)
         previous = self._direction
+
+        # Фильтр подтверждения тренда: новый long/short только при
+        # ADX > adx_min, иначе неподтверждённый переворот = выход в flat
+        # (семантика из strategy_lab.py, прошедшая walk-forward).
+        if (
+            desired != previous
+            and desired != 0
+            and self.config.adx_min > 0
+        ):
+            adx = calculate_adx(
+                [float(c.high) for c in candles],
+                [float(c.low) for c in candles],
+                [float(c.close) for c in candles],
+                period=self.config.adx_period,
+            )
+            if adx is None or adx <= self.config.adx_min:
+                desired = 0
+
         if desired == previous:
             return None
         # Переход зафиксирован; повторных сигналов не будет, пока режим
