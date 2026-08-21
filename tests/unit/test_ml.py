@@ -234,6 +234,34 @@ class TestModelTrainer:
         assert len(test_data.labels) == 200
         assert train_data.feature_names == test_data.feature_names
 
+    def test_lightgbm_uses_native_params_not_sklearn_aliases(self):
+        """LightGBM не должен получать sklearn-алиасы min_samples_split /
+        min_samples_leaf — они заваливают CI-логи предупреждениями."""
+        trainer = ModelTrainer()
+        trainer._create_model("lightgbm")
+
+        kwargs = mock_lgb.LGBMClassifier.call_args.kwargs
+        assert "min_child_samples" in kwargs
+        assert kwargs["min_child_samples"] == trainer.config.min_samples_leaf
+        assert "min_samples_split" not in kwargs
+        assert "min_samples_leaf" not in kwargs
+
+    def test_temporal_trainer_uses_native_lightgbm_params(self):
+        """train_temporal тоже собирает LGBMClassifier с нативными параметрами."""
+        from astra_bot.ml.temporal_trainer import train_temporal
+
+        training_data = DataPreparation.create_synthetic_data(
+            n_samples=500,
+            n_features=10,
+            positive_rate=0.5,
+        )
+        train_temporal(training_data)
+
+        kwargs = mock_lgb.LGBMClassifier.call_args.kwargs
+        assert "min_child_samples" in kwargs
+        assert "min_samples_split" not in kwargs
+        assert "min_samples_leaf" not in kwargs
+
 
 class TestPredictor:
     """Тесты предиктора"""
