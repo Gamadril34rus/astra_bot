@@ -61,7 +61,7 @@
       "initial_quantity": "8.897300",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "654.7",
+      "highest_price": "655.2",
       "lowest_price": "647.2",
       "strategy": "pullback",
       "opened_at": 1787323529853,
@@ -134,7 +134,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "48.05",
-      "lowest_price": "47.92",
+      "lowest_price": "47.89",
       "strategy": "pullback",
       "opened_at": 1787338968693,
       "notes": {
@@ -142,6 +142,42 @@
         "ml_probability": null,
         "edge_pct": 0.4446404033188094,
         "rr": 0.7500000000000001
+      }
+    },
+    {
+      "id": "221b8a90-6ccb-4f54-91bc-0da07ba2c34c",
+      "symbol": "INJ-USDT",
+      "direction": "long",
+      "entry_price": "4.768",
+      "quantity": "1207.366550",
+      "stop_loss": "4.744160",
+      "take_profits": [
+        "4.7918400",
+        "4.8109120",
+        "4.8276000"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "1207.366550",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "scalp5m",
+      "opened_at": 1787340997603,
+      "notes": {
+        "score": 44.0,
+        "ml_probability": null,
+        "edge_pct": 0.1971125882146264,
+        "rr": 1.2
       }
     }
   ],
