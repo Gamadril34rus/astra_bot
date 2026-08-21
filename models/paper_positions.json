@@ -97,7 +97,7 @@
       "initial_quantity": "17098.079967",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.33919",
+      "highest_price": "0.3399",
       "lowest_price": "0.33879",
       "strategy": "scalp5m",
       "opened_at": 1787323536073,
@@ -145,16 +145,16 @@
       }
     },
     {
-      "id": "00e2bb5e-8a9a-4010-828e-12cbc7060a4a",
-      "symbol": "DOGE-USDT",
+      "id": "23418ea6-3c88-499d-9759-0da7ef5bc68a",
+      "symbol": "ETH-USDT",
       "direction": "long",
-      "entry_price": "0.08025",
-      "quantity": "72017.201833",
-      "stop_loss": "0.07984875",
+      "entry_price": "2326.38",
+      "quantity": "2.482741",
+      "stop_loss": "2314.74810",
       "take_profits": [
-        "0.080651250",
-        "0.080972250",
-        "0.081253125"
+        "2338.011900",
+        "2347.317420",
+        "2355.459750"
       ],
       "tp_filled": [
         false,
@@ -166,21 +166,21 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "72017.201833",
+      "initial_quantity": "2.482741",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.0803",
-      "lowest_price": "0.07995",
+      "highest_price": null,
+      "lowest_price": null,
       "strategy": "scalp5m",
-      "opened_at": 1787327703756,
+      "opened_at": 1787330346286,
       "notes": {
-        "score": 44.0,
+        "score": 45.0,
         "ml_probability": null,
-        "edge_pct": 0.11039636541923474,
+        "edge_pct": 0.16507287258431713,
         "rr": 1.2
       }
     }
   ],
-  "realized_pnl": "-1687.980190238875704240",
+  "realized_pnl": "-1716.877092474366954240",
   "initial_capital": "40222.20"
 }
