@@ -71,80 +71,8 @@
         "edge_pct": 0.43318884796794144,
         "rr": 0.75
       }
-    },
-    {
-      "id": "82e8816b-7769-47f5-93ab-d86c20e0ef19",
-      "symbol": "BNB-USDT",
-      "direction": "short",
-      "entry_price": "615.9",
-      "quantity": "9.510462",
-      "stop_loss": "623.2908",
-      "take_profits": [
-        "608.50920",
-        "602.59656",
-        "597.42300"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "9.510462",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "621.3",
-      "lowest_price": "615.9",
-      "strategy": "pullback",
-      "opened_at": 1787237295703,
-      "notes": {
-        "score": 51.0,
-        "ml_probability": null,
-        "edge_pct": 0.39296977307755465,
-        "rr": 0.7500000000000001
-      }
-    },
-    {
-      "id": "4ae96900-6bdf-4618-8633-a5e103a622fb",
-      "symbol": "ICP-USDT",
-      "direction": "short",
-      "entry_price": "2.267",
-      "quantity": "515.1187872",
-      "stop_loss": "2.2491360",
-      "take_profits": [
-        "2.2488640",
-        "2.2343552",
-        "2.2216600"
-      ],
-      "tp_filled": [
-        true,
-        true,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "2575.593936",
-      "trailing_activated": true,
-      "trailing_distance": null,
-      "highest_price": "2.266",
-      "lowest_price": "2.231",
-      "strategy": "scalp",
-      "opened_at": 1787292277009,
-      "notes": {
-        "score": 57.0,
-        "ml_probability": null,
-        "edge_pct": 0.14502029768680047,
-        "rr": 1.2
-      }
     }
   ],
-  "realized_pnl": "-1202.877142258159143840",
+  "realized_pnl": "-1263.964982793218343840",
   "initial_capital": "40222.20"
 }
