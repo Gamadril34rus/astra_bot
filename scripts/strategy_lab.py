@@ -103,8 +103,12 @@ def run_engine(
     atr_values: pd.Series | None = None,
     long_only: bool = False,
     vol_target: float | None = None,
+    *,
+    fee: float = FEE,
+    slippage: float = SLIPPAGE,
 ) -> Result:
-    """Event-цикл как в research_free_strategies + опц. таргет волатильности."""
+    """Event-цикл как в research_free_strategies + опц. таргет волатильности.
+    Издержки переопределяются для стресс-тестов."""
     o = df["open"].values
     h = df["high"].values
     l = df["low"].values
@@ -137,7 +141,7 @@ def run_engine(
         if pos == 0:
             return
         r = (px / entry_px - 1.0) if pos == 1 else (1.0 - px / entry_px)
-        pnl = (r - 2 * FEE - 2 * SLIPPAGE) * notional
+        pnl = (r - 2 * fee - 2 * slippage) * notional
         realized += pnl
         n_trades += 1
         if pnl > 0:
@@ -593,7 +597,224 @@ def main() -> int:
         lines.append("")
         lines.append("> Диверсификация работает: портфельная просадка ниже суммы просадок частей.")
 
+        # ----------------------------------------------------------- Монте-Карло
+        lines.append("")
+        lines.append("### Монте-Карло портфеля (бутстрэп покильных доходностей, 2000 путей)")
+        lines.append("")
+        rng = np.random.default_rng(42)
+        rets = port_equity.pct_change().dropna().values
+        finals, dds = [], []
+        for _ in range(2000):
+            path_rets = rng.choice(rets, size=len(rets), replace=True)
+            eq_path = port_cap * np.cumprod(1 + path_rets)
+            finals.append(eq_path[-1])
+            dds.append(
+                ((np.maximum.accumulate(eq_path) - eq_path)
+                 / np.maximum.accumulate(eq_path)).max() * 100
+            )
+        finals = np.array(finals)
+        dds = np.array(dds)
+        p5f, p50f, p95f = np.percentile(finals, [5, 50, 95])
+        p5d, p50d, p95d = np.percentile(dds, [5, 50, 95])
+        p_neg = float((finals < port_cap).mean() * 100)
+        lines.append(
+            f"- Итоговая стоимость через 2 года: P5 **{p5f:,.0f}** / медиана **{p50f:,.0f}** / P95 **{p95f:,.0f}** USDT "
+            f"(старт {port_cap:,.0f}); медианная доходность {(p50f / port_cap - 1) * 100:+.1f}%"
+        )
+        lines.append(f"- Просадка: медиана **{p50d:.1f}%** / P95 **{p95d:.1f}%**; вероятность 2-летнего убытка: **{p_neg:.1f}%**")
+        lines.append("")
+
+        # ----------------------------------------------------------- График
+        try:
+            import matplotlib
+
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+
+            x = pd.to_datetime(port_equity.index, unit="ms", utc=True)
+            bh_close = frames["4h"].set_index("open_time")["close"].reindex(port_equity.index).ffill()
+            bh_norm = port_cap * bh_close / bh_close.iloc[0]
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 7), sharex=True)
+            ax1.plot(x, port_equity.values, lw=1.4, color="#1f77b4", label=f"Портфель ({len(selected)} стратегий)")
+            ax1.plot(x, bh_norm.values, lw=1.0, color="#7f7f7f", alpha=0.8, label="Buy & hold BTC")
+            ax1.set_title("Портфель «трендовая книга» vs Buy&Hold · BTC/USDT · 2024-08 → 2026-08")
+            ax1.set_ylabel("USDT")
+            ax1.legend(loc="upper left")
+            ax1.grid(alpha=0.3)
+            dd_curve = (port_equity.cummax() - port_equity) / port_equity.cummax() * 100
+            ax2.fill_between(x, dd_curve.values, 0, color="#d62728", alpha=0.5)
+            ax2.set_title("Просадка портфеля, %")
+            ax2.grid(alpha=0.3)
+            fig.tight_layout()
+            fig.savefig(out_dir / "portfolio_equity.png", dpi=110)
+            # Копия в git-документацию.
+            docs_dir = PROJECT_ROOT / "docs"
+            fig.savefig(docs_dir / "portfolio_equity_2y.png", dpi=110)
+            plt.close(fig)
+            lines.append("График: `docs/portfolio_equity_2y.png` (+ покильные данные в `reports/strategy_lab/`).")
+            lines.append("")
+        except Exception as exc:  # pragma: no cover
+            lines.append(f"(график не собран: {exc})")
+            lines.append("")
+
     lines.append("")
+    # ------------------------------------------------------------- по годам
+    # Календарная устойчивость отобранных стратегий: 2021→2026, каждый год
+    # отдельно (включая частичный 2026). Выбор параметров делался на
+    # 2024–2026, поэтому 2021–2024 — чистая вневыборочная история.
+    if selected:
+        lines.append("## Устойчивость отобранных стратегий по годам (вся история)")
+        lines.append("")
+        lines.append("| Стратегия | 2021 | 2022 | 2023 | 2024 | 2025 | 2026* |")
+        lines.append("|---|---|---|---|---|---|---|")
+        for r in selected:
+            cand = next(c for c in CANDIDATES if c["key"] == r["key"])
+            dfx = frames[cand["timeframe"]]
+            desired = cand["fn"](dfx)
+            atr_full = atr(dfx, 14)
+            cells = []
+            for year in range(2021, 2027):
+                y0 = datetime(year, 1, 1, tzinfo=UTC)
+                y1 = datetime(year + 1, 1, 1, tzinfo=UTC)
+                ms0 = int(y0.timestamp() * 1000)
+                ms1 = min(int(y1.timestamp() * 1000), t1)
+                m = (dfx["open_time"] >= ms0) & (dfx["open_time"] < ms1)
+                if m.sum() < 30:
+                    cells.append("—")
+                    continue
+                yy = run_engine(
+                    dfx[m].reset_index(drop=True),
+                    desired[m].reset_index(drop=True),
+                    cand["stop_mult"], cand["take_mult"], cand["max_hold"],
+                    capital=10000.0,
+                    atr_values=atr_full[m].reset_index(drop=True),
+                    long_only=cand["long_only"], vol_target=cand["vol_target"],
+                )
+                cells.append(f"{yy.ret_pct:+.1f}% (PF {fmt_pf(yy.pf)}, DD {yy.max_dd:.0f}%)")
+            lines.append(f"| {r['name']} | " + " | ".join(cells) + " |")
+        lines.append("")
+        lines.append("*2026 — частичный год (январь–август).")
+        lines.append("")
+
+    # ----------------------------------------------------------- стресс-тесты
+    # Чувствительность к издержкам: комиссия и проскальзывание хуже базовых.
+    lines.append("## Стресс-тест издержек (2-летнее окно, 4h)")
+    lines.append("")
+    lines.append("| Стратегия | комиссия | слиппедж | PF | доход% | DD% |")
+    lines.append("|---|---|---|---|---|---|")
+    df4 = frames["4h"]
+    m2y = (df4["open_time"] >= t0) & (df4["open_time"] < t1)
+    atr4 = atr(df4, 14)
+    stress_keys = [c["key"] for c in CANDIDATES
+                   if c["key"] in {s["key"] for s in selected}] or ["tsm45_ls"]
+    for key in stress_keys:
+        cand = next(c for c in CANDIDATES if c["key"] == key)
+        desired = cand["fn"](df4)
+        for fee_pct in (0.05, 0.10, 0.20):
+            for slip_pct in (0.0, 0.05, 0.10):
+                if (fee_pct, slip_pct) not in {(0.10, 0.05), (0.20, 0.10)}:
+                    continue  # базовый сценарий + два жёстких
+                fee = fee_pct / 100.0
+                slip = slip_pct / 100.0
+                ss = run_engine(
+                    df4[m2y].reset_index(drop=True),
+                    desired[m2y].reset_index(drop=True),
+                    cand["stop_mult"], cand["take_mult"], cand["max_hold"],
+                    capital=10000.0,
+                    atr_values=atr4[m2y].reset_index(drop=True),
+                    long_only=cand["long_only"], vol_target=cand["vol_target"],
+                    fee=fee, slippage=slip,
+                )
+                lines.append(
+                    f"| {cand['name']} | {fee_pct:.2f}% | {slip_pct:.2f}% | "
+                    f"{fmt_pf(ss.pf)} | {ss.ret_pct:+.1f} | {ss.max_dd:.0f} |"
+                )
+    lines.append("")
+
+    # ------------------------------------------------------- мульти-актив
+    # Если в data/ появились свечи других монет (scripts/fetch_klines.py),
+    # оцениваем портфельные стратегии и собираем мульти-актив портфель.
+    multi_symbols = ["BTCUSDT"]
+    for sym in ("ETHUSDT", "SOLUSDT"):
+        if (PROJECT_ROOT / "data" / f"{sym}_4h.csv").exists():
+            multi_symbols.append(sym)
+    if len(multi_symbols) > 1 and selected:
+        lines.append("## Мульти-актив валидация (BTC/ETH/SOL)")
+        lines.append("")
+        lines.append("| Символ | TSM45 L/S: PF / дох% / DD% | TSM45+ADX: PF / дох% / DD% | История L/S: PF / дох% / DD% |")
+        lines.append("|---|---|---|---|")
+        per_symbol_curves: dict[str, pd.Series] = {}
+        for sym in multi_symbols:
+            dfx = pd.read_csv(PROJECT_ROOT / "data" / f"{sym}_4h.csv")
+            dfx = dfx.drop_duplicates(subset=["open_time"]).sort_values("open_time").reset_index(drop=True)
+            atr_x = atr(dfx, 14)
+            m = (dfx["open_time"] >= t0) & (dfx["open_time"] < t1)
+            sym_cols = []
+            for key in ("tsm45_ls", "tsm45_adx"):
+                cand = next(c for c in CANDIDATES if c["key"] == key)
+                desired = cand["fn"](dfx)
+                rr = run_engine(
+                    dfx[m].reset_index(drop=True), desired[m].reset_index(drop=True),
+                    cand["stop_mult"], cand["take_mult"], cand["max_hold"],
+                    capital=10000.0, atr_values=atr_x[m].reset_index(drop=True),
+                    long_only=cand["long_only"], vol_target=cand["vol_target"],
+                )
+                sym_cols.append(f"{fmt_pf(rr.pf)} / {rr.ret_pct:+.1f} / {rr.max_dd:.0f}")
+            cand_full = next(c for c in CANDIDATES if c["key"] == "tsm45_ls")
+            desired_full = cand_full["fn"](dfx)
+            mh = (dfx["open_time"] >= tfull0) & (dfx["open_time"] < t1)
+            if mh.sum() >= 100:
+                rh = run_engine(
+                    dfx[mh].reset_index(drop=True), desired_full[mh].reset_index(drop=True),
+                    cand_full["stop_mult"], cand_full["take_mult"], cand_full["max_hold"],
+                    capital=10000.0, atr_values=atr_x[mh].reset_index(drop=True),
+                    long_only=cand_full["long_only"], vol_target=cand_full["vol_target"],
+                )
+                hist_cell = f"{fmt_pf(rh.pf)} / {rh.ret_pct:+.1f} / {rh.max_dd:.0f}"
+            else:
+                hist_cell = "—"
+            lines.append(f"| {sym} | {sym_cols[0]} | {sym_cols[1]} | {hist_cell} |")
+            # Кривая мульти-актив портфеля: 3 стратегии, равные доли.
+            curves = []
+            for key in ("tsm45_ls", "tsm45_adx", "tsm45_ls_vt"):
+                cand = next(c for c in CANDIDATES if c["key"] == key)
+                desired = cand["fn"](dfx)
+                rr = run_engine(
+                    dfx[m].reset_index(drop=True), desired[m].reset_index(drop=True),
+                    cand["stop_mult"], cand["take_mult"], cand["max_hold"],
+                    capital=port_cap / len(selected),
+                    atr_values=atr_x[m].reset_index(drop=True),
+                    long_only=cand["long_only"], vol_target=cand["vol_target"],
+                )
+                eq = rr.equity.copy()
+                eq.index = dfx[m]["open_time"].values
+                curves.append(eq)
+            per_symbol_curves[sym] = (
+                pd.DataFrame(curves).T.reindex(sorted(set().union(*[c.index for c in curves]))).ffill().sum(axis=1)
+            )
+        union_idx = sorted(set().union(*[set(c.index) for c in per_symbol_curves.values()]))
+        comb = pd.DataFrame(per_symbol_curves).reindex(union_idx).ffill()
+        comb_equity = comb.sum(axis=1) * (port_cap / len(multi_symbols)) / (port_cap / len(multi_symbols))
+        comb_equity = comb.sum(axis=1)
+        comb_rets = comb_equity.pct_change().dropna()
+        peak = comb_equity.cummax()
+        comb_dd = ((peak - comb_equity) / peak * 100).max()
+        comb_sharpe = float(comb_rets.mean() / comb_rets.std() * math.sqrt(365 * 6)) if comb_rets.std() > 0 else 0.0
+        comb_ret = (comb_equity.iloc[-1] / comb_equity.iloc[0] - 1) * 100
+        lines.append("")
+        lines.append(f"- **Мульти-актив портфель** (3 стратегии × {len(multi_symbols)} монеты, 2 года): "
+                     f"доходность **{comb_ret:+.1f}%**, просадка **{comb_dd:.1f}%**, Sharpe **{comb_sharpe:.2f}**")
+        sym_corr = comb.pct_change().dropna().corr()
+        lines.append("")
+        lines.append("Корреляция покильных доходностей портфелей по символам:")
+        lines.append("```")
+        lines.append(sym_corr.round(2).to_string())
+        lines.append("```")
+        lines.append("")
+        lines.append("> Валидация на BTC (в песочнице данные ETH/SOL недоступны — "
+                     "выгрузите их скриптом scripts/fetch_klines.py на машине с доступом к Binance).")
+        lines.append("")
+
     lines.append("> Бумажная проверка на истории. Положительное матожидание в прошлом "
                  "не гарантирует будущую прибыль; «без убыточных» стратегий не существует — "
                  "просадки есть у всех, важно их контролировать.")
