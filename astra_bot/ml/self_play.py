@@ -29,7 +29,12 @@ from typing import Any
 from ..core import models
 from ..core.utils import calculate_atr, calculate_rsi
 from ..engines.risk_engine import RiskConfig, RiskEngine
-from ..strategies import MeanReversionStrategy, MomentumStrategy, PullbackStrategy
+from ..strategies import (
+    BookBreakoutStrategy,
+    MeanReversionStrategy,
+    MomentumStrategy,
+    PullbackStrategy,
+)
 from ..strategies.base import BaseStrategy, Signal
 
 logger = logging.getLogger(__name__)
@@ -382,11 +387,14 @@ class SelfPlayEngine:
             self.strategies = strategies
         else:
             # Baseline-стратегия создаёт поток сделок для обучения,
-            # а Momentum/MeanReversion подмешивают «умные» входы.
+            # а Momentum/MeanReversion/BookBreakout подмешивают «умные» входы.
+            # BookBreakout — сетапы раздела 3 «Простой книги торговли»:
+            # пробой уровня → ретест → подтверждающая свеча.
             self.strategies = [
                 PullbackStrategy(),
                 MomentumStrategy(),
                 MeanReversionStrategy(),
+                BookBreakoutStrategy(),
             ]
         self.risk = RiskEngine(
             RiskConfig(
