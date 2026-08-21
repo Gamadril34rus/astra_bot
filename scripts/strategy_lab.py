@@ -732,87 +732,107 @@ def main() -> int:
     lines.append("")
 
     # ------------------------------------------------------- мульти-актив
-    # Если в data/ появились свечи других монет (scripts/fetch_klines.py),
-    # оцениваем портфельные стратегии и собираем мульти-актив портфель.
+    # Если в data/ появились свечи других монет (scripts/fetch_klines.py
+    # или готовые CSV), оцениваем портфельные стратегии на каждом символе.
+    # Символы с историей, не покрывающей 2-летнее окно (например, ETH
+    # 2016–2021), валидируются на всей доступной истории — это всё равно
+    # вневыборочная проверка (другой актив + другой период).
     multi_symbols = ["BTCUSDT"]
     for sym in ("ETHUSDT", "SOLUSDT"):
         if (PROJECT_ROOT / "data" / f"{sym}_4h.csv").exists():
             multi_symbols.append(sym)
     if len(multi_symbols) > 1 and selected:
-        lines.append("## Мульти-актив валидация (BTC/ETH/SOL)")
+        lines.append("## Мульти-актив валидация")
         lines.append("")
-        lines.append("| Символ | TSM45 L/S: PF / дох% / DD% | TSM45+ADX: PF / дох% / DD% | История L/S: PF / дох% / DD% |")
-        lines.append("|---|---|---|---|")
+        lines.append("| Символ | Окно | TSM45 L/S: PF / дох% / DD% | TSM45+ADX: PF / дох% / DD% | История L/S: PF / дох% / DD% |")
+        lines.append("|---|---|---|---|---|")
         per_symbol_curves: dict[str, pd.Series] = {}
+        per_symbol_ranges: dict[str, tuple[int, int]] = {}
         for sym in multi_symbols:
             dfx = pd.read_csv(PROJECT_ROOT / "data" / f"{sym}_4h.csv")
             dfx = dfx.drop_duplicates(subset=["open_time"]).sort_values("open_time").reset_index(drop=True)
             atr_x = atr(dfx, 14)
-            m = (dfx["open_time"] >= t0) & (dfx["open_time"] < t1)
-            sym_cols = []
-            for key in ("tsm45_ls", "tsm45_adx"):
-                cand = next(c for c in CANDIDATES if c["key"] == key)
-                desired = cand["fn"](dfx)
-                rr = run_engine(
-                    dfx[m].reset_index(drop=True), desired[m].reset_index(drop=True),
-                    cand["stop_mult"], cand["take_mult"], cand["max_hold"],
-                    capital=10000.0, atr_values=atr_x[m].reset_index(drop=True),
-                    long_only=cand["long_only"], vol_target=cand["vol_target"],
-                )
-                sym_cols.append(f"{fmt_pf(rr.pf)} / {rr.ret_pct:+.1f} / {rr.max_dd:.0f}")
-            cand_full = next(c for c in CANDIDATES if c["key"] == "tsm45_ls")
-            desired_full = cand_full["fn"](dfx)
-            mh = (dfx["open_time"] >= tfull0) & (dfx["open_time"] < t1)
-            if mh.sum() >= 100:
-                rh = run_engine(
-                    dfx[mh].reset_index(drop=True), desired_full[mh].reset_index(drop=True),
-                    cand_full["stop_mult"], cand_full["take_mult"], cand_full["max_hold"],
-                    capital=10000.0, atr_values=atr_x[mh].reset_index(drop=True),
-                    long_only=cand_full["long_only"], vol_target=cand_full["vol_target"],
-                )
-                hist_cell = f"{fmt_pf(rh.pf)} / {rh.ret_pct:+.1f} / {rh.max_dd:.0f}"
+            m2y = (dfx["open_time"] >= t0) & (dfx["open_time"] < t1)
+            if m2y.sum() >= 200:
+                window_mask = m2y
+                window_label = f"{start_2y.date()} → {end.date()}"
             else:
-                hist_cell = "—"
-            lines.append(f"| {sym} | {sym_cols[0]} | {sym_cols[1]} | {hist_cell} |")
-            # Кривая мульти-актив портфеля: 3 стратегии, равные доли.
-            curves = []
+                window_mask = pd.Series(True, index=dfx.index)
+                window_label = (
+                    f"{pd.to_datetime(dfx['open_time'].iloc[0], unit='ms', utc=True).date()} → "
+                    f"{pd.to_datetime(dfx['open_time'].iloc[-1], unit='ms', utc=True).date()}"
+                )
+            sym_cols = []
+            curves_for_comb = []
             for key in ("tsm45_ls", "tsm45_adx", "tsm45_ls_vt"):
                 cand = next(c for c in CANDIDATES if c["key"] == key)
                 desired = cand["fn"](dfx)
                 rr = run_engine(
-                    dfx[m].reset_index(drop=True), desired[m].reset_index(drop=True),
+                    dfx[window_mask].reset_index(drop=True),
+                    desired[window_mask].reset_index(drop=True),
                     cand["stop_mult"], cand["take_mult"], cand["max_hold"],
-                    capital=port_cap / len(selected),
-                    atr_values=atr_x[m].reset_index(drop=True),
+                    capital=10000.0,
+                    atr_values=atr_x[window_mask].reset_index(drop=True),
                     long_only=cand["long_only"], vol_target=cand["vol_target"],
                 )
+                if key in ("tsm45_ls", "tsm45_adx"):
+                    sym_cols.append(f"{fmt_pf(rr.pf)} / {rr.ret_pct:+.1f} / {rr.max_dd:.0f}")
                 eq = rr.equity.copy()
-                eq.index = dfx[m]["open_time"].values
-                curves.append(eq)
-            per_symbol_curves[sym] = (
-                pd.DataFrame(curves).T.reindex(sorted(set().union(*[c.index for c in curves]))).ffill().sum(axis=1)
+                eq.index = dfx[window_mask]["open_time"].values
+                curves_for_comb.append(eq)
+            # История: TSM45 L/S на всей доступной истории символа.
+            cand_full = next(c for c in CANDIDATES if c["key"] == "tsm45_ls")
+            desired_full = cand_full["fn"](dfx)
+            mh = pd.Series(True, index=dfx.index)
+            rh = run_engine(
+                dfx.reset_index(drop=True), desired_full.reset_index(drop=True),
+                cand_full["stop_mult"], cand_full["take_mult"], cand_full["max_hold"],
+                capital=10000.0, atr_values=atr_x.reset_index(drop=True),
+                long_only=cand_full["long_only"], vol_target=cand_full["vol_target"],
             )
-        union_idx = sorted(set().union(*[set(c.index) for c in per_symbol_curves.values()]))
-        comb = pd.DataFrame(per_symbol_curves).reindex(union_idx).ffill()
-        comb_equity = comb.sum(axis=1) * (port_cap / len(multi_symbols)) / (port_cap / len(multi_symbols))
-        comb_equity = comb.sum(axis=1)
-        comb_rets = comb_equity.pct_change().dropna()
-        peak = comb_equity.cummax()
-        comb_dd = ((peak - comb_equity) / peak * 100).max()
-        comb_sharpe = float(comb_rets.mean() / comb_rets.std() * math.sqrt(365 * 6)) if comb_rets.std() > 0 else 0.0
-        comb_ret = (comb_equity.iloc[-1] / comb_equity.iloc[0] - 1) * 100
+            hist_cell = f"{fmt_pf(rh.pf)} / {rh.ret_pct:+.1f} / {rh.max_dd:.0f}"
+            lines.append(f"| {sym} | {window_label} | {sym_cols[0]} | {sym_cols[1]} | {hist_cell} |")
+            comb_df = pd.DataFrame(curves_for_comb).T
+            comb_curve = comb_df.reindex(
+                sorted(set().union(*[c.index for c in curves_for_comb]))
+            ).ffill().sum(axis=1)
+            per_symbol_curves[sym] = comb_curve
+            per_symbol_ranges[sym] = (comb_curve.index.min(), comb_curve.index.max())
+        # Объединённый мульти-актив портфель — по пересечению доступных
+        # диапазонов (минимум 100 баров, иначе пересечения нет).
+        lo = max(r[0] for r in per_symbol_ranges.values())
+        hi = min(r[1] for r in per_symbol_ranges.values())
+        inter_len = sum(1 for c in per_symbol_curves["BTCUSDT"].index if lo <= c <= hi)
+        if inter_len >= 100:
+            comb = pd.DataFrame(per_symbol_curves).reindex(
+                sorted(set().union(*[set(c.index) for c in per_symbol_curves.values()]))
+            ).ffill()
+            comb = comb[(comb.index >= lo) & (comb.index <= hi)]
+            comb_equity = comb.sum(axis=1)
+            comb_rets = comb_equity.pct_change().dropna()
+            peak = comb_equity.cummax()
+            comb_dd = ((peak - comb_equity) / peak * 100).max()
+            comb_sharpe = float(comb_rets.mean() / comb_rets.std() * math.sqrt(365 * 6)) if comb_rets.std() > 0 else 0.0
+            comb_ret = (comb_equity.iloc[-1] / comb_equity.iloc[0] - 1) * 100
+            lines.append("")
+            lines.append(f"- **Мульти-актив портфель** (3 стратегии × {len(multi_symbols)} монеты, "
+                         f"пересечение {pd.to_datetime(lo, unit='ms', utc=True).date()} → "
+                         f"{pd.to_datetime(hi, unit='ms', utc=True).date()}): "
+                         f"доходность **{comb_ret:+.1f}%**, просадка **{comb_dd:.1f}%**, Sharpe **{comb_sharpe:.2f}**")
+            sym_corr = comb.pct_change().dropna().corr()
+            lines.append("")
+            lines.append("Корреляция покильных доходностей портфелей по символам:")
+            lines.append("```")
+            lines.append(sym_corr.round(2).to_string())
+            lines.append("```")
+        else:
+            lines.append("")
+            lines.append("> Общего пересечения диапазонов у символов нет — объединённый "
+                         "портфель не считается; валидны построчные оценки.")
         lines.append("")
-        lines.append(f"- **Мульти-актив портфель** (3 стратегии × {len(multi_symbols)} монеты, 2 года): "
-                     f"доходность **{comb_ret:+.1f}%**, просадка **{comb_dd:.1f}%**, Sharpe **{comb_sharpe:.2f}**")
-        sym_corr = comb.pct_change().dropna().corr()
-        lines.append("")
-        lines.append("Корреляция покильных доходностей портфелей по символам:")
-        lines.append("```")
-        lines.append(sym_corr.round(2).to_string())
-        lines.append("```")
-        lines.append("")
-        lines.append("> Валидация на BTC (в песочнице данные ETH/SOL недоступны — "
-                     "выгрузите их скриптом scripts/fetch_klines.py на машине с доступом к Binance).")
+        lines.append("> Примечание: ETHUSDT_4h.csv в data/ — Bitfinex ETH/USD (2016–2021), "
+                     "агрегированный из 1m; SOL в песочнице недоступен — выгрузите "
+                     "scripts/fetch_klines.py у себя.")
         lines.append("")
 
     lines.append("> Бумажная проверка на истории. Положительное матожидание в прошлом "
