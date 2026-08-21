@@ -37,16 +37,16 @@
       }
     },
     {
-      "id": "58366f7b-7b56-46f0-a09c-f47677124a1e",
-      "symbol": "ETC-USDT",
+      "id": "0a8d89c0-263b-4cfc-b00f-c8c43b9a0e19",
+      "symbol": "BNB-USDT",
       "direction": "short",
-      "entry_price": "6.063",
-      "quantity": "972.548538",
-      "stop_loss": "6.135756",
+      "entry_price": "636.3",
+      "quantity": "9.167250",
+      "stop_loss": "639.4815",
       "take_profits": [
-        "5.9902440",
-        "5.9320392",
-        "5.8811100"
+        "633.11850",
+        "630.57330",
+        "628.34625"
       ],
       "tp_filled": [
         false,
@@ -58,21 +58,21 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "972.548538",
+      "initial_quantity": "9.167250",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "6.109",
-      "lowest_price": "6.038",
-      "strategy": "pullback",
-      "opened_at": 1787130397586,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "scalp5m",
+      "opened_at": 1787301928375,
       "notes": {
-        "score": 40.0,
+        "score": 62.0,
         "ml_probability": null,
-        "edge_pct": 0.43318884796794144,
-        "rr": 0.75
+        "edge_pct": 0.18902307020198394,
+        "rr": 1.2
       }
     }
   ],
-  "realized_pnl": "-1263.964982793218343840",
+  "realized_pnl": "-1334.723724223946343840",
   "initial_capital": "40222.20"
 }
