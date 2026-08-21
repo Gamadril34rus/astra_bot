@@ -150,6 +150,18 @@ def run_engine(
         else:
             gl += -pnl
 
+    if n <= 1:
+        return Result(
+            trades=0,
+            wins=0,
+            ret_pct=0.0,
+            pf=0.0,
+            max_dd=0.0,
+            sharpe=0.0,
+            exposure=0.0,
+            equity=pd.Series([capital] * max(n, 1), index=df.index if n > 0 else None),
+        )
+
     for i in range(1, n):
         target = d[i - 1]
         if target != prev:
@@ -488,19 +500,21 @@ def main() -> int:
     out_dir = PROJECT_ROOT / "reports" / "strategy_lab"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    end = datetime(2026, 8, 20, tzinfo=UTC)
-    start_2y = end - timedelta(days=730)
-    t1 = int(end.timestamp() * 1000)
-    t0 = int(start_2y.timestamp() * 1000)
-    tmid = t0 + (t1 - t0) // 2
-    tfull0 = int(datetime(2021, 1, 1, tzinfo=UTC).timestamp() * 1000)
-
     frames = {
         "4h": pd.read_csv(PROJECT_ROOT / "data" / "BTCUSDT_4h.csv"),
         "1h": pd.read_csv(PROJECT_ROOT / "data" / "BTCUSDT_1h.csv"),
     }
     for tf, df in frames.items():
         frames[tf] = df.drop_duplicates(subset=["open_time"]).sort_values("open_time").reset_index(drop=True)
+
+    # Динамически берем конец данных из BTCUSDT_4h
+    max_data_ts = frames["4h"]["open_time"].max()
+    end = pd.to_datetime(max_data_ts, unit="ms", utc=True).to_pydatetime()
+    start_2y = end - timedelta(days=730)
+    t1 = int(end.timestamp() * 1000)
+    t0 = int(start_2y.timestamp() * 1000)
+    tmid = t0 + (t1 - t0) // 2
+    tfull0 = int(datetime(2021, 1, 1, tzinfo=UTC).timestamp() * 1000)
 
     capital = 10000.0
     results = []
@@ -695,6 +709,45 @@ def main() -> int:
         lines.append("")
         lines.append("*2026 — частичный год (январь–август).")
         lines.append("")
+
+    # ------------------------------------------------- скользящий walk-forward
+    # Скользящий Walk-Forward (12-месячные окна со сдвигом в 1 месяц за период 2021–2024).
+    lines.append("## Скользящий Walk-Forward (12-месячные окна со сдвигом 1 мес)")
+    lines.append("")
+    lines.append("| Стратегия | Всего 12м окон | Окон с PF ≥ 1.10 (%) | Медианный PF |")
+    lines.append("|---|---|---|---|")
+
+    start_dates = pd.date_range(start="2021-01-01", end="2023-12-01", freq="MS", tz=UTC)
+    wf_keys = [c["key"] for c in CANDIDATES if c["key"] in {s["key"] for s in selected}] or ["tsm45_ls", "tsm45_adx", "tsm45_ls_vt"]
+
+    for key in wf_keys:
+        cand = next(c for c in CANDIDATES if c["key"] == key)
+        dfx = frames[cand["timeframe"]]
+        desired = cand["fn"](dfx)
+        atr_val = atr(dfx, 14)
+        pf_list = []
+        for s_date in start_dates:
+            e_date = s_date + pd.DateOffset(years=1)
+            ms0 = int(s_date.timestamp() * 1000)
+            ms1 = int(e_date.timestamp() * 1000)
+            m = (dfx["open_time"] >= ms0) & (dfx["open_time"] < ms1)
+            if m.sum() < 50:
+                continue
+            rr = run_engine(
+                dfx[m].reset_index(drop=True),
+                desired[m].reset_index(drop=True),
+                cand["stop_mult"], cand["take_mult"], cand["max_hold"],
+                capital=10000.0,
+                atr_values=atr_val[m].reset_index(drop=True),
+                long_only=cand["long_only"], vol_target=cand["vol_target"],
+            )
+            pf_list.append(rr.pf)
+        pass_cnt = sum(1 for p in pf_list if p >= 1.10)
+        total_cnt = len(pf_list)
+        pct = (pass_cnt / total_cnt * 100) if total_cnt > 0 else 0
+        med_pf = float(np.median(pf_list)) if pf_list else 0.0
+        lines.append(f"| {cand['name']} | {total_cnt} | {pass_cnt} ({pct:.1f}%) | {med_pf:.2f} |")
+    lines.append("")
 
     # ----------------------------------------------------------- стресс-тесты
     # Чувствительность к издержкам: комиссия и проскальзывание хуже базовых.

@@ -1,0 +1,58 @@
+name: Strategy lab (walk-forward)
+
+# Еженедельная бумажная валидация портфеля стратегий:
+# - research_free_strategies.py — полный список правил из бесплатных курсов;
+# - strategy_lab.py — walk-forward IS/OOS + портфель + Монте-Карло + график.
+# Результаты публикуются как артефакты CI (reports/).
+# Реальные деньги не используются: только исторические свечи и бэктест.
+
+on:
+  schedule:
+    - cron: "0 8 * * 1" # каждый понедельник 08:00 UTC
+  workflow_dispatch:
+
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Fetch BTCUSDT history (Binance Vision, no API key)
+        run: |
+          set -euo pipefail
+          python scripts/fetch_klines.py --symbol BTCUSDT --timeframe 4h \
+            --start 2021-01-01 --end "$(date -u +%Y-%m-%d)" --out data/BTCUSDT_4h.csv
+          python scripts/fetch_klines.py --symbol BTCUSDT --timeframe 1h \
+            --start 2021-01-01 --end "$(date -u +%Y-%m-%d)" --out data/BTCUSDT_1h.csv
+          # Если заведены секреты-флаги для альтов — тянем и их (мульти-актив).
+          if [ "${FETCH_ETH_SOL:-0}" = "1" ]; then
+            python scripts/fetch_klines.py --symbol ETHUSDT --timeframe 4h \
+              --start 2021-01-01 --end "$(date -u +%Y-%m-%d)" --out data/ETHUSDT_4h.csv
+            python scripts/fetch_klines.py --symbol SOLUSDT --timeframe 4h \
+              --start 2021-01-01 --end "$(date -u +%Y-%m-%d)" --out data/SOLUSDT_4h.csv
+          fi
+
+      - name: Research free strategies
+        run: python scripts/research_free_strategies.py --years 2 --capital 10000
+
+      - name: Strategy lab (walk-forward + Monte Carlo)
+        run: python scripts/strategy_lab.py
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: strategy-lab-reports
+          path: |
+            reports/strategy_lab/
+            reports/free_strategies/
+          retention-days: 90
