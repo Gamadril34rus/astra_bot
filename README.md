@@ -228,6 +228,7 @@ astra_bot/
 | `daily-train.yml` | research-first историческое обучение |
 | `morning-report.yml` | Telegram в 09:00 MSK |
 | `bot.yml` | периодический worker |
+| `strategy-lab.yml` | еженедельная walk-forward валидация портфеля стратегий |
 | `market-aware-smoke.yml` | быстрый smoke-test |
 
 ## 🔐 Безопасность

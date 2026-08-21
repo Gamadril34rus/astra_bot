@@ -23,7 +23,13 @@ from astra_bot.engines.execution_engine import get_execution_engine
 from astra_bot.engines.regime_detector import get_regime_detector
 from astra_bot.engines.risk_engine import RiskConfig, get_risk_engine
 from astra_bot.paperengine.paper_engine import PaperTradingEngine
-from astra_bot.strategies import AdaptiveGridStrategy, MeanReversionStrategy, MomentumStrategy
+from astra_bot.strategies import (
+    AdaptiveGridStrategy,
+    MeanReversionStrategy,
+    MomentumStrategy,
+    TimeSeriesMomentumConfig,
+    TimeSeriesMomentumStrategy,
+)
 
 # Настройка логирования. По умолчанию пишем в ./logs (репозиторий), а не в
 # ``/app/logs`` — последний путь существует только внутри Docker-контейнера и
@@ -175,6 +181,18 @@ class AstraBot:
         if settings.strategies.get("adaptive_grid", {}).get("enabled", False):
             self._strategies["adaptive_grid"] = AdaptiveGridStrategy()
             logger.info("Adaptive Grid strategy initialized")
+
+        # Time Series Momentum
+        if settings.strategies.get("ts_momentum", {}).get("enabled", False):
+            tsm_cfg = TimeSeriesMomentumConfig(name="ts_momentum")
+            self._strategies["ts_momentum"] = TimeSeriesMomentumStrategy(tsm_cfg)
+            logger.info("Time Series Momentum strategy initialized")
+
+        # Time Series Momentum + ADX
+        if settings.strategies.get("ts_momentum_adx", {}).get("enabled", False):
+            tsm_adx_cfg = TimeSeriesMomentumConfig(name="ts_momentum_adx", adx_min=20.0)
+            self._strategies["ts_momentum_adx"] = TimeSeriesMomentumStrategy(tsm_adx_cfg)
+            logger.info("Time Series Momentum ADX strategy initialized")
 
     def _init_engines(self):
         """Инициализация движков"""

@@ -39,7 +39,7 @@ MEXC_BASE = "https://api.mexc.com/api/v3/klines"
 
 TIMEFRAMES = {"1h", "4h", "1d", "1m", "5m", "15m", "30m", "2h", "6h", "8h", "12h", "1w", "1M"}
 
-HEADER = "open_time,open,high,low,close,volume,close_time,quote_volume,ignore\n"
+HEADER = "open_time,open,high,low,close,volume,close_time,quote_volume,count,taker_buy_volume,taker_buy_quote_volume,ignore\n"
 
 
 def vision_monthly_url(symbol: str, timeframe: str, year: int, month: int) -> str:
@@ -120,7 +120,7 @@ def fetch_mexc(symbol: str, timeframe: str, start: datetime, end: datetime) -> s
         for bar in data:
             ts = int(bar[0])
             rows.append(
-                f"{ts},{bar[1]},{bar[2]},{bar[3]},{bar[4]},{bar[5]},{bar[6]},{bar[7]},0"
+                f"{ts},{bar[1]},{bar[2]},{bar[3]},{bar[4]},{bar[5]},{bar[6]},{bar[7]},0,0,0,0"
             )
         cursor = int(data[-1][0]) + 1
         if len(data) < 1000:

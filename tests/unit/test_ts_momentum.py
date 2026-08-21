@@ -122,6 +122,22 @@ def test_flip_long_to_short_through_deadband():
     assert sig.features["tsm_action"] == TSM_ACTION_FLIP
 
 
+def test_main_bot_initializes_ts_momentum_strategies():
+    from astra_bot.core.config import load_settings
+    from astra_bot.main import AstraBot
+    load_settings("config/settings.yaml")
+    bot = AstraBot()
+    bot._init_strategies()
+    assert "ts_momentum" in bot._strategies
+    assert "ts_momentum_adx" in bot._strategies
+    tsm = bot._strategies["ts_momentum"]
+    tsm_adx = bot._strategies["ts_momentum_adx"]
+    assert isinstance(tsm, TimeSeriesMomentumStrategy)
+    assert isinstance(tsm_adx, TimeSeriesMomentumStrategy)
+    assert tsm.config.adx_min == 0.0
+    assert tsm_adx.config.adx_min == 20.0
+
+
 def test_short_flip_when_allowed():
     s = TimeSeriesMomentumStrategy(_cfg(lookback_days=2))
     bear = _candles(60, step=-0.002)
