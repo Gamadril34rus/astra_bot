@@ -97,7 +97,7 @@
       "initial_quantity": "9.510462",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "620.8",
+      "highest_price": "621.3",
       "lowest_price": "615.9",
       "strategy": "pullback",
       "opened_at": 1787237295703,
@@ -145,16 +145,16 @@
       }
     },
     {
-      "id": "28d0ae84-3314-4c9f-a31e-76143c79c81f",
-      "symbol": "XRP-USDT",
+      "id": "4ae96900-6bdf-4618-8633-a5e103a622fb",
+      "symbol": "ICP-USDT",
       "direction": "short",
-      "entry_price": "1.0958",
-      "quantity": "5332.409102",
-      "stop_loss": "1.1012790",
+      "entry_price": "2.267",
+      "quantity": "2575.593936",
+      "stop_loss": "2.285136",
       "take_profits": [
-        "1.09032100",
-        "1.08593780",
-        "1.08210250"
+        "2.2488640",
+        "2.2343552",
+        "2.2216600"
       ],
       "tp_filled": [
         false,
@@ -166,21 +166,21 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "5332.409102",
+      "initial_quantity": "2575.593936",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "1.0938",
-      "lowest_price": "1.0936",
-      "strategy": "scalp5m",
-      "opened_at": 1787259197592,
+      "highest_price": "2.266",
+      "lowest_price": "2.249",
+      "strategy": "scalp",
+      "opened_at": 1787292277009,
       "notes": {
-        "score": 53.0,
+        "score": 57.0,
         "ml_probability": null,
-        "edge_pct": 0.21956647299518528,
-        "rr": 1.1999999999999997
+        "edge_pct": 0.14502029768680047,
+        "rr": 1.2
       }
     }
   ],
-  "realized_pnl": "-1267.174042302178323840",
+  "realized_pnl": "-1296.390311772036323840",
   "initial_capital": "40222.20"
 }
