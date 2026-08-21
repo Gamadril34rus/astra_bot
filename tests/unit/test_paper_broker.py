@@ -102,3 +102,46 @@ def test_persistence_roundtrip(tmp_path, broker):
     )
     assert len(restored.positions) == 1
     assert restored.positions[0].entry_price == Decimal("100")
+
+
+def test_open_position_without_take_profits(broker):
+    pos = broker.open_position(
+        symbol="BTC/USDT",
+        direction="long",
+        entry_price=Decimal("60000"),
+        stop_loss=Decimal("57000"),
+        take_profit=Decimal("0"),
+        quantity=Decimal("0.01"),
+        strategy="ts_momentum",
+        no_take_profit=True,
+    )
+    assert pos.take_profits == []
+    assert pos.tp_filled == []
+
+
+def test_close_positions_closes_all_for_symbol(broker):
+    broker.open_position(
+        symbol="BTC/USDT",
+        direction="long",
+        entry_price=Decimal("60000"),
+        stop_loss=Decimal("57000"),
+        take_profit=Decimal("0"),
+        quantity=Decimal("0.01"),
+        strategy="ts_momentum",
+    )
+    broker.open_position(
+        symbol="ETH/USDT",
+        direction="long",
+        entry_price=Decimal("3000"),
+        stop_loss=Decimal("2850"),
+        take_profit=Decimal("0"),
+        quantity=Decimal("0.1"),
+        strategy="ts_momentum",
+    )
+    closed = broker.close_positions("BTC/USDT", Decimal("61000"), "flip")
+    assert len(closed) == 1
+    assert closed[0].exit_reason == "flip"
+    assert closed[0].pnl > 0
+    # ETH-позиция не тронута.
+    assert len(broker.positions) == 1
+    assert broker.positions[0].symbol == "ETH/USDT"

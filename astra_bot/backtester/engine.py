@@ -20,6 +20,7 @@ from ..core.utils import (
 )
 from ..engines.risk_engine import RiskConfig, RiskEngine
 from ..strategies import BaseStrategy
+from ..strategies.ts_momentum import TSM_ACTION_FLAT
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,11 @@ class BacktestConfig:
     save_equity_curve: bool = True
     trades_output_path: str | None = None
     equity_output_path: str | None = None
+
+    # Флип-режим: сигнал противоположного направления от той же стратегии
+    # закрывает открытую позицию и открывает новую (переворот). Нужен для
+    # трендовых фильтров типа ts_momentum, проверенных на истории.
+    close_on_opposite_signal: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -368,6 +374,29 @@ class BacktestEngine:
                     signal = _run_coroutine(signal)
 
                 if signal:
+                    sig_feats = getattr(signal, "features", {}) or {}
+                    # Flat-сигнал (режим окончился): закрыть позицию этой
+                    # стратегии и ничего не открывать.
+                    if sig_feats.get("tsm_action") == TSM_ACTION_FLAT:
+                        for _tid, _t in list(self._open_positions.items()):
+                            if _t.strategy_name == signal.strategy_name:
+                                self._close_position(
+                                    _tid, "flat_regime",
+                                    exit_price=current_price, timestamp=timestamp,
+                                )
+                        continue
+                    # Переворот: закрыть противоположную позицию той же
+                    # стратегии, затем обработать новый сигнал как обычно.
+                    if self.config.close_on_opposite_signal:
+                        for _tid, _t in list(self._open_positions.items()):
+                            if (
+                                _t.strategy_name == signal.strategy_name
+                                and _t.side != signal.direction.value
+                            ):
+                                self._close_position(
+                                    _tid, "flip",
+                                    exit_price=current_price, timestamp=timestamp,
+                                )
                     self._process_signal(signal, current_price, timestamp)
 
             except Exception as e:
@@ -631,30 +660,30 @@ class BacktestEngine:
         high = Decimal(str(candle["high"]))
         low = Decimal(str(candle["low"]))
 
-        # Стоп-лосс
-        if trade.side == "long" and low <= trade.stop_loss:
+        # Стоп-лосс (0 = стопа нет).
+        if trade.side == "long" and trade.stop_loss > 0 and low <= trade.stop_loss:
             self._close_position(
                 trade.id, "stop_loss",
                 exit_price=trade.stop_loss, timestamp=timestamp,
             )
             return
 
-        if trade.side == "short" and high >= trade.stop_loss:
+        if trade.side == "short" and trade.stop_loss > 0 and high >= trade.stop_loss:
             self._close_position(
                 trade.id, "stop_loss",
                 exit_price=trade.stop_loss, timestamp=timestamp,
             )
             return
 
-        # Тейк-профит
-        if trade.side == "long" and high >= trade.take_profit:
+        # Тейк-профит (0 = тейка нет).
+        if trade.side == "long" and trade.take_profit > 0 and high >= trade.take_profit:
             self._close_position(
                 trade.id, "take_profit",
                 exit_price=trade.take_profit, timestamp=timestamp,
             )
             return
 
-        if trade.side == "short" and low <= trade.take_profit:
+        if trade.side == "short" and trade.take_profit > 0 and low <= trade.take_profit:
             self._close_position(
                 trade.id, "take_profit",
                 exit_price=trade.take_profit, timestamp=timestamp,

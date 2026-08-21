@@ -43,6 +43,12 @@ trading:
     book_breakout:
       enabled: true  # «Простая книга торговли»: пробой → ретест → подтверждение
       weight: 1.0
+    ts_momentum:
+      # Флипы по 45-дневному импульсу (проверено на истории BTC/USDT 1h/4h,
+      # scripts/research_free_strategies.py). Подключено в decision-движке
+      # (scripts/run_bot.py / run_paper.py), оценивается на свечах 4h.
+      enabled: true
+      weight: 0.5
     adaptive_grid:
       enabled: false  # Включить только после тщательных тестов
       weight: 1.0

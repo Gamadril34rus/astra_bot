@@ -166,3 +166,86 @@ def test_pipeline_blocks_panic_regime_globally():
     )
     decision = pipe.decide(ctx)
     assert decision.action == "NO_TRADE"
+
+
+class _FlipStubStrategy(BaseStrategy):
+    """Стратегия-заглушка: отдаёт flat или flip-сигнал по флагу."""
+
+    name = "tsm_stub"
+
+    def __init__(self, tsm_action: float, direction=m.TradeDirection.LONG):
+        super().__init__(StrategyConfig(name=self.name))
+        self.tsm_action = tsm_action
+        self.direction = direction
+
+    def calculate_stop_loss(self, *a, **k):
+        return Decimal("0")
+
+    def calculate_take_profit(self, *a, **k):
+        return []
+
+    async def evaluate(self, symbol, candles, **kwargs):
+        if len(candles) < 60:
+            return None
+        price = Decimal(str(candles[-1].close))
+        return Signal(
+            symbol=symbol,
+            strategy_name=self.name,
+            direction=self.direction,
+            entry_price=price,
+            stop_loss=price * Decimal("0.98"),
+            take_profit=Decimal("0"),
+            confidence=0.5,
+            features={"tsm_action": self.tsm_action, "no_take_profit": 1.0},
+        )
+
+
+def _tsm_context(candles):
+    return MarketContext(
+        symbol="BTC/USDT",
+        current_price=candles[-1].close,
+        candles={"1h": candles, "4h": candles[::4], "15m": candles},
+    )
+
+
+def test_pipeline_flat_signal_returns_close():
+    from astra_bot.strategies.ts_momentum import TSM_ACTION_FLAT
+
+    pipe = DecisionPipeline(DecisionConfig(), strategies=[_FlipStubStrategy(TSM_ACTION_FLAT)])
+    candles = _candles("BTC/USDT", 500, bull=True)
+    decision = pipe.decide(_tsm_context(candles))
+    assert decision.action == "CLOSE"
+    assert decision.candidate is None
+
+
+def test_pipeline_flip_signal_returns_flip_with_candidate():
+    from astra_bot.strategies.ts_momentum import TSM_ACTION_FLIP
+
+    pipe = DecisionPipeline(DecisionConfig(), strategies=[_FlipStubStrategy(TSM_ACTION_FLIP)])
+    candles = _candles("BTC/USDT", 500, bull=True)
+    decision = pipe.decide(_tsm_context(candles))
+    assert decision.action == "FLIP"
+    assert decision.candidate is not None
+    assert decision.candidate.strategy == "tsm_stub"
+    assert decision.candidate.features.get("no_take_profit") == 1.0
+
+
+def test_pipeline_prefers_strategy_timeframe_candles():
+    """Стратегия с preferred_timeframe получает свои свечи (4h)."""
+    seen: dict = {}
+
+    class _TfSpy(_LongStrategy):
+        name = "tf_spy"
+        preferred_timeframe = "4h"
+
+        async def evaluate(self, symbol, candles, **kwargs):
+            seen["n"] = len(candles)
+            seen["step_ms"] = (
+                candles[-1].open_time - candles[-2].open_time if len(candles) > 1 else 0
+            )
+            return None
+
+    pipe = DecisionPipeline(DecisionConfig(), strategies=[_TfSpy()])
+    candles = _candles("BTC/USDT", 500, bull=True)
+    pipe.decide(_tsm_context(candles))
+    assert seen["step_ms"] == 4 * 3_600_000

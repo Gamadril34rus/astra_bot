@@ -158,3 +158,96 @@ def test_one_position_at_a_time():
     engine = run_engine(AlwaysLongStrategy(), make_base_candles(106))
     trades = closed_trades(engine)
     assert len(trades) == 1
+
+
+class FlipStrategy(BaseStrategy):
+    """Флип-стратегия: на 100-м баре LONG, на 102-м SHORT, на 104-м FLAT."""
+
+    def __init__(self):
+        super().__init__(StrategyConfig(name="flip_test"))
+        self._calls = 0
+
+    async def evaluate(
+        self, symbol, candles, orderbook=None, current_price=None, market_regime=None
+    ):
+        from astra_bot.strategies.ts_momentum import TSM_ACTION_FLAT, TSM_ACTION_FLIP
+
+        self._calls += 1
+        price = Decimal(str(current_price or float(candles[-1].close)))
+        if self._calls == 1:
+            return Signal(
+                symbol=symbol, strategy_name=self.name,
+                direction=models.TradeDirection.LONG,
+                entry_price=price,
+                stop_loss=price * Decimal("0.9"),
+                take_profit=Decimal("0"),
+                features={"tsm_action": TSM_ACTION_FLIP},
+            )
+        if self._calls == 2:
+            return Signal(
+                symbol=symbol, strategy_name=self.name,
+                direction=models.TradeDirection.SHORT,
+                entry_price=price,
+                stop_loss=price * Decimal("1.1"),
+                take_profit=Decimal("0"),
+                features={"tsm_action": TSM_ACTION_FLIP},
+            )
+        if self._calls == 3:
+            return Signal(
+                symbol=symbol, strategy_name=self.name,
+                direction=models.TradeDirection.LONG,
+                entry_price=Decimal("0"),
+                stop_loss=Decimal("0"),
+                take_profit=Decimal("0"),
+                features={"tsm_action": TSM_ACTION_FLAT},
+            )
+        return None
+
+    def calculate_stop_loss(self, entry_price, candles, atr=None):
+        return entry_price * Decimal("0.9")
+
+    def calculate_take_profit(self, entry_price, stop_loss, candles):
+        return []
+
+
+def test_flip_closes_opposite_and_opens_new_direction():
+    candles = make_base_candles(120)
+    config = BacktestConfig(
+        symbol="BTC/USDT",
+        timeframe="1h",
+        initial_capital=Decimal("1000"),
+        max_open_positions=1,
+        close_on_opposite_signal=True,
+        risk_config={"risk_per_trade": "0.004"},
+    )
+    engine = BacktestEngine(config)
+    engine.add_strategy("flip_test", FlipStrategy())
+    engine.load_candles(candles)
+    engine.run()
+
+    trades = [t for t in engine.get_trades() if t.result in ("won", "lost")]
+    assert len(trades) == 2
+    assert trades[0].side == "long"
+    assert trades[0].exit_reason == "flip"
+    assert trades[1].side == "short"
+    assert trades[1].exit_reason == "flat_regime"
+
+
+def test_flat_signal_closes_position_without_opening():
+    candles = make_base_candles(120)
+    config = BacktestConfig(
+        symbol="BTC/USDT",
+        timeframe="1h",
+        initial_capital=Decimal("1000"),
+        max_open_positions=1,
+        close_on_opposite_signal=True,
+        risk_config={"risk_per_trade": "0.004"},
+    )
+    engine = BacktestEngine(config)
+    engine.add_strategy("flip_test", FlipStrategy())
+    engine.load_candles(candles)
+    engine.run()
+
+    # После flat-сигнала новых позиций не открывалось.
+    assert all(t.exit_reason in ("flip", "flat_regime") for t in engine.get_trades() if t.result in ("won", "lost"))
+    assert len(engine.get_trades()) == 2

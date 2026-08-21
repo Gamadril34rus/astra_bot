@@ -154,21 +154,27 @@ class PaperBroker:
         quantity: Decimal,
         strategy: str = "",
         notes: dict | None = None,
+        no_take_profit: bool = False,
     ) -> PaperPosition:
         # Разбиваем тейк на 3 уровня: 1R, 1.8R, 2.5R.
-        risk = abs(entry_price - stop_loss)
-        if direction == "long":
-            tps = [
-                entry_price + risk * Decimal("1.0"),
-                entry_price + risk * Decimal("1.8"),
-                entry_price + risk * Decimal("2.5"),
-            ]
+        # Флип-стратегии (ts_momentum) живут до смены режима — тейки им
+        # не нужны, иначе частичные выходы искажают проверенное правило.
+        if no_take_profit:
+            tps: list[Decimal] = []
         else:
-            tps = [
-                entry_price - risk * Decimal("1.0"),
-                entry_price - risk * Decimal("1.8"),
-                entry_price - risk * Decimal("2.5"),
-            ]
+            risk = abs(entry_price - stop_loss)
+            if direction == "long":
+                tps = [
+                    entry_price + risk * Decimal("1.0"),
+                    entry_price + risk * Decimal("1.8"),
+                    entry_price + risk * Decimal("2.5"),
+                ]
+            else:
+                tps = [
+                    entry_price - risk * Decimal("1.0"),
+                    entry_price - risk * Decimal("1.8"),
+                    entry_price - risk * Decimal("2.5"),
+                ]
         qty = quantity
         pos = PaperPosition(
             id=str(uuid.uuid4()),
@@ -186,7 +192,8 @@ class PaperBroker:
         self.positions.append(pos)
         logger.info(
             "OPEN %s %s qty=%s entry=%s stop=%s tp1=%s",
-            direction, symbol, quantity, entry_price, stop_loss, tps[0],
+            direction, symbol, quantity, entry_price, stop_loss,
+            tps[0] if tps else "-",
         )
         self.save()
         return pos
@@ -262,6 +269,18 @@ class PaperBroker:
             if pos.quantity <= 0:
                 self.positions.remove(pos)
         self.save()
+        return closed
+
+    def close_positions(
+        self, symbol: str, price: Decimal, reason: str
+    ) -> list[ClosedTrade]:
+        """Закрыть ВСЕ открытые позиции по символу (для флипов/выхода)."""
+        closed: list[ClosedTrade] = []
+        for pos in list(self.positions):
+            if pos.symbol == symbol:
+                closed.append(self._close(pos, price, reason))
+        if closed:
+            self.save()
         return closed
 
     def _close(self, pos: PaperPosition, price: Decimal, reason: str) -> ClosedTrade:
