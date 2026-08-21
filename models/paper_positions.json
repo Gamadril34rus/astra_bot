@@ -61,14 +61,86 @@
       "initial_quantity": "9.167250",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "636.5",
-      "lowest_price": "634.7",
+      "highest_price": "637.2",
+      "lowest_price": "634.2",
       "strategy": "scalp5m",
       "opened_at": 1787301928375,
       "notes": {
         "score": 62.0,
         "ml_probability": null,
         "edge_pct": 0.18902307020198394,
+        "rr": 1.2
+      }
+    },
+    {
+      "id": "471825a2-339a-4d9b-9b9a-399a8f479528",
+      "symbol": "ETH-USDT",
+      "direction": "short",
+      "entry_price": "2265.04",
+      "quantity": "2.575284",
+      "stop_loss": "2276.36520",
+      "take_profits": [
+        "2253.714800",
+        "2244.654640",
+        "2236.727000"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "2.575284",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "2265.04",
+      "lowest_price": "2262.01",
+      "strategy": "scalp5m",
+      "opened_at": 1787306370788,
+      "notes": {
+        "score": 68.0,
+        "ml_probability": null,
+        "edge_pct": 0.12823569429689163,
+        "rr": 1.2
+      }
+    },
+    {
+      "id": "c09633a4-09e7-4f40-a221-527df66a9722",
+      "symbol": "AVAX-USDT",
+      "direction": "short",
+      "entry_price": "6.882",
+      "quantity": "847.591026",
+      "stop_loss": "6.916410",
+      "take_profits": [
+        "6.8475900",
+        "6.8200620",
+        "6.7959750"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "847.591026",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "6.885",
+      "lowest_price": "6.876",
+      "strategy": "scalp5m",
+      "opened_at": 1787306374541,
+      "notes": {
+        "score": 81.0,
+        "ml_probability": null,
+        "edge_pct": 0.12364928460600476,
         "rr": 1.2
       }
     }
