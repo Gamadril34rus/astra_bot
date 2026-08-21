@@ -9,7 +9,15 @@ from typing import Any
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, roc_auc_score
 
-from .model_trainer import LIGHTGBM_AVAILABLE, MLModel, ModelMetrics, TrainingConfig, TrainingData, lgb
+from .model_trainer import (
+    LIGHTGBM_AVAILABLE,
+    MLModel,
+    ModelMetrics,
+    TrainingConfig,
+    TrainingData,
+    _lgb_eval_kwargs,
+    lgb,
+)
 
 
 def train_temporal(training_data: TrainingData, config: TrainingConfig | None = None) -> MLModel:
@@ -33,19 +41,22 @@ def train_temporal(training_data: TrainingData, config: TrainingConfig | None = 
     X_test = training_data.features[split:]
     y_test = training_data.labels[split:]
 
+    # Нативные параметры LightGBM: min_samples_leaf → min_child_samples,
+    # а sklearn-алиасы (min_samples_split/min_samples_leaf) не передаём —
+    # иначе LightGBM ругается на неизвестный параметр и на переопределение
+    # min_data_in_leaf в каждом прогоне CI.
     model = lgb.LGBMClassifier(
         n_estimators=cfg.n_estimators,
         max_depth=cfg.max_depth,
         learning_rate=cfg.learning_rate,
-        min_samples_split=cfg.min_samples_split,
-        min_samples_leaf=cfg.min_samples_leaf,
+        min_child_samples=cfg.min_samples_leaf,
         verbose=cfg.verbose,
         random_state=cfg.random_state,
         n_jobs=-1,
     )
 
     started = time.monotonic()
-    fit_kwargs: dict[str, Any] = {"eval_set": [(X_test, y_test)]}
+    fit_kwargs: dict[str, Any] = dict(_lgb_eval_kwargs(X_test, y_test))
     if cfg.early_stopping_rounds > 0:
         fit_kwargs["callbacks"] = [lgb.early_stopping(cfg.early_stopping_rounds, verbose=False)]
     model.fit(X_train, y_train, **fit_kwargs)

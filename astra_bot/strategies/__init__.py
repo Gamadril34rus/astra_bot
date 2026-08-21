@@ -10,6 +10,12 @@ from .momentum import MomentumStrategy
 from .pullback import PullbackConfig, PullbackStrategy
 from .scalp import ScalpConfig, ScalpStrategy
 from .scalp5m import Scalp5mConfig, Scalp5mStrategy
+from .ts_momentum import (
+    TimeSeriesMomentumConfig,
+    TimeSeriesMomentumStrategy,
+    TSM_ACTION_FLAT,
+    TSM_ACTION_FLIP,
+)
 
 __all__ = [
     "AdaptiveGridStrategy",
@@ -26,4 +32,8 @@ __all__ = [
     "Scalp5mStrategy",
     "Signal",
     "StrategyConfig",
+    "TimeSeriesMomentumConfig",
+    "TimeSeriesMomentumStrategy",
+    "TSM_ACTION_FLAT",
+    "TSM_ACTION_FLIP",
 ]

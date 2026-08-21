@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Decision:
-    action: str  # LONG / SHORT / NO_TRADE
+    action: str  # LONG / SHORT / NO_TRADE / FLIP / CLOSE
     symbol: str
     reasons: list[str] = field(default_factory=list)
     candidate: SignalCandidate | None = None
@@ -119,10 +119,17 @@ class DecisionPipeline:
             return out
         for strategy in self.strategies:
             try:
+                # Стратегия может запросить конкретный таймфрейм
+                # (например, ts_momentum оценивается на 4h-свечах).
+                preferred_tf = getattr(strategy, "preferred_timeframe", None)
+                if preferred_tf and ctx.candles_on(preferred_tf):
+                    candles = ctx.candles_on(preferred_tf)
+                else:
+                    candles = primary
                 signal = self._run_evaluate(
                     strategy,
                     symbol=ctx.symbol,
-                    candles=primary,
+                    candles=candles,
                     orderbook=ctx.orderbook,
                     current_price=float(ctx.current_price),
                     market_regime=regime,
@@ -136,7 +143,7 @@ class DecisionPipeline:
                         entry_price=signal.entry_price,
                         stop_loss=signal.stop_loss,
                         take_profit=signal.take_profit,
-                        timeframe="1h",
+                        timeframe=preferred_tf or "1h",
                         strategy=getattr(strategy, "name", "strategy"),
                         confidence=signal.confidence,
                         features=getattr(signal, "features", {}) or {},
@@ -219,6 +226,27 @@ class DecisionPipeline:
                 ["no_strategy_signal"],
                 diagnostics={"regime": regime.to_dict()},
             )
+
+        # 7.1 Флип-стратегии (ts_momentum): смена режима — детерминированное
+        # действие, которое не должно зависеть от скоринга конкурентов.
+        # CLOSE — выйти из рынка, FLIP — перевернуть позицию.
+        from ..strategies.ts_momentum import TSM_ACTION_FLAT, TSM_ACTION_FLIP
+
+        for cand in candidates:
+            tsm_action = (cand.features or {}).get("tsm_action")
+            if tsm_action == TSM_ACTION_FLAT:
+                return Decision(
+                    "CLOSE", ctx.symbol, ["tsm_flat"],
+                    diagnostics={"regime": regime.to_dict()},
+                )
+        for cand in candidates:
+            tsm_action = (cand.features or {}).get("tsm_action")
+            if tsm_action == TSM_ACTION_FLIP:
+                return Decision(
+                    "FLIP", ctx.symbol, ["tsm_flip"],
+                    candidate=cand,
+                    diagnostics={"regime": regime.to_dict()},
+                )
 
         # 8. Признаки.
         feats = self.features.compute(ctx)

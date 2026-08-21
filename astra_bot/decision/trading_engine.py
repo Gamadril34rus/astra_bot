@@ -29,18 +29,31 @@ from .broker import PaperBroker
 from .context import MarketContext
 from .pipeline import DecisionPipeline
 
+# Fire-and-forget задачи (уведомления и т.п.). Ссылки хранятся явно:
+# без них задача может быть собрана GC до выполнения и цикл уронит
+# "Task was destroyed but it is pending".
+_BACKGROUND_TASKS: set[asyncio.Task] = set()
+
+
+def _spawn_background(coro) -> None:
+    """Запустить корутину в фоне текущего event loop, сохранив ссылку."""
+    task = asyncio.ensure_future(coro)
+    _BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_BACKGROUND_TASKS.discard)
+
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class TradingEngineConfig:
     symbols: tuple[str, ...] = ("BTC-USDT", "ETH-USDT", "SOL-USDT")
-    # 5m — основной для частых входов; 15m для подтверждения тренда.
-    # Держим только 2 таймфрейма, чтобы шаг по 10 монетам был быстрым.
-    timeframes: tuple[str, ...] = ("5m", "15m")
+    # 5m — основной для частых входов; 15m для подтверждения тренда;
+    # 4h — для долгосрочного фильтра ts_momentum (флипы по 45-дневному
+    # импульсу). Держим 3 таймфрейма, чтобы шаг по 10 монетам был быстрым.
+    timeframes: tuple[str, ...] = ("5m", "15m", "4h")
     # Сколько баров тянуть для каждого таймфрейма.
     bars_per_tf: dict[str, int] = field(
-        default_factory=lambda: {"5m": 250, "15m": 200}
+        default_factory=lambda: {"5m": 250, "15m": 200, "4h": 320}
     )
     # 0.5% риска на сделку. Капитал в управлении — половина демо-портфеля
     # (~40 000 USDT), поэтому 0.5% = ~200 USDT риска, позиция крупная, но
@@ -82,10 +95,15 @@ class TradingEngine:
                 PullbackStrategy,
                 ScalpStrategy,
                 Scalp5mStrategy,
+                TimeSeriesMomentumConfig,
+                TimeSeriesMomentumStrategy,
             )
             from .config import DecisionConfig
             # Пороги согласованы со стратегиями. Scalp даёт много мелких
-            # сделок на 15m для быстрого обучения; Pullback — крупнее на 1h.
+            # сделок на 15m для быстрого обучения; Pullback — крупнее на 1h;
+            # ts_momentum — флипы по 45-дневному импульсу на 4h, плюс
+            # вариант с ADX-подтверждением (оба проверены walk-forward'ом
+            # в scripts/strategy_lab.py).
             cfg = DecisionConfig()
             cfg.min_rr = 0.7
             cfg.min_ml_probability = 0.0
@@ -101,6 +119,12 @@ class TradingEngine:
                     PullbackStrategy(),
                     MomentumStrategy(),
                     MeanReversionStrategy(),
+                    TimeSeriesMomentumStrategy(),
+                    TimeSeriesMomentumStrategy(
+                        TimeSeriesMomentumConfig(
+                            name="ts_momentum_adx", adx_min=20.0
+                        )
+                    ),
                 ],
             )
         self.pipeline = pipeline
@@ -223,8 +247,36 @@ class TradingEngine:
         if closed:
             self._record_closed(closed)
 
-        # Одна позиция на символ.
-        if any(p.symbol == symbol for p in self.broker.positions):
+        # Решение по стратегиям — вычисляем до проверки «есть ли позиция»,
+        # чтобы флип-стратегии (ts_momentum) могли перевернуть/закрыть её.
+        decision = self.pipeline.decide(ctx)
+
+        # CLOSE: режим тренда окончился — закрываем позицию без входа.
+        if decision.action == "CLOSE":
+            newly = self.broker.close_positions(symbol, ctx.current_price, "flat_regime")
+            if newly:
+                self._record_closed(newly)
+                logger.info("CLOSE %s по flat-сигналу (%d позиций)", symbol, len(newly))
+                closed = closed + newly
+            return closed
+
+        has_position = any(p.symbol == symbol for p in self.broker.positions)
+
+        # FLIP: переворот — закрываем противоположную позицию и входим заново.
+        if decision.action == "FLIP" and has_position:
+            newly = self.broker.close_positions(symbol, ctx.current_price, "flip")
+            if newly:
+                self._record_closed(newly)
+                logger.info("FLIP %s: закрыто %d, открываю новое направление", symbol, len(newly))
+                closed = closed + newly
+            has_position = False
+
+        # Одна позиция на символ (кроме только что обработанного флипа).
+        if has_position:
+            return closed
+
+        if decision.action == "NO_TRADE" or decision.candidate is None:
+            logger.debug("NO_TRADE %s: %s", symbol, decision.reasons)
             return closed
 
         # Дисциплина капитала: лимит числа позиций, однонаправленных
@@ -281,11 +333,6 @@ class TradingEngine:
             logger.info("%s: вход запрещён: %s", symbol, "; ".join(verdict.reasons))
             return closed
 
-        decision = self.pipeline.decide(ctx)
-        if decision.action == "NO_TRADE" or decision.candidate is None:
-            logger.debug("NO_TRADE %s: %s", symbol, decision.reasons)
-            return closed
-
         cand = decision.candidate
 
         # Не набираем слишком много позиций в одну сторону.
@@ -309,6 +356,7 @@ class TradingEngine:
             logger.info("%s: size=0, пропускаю", symbol)
             return closed
 
+        cand_features = cand.features or {}
         pos = self.broker.open_position(
             symbol=symbol,
             direction="long" if cand.direction == "long" else "short",
@@ -317,6 +365,7 @@ class TradingEngine:
             take_profit=cand.take_profit,
             quantity=size,
             strategy=cand.strategy,
+            no_take_profit=bool(cand_features.get("no_take_profit")),
             notes={
                 "score": cand.total_score,
                 "ml_probability": cand.ml_probability,
@@ -361,7 +410,7 @@ class TradingEngine:
             res = self._notifier(text, severity)
             if asyncio.iscoroutine(res):
                 # Отправка идёт fire-and-forget, чтобы не блокировать цикл.
-                asyncio.ensure_future(res)
+                _spawn_background(res)
         except Exception as exc:  # noqa: BLE001
             logger.debug("notifier error: %s", exc)
 

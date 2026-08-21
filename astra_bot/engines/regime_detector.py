@@ -66,6 +66,18 @@ STRATEGY_REGIME_COMPATIBILITY = {
         MarketRegime.PANIC: "OFF",
         MarketRegime.UNKNOWN: "OFF",
     },
+    # Флип-стратегия по 45-дневному импульсу: работает в трендах, вбок
+    # (RANGE) не входит — это и есть её мёртвая зона.
+    "ts_momentum": {
+        MarketRegime.BULL_TREND: "ON",
+        MarketRegime.BEAR_TREND: "ON",
+        MarketRegime.RANGE: "OFF",
+        MarketRegime.BREAKOUT: "ON",
+        MarketRegime.HIGH_VOLATILITY: "REDUCED",
+        MarketRegime.LOW_VOLATILITY: "ON",
+        MarketRegime.PANIC: "OFF",
+        MarketRegime.UNKNOWN: "OFF",
+    },
     "arbitrage": {
         MarketRegime.BULL_TREND: "ON",
         MarketRegime.BEAR_TREND: "ON",

@@ -70,7 +70,18 @@ class _FakeSession:
 
 
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    """Прогнать корутину в свежем event loop.
+
+    ``asyncio.get_event_loop()`` здесь использовать нельзя: после async-тестов
+    pytest-asyncio (auto-режим) закрывает свой loop, и get_event_loop() в
+    главном потоке начинает бросать RuntimeError, из-за чего эти тесты падали
+    в общем прогоне в зависимости от порядка файлов.
+    """
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
 
 
 # --------------------------------------------------------------------- pure

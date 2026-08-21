@@ -251,6 +251,20 @@ python -m pytest tests/integration
 python scripts/preflight.py
 ```
 
+Проверка стратегии из «Простой книги торговли» (`Simple Trading Book_compressed.pdf`
+в корне проекта) на истории: `python scripts/backtest_book_2y.py --years 2` —
+бэктест book_breakout за 2 года на 1h/4h, итоги в `docs/book_backtest_2y/summary.md`.
+
+Исследование бесплатных обучающих правил (Babypips, Investopedia, Turtles,
+Connors RSI-2, Bollinger, Ichimoku и др.): `python scripts/research_free_strategies.py` —
+прогон 16 правил на истории BTC/USDT, итоги в `docs/free_strategy_research.md`.
+Лучшее правило (time-series momentum, 45 дней) встроено как стратегия
+`ts_momentum` в decision-движок.
+
+Портфель стратегий с walk-forward валидацией (IS/OOS/история 2021–2026):
+`python scripts/strategy_lab.py` — протокол отбора и портфель «трендовой
+книги» (TSM-45 L/S, vol-target, ADX-фильтр), итоги в `docs/strategy_portfolio.md`.
+
 ## 📖 Документация
 
 Начинать с `docs/INDEX.md`. Далее: `ARCHITECTURE.md` → `DECISION_PIPELINE.md` → `SELF_PLAY.md` → `PROFIT_AND_TRAINING.md` → `RISK_AND_GOALS.md` → `GITHUB_ACTIONS.md`.

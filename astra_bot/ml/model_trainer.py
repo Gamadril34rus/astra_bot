@@ -59,6 +59,22 @@ except ImportError:  # pragma: no cover
 logger = logging.getLogger(__name__)
 
 
+def _lgb_eval_kwargs(X_eval: np.ndarray, y_eval: np.ndarray) -> dict[str, Any]:
+    """Аргументы валидационного набора для LGBMClassifier.fit.
+
+    В новых LightGBM (>= 4.6) ``eval_set`` помечен устаревшим, используются
+    ``eval_X``/``eval_y``; в старых версиях их нет. Выбираем по сигнатуре,
+    чтобы CI не засыпало deprecation-предупреждениями.
+    """
+    if LIGHTGBM_AVAILABLE:
+        import inspect
+
+        params = inspect.signature(lgb.LGBMClassifier.fit).parameters
+        if "eval_X" in params:
+            return {"eval_X": X_eval, "eval_y": y_eval}
+    return {"eval_set": [(X_eval, y_eval)]}
+
+
 @dataclass
 class TrainingConfig:
     """Конфигурация обучения"""
@@ -67,6 +83,11 @@ class TrainingConfig:
     n_estimators: int = 100
     max_depth: int = 5
     learning_rate: float = 0.1
+    # Примечание по именам: это общие имена конфига. LightGBM принимает
+    # только нативный ``min_child_samples`` (= min_data_in_leaf), поэтому
+    # ``min_samples_leaf`` маппится на него, а ``min_samples_split`` для
+    # LightGBM не передаётся (аналога нет — иначе шумные warnings в логах).
+    # Оба параметра используются напрямую только sklearn RandomForest.
     min_samples_split: int = 20
     min_samples_leaf: int = 10
 
@@ -369,12 +390,15 @@ class ModelTrainer:
     def _create_model(self, model_type: str) -> Any:
         """Создать модель"""
         if model_type == "lightgbm":
+            # Нативные параметры LightGBM. sklearn-алиасы min_samples_split
+            # и min_samples_leaf не передаём: первый вообще неизвестен
+            # LightGBM, второй конфликтует с min_child_samples и заваливает
+            # CI-логи предупреждениями.
             return lgb.LGBMClassifier(
                 n_estimators=self.config.n_estimators,
                 max_depth=self.config.max_depth,
                 learning_rate=self.config.learning_rate,
-                min_samples_split=self.config.min_samples_split,
-                min_samples_leaf=self.config.min_samples_leaf,
+                min_child_samples=self.config.min_samples_leaf,
                 verbose=self.config.verbose,
                 random_state=self.config.random_state,
                 n_jobs=-1,
@@ -432,9 +456,8 @@ class ModelTrainer:
         LGBMClassifier.fit() принимает массивы X/y, а не ``lgb.Dataset``.
         Dataset используется только в low-level API ``lgb.train``.
         """
-        eval_set = [(test_data.features, test_data.labels)]
         fit_kwargs: dict[str, Any] = {
-            "eval_set": eval_set,
+            **_lgb_eval_kwargs(test_data.features, test_data.labels),
         }
         if self.config.early_stopping_rounds > 0 and LIGHTGBM_AVAILABLE:
             fit_kwargs["callbacks"] = [

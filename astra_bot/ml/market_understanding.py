@@ -307,7 +307,7 @@ def _indicator_features(high: np.ndarray, low: np.ndarray, close: np.ndarray, vo
 
     bb = calculate_bollinger_bands(close.tolist(), 20, 2.0)
     if bb:
-        upper, middle, lower = bb["upper"], bb["middle"], bb["lower"]
+        upper, _middle, lower = bb["upper"], bb["middle"], bb["lower"]
         width = max(float(upper - lower), 1e-9)
         out["bb_position"] = _safe((close[-1] - lower) / width)
         out["bb_width_pct"] = _safe(width / max(close[-1], 1e-9) * 100.0)

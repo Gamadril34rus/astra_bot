@@ -2,7 +2,6 @@
 ASTRA BOT — Unit Tests for ML Module
 """
 
-import sys
 from datetime import datetime
 from decimal import Decimal
 from unittest.mock import MagicMock
@@ -10,21 +9,8 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-# Mock ML libraries
-mock_lgb = MagicMock()
-mock_lgb_clf = MagicMock()
-# Return predictions that match the number of test samples
-mock_lgb_clf.predict.return_value = np.array([0, 1, 0, 1, 0, 1, 0, 1, 0, 1]*10)  # 100 predictions
-mock_lgb_clf.predict_proba.return_value = np.array([[0.9, 0.1], [0.2, 0.8]]*50)  # 100 predictions
-mock_lgb_clf.feature_importances_ = np.array([0.1] * 10)
-mock_lgb.LGBMClassifier.return_value = mock_lgb_clf
-mock_lgb.Dataset = MagicMock()
-mock_lgb.early_stopping = MagicMock()
-
-mock_xgb = MagicMock()
-
-sys.modules['lightgbm'] = mock_lgb
-sys.modules['xgboost'] = mock_xgb
+import astra_bot.ml.model_trainer as model_trainer_mod
+import astra_bot.ml.temporal_trainer as temporal_trainer_mod
 
 from astra_bot.ml.drift_detector import (
     DriftConfig,
@@ -49,6 +35,39 @@ from astra_bot.ml.predictor import (
     PredictionService,
     Predictor,
 )
+
+
+def _make_lgb_mock() -> MagicMock:
+    """Свежий мок LightGBM для подстановки в модули трейнера.
+
+    Никаких глобальных ``sys.modules``: каждый тест получает свой мок через
+    monkeypatch. Раньше моки протекали в остальной набор тестов (например,
+    test_weekly_learner тренирует *реальную* модель и падал), а из-за порядка
+    импортов мок мог вообще не примениться.
+    """
+    mock_lgb = MagicMock(name="lightgbm")
+    mock_clf = MagicMock(name="LGBMClassifier")
+    # Возвращаем предсказания под 100 тестовых сэмплов (test_size=0.2 от 500).
+    mock_clf.predict.return_value = np.array([0, 1] * 50)
+    mock_clf.predict_proba.return_value = np.array([[0.9, 0.1], [0.2, 0.8]] * 50)
+    mock_clf.feature_importances_ = np.array([0.1] * 10)
+    mock_lgb.LGBMClassifier.return_value = mock_clf
+    mock_lgb.Dataset = MagicMock(name="Dataset")
+    mock_lgb.early_stopping = MagicMock(name="early_stopping")
+    return mock_lgb
+
+
+@pytest.fixture
+def lgb_mock(monkeypatch):
+    """Подменить lightgbm в model_trainer и temporal_trainer на мок.
+
+    temporal_trainer импортирует ``lgb`` из model_trainer в момент импорта,
+    поэтому патчим обе привязки отдельно.
+    """
+    mock = _make_lgb_mock()
+    monkeypatch.setattr(model_trainer_mod, "lgb", mock)
+    monkeypatch.setattr(temporal_trainer_mod, "lgb", mock)
+    return mock
 
 
 class TestFeatureConfig:
@@ -185,7 +204,7 @@ class TestModelTrainer:
         assert len(data.feature_names) == 20
         assert 0.5 < np.mean(data.labels) < 0.6
 
-    def test_train_model_mock(self):
+    def test_train_model_mock(self, lgb_mock):
         """Тест обучения модели (с моком)"""
         trainer = ModelTrainer()
 
@@ -233,6 +252,34 @@ class TestModelTrainer:
         assert len(train_data.labels) == 800
         assert len(test_data.labels) == 200
         assert train_data.feature_names == test_data.feature_names
+
+    def test_lightgbm_uses_native_params_not_sklearn_aliases(self, lgb_mock):
+        """LightGBM не должен получать sklearn-алиасы min_samples_split /
+        min_samples_leaf — они заваливают CI-логи предупреждениями."""
+        trainer = ModelTrainer()
+        trainer._create_model("lightgbm")
+
+        kwargs = lgb_mock.LGBMClassifier.call_args.kwargs
+        assert "min_child_samples" in kwargs
+        assert kwargs["min_child_samples"] == trainer.config.min_samples_leaf
+        assert "min_samples_split" not in kwargs
+        assert "min_samples_leaf" not in kwargs
+
+    def test_temporal_trainer_uses_native_lightgbm_params(self, lgb_mock):
+        """train_temporal тоже собирает LGBMClassifier с нативными параметрами."""
+        from astra_bot.ml.temporal_trainer import train_temporal
+
+        training_data = DataPreparation.create_synthetic_data(
+            n_samples=500,
+            n_features=10,
+            positive_rate=0.5,
+        )
+        train_temporal(training_data)
+
+        kwargs = lgb_mock.LGBMClassifier.call_args.kwargs
+        assert "min_child_samples" in kwargs
+        assert "min_samples_split" not in kwargs
+        assert "min_samples_leaf" not in kwargs
 
 
 class TestPredictor:
