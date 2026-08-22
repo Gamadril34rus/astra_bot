@@ -26,7 +26,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "78092.9",
-      "lowest_price": "77779",
+      "lowest_price": "77768.8",
       "strategy": "scalp5m",
       "opened_at": 1787381652693,
       "notes": {
@@ -62,7 +62,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "1.4011",
-      "lowest_price": "1.3914",
+      "lowest_price": "1.3744",
       "strategy": "pullback",
       "opened_at": 1787381656124,
       "notes": {
@@ -98,7 +98,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "0.2147",
-      "lowest_price": "0.2135",
+      "lowest_price": "0.2133",
       "strategy": "pullback",
       "opened_at": 1787381657233,
       "notes": {
@@ -133,7 +133,7 @@
       "initial_quantity": "2336.437978",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "2.46",
+      "highest_price": "2.472",
       "lowest_price": "2.451",
       "strategy": "pullback",
       "opened_at": 1787381672870,
@@ -142,42 +142,6 @@
         "ml_probability": null,
         "edge_pct": 0.16593608333156018,
         "rr": 0.7500000000000001
-      }
-    },
-    {
-      "id": "3bdbd7fc-530c-4ee8-9d62-b16c8c90b1dd",
-      "symbol": "PEPE-USDT",
-      "direction": "long",
-      "entry_price": "0.000003598",
-      "quantity": "795479856.2395370",
-      "stop_loss": "0.000003598",
-      "take_profits": [
-        "0.0000036267840",
-        "0.0000036498112",
-        "0.0000036699600"
-      ],
-      "tp_filled": [
-        true,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "1590959712.479074",
-      "trailing_activated": true,
-      "trailing_distance": null,
-      "highest_price": "0.00000364",
-      "lowest_price": "0.000003599",
-      "strategy": "scalp",
-      "opened_at": 1787381679570,
-      "notes": {
-        "score": 33.0,
-        "ml_probability": null,
-        "edge_pct": 0.13967246640567588,
-        "rr": 1.2
       }
     },
     {
@@ -205,8 +169,8 @@
       "initial_quantity": "2.385551",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "2404.97",
+      "lowest_price": "2397.38",
       "strategy": "scalp5m",
       "opened_at": 1787381801825,
       "notes": {
@@ -217,6 +181,6 @@
       }
     }
   ],
-  "realized_pnl": "-2037.48260448660779979200",
+  "realized_pnl": "-2000.59372165562900174656",
   "initial_capital": "40222.20"
 }
