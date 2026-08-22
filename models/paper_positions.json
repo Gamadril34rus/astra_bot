@@ -37,19 +37,19 @@
       }
     },
     {
-      "id": "29d7e57c-2f4e-43f6-a1a5-83674f398d4a",
-      "symbol": "ETH-USDT",
-      "direction": "short",
-      "entry_price": "2388.96",
-      "quantity": "1.1928395",
-      "stop_loss": "2388.96",
+      "id": "eb00d834-315b-4f19-b3eb-044690b0980d",
+      "symbol": "XRP-USDT",
+      "direction": "long",
+      "entry_price": "1.3967",
+      "quantity": "4080.533345",
+      "stop_loss": "1.3855264",
       "take_profits": [
-        "2377.015200",
-        "2367.459360",
-        "2359.098000"
+        "1.40787360",
+        "1.41681248",
+        "1.42463400"
       ],
       "tp_filled": [
-        true,
+        false,
         false,
         false
       ],
@@ -58,21 +58,57 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "2.385679",
-      "trailing_activated": true,
+      "initial_quantity": "4080.533345",
+      "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "2388.01",
-      "lowest_price": "2371.76",
-      "strategy": "scalp5m",
-      "opened_at": 1787395072716,
+      "highest_price": "1.401",
+      "lowest_price": "1.397",
+      "strategy": "scalp",
+      "opened_at": 1787398176524,
       "notes": {
-        "score": 73.0,
+        "score": 39.0,
         "ml_probability": null,
-        "edge_pct": 0.20305011607665113,
+        "edge_pct": 0.14544536311447742,
+        "rr": 1.2
+      }
+    },
+    {
+      "id": "df9296b2-e61b-4d9f-a912-ea7e4babfbec",
+      "symbol": "AVAX-USDT",
+      "direction": "long",
+      "entry_price": "7.613",
+      "quantity": "748.063373",
+      "stop_loss": "7.574935",
+      "take_profits": [
+        "7.6510650",
+        "7.6815170",
+        "7.7081625"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "748.063373",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "scalp5m",
+      "opened_at": 1787398317233,
+      "notes": {
+        "score": 40.0,
+        "ml_probability": null,
+        "edge_pct": 0.1839409305783753,
         "rr": 1.2
       }
     }
   ],
-  "realized_pnl": "-2226.99384675076501574656",
+  "realized_pnl": "-2255.49025136149501574656",
   "initial_capital": "40222.20"
 }
