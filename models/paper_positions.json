@@ -26,7 +26,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "0.08485",
-      "lowest_price": "0.08375",
+      "lowest_price": "0.0837",
       "strategy": "pullback",
       "opened_at": 1787406391734,
       "notes": {
@@ -41,15 +41,15 @@
       "symbol": "LTC-USDT",
       "direction": "short",
       "entry_price": "51.67",
-      "quantity": "109.739726",
-      "stop_loss": "51.92835",
+      "quantity": "54.8698630",
+      "stop_loss": "51.67",
       "take_profits": [
         "51.411650",
         "51.204970",
         "51.024125"
       ],
       "tp_filled": [
-        false,
+        true,
         false,
         false
       ],
@@ -59,10 +59,10 @@
         0.2
       ],
       "initial_quantity": "109.739726",
-      "trailing_activated": false,
+      "trailing_activated": true,
       "trailing_distance": null,
       "highest_price": "51.88",
-      "lowest_price": "51.45",
+      "lowest_price": "51.4",
       "strategy": "scalp5m",
       "opened_at": 1787409338429,
       "notes": {
@@ -133,7 +133,7 @@
       "initial_quantity": "0.073705",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "76943.6",
+      "highest_price": "77140",
       "lowest_price": "76650.2",
       "strategy": "scalp5m",
       "opened_at": 1787412575929,
@@ -145,6 +145,6 @@
       }
     }
   ],
-  "realized_pnl": "-2449.12845863769381549656",
+  "realized_pnl": "-2434.95282953164381549656",
   "initial_capital": "40222.20"
 }
