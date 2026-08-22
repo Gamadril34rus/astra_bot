@@ -109,16 +109,16 @@
       }
     },
     {
-      "id": "bb8cf565-3374-41d9-a5eb-40ba87b8fd17",
-      "symbol": "BCH-USDT",
-      "direction": "long",
-      "entry_price": "295.06",
-      "quantity": "19.217283",
-      "stop_loss": "293.58470",
+      "id": "e94b1119-9148-4a1f-ba1e-e1526705f811",
+      "symbol": "LTC-USDT",
+      "direction": "short",
+      "entry_price": "51.67",
+      "quantity": "109.739726",
+      "stop_loss": "51.92835",
       "take_profits": [
-        "296.535300",
-        "297.715540",
-        "298.748250"
+        "51.411650",
+        "51.204970",
+        "51.024125"
       ],
       "tp_filled": [
         false,
@@ -130,21 +130,57 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "19.217283",
+      "initial_quantity": "109.739726",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "51.79",
+      "lowest_price": "51.67",
+      "strategy": "scalp5m",
+      "opened_at": 1787409338429,
+      "notes": {
+        "score": 57.0,
+        "ml_probability": null,
+        "edge_pct": 0.10885594544876974,
+        "rr": 1.2
+      }
+    },
+    {
+      "id": "724da118-76ca-4386-abc9-aa2cbe4bb197",
+      "symbol": "ETH-USDT",
+      "direction": "short",
+      "entry_price": "2422.8",
+      "quantity": "2.342127",
+      "stop_loss": "2451.8736",
+      "take_profits": [
+        "2393.72640",
+        "2370.46752",
+        "2350.11600"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "2.342127",
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": null,
       "lowest_price": null,
-      "strategy": "scalp5m",
-      "opened_at": 1787407606359,
+      "strategy": "pullback",
+      "opened_at": 1787409478148,
       "notes": {
-        "score": 52.0,
+        "score": 73.0,
         "ml_probability": null,
-        "edge_pct": 0.15927984024302316,
-        "rr": 1.2
+        "edge_pct": 0.18103688880663643,
+        "rr": 0.7500000000000001
       }
     }
   ],
-  "realized_pnl": "-2420.52226854474139822156",
+  "realized_pnl": "-2392.16569472969381549656",
   "initial_capital": "40222.20"
 }
