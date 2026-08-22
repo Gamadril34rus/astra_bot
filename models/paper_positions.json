@@ -26,7 +26,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "2543.06",
-      "lowest_price": "2517.75",
+      "lowest_price": "2510.04",
       "strategy": "pullback",
       "opened_at": 1787423965875,
       "notes": {
@@ -70,6 +70,78 @@
         "ml_probability": null,
         "edge_pct": 0.5769101458589109,
         "rr": 0.7500000000000001
+      }
+    },
+    {
+      "id": "43bc2bed-0f2c-49be-9298-1f9c00c68c26",
+      "symbol": "ICP-USDT",
+      "direction": "short",
+      "entry_price": "2.541",
+      "quantity": "2209.262288",
+      "stop_loss": "2.553705",
+      "take_profits": [
+        "2.5282950",
+        "2.5181310",
+        "2.5092375"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "2209.262288",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "2.545",
+      "lowest_price": "2.537",
+      "strategy": "scalp5m",
+      "opened_at": 1787428385265,
+      "notes": {
+        "score": 57.0,
+        "ml_probability": null,
+        "edge_pct": 0.18343843730729426,
+        "rr": 1.2
+      }
+    },
+    {
+      "id": "c3546275-70bf-4060-b929-5815a0589113",
+      "symbol": "BTC-USDT",
+      "direction": "long",
+      "entry_price": "78522.7",
+      "quantity": "0.071492",
+      "stop_loss": "78130.0865",
+      "take_profits": [
+        "78915.31350",
+        "79229.40430",
+        "79504.23375"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "0.071492",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "78615.3",
+      "lowest_price": "78491.4",
+      "strategy": "scalp5m",
+      "opened_at": 1787428438002,
+      "notes": {
+        "score": 73.0,
+        "ml_probability": null,
+        "edge_pct": 0.11550518842877243,
+        "rr": 1.2
       }
     }
   ],
