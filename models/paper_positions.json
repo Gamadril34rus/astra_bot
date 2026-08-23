@@ -97,7 +97,7 @@
       "initial_quantity": "16393.424249",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.34357",
+      "highest_price": "0.34362",
       "lowest_price": "0.34278",
       "strategy": "scalp5m",
       "opened_at": 1787470720130,
@@ -106,42 +106,6 @@
         "ml_probability": null,
         "edge_pct": 0.20061957678470255,
         "rr": 1.2
-      }
-    },
-    {
-      "id": "96d0f693-5850-45db-a2e0-4409b34c19f2",
-      "symbol": "ICP-USDT",
-      "direction": "long",
-      "entry_price": "2.393",
-      "quantity": "2350.021001",
-      "stop_loss": "2.364284",
-      "take_profits": [
-        "2.4217160",
-        "2.4446888",
-        "2.4647900"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "2350.021001",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "2.416",
-      "lowest_price": "2.365",
-      "strategy": "pullback",
-      "opened_at": 1787470877154,
-      "notes": {
-        "score": 45.0,
-        "ml_probability": null,
-        "edge_pct": 0.4028726815803263,
-        "rr": 0.7500000000000002
       }
     },
     {
@@ -217,6 +181,6 @@
       }
     }
   ],
-  "realized_pnl": "-2616.02605396314946018246",
+  "realized_pnl": "-2683.50925702786546018246",
   "initial_capital": "40222.20"
 }
