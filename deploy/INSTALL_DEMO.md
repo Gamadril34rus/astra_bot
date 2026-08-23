@@ -43,7 +43,7 @@ TELEGRAM_ADMIN_ID=...
 ```bash
 source /opt/astra_bot/venv/bin/activate
 cd /opt/astra_bot
-python scripts/pretrain_5y.py --years 5 --target-trades 5000 --min-samples 2000 --with-news
+python scripts/strategy_lab.py
 ```
 
 Пайплайн:

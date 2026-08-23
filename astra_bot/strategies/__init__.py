@@ -10,6 +10,7 @@ from .momentum import MomentumStrategy
 from .pullback import PullbackConfig, PullbackStrategy
 from .scalp import ScalpConfig, ScalpStrategy
 from .scalp5m import Scalp5mConfig, Scalp5mStrategy
+from .multicurrency_mtf import MulticurrencyMTFConfig, MulticurrencyMTFStrategy
 from .ts_momentum import (
     TimeSeriesMomentumConfig,
     TimeSeriesMomentumStrategy,
@@ -24,6 +25,8 @@ __all__ = [
     "BookBreakoutStrategy",
     "MeanReversionStrategy",
     "MomentumStrategy",
+    "MulticurrencyMTFConfig",
+    "MulticurrencyMTFStrategy",
     "PullbackConfig",
     "PullbackStrategy",
     "ScalpConfig",

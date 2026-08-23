@@ -2,7 +2,7 @@
 
 > **Адаптивная исследовательская и demo-трейдинговая система для криптовалютного рынка.**
 
-ASTRA сейчас работает как **research-first система**: сначала изучает рынок, события и последствия изменений цены, затем формирует и проверяет гипотезы, и только после этого использует знания в виртуальной торговле. Реальные деньги и автоматические реальные ордера отключены.
+ASTRA сейчас работает как **research-first система**: сначала изучает рынок, события и последствия изменений цены, затем формирует и проверяет гипотезы, и проводит многолетний аудит торговых стратегий. Все стратегии находятся в режиме fail-closed: без присвоения статуса `champion` виртуальные/демо ордера не исполняются. Реальные деньги и автоматические реальные ордера отключены.
 
 ## 🧠 Главный принцип
 
@@ -207,9 +207,8 @@ astra_bot/
 
 | Задача | Файл |
 |---|---|
-| Research-first pretrain | `scripts/pretrain_5y_enhanced.py` |
+| Strategy lab & audit | `scripts/strategy_lab.py` |
 | Research engine | `astra_bot/ml/market_research.py` |
-| Защищённый Demo worker | `scripts/demo_trader_safe.py` |
 | Проверка OKX private API | `scripts/test_okx.py` |
 | Утренний отчёт | `scripts/morning_report.py` |
 | Decision pipeline | `astra_bot/decision/pipeline.py` |
@@ -224,8 +223,6 @@ astra_bot/
 
 | Workflow | Назначение |
 |---|---|
-| `demo-trader.yml` | защищённый длительный Demo worker |
-| `daily-train.yml` | research-first историческое обучение |
 | `morning-report.yml` | Telegram в 09:00 MSK |
 | `bot.yml` | периодический worker |
 | `strategy-lab.yml` | еженедельная walk-forward валидация портфеля стратегий |
