@@ -73,42 +73,6 @@
       }
     },
     {
-      "id": "741b6084-099c-4098-88a2-a5c1b5e6fd90",
-      "symbol": "DOGE-USDT",
-      "direction": "short",
-      "entry_price": "0.0913",
-      "quantity": "12269.7010112",
-      "stop_loss": "0.09014560",
-      "take_profits": [
-        "0.09020440",
-        "0.08932792",
-        "0.08856100"
-      ],
-      "tp_filled": [
-        true,
-        true,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "61348.505056",
-      "trailing_activated": true,
-      "trailing_distance": null,
-      "highest_price": "0.0923",
-      "lowest_price": "0.08905",
-      "strategy": "pullback",
-      "opened_at": 1787463233388,
-      "notes": {
-        "score": 39.0,
-        "ml_probability": null,
-        "edge_pct": 0.2328189668169799,
-        "rr": 0.7500000000000001
-      }
-    },
-    {
       "id": "822b2632-74fa-4ba2-83ef-de4d1d9e95fd",
       "symbol": "TRX-USDT",
       "direction": "short",
@@ -169,8 +133,8 @@
       "initial_quantity": "6790.967582",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "0.8331",
+      "lowest_price": "0.826",
       "strategy": "pullback",
       "opened_at": 1787470873440,
       "notes": {
@@ -205,8 +169,8 @@
       "initial_quantity": "2350.021001",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "2.404",
+      "lowest_price": "2.391",
       "strategy": "pullback",
       "opened_at": 1787470877154,
       "notes": {
@@ -217,6 +181,6 @@
       }
     }
   ],
-  "realized_pnl": "-2731.53163798371638871046",
+  "realized_pnl": "-2717.36749513638710871046",
   "initial_capital": "40222.20"
 }
