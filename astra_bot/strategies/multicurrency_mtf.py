@@ -122,7 +122,7 @@ class MulticurrencyMTFStrategy(BaseStrategy):
             return Signal(
                 symbol=symbol,
                 strategy_name=self.name,
-                signal_type=SignalType.BREAKOUT,
+                signal_type=SignalType.MOMENTUM,
                 direction=models.TradeDirection.LONG,
                 entry_price=entry,
                 stop_loss=stop,
@@ -142,7 +142,7 @@ class MulticurrencyMTFStrategy(BaseStrategy):
             return Signal(
                 symbol=symbol,
                 strategy_name=self.name,
-                signal_type=SignalType.BREAKOUT,
+                signal_type=SignalType.MOMENTUM,
                 direction=models.TradeDirection.SHORT,
                 entry_price=entry,
                 stop_loss=stop,
