@@ -37,42 +37,6 @@
       }
     },
     {
-      "id": "323cfd4c-16c9-4cc1-a40d-7793f8b62154",
-      "symbol": "LTC-USDT",
-      "direction": "short",
-      "entry_price": "52.1",
-      "quantity": "107.158762",
-      "stop_loss": "52.3605",
-      "take_profits": [
-        "51.83950",
-        "51.63110",
-        "51.44875"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "107.158762",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "52.32",
-      "lowest_price": "52.1",
-      "strategy": "scalp5m",
-      "opened_at": 1787557262438,
-      "notes": {
-        "score": 51.0,
-        "ml_probability": null,
-        "edge_pct": 0.10974676055065745,
-        "rr": 1.2
-      }
-    },
-    {
       "id": "340558d8-4059-4c55-a09f-384c46996877",
       "symbol": "NEAR-USDT",
       "direction": "short",
@@ -109,42 +73,6 @@
       }
     },
     {
-      "id": "1c16ae96-aaa5-4690-809c-c999e2babf3f",
-      "symbol": "ICP-USDT",
-      "direction": "long",
-      "entry_price": "2.425",
-      "quantity": "1151.1281435",
-      "stop_loss": "2.425",
-      "take_profits": [
-        "2.4371250",
-        "2.4468250",
-        "2.4553125"
-      ],
-      "tp_filled": [
-        true,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "2302.256287",
-      "trailing_activated": true,
-      "trailing_distance": null,
-      "highest_price": "2.445",
-      "lowest_price": "2.424",
-      "strategy": "scalp5m",
-      "opened_at": 1787557271515,
-      "notes": {
-        "score": 50.0,
-        "ml_probability": null,
-        "edge_pct": 0.1467291331820456,
-        "rr": 1.2
-      }
-    },
-    {
       "id": "000a8eaf-5e11-43f0-a926-80717614fbb8",
       "symbol": "LINK-USDT",
       "direction": "short",
@@ -169,7 +97,7 @@
       "initial_quantity": "488.510006",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "11.429",
+      "highest_price": "11.442",
       "lowest_price": "11.392",
       "strategy": "scalp5m",
       "opened_at": 1787560064295,
@@ -206,7 +134,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "2434.03",
-      "lowest_price": "2427.9",
+      "lowest_price": "2423.4",
       "strategy": "scalp5m",
       "opened_at": 1787560132131,
       "notes": {
@@ -215,8 +143,44 @@
         "edge_pct": 0.22465161179677645,
         "rr": 1.2
       }
+    },
+    {
+      "id": "f0c7975e-fad2-4e1c-9ab9-7830633220df",
+      "symbol": "SHIB-USDT",
+      "direction": "long",
+      "entry_price": "0.000005496",
+      "quantity": "1014681705.311309",
+      "stop_loss": "0.000005430048",
+      "take_profits": [
+        "0.0000055619520",
+        "0.0000056147136",
+        "0.0000056608800"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "1014681705.311309",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "0.000005496",
+      "lowest_price": "0.000005477",
+      "strategy": "pullback",
+      "opened_at": 1787563598782,
+      "notes": {
+        "score": 40.0,
+        "ml_probability": null,
+        "edge_pct": 0.42780293664144187,
+        "rr": 0.7500000000000001
+      }
     }
   ],
-  "realized_pnl": "-3016.34745989265547173536",
+  "realized_pnl": "-3044.26231739365547173536",
   "initial_capital": "40222.20"
 }
