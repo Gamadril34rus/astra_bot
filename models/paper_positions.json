@@ -62,7 +62,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "0.34372",
-      "lowest_price": "0.3435",
+      "lowest_price": "0.34339",
       "strategy": "scalp5m",
       "opened_at": 1787572893662,
       "notes": {
@@ -77,15 +77,15 @@
       "symbol": "XRP-USDT",
       "direction": "long",
       "entry_price": "1.4999",
-      "quantity": "3701.956364",
-      "stop_loss": "1.4819012",
+      "quantity": "1850.9781820",
+      "stop_loss": "1.4999",
       "take_profits": [
         "1.51789880",
         "1.53229784",
         "1.54489700"
       ],
       "tp_filled": [
-        false,
+        true,
         false,
         false
       ],
@@ -95,9 +95,9 @@
         0.2
       ],
       "initial_quantity": "3701.956364",
-      "trailing_activated": false,
+      "trailing_activated": true,
       "trailing_distance": null,
-      "highest_price": "1.4999",
+      "highest_price": "1.5239",
       "lowest_price": "1.4955",
       "strategy": "pullback",
       "opened_at": 1787576949024,
@@ -133,7 +133,7 @@
       "initial_quantity": "24722.014028",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.2246",
+      "highest_price": "0.2267",
       "lowest_price": "0.2242",
       "strategy": "pullback",
       "opened_at": 1787576949964,
@@ -149,12 +149,84 @@
       "symbol": "LINK-USDT",
       "direction": "long",
       "entry_price": "11.501",
-      "quantity": "482.850949",
-      "stop_loss": "11.443495",
+      "quantity": "96.5701898",
+      "stop_loss": "11.5824950",
       "take_profits": [
         "11.5585050",
         "11.6045090",
         "11.6447625"
+      ],
+      "tp_filled": [
+        true,
+        true,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "482.850949",
+      "trailing_activated": true,
+      "trailing_distance": null,
+      "highest_price": "11.64",
+      "lowest_price": "11.477",
+      "strategy": "scalp5m",
+      "opened_at": 1787577033465,
+      "notes": {
+        "score": 35.0,
+        "ml_probability": null,
+        "edge_pct": 0.182484988028062,
+        "rr": 1.2
+      }
+    },
+    {
+      "id": "d0ef1c45-12cf-42d6-b3e5-9734e7ab40e9",
+      "symbol": "HBAR-USDT",
+      "direction": "short",
+      "entry_price": "0.07901",
+      "quantity": "35174.4467655",
+      "stop_loss": "0.07901",
+      "take_profits": [
+        "0.078614950",
+        "0.078298910",
+        "0.078022375"
+      ],
+      "tp_filled": [
+        true,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "70348.893531",
+      "trailing_activated": true,
+      "trailing_distance": null,
+      "highest_price": "0.07904",
+      "lowest_price": "0.07845",
+      "strategy": "scalp5m",
+      "opened_at": 1787580298945,
+      "notes": {
+        "score": 53.0,
+        "ml_probability": null,
+        "edge_pct": 0.12257179961216551,
+        "rr": 1.2
+      }
+    },
+    {
+      "id": "8211a968-a3e0-48de-8710-1ace6946333c",
+      "symbol": "UNI-USDT",
+      "direction": "short",
+      "entry_price": "4.575",
+      "quantity": "1216.323929",
+      "stop_loss": "4.597875",
+      "take_profits": [
+        "4.5521250",
+        "4.5338250",
+        "4.5178125"
       ],
       "tp_filled": [
         false,
@@ -166,21 +238,21 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "482.850949",
+      "initial_quantity": "1216.323929",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "11.508",
-      "lowest_price": "11.494",
+      "highest_price": null,
+      "lowest_price": null,
       "strategy": "scalp5m",
-      "opened_at": 1787577033465,
+      "opened_at": 1787580375336,
       "notes": {
-        "score": 35.0,
+        "score": 32.0,
         "ml_probability": null,
-        "edge_pct": 0.182484988028062,
+        "edge_pct": 0.20861928448119005,
         "rr": 1.2
       }
     }
   ],
-  "realized_pnl": "-3200.40819995044572290336",
+  "realized_pnl": "-3124.32015107841854790336",
   "initial_capital": "40222.20"
 }
