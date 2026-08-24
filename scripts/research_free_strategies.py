@@ -454,16 +454,10 @@ def run_rule(
                 tp = 0.0
         elif pos != 0:
             # внутрибарные стоп/тейк (стоп приоритетнее при гэпе через оба)
-            if sl > 0 and pos == 1 and l[i] <= sl:
+            if (sl > 0 and pos == 1 and l[i] <= sl) or (sl > 0 and pos == -1 and h[i] >= sl):
                 close_pos(sl, "stop")
                 pos = 0
-            elif sl > 0 and pos == -1 and h[i] >= sl:
-                close_pos(sl, "stop")
-                pos = 0
-            elif tp > 0 and pos == 1 and h[i] >= tp:
-                close_pos(tp, "take")
-                pos = 0
-            elif tp > 0 and pos == -1 and l[i] <= tp:
+            elif (tp > 0 and pos == 1 and h[i] >= tp) or (tp > 0 and pos == -1 and l[i] <= tp):
                 close_pos(tp, "take")
                 pos = 0
             elif max_hold and i - entry_i >= max_hold:

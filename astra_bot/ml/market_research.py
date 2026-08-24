@@ -145,7 +145,7 @@ def research_history(
             if not len(arr):
                 continue
             horizon_stats[label] = {
-                "samples": int(len(arr)),
+                "samples": len(arr),
                 "mean_return": float(np.mean(arr)),
                 "median_return": float(np.median(arr)),
                 "positive_rate": float(np.mean(arr > 0)),

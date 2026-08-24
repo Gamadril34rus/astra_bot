@@ -17,12 +17,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from decimal import Decimal
+from datetime import datetime
 from typing import Any
 
-from . import trading_schedule
 from ..decision.news_engine import NewsEngine
+from . import trading_schedule
 
 logger = logging.getLogger(__name__)
 

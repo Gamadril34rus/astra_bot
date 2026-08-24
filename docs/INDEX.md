@@ -9,7 +9,7 @@
 | `ARCHITECTURE.md` | Полная архитектура системы и связи компонентов |
 | `DECISION_PIPELINE.md` | Как формируется торговое решение |
 | `STRATEGY_SPEC.md` | Спецификация стратегий |
-| `strategy_portfolio.md` | Портфель стратегий «трендовая книга» и walk-forward |
+| `strategy_portfolio.md` | Портфель стратегий «трендовая книга», walk-forward и мультивалютный MTF-аудит |
 | `PULLBACK_STRATEGY.md` | Детали pullback-стратегии |
 
 ## 2. Обучение и память

@@ -10,9 +10,9 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from telegram import Bot
-
 from astra_bot.core import readiness
+
+from telegram import Bot
 
 STATE_PATH = Path("models/demo_state.json")
 MOSCOW_TZ = ZoneInfo("Europe/Moscow")

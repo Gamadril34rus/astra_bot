@@ -29,7 +29,7 @@ def _fetch_cbr() -> float | None:
         with urllib.request.urlopen(req, timeout=5) as r:
             data = json.loads(r.read().decode("utf-8"))
             return float(data["Valute"]["USD"]["Value"])
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.debug("CBR fetch failed: %s", exc)
         return None
 
@@ -43,7 +43,7 @@ def _fetch_erapi() -> float | None:
         with urllib.request.urlopen(req, timeout=5) as r:
             data = json.loads(r.read().decode("utf-8"))
             return float(data["rates"]["RUB"])
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.debug("er-api fetch failed: %s", exc)
         return None
 

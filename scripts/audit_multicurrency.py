@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Многовалютный аудит стратегии multicurrency_mtf (1D/4H/1H).
 
-Спецификация:
-- 1D EMA 20/50/200 трендовый фильтр;
+Спецификация из «Мультивалютная_торговая_система.docx»:
+- 1D EMA 20/50/200 строгий трендовый фильтр (close > EMA20 > EMA50 > EMA200);
 - 4H структура (breakout / retest);
-- 1H подтверждение + объём > SMA20;
+- 1H подтверждающие свечи (hammer/engulfing/shooting star) + объём > SMA20;
 - BTC 1D bearish trend блокирует long по альткоинам;
 - Разные лимиты риска для BTC/ETH (0.4%) и SOL/XRP (0.25%);
 - BTC + ETH считаются одной корреляционной группой (max 1 позиция на группу);
@@ -19,12 +19,10 @@ import argparse
 import json
 import math
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import Decimal
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -33,9 +31,12 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(PROJECT_ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
-from astra_bot.core import models
-from astra_bot.core.utils import calculate_atr
-from astra_bot.strategies.multicurrency_mtf import MulticurrencyMTFConfig, MulticurrencyMTFStrategy, _calc_ema
+from astra_bot.strategies.multicurrency_mtf import (
+    is_bearish_engulfing,
+    is_bullish_engulfing,
+    is_hammer,
+    is_shooting_star,
+)
 
 
 def resample_klines(df_1h: pd.DataFrame, timeframe: str) -> pd.DataFrame:
@@ -88,21 +89,32 @@ class TradeRecord:
 
 def precompute_indicators(df_1h: pd.DataFrame, df_4h: pd.DataFrame, df_1d: pd.DataFrame):
     """Предвычисление индикаторов без look-ahead bias."""
-    # 1D EMA
+    # 1D EMA (Strict alignment)
     df_1d_calc = df_1d.copy()
     df_1d_calc["ema20"] = df_1d_calc["close"].ewm(span=20, adjust=False).mean()
     df_1d_calc["ema50"] = df_1d_calc["close"].ewm(span=50, adjust=False).mean()
     df_1d_calc["ema200"] = df_1d_calc["close"].ewm(span=200, adjust=False).mean()
-    df_1d_calc["bullish_1d"] = (df_1d_calc["close"] > df_1d_calc["ema200"]) & (df_1d_calc["ema20"] > df_1d_calc["ema50"])
-    df_1d_calc["bearish_1d"] = (df_1d_calc["close"] < df_1d_calc["ema200"]) & (df_1d_calc["ema20"] < df_1d_calc["ema50"])
 
-    # 4H ATR
+    df_1d_calc["bullish_1d"] = (
+        (df_1d_calc["close"] > df_1d_calc["ema20"]) &
+        (df_1d_calc["ema20"] > df_1d_calc["ema50"]) &
+        (df_1d_calc["ema50"] > df_1d_calc["ema200"])
+    )
+    df_1d_calc["bearish_1d"] = (
+        (df_1d_calc["close"] < df_1d_calc["ema20"]) &
+        (df_1d_calc["ema20"] < df_1d_calc["ema50"]) &
+        (df_1d_calc["ema50"] < df_1d_calc["ema200"])
+    )
+
+    # 4H ATR & Structure
     df_4h_calc = df_4h.copy()
     tr1 = df_4h_calc["high"] - df_4h_calc["low"]
     tr2 = (df_4h_calc["high"] - df_4h_calc["close"].shift(1)).abs()
     tr3 = (df_4h_calc["low"] - df_4h_calc["close"].shift(1)).abs()
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
     df_4h_calc["atr14"] = tr.rolling(14).mean()
+    df_4h_calc["resistance_3"] = df_4h_calc["high"].rolling(3).max()
+    df_4h_calc["support_3"] = df_4h_calc["low"].rolling(3).min()
 
     # 1H Volume SMA
     df_1h_calc = df_1h.copy()
@@ -127,8 +139,7 @@ def run_audit_simulation(
     use_retest: bool = True,
     use_partial_trailing: bool = True,
 ) -> dict:
-    """Оптимизированный симулятор многовалютного портфельного аудита."""
-    # Предвычисление индикаторов по ассетам
+    """Симулятор многовалютного аудита."""
     prep_1h, prep_4h, prep_1d = {}, {}, {}
     for sym in symbols:
         p1, p4, p1d = precompute_indicators(data_1h[sym], data_4h[sym], data_1d[sym])
@@ -136,11 +147,15 @@ def run_audit_simulation(
         prep_4h[sym] = p4.set_index("open_time")
         prep_1d[sym] = p1d.set_index("open_time")
 
-    # Временная сетка 1H
     all_timestamps = sorted(
         set.union(*[set(df.index.values) for df in prep_1h.values()])
     )
     all_timestamps = [ts for ts in all_timestamps if start_ms <= ts <= end_ms]
+
+    # Ирации по 4H/1D индексам
+    indexer_1h = {sym: df.index.get_indexer for sym, df in prep_1h.items()}
+    indexer_4h = {sym: df.index.get_indexer for sym, df in prep_4h.items()}
+    indexer_1d = {sym: df.index.get_indexer for sym, df in prep_1d.items()}
 
     equity = capital
     peak_equity = capital
@@ -164,7 +179,7 @@ def run_audit_simulation(
         if (equity - daily_start_equity) / daily_start_equity <= -0.03:
             daily_trading_disabled = True
 
-        # 1. Обновление открытых позиций
+        # 1. Обработка открытых позиций
         closed_symbols = []
         for sym, pos in list(open_positions.items()):
             p1 = prep_1h[sym]
@@ -253,7 +268,7 @@ def run_audit_simulation(
         for sym in closed_symbols:
             del open_positions[sym]
 
-        # 2. Поиск сигналов для входа
+        # 2. Поиск новых входов
         if not daily_trading_disabled and len(open_positions) < 3:
             for sym in symbols:
                 if sym in open_positions:
@@ -266,31 +281,31 @@ def run_audit_simulation(
                 p4 = prep_4h[sym]
                 p1d = prep_1d[sym]
 
-                # Быстрый фильтр временных срезов по закрытым свечам (open_time < ts)
-                idx1 = p1.index.get_indexer([ts], method="pad")[0]
-                if idx1 <= 1:
+                idx1 = indexer_1h[sym]([ts], method="pad")[0]
+                if idx1 <= 2:
                     continue
 
                 prev_1h = p1.iloc[idx1 - 1]
-                idx4 = p4.index.get_indexer([ts], method="pad")[0]
+                prev2_1h = p1.iloc[idx1 - 2]
+
+                idx4 = indexer_4h[sym]([ts], method="pad")[0]
                 if idx4 <= 1:
                     continue
                 prev_4h = p4.iloc[idx4 - 1]
 
-                idx1d = p1d.index.get_indexer([ts], method="pad")[0]
+                idx1d = indexer_1d[sym]([ts], method="pad")[0]
                 if idx1d <= 1:
                     continue
                 prev_1d = p1d.iloc[idx1d - 1]
 
-                # BTC 1D trend gate
                 if use_btc_gate and "BTC" not in sym:
                     p1d_btc = prep_1d["BTCUSDT"]
-                    idx_btc = p1d_btc.index.get_indexer([ts], method="pad")[0]
+                    idx_btc = indexer_1d["BTCUSDT"]([ts], method="pad")[0]
                     if idx_btc <= 1:
                         continue
                     prev_btc = p1d_btc.iloc[idx_btc - 1]
-                    if prev_btc["close"] < prev_btc["ema200"]:
-                        continue  # BTC 1D bearish -> блокировка long по альткоинам
+                    if prev_btc["bearish_1d"]:
+                        continue
 
                 vol_ok = (not use_volume_filter) or (prev_1h["volume"] > prev_1h["vol_sma20"])
                 if not vol_ok:
@@ -298,7 +313,6 @@ def run_audit_simulation(
 
                 atr4h = prev_4h["atr14"] if not math.isnan(prev_4h["atr14"]) else (prev_1h["close"] * 0.01)
 
-                # Retest check: retest of 4H close / high / low level
                 retest_ok = True
                 if use_retest:
                     if prev_1d["bullish_1d"]:
@@ -309,10 +323,16 @@ def run_audit_simulation(
                 if not retest_ok:
                     continue
 
+                # Свечные паттерны
+                bull_confirm = is_hammer(prev_1h["open"], prev_1h["high"], prev_1h["low"], prev_1h["close"]) or \
+                               is_bullish_engulfing(prev2_1h["open"], prev2_1h["close"], prev_1h["open"], prev_1h["close"])
+                bear_confirm = is_shooting_star(prev_1h["open"], prev_1h["high"], prev_1h["low"], prev_1h["close"]) or \
+                               is_bearish_engulfing(prev2_1h["open"], prev2_1h["close"], prev_1h["open"], prev_1h["close"])
+
                 signal_dir = None
-                if prev_1d["bullish_1d"] and prev_1h["close"] > prev_1h["open"]:
+                if prev_1d["bullish_1d"] and bull_confirm:
                     signal_dir = "LONG"
-                elif prev_1d["bearish_1d"] and prev_1h["close"] < prev_1h["open"]:
+                elif prev_1d["bearish_1d"] and bear_confirm:
                     signal_dir = "SHORT"
 
                 if signal_dir is not None:
@@ -365,8 +385,12 @@ def run_audit_simulation(
     return {
         "metrics": {
             "total_trades": total_trades,
+            "wins": len(wins),
+            "losses": len(losses),
             "win_rate": round(win_rate, 2),
             "profit_factor": round(pf, 2),
+            "gross_profit": round(gw, 2),
+            "gross_loss": round(gl, 2),
             "net_pnl": round(net_pnl, 2),
             "return_pct": round(ret_pct, 2),
             "max_drawdown": round(max_dd, 2),
@@ -382,11 +406,12 @@ def main() -> int:
     parser.add_argument("--data-dir", default="data", help="Директория с CSV файлами")
     parser.add_argument("--symbols", default="BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT", help="Символы через запятую")
     parser.add_argument("--start", default="2021-01-01", help="Начало IS YYYY-MM-DD")
-    parser.add_argument("--oos-start", default="2025-01-01", help="Начало OOS YYYY-MM-DD")
-    parser.add_argument("--end", default="2026-08-22", help="Конец YYYY-MM-DD")
+    parser.add_argument("--oos-start", default="2024-01-01", help="Начало OOS YYYY-MM-DD")
+    parser.add_argument("--end", default="2024-12-31", help="Конец YYYY-MM-DD")
     parser.add_argument("--capital", type=float, default=10000.0, help="Стартовый капитал USDT")
-    parser.add_argument("--fee", type=float, default=0.001, help="Комиссия (0.001 = 0.1%)")
-    parser.add_argument("--slippage", type=float, default=0.001, help="Проскальзывание (0.001 = 0.1%)")
+    parser.add_argument("--fee", type=float, default=0.001, help="Комиссия (0.001 равно 0.1 процента)")
+    parser.add_argument("--slippage", type=float, default=0.001, help="Проскальзывание (0.001 равно 0.1 процента)")
+    parser.add_argument("--news-file", default=None, help="Файл с историческими новостями")
     parser.add_argument("--out", default="reports/multicurrency_audit", help="Каталог выходных артефактов")
     args = parser.parse_args()
 
@@ -422,6 +447,7 @@ def main() -> int:
         data_frames_1d[sym] = df1d
 
         data_quality[sym] = {
+            "source_file": str(file_1h),
             "candles_1h": len(df1),
             "candles_4h": len(df4),
             "candles_1d": len(df1d),
@@ -431,14 +457,16 @@ def main() -> int:
         }
 
     protocol = {
-        "timestamp": str(datetime.now(UTC)),
+        "created_at": str(datetime.now(UTC)),
         "symbols": symbols,
+        "timeframes": ["1h", "4h", "1d"],
         "start": args.start,
         "oos_start": args.oos_start,
         "end": args.end,
-        "capital": args.capital,
+        "initial_capital": args.capital,
         "fee": args.fee,
         "slippage": args.slippage,
+        "news_filter_tested": args.news_file is not None,
         "risk_rules": {
             "max_open_positions": 3,
             "correlation_group": ["BTCUSDT", "ETHUSDT"],
@@ -455,7 +483,6 @@ def main() -> int:
     oos_ms = int(datetime.fromisoformat(args.oos_start).replace(tzinfo=UTC).timestamp() * 1000)
     end_ms = int(datetime.fromisoformat(args.end).replace(tzinfo=UTC).timestamp() * 1000)
 
-    # 1. Baseline runs
     def save_window_artifacts(win_name, ms0, ms1):
         win_dir = out_dir / win_name
         win_dir.mkdir(parents=True, exist_ok=True)
@@ -473,11 +500,11 @@ def main() -> int:
     is_m = save_window_artifacts("in_sample", start_ms, oos_ms)
     oos_m = save_window_artifacts("out_of_sample", oos_ms, end_ms)
 
-    # 2. Ablation Studies
     ablation_dir = out_dir / "ablation"
     ablation_dir.mkdir(parents=True, exist_ok=True)
 
     ablations = {
+        "baseline": {},
         "without_btc_gate": {"use_btc_gate": False},
         "without_volume_filter": {"use_volume_filter": False},
         "without_retest": {"use_retest": False},
@@ -518,7 +545,6 @@ def main() -> int:
         "",
         "| Вариант | Profit Factor | Return % | Max Drawdown % | Trades |",
         "|---|---|---|---|---|",
-        f"| Baseline | {full_m['profit_factor']} | {full_m['return_pct']:+.2f}% | {full_m['max_drawdown']:.2f}% | {full_m['total_trades']} |",
     ]
     for k, v in ablation_results.items():
         md_lines.append(f"| {k} | {v['profit_factor']} | {v['return_pct']:+.2f}% | {v['max_drawdown']:.2f}% | {v['total_trades']} |")

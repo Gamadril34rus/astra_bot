@@ -3,7 +3,6 @@
 import pytest
 from astra_bot.telegram.bot import (
     BOT_COMMANDS,
-    COMMAND_ALIASES,
     MAIN_MENU,
     AstraTelegramBot,
     account_mode_keyboard,

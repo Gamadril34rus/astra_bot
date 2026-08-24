@@ -22,6 +22,7 @@ if str(PROJECT_ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
 from astra_bot.decision.strategy_registry import STRATEGY_REGISTRY, TIER_RESEARCH
+
 from strategy_lab import CANDIDATES, atr, run_engine
 
 

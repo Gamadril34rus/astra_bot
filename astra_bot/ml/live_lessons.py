@@ -16,11 +16,10 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import asdict
+from collections.abc import Iterable
 from datetime import UTC, datetime
-from decimal import Decimal
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +113,7 @@ def append_lessons(
                 lesson = trade_to_lesson(trade)
                 f.write(json.dumps(lesson, ensure_ascii=False) + "\n")
                 count += 1
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.warning("Не записал урок по сделке: %s", exc)
     if count:
         logger.info("Записано %d live-уроков в %s", count, path)

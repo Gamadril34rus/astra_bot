@@ -207,6 +207,7 @@ astra_bot/
 
 | Задача | Файл |
 |---|---|
+| Multicurrency MTF audit | `scripts/audit_multicurrency.py` |
 | Strategy lab & audit | `scripts/strategy_lab.py` |
 | Research engine | `astra_bot/ml/market_research.py` |
 | Проверка OKX private API | `scripts/test_okx.py` |

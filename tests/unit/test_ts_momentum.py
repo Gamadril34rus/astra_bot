@@ -10,8 +10,6 @@ from __future__ import annotations
 import asyncio
 from decimal import Decimal
 
-import pytest
-
 from astra_bot.core import models
 from astra_bot.strategies.ts_momentum import (
     TSM_ACTION_FLAT,

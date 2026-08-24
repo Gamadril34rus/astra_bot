@@ -1,12 +1,12 @@
 """Тесты хелперов scripts/fetch_klines.py (без сети)."""
 
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
-import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "scripts"))
 
-from fetch_klines import (  # noqa: E402
+from fetch_klines import (
     iter_months,
     parse_klines_csv,
     vision_monthly_url,

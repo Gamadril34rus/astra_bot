@@ -1,11 +1,8 @@
 """Тесты персистентного состояния обучения (живой капитал + стоп + оповещения)."""
 
 from decimal import Decimal
-from pathlib import Path
 
 import pytest
-
-from astra_bot.core import training_state as ts_mod
 from astra_bot.core.training_state import (
     MIN_CAPITAL,
     TrainingState,

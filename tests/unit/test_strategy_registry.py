@@ -6,16 +6,12 @@ import json
 from decimal import Decimal
 
 import pytest
-
 from astra_bot.core import models
 from astra_bot.decision.strategy_registry import (
     STRATEGY_REGISTRY,
-    TIER_AUDIT,
-    TIER_RESEARCH,
     execution_strategies,
 )
 from astra_bot.strategies.multicurrency_mtf import (
-    MulticurrencyMTFConfig,
     MulticurrencyMTFStrategy,
 )
 

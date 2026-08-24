@@ -9,7 +9,7 @@ import hmac
 import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from urllib.parse import urlencode
@@ -147,7 +147,7 @@ class OKXClient(ExchangeAdapter):
         (50102 Timestamp request expired при unix-ms), а OK-ACCESS-SIGN —
         base64 от HMAC-SHA256, а не hex (50113 Invalid Sign).
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         timestamp = now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
 
         if self.api_key:

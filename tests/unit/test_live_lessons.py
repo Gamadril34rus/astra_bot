@@ -1,6 +1,5 @@
 """Тесты записи реальных paper-сделок в уроки для ML."""
 
-from pathlib import Path
 
 from astra_bot.ml.live_lessons import (
     append_lessons,

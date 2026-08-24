@@ -1,17 +1,23 @@
 """Historical OKX loader with conservative serialized throttling and bounded ranges."""
 from __future__ import annotations
-import asyncio, json, logging, random, time
+
+import asyncio
+import json
+import logging
+import random
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
 from pathlib import Path
-from ..adapters.okx.client import OKXClient, OKX_ENDPOINTS
+from typing import Any
+
+from ..adapters.okx.client import OKX_ENDPOINTS, OKXClient
 from ..core import models
 from ..core.utils import calculate_timeframe_minutes
 from .feature_pipeline import FeaturePipeline, get_feature_pipeline
-from .model_registry import ModelRegistry
 from .model_trainer import ModelTrainer, TrainingConfig, TrainingData
+
 logger = logging.getLogger(__name__)
 OKX_MAX_CANDLES_PER_REQUEST = 100
 OKX_MIN_REQUEST_INTERVAL = 0.9
