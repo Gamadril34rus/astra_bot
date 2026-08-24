@@ -1,0 +1,478 @@
+Работаешь в репозитории Gamadril34rus/astra_bot. Нужно завершить замену старого пятилетнего обучения на быстрый, воспроизводимый и честный многолетний аудит единой мультивалютной торговой системы, а также добавить Telegram-мониторинг прогресса этого аудита.
+
+Не задавай уточняющих вопросов. Сначала изучи текущий код, затем реализуй, протестируй, сделай smoke run и один commit.
+
+КРИТИЧЕСКИЕ ОГРАНИЧЕНИЯ:
+- Не включать реальные ордера, реальные деньги, плечо, API-ключи, withdrawal.
+- multicurrency_mtf остаётся tier: audit.
+- multicurrency_mtf не добавляется в execution_strategies().
+- Не возвращать старые pretrain_5y, demo trader и monthly training workflows.
+- Не обещать прибыльность.
+- Historical metrics всегда называть backtest/OOS evidence, не прогнозом.
+- Не допускать look-ahead bias.
+- Не считать TP1 и trailing-остаток отдельными сделками.
+- Не ослаблять существующие paper safety defaults.
+
+КОНТЕКСТ:
+Уже есть полезная основа из PR #21:
+- scripts/strategy_lab.py;
+- .github/workflows/strategy-lab.yml;
+- docs/strategy_portfolio.md;
+- scripts/fetch_klines.py;
+- TSM walk-forward, мультиактивная проверка BTC/ETH/SOL, cost stress и Monte Carlo.
+
+Уже есть новый слой:
+- astra_bot/strategies/multicurrency_mtf.py;
+- astra_bot/decision/strategy_registry.py;
+- tests/unit/test_multicurrency_mtf.py;
+- scripts/audit_brains.py.
+
+Нужно использовать принципы честного исполнения strategy_lab.py:
+- сигнал на закрытии бара;
+- вход не раньше открытия следующего доступного бара;
+- комиссии и slippage;
+- stop/TP события внутри бара;
+- отдельные IS/OOS периоды;
+- сохранённый воспроизводимый protocol.
+
+ИСТОЧНИК ПРАВИЛ:
+Мультивалютная_торговая_система.docx.
+
+ТОРГОВАЯ ЛОГИКА:
+
+1. Daily 1D context.
+LONG только если:
+close > EMA20 > EMA50 > EMA200.
+
+SHORT только если:
+close < EMA20 < EMA50 < EMA200.
+
+Если EMA переплетены или режим не определён:
+NO TRADE.
+
+2. 4H structure.
+Обязательна последовательность:
+консолидация / уровень → breakout → retest.
+
+На breakout-свече вход запрещён.
+
+LONG:
+breakout выше resistance → возврат к resistance → resistance удержан как support.
+
+SHORT:
+breakdown ниже support → возврат к support снизу → support удержан как resistance.
+
+Для retest использовать ATR:
+- допустимая зона касания уровня;
+- допустимая глубина;
+- отсев ложного пробоя.
+
+3. 1H precise entry.
+После 4H retest обязательно:
+- bullish/bearish confirmation candle;
+- объём текущей закрытой 1H свечи > SMA(volume, 20);
+- вход только на следующей доступной 1H свече;
+- незакрытая свеча не может использоваться как evidence.
+
+Bullish confirmation:
+- hammer;
+- bullish engulfing.
+
+Bearish confirmation:
+- shooting star;
+- bearish engulfing.
+
+4. BTC gate.
+Для LONG по ETH, SOL, XRP и другим альтам, если BTC на 1D bearish:
+close < EMA20 < EMA50 < EMA200,
+то altcoin LONG запрещён.
+
+BTC не блокируется этим alt filter.
+
+5. News gate.
+Не создавать вымышленные historical-news результаты.
+Поддержать необязательный supplied CSV/JSON event dataset.
+Блокировать сделку только если event явно помечен critical.
+Если news dataset отсутствует:
+- технический audit продолжает работу;
+- protocol/report обязан писать news_gate_tested: false;
+- нельзя утверждать, что news filter прошёл проверку.
+
+6. Risk.
+BTC/ETH:
+risk_per_trade = 0.004, то есть 0.4% equity.
+
+SOL/XRP:
+risk_per_trade = 0.0025, то есть 0.25% equity.
+
+Ограничения:
+max_open_positions = 3.
+daily_loss_stop = 0.03, то есть 3%.
+
+После достижения дневного лимита новые позиции в этот день запрещены, но существующие позиции продолжают обрабатываться stop/TP/trailing.
+
+BTC и ETH = одна high-correlation exposure group.
+Нельзя одновременно учитывать BTC и ETH как две независимые risk exposures.
+
+7. Exit lifecycle.
+Initial stop:
+за экстремумом retest + 0.5 ATR buffer.
+
+Требование:
+R:R >= 2.0.
+
+Одна позиция:
+1. Открывается с entry slippage и entry fee.
+2. TP1 находится на 1R.
+3. На TP1 закрывается ровно 50% original quantity.
+4. После TP1 stop оставшейся части переводится в breakeven.
+5. Остаток ведётся trailing stop.
+6. Остаток закрывается по trailing stop, final target, stop или end of backtest.
+
+Одна позиция с TP1 и trailing считается одной итоговой сделкой/позицией в метриках.
+
+Комиссия:
+fee = 0.001 на сторону.
+
+Slippage:
+slippage = 0.001 на сторону.
+
+ГЛАВНАЯ РЕАЛИЗАЦИЯ:
+
+Создай:
+scripts/audit_multicurrency.py
+
+CLI должен работать так:
+
+python scripts/audit_multicurrency.py --data-dir data --symbols BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT --start 2021-01-01 --oos-start 2025-01-01 --end 2026-08-22 --capital 10000 --fee 0.001 --slippage 0.001 --out reports/multicurrency_audit
+
+Поддерживаемые данные:
+data/BTCUSDT_1h.csv
+data/ETHUSDT_1h.csv
+data/SOLUSDT_1h.csv
+data/XRPUSDT_1h.csv
+
+CSV совместимы с scripts/fetch_klines.py и содержат минимум:
+open_time,open,high,low,close,volume.
+
+Если существуют *_4h.csv и *_1d.csv, использовать их после проверки качества.
+Если есть только 1H, корректно ресемплировать в 4H и 1D.
+
+КРИТИЧНО: защита от look-ahead bias.
+Для решения на конкретной 1H свече разрешено использовать только:
+- полностью закрытые 1H свечи;
+- полностью закрытые 4H свечи;
+- полностью закрытые 1D свечи;
+- никакие будущие свечи использовать нельзя.
+Entry не может быть раньше следующей доступной свечи после подтверждения.
+При отсутствии или недостаточности данных завершать audit понятной ошибкой, не создавать fake results.
+
+ПЕРИОДЫ:
+In-Sample:
+2021-01-01 → 2024-12-31.
+
+Out-of-Sample:
+2025-01-01 → 2026-08-22.
+
+СИМВОЛЫ:
+BTCUSDT, ETHUSDT, SOLUSDT, XRPUSDT.
+
+БЫСТРОДЕЙСТВИЕ:
+- Использовать кэширование данных и ресемплинга.
+- Разрешён параллельный запуск независимых symbols и ablation scenarios.
+- Результаты должны быть детерминированными.
+- Не делать workflow «месяц за запуск».
+- Не обучать LightGBM вместо historical audit.
+
+ОБЯЗАТЕЛЬНЫЕ ABLATION-ПРОГОНЫ:
+1. baseline:
+полный multicurrency_mtf.
+
+2. without_btc_gate:
+BTC bearish gate выключен для ETH/SOL/XRP.
+
+3. without_volume_filter:
+volume > SMA20 выключен.
+
+4. without_retest:
+вход разрешён на breakout без ожидания retest.
+
+5. without_partial_trailing:
+нет TP1 50%, breakeven и trailing;
+только original stop/final target.
+
+Цель ablation:
+не доказать прибыль, а показать, какие фильтры меняют IS/OOS metrics и каким образом.
+
+АРТЕФАКТЫ:
+
+После успешного прогона создавать:
+
+reports/multicurrency_audit/
+- protocol.json
+- progress.json
+- data_quality.json
+- aggregate_summary.json
+- aggregate_summary.md
+- full/trades.csv
+- full/equity.csv
+- full/metrics.json
+- in_sample/trades.csv
+- in_sample/equity.csv
+- in_sample/metrics.json
+- out_of_sample/trades.csv
+- out_of_sample/equity.csv
+- out_of_sample/metrics.json
+- ablation/baseline.json
+- ablation/without_btc_gate.json
+- ablation/without_volume_filter.json
+- ablation/without_retest.json
+- ablation/without_partial_trailing.json
+
+protocol.json должен содержать:
+- created_at;
+- symbols;
+- timeframes;
+- start/end;
+- IS/OOS boundary;
+- initial capital;
+- fee/slippage;
+- risk rules;
+- portfolio/correlation rules;
+- strategy config/version;
+- enabled filters;
+- news dataset path/status;
+- seed, если используется;
+- candle count per symbol/timeframe.
+
+data_quality.json должен содержать:
+- source file;
+- raw rows;
+- usable rows;
+- duplicate count/removal;
+- missing intervals;
+- first/last timestamp;
+- timeframe;
+- exclusion reason для каждого недоступного symbol.
+
+progress.json должен содержать:
+- status: not_started, running, completed, failed;
+- started_at;
+- updated_at;
+- finished_at;
+- current_stage;
+- current_symbol;
+- current_scenario;
+- processed_symbols;
+- total_symbols;
+- processed_scenarios;
+- total_scenarios;
+- percentage;
+- last_error;
+- output directory;
+- protocol path.
+
+Никогда не писать completed, пока не созданы все обязательные report files.
+
+metrics.json должен включать:
+- total positions;
+- wins/losses;
+- win rate;
+- profit factor;
+- gross profit/loss;
+- net PnL;
+- return %;
+- max drawdown %;
+- expectancy;
+- average holding duration;
+- total fees;
+- total slippage;
+- long/short breakdown;
+- symbol breakdown;
+- year breakdown;
+- exit reason breakdown;
+- TP1 count;
+- trailing-exit count.
+
+aggregate_summary.md должен содержать:
+- IS и OOS результаты;
+- ablation comparison;
+- какие фильтры улучшили/ухудшили метрики;
+- data limitations;
+- отсутствие гарантии будущей прибыли;
+- явное указание:
+multicurrency_mtf is audit-only, not approved for execution.
+
+TELEGRAM МОНИТОРИНГ:
+
+Изучи astra_bot/telegram/bot.py и добавь безопасные read-only команды только для разрешённых пользователей.
+
+Добавь:
+- /аудит
+- /audit
+
+Они читают:
+reports/multicurrency_audit/progress.json.
+
+Если файла нет:
+📊 Мультивалютный аудит ещё не запускался.
+Статус: NOT_STARTED
+
+Если status = running:
+📊 Мультивалютный MTF-аудит
+Статус: RUNNING
+Этап: <current_stage>
+Символ: <current_symbol>
+Сценарий: <current_scenario>
+Прогресс: <percentage>%
+Обработано: <processed_symbols>/<total_symbols> символов
+Сценарии: <processed_scenarios>/<total_scenarios>
+Старт: <started_at>
+Обновлено: <updated_at>
+
+Если status = completed:
+✅ Мультивалютный MTF-аудит завершён
+Период: <start> — <end>
+OOS: <oos_start> — <end>
+Символы: <symbols>
+Сделок: <oos total positions>
+OOS PF: <profit factor>
+OOS доходность: <return %>
+OOS max DD: <max drawdown %>
+Отчёт: reports/multicurrency_audit/aggregate_summary.md
+Режим: AUDIT ONLY — автоматическое исполнение не разрешено.
+
+Если status = failed:
+⚠️ Мультивалютный аудит завершился ошибкой
+Этап: <current_stage>
+Ошибка: <last_error>
+Последнее обновление: <updated_at>
+
+Добавь:
+- /стратегии
+- /strategies
+
+Эти команды показывают:
+- champion strategies;
+- audit strategies;
+- research-only strategies;
+- отдельно multicurrency_mtf;
+- объяснение, почему audit/research стратегии не имеют права открывать позиции.
+
+Пример:
+🧠 ASTRA — статус стратегий
+
+CHAMPION:
+— нет
+
+AUDIT:
+• multicurrency_mtf — ожидает OOS-аудит 1D→4H→1H
+• book_breakout — ожидает единый OOS-аудит
+• ts_momentum — повторная проверка в едином протоколе
+
+RESEARCH ONLY:
+• soros_regime
+• druckenmiller_driver
+• tudor_risk
+
+⚠️ AUDIT и RESEARCH стратегии не имеют права открывать позиции.
+
+Telegram-команды должны:
+- не запускать audit;
+- не скачивать данные;
+- не открывать позиции;
+- только читать status/report artifacts;
+- корректно работать при отсутствии файлов;
+- не раскрывать secrets, credential paths или stack trace;
+- не изменять paper state.
+
+Если есть help/menu Telegram UI, добавь туда:
+- /аудит;
+- /audit;
+- /стратегии;
+- /strategies.
+
+ТЕСТЫ:
+
+Создай:
+tests/unit/test_audit_multicurrency.py
+
+Добавь/обнови Telegram tests.
+
+Обязательные tests:
+1. 1H → 4H resampling не использует будущие 1H свечи.
+2. 1H → 1D resampling не использует будущие 1H свечи.
+3. BTC bearish 1D блокирует LONG ETH/SOL/XRP.
+4. Volume ниже SMA20 блокирует entry.
+5. Breakout без retest не открывает baseline position.
+6. TP1 закрывает ровно 50% original quantity.
+7. После TP1 stop остатка становится breakeven.
+8. BTC и ETH не могут открыть две отдельные high-correlation exposures.
+9. После -3% daily loss новые входы заблокированы.
+10. OOS использует только candles после --oos-start.
+11. Audit fixture run создаёт protocol/progress/data_quality/metrics/trades/equity/ablation artifacts.
+12. При отсутствии/плохих данных audit завершается понятной ошибкой и status=failed, без fake results.
+13. Fee/slippage ухудшают результат против cost-free test.
+14. Одна TP1+trailing позиция считается одной итоговой позицией.
+15. /audit без progress.json возвращает NOT_STARTED.
+16. /audit при running/completed/failed показывает корректные значения.
+17. /strategies показывает tiers и не объявляет audit strategy champion.
+18. Telegram-команды не изменяют paper state и не создают ордера.
+
+ДОКУМЕНТАЦИЯ:
+
+Обнови:
+- README.md;
+- docs/INDEX.md;
+- docs/RISK_AND_GOALS.md;
+- при необходимости docs/strategy_portfolio.md.
+
+Добавь раздел:
+Мультивалютный MTF-аудит и Telegram-прогресс.
+
+В нём должны быть:
+- команда запуска audit;
+- структура CSV;
+- IS/OOS период;
+- output artifacts;
+- команды Telegram /audit, /аудит, /strategies, /стратегии;
+- явное предупреждение, что это paper research/audit, не реальная торговля;
+- объяснение, что отсутствие historical news dataset означает непроверенный news gate.
+
+WORKFLOW:
+
+Не создавать старый five-year pretrain workflow.
+
+Разрешено добавить ручной GitHub Actions workflow workflow_dispatch только для нового audit, если:
+- он не запускается каждые два часа;
+- не обрабатывает один месяц за запуск;
+- имеет timeout;
+- результаты загружаются как artifacts;
+- workflow не пушит model/training state;
+- workflow не включает реальную торговлю;
+- по умолчанию audit не запускается по cron чаще одного раза в неделю;
+- если данных нет, workflow честно падает с понятной ошибкой.
+
+ПЕРЕД ЗАВЕРШЕНИЕМ ОБЯЗАТЕЛЬНО ЗАПУСТИ:
+python -m pytest tests/unit tests/integration
+python -m ruff check astra_bot scripts tests
+git diff --check
+python scripts/audit_multicurrency.py --help
+
+Сделай fixture smoke run:
+- создать временные fixture CSV;
+- запустить audit;
+- проверить все обязательные JSON/CSV artifacts;
+- проверить /audit на созданном progress/report state.
+
+В финальном ответе дай только:
+1. созданные/изменённые файлы;
+2. точный результат pytest;
+3. точный результат ruff;
+4. smoke-run команду и итог;
+5. какие реальные CSV ещё нужны для полного прогона 2021–2026;
+6. какие части не считаются доказанными без данных;
+7. commit hash.
+
+Сделай один commit:
+feat: add multicurrency MTF audit and Telegram progress
