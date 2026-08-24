@@ -145,42 +145,6 @@
       }
     },
     {
-      "id": "9d0a2e98-b4bd-439b-b6b5-f0a80d51a1e7",
-      "symbol": "LINK-USDT",
-      "direction": "long",
-      "entry_price": "11.501",
-      "quantity": "96.5701898",
-      "stop_loss": "11.5824950",
-      "take_profits": [
-        "11.5585050",
-        "11.6045090",
-        "11.6447625"
-      ],
-      "tp_filled": [
-        true,
-        true,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "482.850949",
-      "trailing_activated": true,
-      "trailing_distance": null,
-      "highest_price": "11.64",
-      "lowest_price": "11.477",
-      "strategy": "scalp5m",
-      "opened_at": 1787577033465,
-      "notes": {
-        "score": 35.0,
-        "ml_probability": null,
-        "edge_pct": 0.182484988028062,
-        "rr": 1.2
-      }
-    },
-    {
       "id": "d0ef1c45-12cf-42d6-b3e5-9734e7ab40e9",
       "symbol": "HBAR-USDT",
       "direction": "short",
@@ -241,8 +205,8 @@
       "initial_quantity": "1216.323929",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "4.59",
+      "lowest_price": "4.575",
       "strategy": "scalp5m",
       "opened_at": 1787580375336,
       "notes": {
@@ -253,6 +217,6 @@
       }
     }
   ],
-  "realized_pnl": "-3124.32015107841854790336",
+  "realized_pnl": "-3116.45016346066754790336",
   "initial_capital": "40222.20"
 }
