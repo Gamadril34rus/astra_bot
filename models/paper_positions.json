@@ -37,42 +37,6 @@
       }
     },
     {
-      "id": "340558d8-4059-4c55-a09f-384c46996877",
-      "symbol": "NEAR-USDT",
-      "direction": "short",
-      "entry_price": "1.947",
-      "quantity": "2867.473803",
-      "stop_loss": "1.970364",
-      "take_profits": [
-        "1.9236360",
-        "1.9049448",
-        "1.8885900"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "2867.473803",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "1.959",
-      "lowest_price": "1.939",
-      "strategy": "pullback",
-      "opened_at": 1787557265025,
-      "notes": {
-        "score": 68.0,
-        "ml_probability": null,
-        "edge_pct": 0.40745959439190027,
-        "rr": 0.75
-      }
-    },
-    {
       "id": "f0c7975e-fad2-4e1c-9ab9-7830633220df",
       "symbol": "SHIB-USDT",
       "direction": "long",
@@ -97,7 +61,7 @@
       "initial_quantity": "1014681705.311309",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.000005518",
+      "highest_price": "0.000005551",
       "lowest_price": "0.000005477",
       "strategy": "pullback",
       "opened_at": 1787563598782,
@@ -113,15 +77,15 @@
       "symbol": "LINK-USDT",
       "direction": "long",
       "entry_price": "11.536",
-      "quantity": "482.690786",
-      "stop_loss": "11.478320",
+      "quantity": "241.3453930",
+      "stop_loss": "11.536",
       "take_profits": [
         "11.5936800",
         "11.6398240",
         "11.6802000"
       ],
       "tp_filled": [
-        false,
+        true,
         false,
         false
       ],
@@ -131,9 +95,9 @@
         0.2
       ],
       "initial_quantity": "482.690786",
-      "trailing_activated": false,
+      "trailing_activated": true,
       "trailing_distance": null,
-      "highest_price": "11.577",
+      "highest_price": "11.637",
       "lowest_price": "11.517",
       "strategy": "scalp5m",
       "opened_at": 1787566374195,
@@ -181,6 +145,6 @@
       }
     }
   ],
-  "realized_pnl": "-3100.06063380615547173536",
+  "realized_pnl": "-3153.13548947120747173536",
   "initial_capital": "40222.20"
 }
