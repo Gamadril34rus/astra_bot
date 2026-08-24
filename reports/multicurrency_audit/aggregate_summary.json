@@ -1,0 +1,67 @@
+{
+  "baseline_full": {
+    "total_trades": 2717,
+    "win_rate": 58.85,
+    "profit_factor": 0.68,
+    "net_pnl": -7259.8,
+    "return_pct": -72.6,
+    "max_drawdown": 73.12,
+    "expectancy": -2.67
+  },
+  "baseline_in_sample": {
+    "total_trades": 2717,
+    "win_rate": 58.85,
+    "profit_factor": 0.68,
+    "net_pnl": -7259.8,
+    "return_pct": -72.6,
+    "max_drawdown": 73.12,
+    "expectancy": -2.67
+  },
+  "baseline_out_of_sample": {
+    "total_trades": 0,
+    "win_rate": 0.0,
+    "profit_factor": 0.0,
+    "net_pnl": 0.0,
+    "return_pct": 0.0,
+    "max_drawdown": 0.0,
+    "expectancy": 0.0
+  },
+  "ablation_full": {
+    "without_btc_gate": {
+      "total_trades": 3485,
+      "win_rate": 58.71,
+      "profit_factor": 0.68,
+      "net_pnl": -8069.79,
+      "return_pct": -80.7,
+      "max_drawdown": 81.07,
+      "expectancy": -2.32
+    },
+    "without_volume_filter": {
+      "total_trades": 2938,
+      "win_rate": 57.18,
+      "profit_factor": 0.65,
+      "net_pnl": -8038.08,
+      "return_pct": -80.38,
+      "max_drawdown": 80.72,
+      "expectancy": -2.74
+    },
+    "without_retest": {
+      "total_trades": 2717,
+      "win_rate": 58.85,
+      "profit_factor": 0.68,
+      "net_pnl": -7259.8,
+      "return_pct": -72.6,
+      "max_drawdown": 73.12,
+      "expectancy": -2.67
+    },
+    "without_partial_trailing": {
+      "total_trades": 10,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "net_pnl": -278.04,
+      "return_pct": -2.78,
+      "max_drawdown": 2.78,
+      "expectancy": -27.8
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-08-23 20:07:08.240725+00:00",
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "XRPUSDT"
+  ],
+  "start": "2021-01-01",
+  "oos_start": "2025-01-01",
+  "end": "2026-08-22",
+  "capital": 10000.0,
+  "fee": 0.001,
+  "slippage": 0.001,
+  "risk_rules": {
+    "max_open_positions": 3,
+    "correlation_group": [
+      "BTCUSDT",
+      "ETHUSDT"
+    ],
+    "risk_btc_eth": 0.004,
+    "risk_altcoins": 0.0025,
+    "daily_drawdown_stop": 0.03
+  }
+}
