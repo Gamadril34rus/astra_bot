@@ -8,6 +8,8 @@ Data → Regime → Strategy → ML → EV → Risk → Execution.
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import logging
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -15,8 +17,6 @@ from typing import Any
 
 from .config import DecisionConfig
 from .context import MarketContext, SignalCandidate
-import asyncio
-import inspect
 from .correlation_engine import CorrelationEngine
 from .derivatives_engine import DerivativesEngine
 from .ev_engine import EVEngine

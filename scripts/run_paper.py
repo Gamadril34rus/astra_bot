@@ -150,7 +150,12 @@ async def amain(args: argparse.Namespace) -> int:
     )
     # Подсовываем наши стратегии: scalp даёт частые мелкие сделки на 15m
     # для быстрого обучения, pullback — более крупные на 1h.
-    from astra_bot.strategies import MomentumStrategy, MeanReversionStrategy, ScalpStrategy, Scalp5mStrategy
+    from astra_bot.strategies import (
+        MeanReversionStrategy,
+        MomentumStrategy,
+        Scalp5mStrategy,
+        ScalpStrategy,
+    )
     engine.pipeline.strategies = [
         Scalp5mStrategy(),
         ScalpStrategy(),

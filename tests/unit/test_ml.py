@@ -6,12 +6,10 @@ from datetime import datetime
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-import numpy as np
-import pytest
-
 import astra_bot.ml.model_trainer as model_trainer_mod
 import astra_bot.ml.temporal_trainer as temporal_trainer_mod
-
+import numpy as np
+import pytest
 from astra_bot.ml.drift_detector import (
     DriftConfig,
     DriftDetectionResult,

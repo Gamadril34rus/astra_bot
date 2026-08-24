@@ -28,8 +28,8 @@ jobs:
             astra_bot/ml/market_understanding.py \
             astra_bot/ml/market_memory.py \
             astra_bot/ml/market_research.py \
-            scripts/pretrain_5y_enhanced.py \
-            scripts/demo_trader_pro.py
+            scripts/strategy_lab.py \
+            scripts/fetch_klines.py
       - name: Import stack
         env:
           PYTHONPATH: .

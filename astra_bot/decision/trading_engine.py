@@ -17,13 +17,13 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
+from datetime import UTC
 from decimal import Decimal
 from typing import Any
 
 from ..adapters.okx import OKXClient
-from ..core import models
+from ..core import models, trading_schedule
 from ..core.market_safety import MarketSafety
-from ..core import trading_schedule
 from ..ml.live_lessons import append_lessons
 from .broker import PaperBroker
 from .context import MarketContext
@@ -93,8 +93,8 @@ class TradingEngine:
                 MeanReversionStrategy,
                 MomentumStrategy,
                 PullbackStrategy,
-                ScalpStrategy,
                 Scalp5mStrategy,
+                ScalpStrategy,
                 TimeSeriesMomentumConfig,
                 TimeSeriesMomentumStrategy,
             )
@@ -184,7 +184,7 @@ class TradingEngine:
                 )
             self._capital_synced = True
             return cap
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.debug("Не смог синхронизировать капитал: %s", exc)
         self._capital_synced = True
         return self.broker.initial_capital
@@ -400,7 +400,7 @@ class TradingEngine:
                 trades.append(d)
             if trades:
                 append_lessons(trades)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("Не смог записать уроки/уведомления: %s", exc)
 
     def _notify(self, text: str, severity: str = "info") -> None:
@@ -411,7 +411,7 @@ class TradingEngine:
             if asyncio.iscoroutine(res):
                 # Отправка идёт fire-and-forget, чтобы не блокировать цикл.
                 _spawn_background(res)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.debug("notifier error: %s", exc)
 
     async def step(self) -> None:
@@ -421,8 +421,8 @@ class TradingEngine:
 
         # Учёт минуты бюджета торговых часов (раз в минуту цикл может
         # вызываться чаще, но тарифицируем только целые минуты).
-        from datetime import datetime, timezone as _tz
-        bucket = int(datetime.now(_tz.utc).timestamp() // 60)
+        from datetime import datetime
+        bucket = int(datetime.now(UTC).timestamp() // 60)
         if self._minute_bucket != bucket:
             self._minute_bucket = bucket
             trading_schedule.tick()

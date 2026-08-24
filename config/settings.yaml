@@ -55,6 +55,10 @@ trading:
       # Прошёл walk-forward валидацию (scripts/strategy_lab.py).
       enabled: true
       weight: 0.4
+    multicurrency_mtf:
+      # Мультивалютная MTF-система (1D/4H/1H гейты).
+      enabled: true
+      weight: 0.5
     adaptive_grid:
       enabled: false  # Включить только после тщательных тестов
       weight: 1.0

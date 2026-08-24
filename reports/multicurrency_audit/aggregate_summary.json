@@ -1,0 +1,108 @@
+{
+  "baseline_full": {
+    "total_trades": 1391,
+    "wins": 862,
+    "losses": 529,
+    "win_rate": 61.97,
+    "profit_factor": 0.79,
+    "gross_profit": 12651.11,
+    "gross_loss": 15940.3,
+    "net_pnl": -3289.19,
+    "return_pct": -32.89,
+    "max_drawdown": 37.3,
+    "expectancy": -2.36
+  },
+  "baseline_in_sample": {
+    "total_trades": 968,
+    "wins": 621,
+    "losses": 347,
+    "win_rate": 64.15,
+    "profit_factor": 0.84,
+    "gross_profit": 9649.76,
+    "gross_loss": 11483.82,
+    "net_pnl": -1834.06,
+    "return_pct": -18.34,
+    "max_drawdown": 23.83,
+    "expectancy": -1.89
+  },
+  "baseline_out_of_sample": {
+    "total_trades": 424,
+    "wins": 242,
+    "losses": 182,
+    "win_rate": 57.08,
+    "profit_factor": 0.67,
+    "gross_profit": 3658.31,
+    "gross_loss": 5450.56,
+    "net_pnl": -1792.25,
+    "return_pct": -17.92,
+    "max_drawdown": 19.82,
+    "expectancy": -4.23
+  },
+  "ablation_full": {
+    "baseline": {
+      "total_trades": 1391,
+      "wins": 862,
+      "losses": 529,
+      "win_rate": 61.97,
+      "profit_factor": 0.79,
+      "gross_profit": 12651.11,
+      "gross_loss": 15940.3,
+      "net_pnl": -3289.19,
+      "return_pct": -32.89,
+      "max_drawdown": 37.3,
+      "expectancy": -2.36
+    },
+    "without_btc_gate": {
+      "total_trades": 1587,
+      "wins": 979,
+      "losses": 608,
+      "win_rate": 61.69,
+      "profit_factor": 0.78,
+      "gross_profit": 13468.58,
+      "gross_loss": 17253.06,
+      "net_pnl": -3784.48,
+      "return_pct": -37.84,
+      "max_drawdown": 41.92,
+      "expectancy": -2.38
+    },
+    "without_volume_filter": {
+      "total_trades": 1748,
+      "wins": 1081,
+      "losses": 667,
+      "win_rate": 61.84,
+      "profit_factor": 0.78,
+      "gross_profit": 14709.27,
+      "gross_loss": 18872.09,
+      "net_pnl": -4162.82,
+      "return_pct": -41.63,
+      "max_drawdown": 44.64,
+      "expectancy": -2.38
+    },
+    "without_retest": {
+      "total_trades": 1412,
+      "wins": 870,
+      "losses": 542,
+      "win_rate": 61.61,
+      "profit_factor": 0.78,
+      "gross_profit": 12530.6,
+      "gross_loss": 15968.19,
+      "net_pnl": -3437.59,
+      "return_pct": -34.38,
+      "max_drawdown": 38.25,
+      "expectancy": -2.43
+    },
+    "without_partial_trailing": {
+      "total_trades": 55,
+      "wins": 0,
+      "losses": 55,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "gross_profit": 0,
+      "gross_loss": 1406.16,
+      "net_pnl": -1406.16,
+      "return_pct": -14.06,
+      "max_drawdown": 14.06,
+      "expectancy": -25.57
+    }
+  }
+}

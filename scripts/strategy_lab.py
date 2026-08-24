@@ -42,10 +42,10 @@ if str(PROJECT_ROOT) not in sys.path:
 if str(PROJECT_ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
-from research_free_strategies import (  # noqa: E402
+from research_free_strategies import (
     FEE,
-    SLIPPAGE,
     POSITION_FRACTION,
+    SLIPPAGE,
     _flip_flop,
     atr,
     bollinger,
@@ -194,16 +194,10 @@ def run_engine(
 
         if pos != 0:
             bars_in_market += 1
-            if sl > 0 and pos == 1 and l[i] <= sl:
+            if (sl > 0 and pos == 1 and l[i] <= sl) or (sl > 0 and pos == -1 and h[i] >= sl):
                 close_pos(sl, "stop")
                 pos = 0
-            elif sl > 0 and pos == -1 and h[i] >= sl:
-                close_pos(sl, "stop")
-                pos = 0
-            elif tp > 0 and pos == 1 and h[i] >= tp:
-                close_pos(tp, "take")
-                pos = 0
-            elif tp > 0 and pos == -1 and l[i] <= tp:
+            elif (tp > 0 and pos == 1 and h[i] >= tp) or (tp > 0 and pos == -1 and l[i] <= tp):
                 close_pos(tp, "take")
                 pos = 0
             elif max_hold and i - entry_i >= max_hold:
@@ -599,7 +593,7 @@ def main() -> int:
         lines.append(f"## Портфель из {len(selected)} стратегий (равные доли, 2 года)")
         lines.append("")
         lines.append(f"- Доходность: **{total_ret:+.1f}%** · Макс. просадка: **{dd:.1f}%** · Sharpe (годовых): **{sharpe:.2f}**")
-        lines.append(f"- Buy&hold за окно: +5.2% с просадкой 53.4%")
+        lines.append("- Buy&hold за окно: +5.2% с просадкой 53.4%")
         lines.append("")
         # Корреляция покильных доходностей.
         lines.append("### Корреляция покильных доходностей стратегий")

@@ -18,7 +18,7 @@ import re
 import urllib.request
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -214,7 +214,7 @@ class NewsEngine:
 
     # ----------------------------------------------------------- fetching
     def fetch_recent(self, minutes_horizon: int = FRESHNESS_MIN) -> list[NewsItem]:
-        cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes_horizon)
+        cutoff = datetime.now(UTC) - timedelta(minutes=minutes_horizon)
         out: list[NewsItem] = []
         for url in self.feeds:
             try:
@@ -270,7 +270,7 @@ def _parse_date(text: str) -> datetime | None:
         try:
             dt = datetime.strptime(text, fmt)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=UTC)
             return dt
         except ValueError:
             continue

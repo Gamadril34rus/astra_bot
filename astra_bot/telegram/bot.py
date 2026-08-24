@@ -23,7 +23,16 @@ import logging
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Awaitable, Callable
+from typing import Any
+
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
 
 from telegram import (
     Bot,
@@ -33,14 +42,6 @@ from telegram import (
     KeyboardButton,
     ReplyKeyboardMarkup,
     Update,
-)
-from telegram.ext import (
-    Application,
-    CallbackQueryHandler,
-    CommandHandler,
-    ContextTypes,
-    MessageHandler,
-    filters,
 )
 
 from ..core.state import get_system_state
@@ -409,6 +410,7 @@ class AstraTelegramBot:
             if not offline:
                 try:
                     import os as _os
+
                     from ..adapters.okx import OKXClient as _OKX
 
                     if _os.environ.get("OKX_API_KEY"):
@@ -423,7 +425,7 @@ class AstraTelegramBot:
                                        not in {"0", "false", "no"},
                         })
                         await client.initialize()
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     logger.info("OKX недоступен для /train, иду в офлайн: %s", exc)
                     client = None
                     use_offline = True
@@ -588,6 +590,7 @@ class AstraTelegramBot:
         prices: dict[str, float] = {}
         try:
             import os
+
             from ..adapters.okx import OKXClient
             client = OKXClient({
                 "api_key": os.environ.get("OKX_API_KEY", ""),
@@ -609,7 +612,7 @@ class AstraTelegramBot:
                         continue
             finally:
                 await client.close()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.debug("prices fetch failed: %s", exc)
         return prices
 
@@ -617,6 +620,7 @@ class AstraTelegramBot:
         """Получить баланс OKX demo (приватный API). В логи секреты не пишем."""
         try:
             import os
+
             from ..adapters.okx import OKXClient
 
             key = os.environ.get("OKX_API_KEY", "")
@@ -1210,7 +1214,9 @@ class AstraTelegramBot:
         отсюда ночное сообщение. Считаем сутки по Москве.
         """
         try:
-            from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+            from datetime import datetime as _dt
+            from datetime import timedelta as _td
+            from datetime import timezone as _tz
             ts = get_training_state()
             msk = _tz(_td(hours=3))
             today = _dt.now(msk).strftime("%Y-%m-%d")
@@ -1226,7 +1232,7 @@ class AstraTelegramBot:
             )
             ts.last_startup_message = today
             ts.save()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.debug("startup message failed: %s", exc)
 
     async def process_update(self, update_json: dict) -> None:
@@ -1247,7 +1253,7 @@ class AstraTelegramBot:
                 "Нажмите 💰 Баланс или 📊 Статус для проверки.",
                 severity="info",
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.debug("startup message failed: %s", exc)
 
     async def stop(self):

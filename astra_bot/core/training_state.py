@@ -25,10 +25,9 @@ import json
 import logging
 import threading
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime, time
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +102,7 @@ class TrainingState:
         return Path(os.environ.get("TRAINING_STATE_FILE", str(_STATE_PATH)))
 
     @classmethod
-    def load(cls) -> "TrainingState":
+    def load(cls) -> TrainingState:
         """Прочитать состояние с диска; при отсутствии/ошибке — дефолты."""
         path = cls.path()
         if not path.exists():

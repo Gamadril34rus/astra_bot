@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 """Короткие непрерывные paper-сессии ASTRA на GitHub Actions."""
 from __future__ import annotations
-import asyncio, logging, os, signal, sys
+
+import asyncio
+import logging
+import os
+import signal
+import sys
 from pathlib import Path
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path: sys.path.insert(0, str(PROJECT_ROOT))
 try:
@@ -16,6 +22,7 @@ from astra_bot.core.instruments import TRADING_UNIVERSE, to_okx
 from astra_bot.core.logger import setup_logging
 from astra_bot.decision.trading_engine import TradingEngine, TradingEngineConfig
 from astra_bot.telegram.bot import create_telegram_bot
+
 setup_logging(level=os.environ.get("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("bot_runner")
 LISTEN_SECONDS = int(os.environ.get("BOT_LISTEN_SECONDS", "200"))
@@ -69,11 +76,11 @@ async def amain() -> int:
             except Exception as exc:
                 logger.exception("Ошибка торгового шага: %s", exc)
             try: await asyncio.wait_for(stop.wait(), timeout=45)
-            except asyncio.TimeoutError: pass
+            except TimeoutError: pass
     trade_task = asyncio.create_task(trade_loop())
     try:
         await asyncio.wait_for(stop.wait(), timeout=LISTEN_SECONDS)
-    except asyncio.TimeoutError: pass
+    except TimeoutError: pass
     finally:
         stop.set(); trade_task.cancel()
         try: await trade_task
