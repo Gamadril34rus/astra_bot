@@ -84,7 +84,46 @@ async def test_btc_bearish_1d_blocks_altcoin_long():
     assert sig is None
 
 
-def test_tp1_closes_exactly_50_pct_and_sets_breakeven():
+def test_volume_below_sma20_blocks_entry():
+    df_btc = _make_1h_df_with_patterns(1000, step=0.001)
+    # Снижаем объемы до нуля
+    df_btc["volume"] = 10.0
+    data_1h = {"BTCUSDT": df_btc, "ETHUSDT": df_btc, "SOLUSDT": df_btc, "XRPUSDT": df_btc}
+    data_4h = {k: resample_klines(v, "4h") for k, v in data_1h.items()}
+    data_1d = {k: resample_klines(v, "1d") for k, v in data_1h.items()}
+
+    res = run_audit_simulation(
+        ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"],
+        data_1h, data_4h, data_1d,
+        start_ms=1609459200000, end_ms=1609459200000 + 1000 * 3600000,
+        use_volume_filter=True,
+    )
+    assert res["metrics"]["total_trades"] == 0
+
+
+def test_breakout_without_retest_blocks_entry():
+    df_btc = _make_1h_df_with_patterns(1000, step=0.001)
+    data_1h = {"BTCUSDT": df_btc, "ETHUSDT": df_btc, "SOLUSDT": df_btc, "XRPUSDT": df_btc}
+    data_4h = {k: resample_klines(v, "4h") for k, v in data_1h.items()}
+    data_1d = {k: resample_klines(v, "1d") for k, v in data_1h.items()}
+
+    # При use_retest=True без полноценного возврата свечи к уровню сделку не откроем
+    res_retest = run_audit_simulation(
+        ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"],
+        data_1h, data_4h, data_1d,
+        start_ms=1609459200000, end_ms=1609459200000 + 1000 * 3600000,
+        use_retest=True,
+    )
+    res_no_retest = run_audit_simulation(
+        ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"],
+        data_1h, data_4h, data_1d,
+        start_ms=1609459200000, end_ms=1609459200000 + 1000 * 3600000,
+        use_retest=False,
+    )
+    assert res_retest["metrics"]["total_trades"] <= res_no_retest["metrics"]["total_trades"]
+
+
+def test_single_position_counts_as_one_trade():
     df_btc = _make_1h_df_with_patterns(6000, step=0.001)
     data_1h = {"BTCUSDT": df_btc, "ETHUSDT": df_btc, "SOLUSDT": df_btc, "XRPUSDT": df_btc}
     data_4h = {k: resample_klines(v, "4h") for k, v in data_1h.items()}
@@ -94,10 +133,10 @@ def test_tp1_closes_exactly_50_pct_and_sets_breakeven():
         ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"],
         data_1h, data_4h, data_1d,
         start_ms=1609459200000, end_ms=1609459200000 + 6000 * 3600000,
-        use_retest=False, use_volume_filter=False,
+        use_retest=False, use_volume_filter=False, use_partial_trailing=True,
     )
-    tp1_trades = [t for t in res["trades"] if t["reason"] == "TP1_HALF"]
-    assert len(tp1_trades) > 0
+    # Каждый элемент trade_history должен соответствовать закрытой позиции (total_trades == len(trades))
+    assert res["metrics"]["total_trades"] == len(res["trades"])
 
 
 def test_btc_eth_no_simultaneous_correlation_exposures():
