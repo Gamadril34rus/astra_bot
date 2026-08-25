@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -31,7 +29,7 @@ def test_fetch_klines_cli_interface(tmp_path, monkeypatch):
 
 
 def test_no_auto_promotion_of_research_strategies():
-    for k, v in STRATEGY_REGISTRY.items():
+    for _k, v in STRATEGY_REGISTRY.items():
         if v.tier != "champion":
             assert v.execution_blocked_reason is not None
             assert len(v.execution_blocked_reason) > 0
