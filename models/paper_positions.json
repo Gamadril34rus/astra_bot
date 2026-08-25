@@ -37,42 +37,6 @@
       }
     },
     {
-      "id": "6e500134-04f0-4aa8-b2bb-3e7394b11dd3",
-      "symbol": "ICP-USDT",
-      "direction": "short",
-      "entry_price": "2.425",
-      "quantity": "1145.2749675",
-      "stop_loss": "2.425",
-      "take_profits": [
-        "2.3959000",
-        "2.3726200",
-        "2.3522500"
-      ],
-      "tp_filled": [
-        true,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "2290.549935",
-      "trailing_activated": true,
-      "trailing_distance": null,
-      "highest_price": "2.44",
-      "lowest_price": "2.391",
-      "strategy": "pullback",
-      "opened_at": 1787648105782,
-      "notes": {
-        "score": 45.0,
-        "ml_probability": null,
-        "edge_pct": 0.44949456479483707,
-        "rr": 0.7500000000000001
-      }
-    },
-    {
       "id": "ed2a43e4-93ed-4992-a1f3-647e1406d29b",
       "symbol": "ADA-USDT",
       "direction": "short",
@@ -142,6 +106,78 @@
         "ml_probability": null,
         "edge_pct": 0.4693764801422368,
         "rr": 0.75
+      }
+    },
+    {
+      "id": "4cf7abb0-1198-4e9b-86f8-7cbfbdba8e61",
+      "symbol": "ICP-USDT",
+      "direction": "long",
+      "entry_price": "2.426",
+      "quantity": "2283.668635",
+      "stop_loss": "2.396888",
+      "take_profits": [
+        "2.4551120",
+        "2.4784016",
+        "2.4987800"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "2283.668635",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "pullback",
+      "opened_at": 1787679060673,
+      "notes": {
+        "score": 63.0,
+        "ml_probability": null,
+        "edge_pct": 0.5337775534697224,
+        "rr": 0.7500000000000001
+      }
+    },
+    {
+      "id": "ccf5e961-bcc7-4ad6-9325-6ad890aae469",
+      "symbol": "PEPE-USDT",
+      "direction": "short",
+      "entry_price": "0.000004026",
+      "quantity": "1376100374.786661",
+      "stop_loss": "0.000004074312",
+      "take_profits": [
+        "0.0000039776880",
+        "0.0000039390384",
+        "0.0000039052200"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "1376100374.786661",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "pullback",
+      "opened_at": 1787679067422,
+      "notes": {
+        "score": 64.0,
+        "ml_probability": null,
+        "edge_pct": 0.3793559442172986,
+        "rr": 0.7500000000000001
       }
     }
   ],
