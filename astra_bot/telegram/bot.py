@@ -72,6 +72,8 @@ BOT_COMMANDS: list[tuple[str, str]] = [
     ("schedule", "⏰ Бюджет торговых часов в месяц"),
     ("ready", "🎯 Готовность к реальному счёту"),
     ("account", "⚙️ Выбор демо/реального счёта"),
+    ("audit_status", "🔍 Статус исследовательского аудита"),
+    ("audit_summary", "📄 Итоговая сводка исследовательского аудита"),
     ("pause", "⏸ Приостановить торговлю (админ)"),
     ("resume", "▶️ Возобновить торговлю (админ)"),
     ("help", "❓ Справка по командам"),
@@ -91,6 +93,8 @@ COMMAND_HANDLERS: dict[str, str] = {
     "schedule": "_cmd_schedule",
     "ready": "_cmd_ready",
     "account": "_cmd_account",
+    "audit_status": "_cmd_audit_status",
+    "audit_summary": "_cmd_audit_summary",
     "pause": "_cmd_pause",
     "resume": "_cmd_resume",
     "help": "_cmd_help",
@@ -116,6 +120,9 @@ RUSSIAN_ALIASES: dict[str, str] = {
     "готовность": "ready",
     "счет": "account",
     "счёт": "account",
+    "аудит_статус": "audit_status",
+    "аудит_итог": "audit_summary",
+    "аудит_сводка": "audit_summary",
     "пауза": "pause",
     "возобновить": "resume",
     "помощь": "help",
@@ -923,6 +930,46 @@ class AstraTelegramBot:
             "Сменить бюджет (админ): `/расписание 700`"
         )
         await self._reply(update, text, reply_markup=MAIN_MENU)
+
+    # -------------------------------------------------------- /аудит
+    async def _cmd_audit_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if await self._deny(update):
+            return
+        import json
+        from pathlib import Path
+        prog_file = Path("reports/research_2026/progress.json")
+        if not prog_file.exists():
+            await self._reply(update, "🔍 Статус аудита: прогресс-файл не найден (`reports/research_2026/progress.json`).")
+            return
+        try:
+            data = json.loads(prog_file.read_text(encoding="utf-8"))
+            text = (
+                "🔍 *СТАТУС ИССЛЕДОВАТЕЛЬСКОГО АУДИТА*\n\n"
+                f"*Статус:* {data.get('status', 'UNKNOWN')}\n"
+                f"*Этап:* {data.get('stage', '—')}\n"
+                f"*Прогресс:* {data.get('percent', 0.0):.1f}%\n"
+                f"*Детали:* {data.get('details', '—')}\n"
+                f"*Обновлено:* {data.get('updated_at', '—')}"
+            )
+            await self._reply(update, text, reply_markup=MAIN_MENU)
+        except Exception as exc:
+            await self._reply(update, f"❌ Ошибка чтения прогресса аудита: {exc}")
+
+    async def _cmd_audit_summary(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if await self._deny(update):
+            return
+        from pathlib import Path
+        sum_file = Path("reports/research_2026/aggregate_summary.md")
+        if not sum_file.exists():
+            await self._reply(update, "📄 Сводка аудита еще не сформирована (`reports/research_2026/aggregate_summary.md`).")
+            return
+        try:
+            content = sum_file.read_text(encoding="utf-8")
+            if len(content) > 3500:
+                content = content[:3500] + "\n\n...(полный отчёт доступен в файле)"
+            await self._reply(update, content, reply_markup=MAIN_MENU)
+        except Exception as exc:
+            await self._reply(update, f"❌ Ошибка чтения сводки аудита: {exc}")
 
     # -------------------------------------------------------- /готовность
     async def _cmd_ready(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

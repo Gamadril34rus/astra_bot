@@ -1,0 +1,39 @@
+name: Full Research Audit 2026
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # Каждое воскресенье/понедельник в 02:00 UTC
+  workflow_dispatch:
+
+jobs:
+  research-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: |
+          pip install poetry
+
+      - name: Install Dependencies
+        run: |
+          poetry install --no-root
+
+      - name: Download OHLCV Data
+        run: |
+          poetry run python scripts/fetch_klines.py --symbols BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT --start 2021-01-01 --end 2024-12-31
+
+      - name: Run Full Research Audit
+        run: |
+          poetry run python scripts/run_full_research_audit.py --data-dir data --symbols BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT --start 2021-01-01 --oos-start 2024-01-01 --end 2024-12-31
+
+      - name: Upload Audit Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-research-audit-2026-reports
+          path: reports/research_2026/

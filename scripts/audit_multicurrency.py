@@ -68,6 +68,8 @@ class Position:
     initial_stop: float
     current_stop: float
     tp1_price: float
+    tp_target_price: float  # Фиксированная цель (2R)
+    accumulated_pnl: float = 0.0  # Суммарный PnL по этой позиции
     tp1_hit: bool = False
     highest_price: float = 0.0
     lowest_price: float = 0.0
@@ -152,10 +154,24 @@ def run_audit_simulation(
     )
     all_timestamps = [ts for ts in all_timestamps if start_ms <= ts <= end_ms]
 
-    # Ирации по 4H/1D индексам
-    indexer_1h = {sym: df.index.get_indexer for sym, df in prep_1h.items()}
-    indexer_4h = {sym: df.index.get_indexer for sym, df in prep_4h.items()}
-    indexer_1d = {sym: df.index.get_indexer for sym, df in prep_1d.items()}
+    # Быстрый O(1) поиск по индексам
+    ts_map_1h = {sym: {ts: i for i, ts in enumerate(prep_1h[sym].index.values)} for sym in symbols}
+
+    # Массивы для быстрого поиска ближайшего прошлого индекса
+    keys_4h = {sym: prep_4h[sym].index.values for sym in symbols}
+    keys_1d = {sym: prep_1d[sym].index.values for sym in symbols}
+
+    import numpy as np
+
+    def get_prev_idx_4h(sym, ts):
+        arr = keys_4h[sym]
+        pos = np.searchsorted(arr, ts, side="right") - 1
+        return pos
+
+    def get_prev_idx_1d(sym, ts):
+        arr = keys_1d[sym]
+        pos = np.searchsorted(arr, ts, side="right") - 1
+        return pos
 
     equity = capital
     peak_equity = capital
@@ -198,35 +214,48 @@ def run_audit_simulation(
                     fee = (pos.entry_price * pos.remaining_qty + exit_px * pos.remaining_qty) * fee_rate
                     net_pnl = gross_pnl - fee
                     equity += net_pnl
+                    pos.accumulated_pnl += net_pnl
                     trade_history.append(TradeRecord(
                         symbol=sym, direction="LONG", entry_time=str(pd.to_datetime(pos.entry_time, unit="ms", utc=True)),
                         exit_time=str(dt), entry_price=pos.entry_price, exit_price=exit_px,
-                        qty=pos.remaining_qty, pnl=net_pnl, return_pct=(exit_px / pos.entry_price - 1.0) * 100, reason="STOP",
+                        qty=pos.initial_qty, pnl=pos.accumulated_pnl, return_pct=(pos.accumulated_pnl / (pos.entry_price * pos.initial_qty)) * 100, reason="STOP",
                     ))
                     closed_symbols.append(sym)
                     continue
 
-                if use_partial_trailing and not pos.tp1_hit and hi >= pos.tp1_price:
-                    pos.tp1_hit = True
-                    close_qty = pos.initial_qty * 0.5
-                    exit_px = pos.tp1_price * (1.0 - slippage_rate)
-                    gross_pnl = (exit_px - pos.entry_price) * close_qty
-                    fee = (pos.entry_price * close_qty + exit_px * close_qty) * fee_rate
-                    net_pnl = gross_pnl - fee
-                    equity += net_pnl
-                    pos.remaining_qty -= close_qty
-                    pos.current_stop = pos.entry_price
-                    trade_history.append(TradeRecord(
-                        symbol=sym, direction="LONG", entry_time=str(pd.to_datetime(pos.entry_time, unit="ms", utc=True)),
-                        exit_time=str(dt), entry_price=pos.entry_price, exit_price=exit_px,
-                        qty=close_qty, pnl=net_pnl, return_pct=(exit_px / pos.entry_price - 1.0) * 100, reason="TP1_HALF",
-                    ))
+                if not use_partial_trailing:
+                    if hi >= pos.tp_target_price:
+                        exit_px = pos.tp_target_price * (1.0 - slippage_rate)
+                        gross_pnl = (exit_px - pos.entry_price) * pos.remaining_qty
+                        fee = (pos.entry_price * pos.remaining_qty + exit_px * pos.remaining_qty) * fee_rate
+                        net_pnl = gross_pnl - fee
+                        equity += net_pnl
+                        pos.accumulated_pnl += net_pnl
+                        trade_history.append(TradeRecord(
+                            symbol=sym, direction="LONG", entry_time=str(pd.to_datetime(pos.entry_time, unit="ms", utc=True)),
+                            exit_time=str(dt), entry_price=pos.entry_price, exit_price=exit_px,
+                            qty=pos.initial_qty, pnl=pos.accumulated_pnl, return_pct=(pos.accumulated_pnl / (pos.entry_price * pos.initial_qty)) * 100, reason="TAKE_PROFIT",
+                        ))
+                        closed_symbols.append(sym)
+                        continue
+                else:
+                    if not pos.tp1_hit and hi >= pos.tp1_price:
+                        pos.tp1_hit = True
+                        close_qty = pos.initial_qty * 0.5
+                        exit_px = pos.tp1_price * (1.0 - slippage_rate)
+                        gross_pnl = (exit_px - pos.entry_price) * close_qty
+                        fee = (pos.entry_price * close_qty + exit_px * close_qty) * fee_rate
+                        net_pnl = gross_pnl - fee
+                        equity += net_pnl
+                        pos.accumulated_pnl += net_pnl
+                        pos.remaining_qty -= close_qty
+                        pos.current_stop = pos.entry_price
 
-                if use_partial_trailing and pos.tp1_hit:
-                    r_dist = abs(pos.entry_price - pos.initial_stop)
-                    new_stop = pos.highest_price - r_dist
-                    if new_stop > pos.current_stop:
-                        pos.current_stop = new_stop
+                    if pos.tp1_hit:
+                        r_dist = abs(pos.entry_price - pos.initial_stop)
+                        new_stop = pos.highest_price - r_dist
+                        if new_stop > pos.current_stop:
+                            pos.current_stop = new_stop
 
             elif pos.direction == "SHORT":
                 if hi >= pos.current_stop:
@@ -235,35 +264,48 @@ def run_audit_simulation(
                     fee = (pos.entry_price * pos.remaining_qty + exit_px * pos.remaining_qty) * fee_rate
                     net_pnl = gross_pnl - fee
                     equity += net_pnl
+                    pos.accumulated_pnl += net_pnl
                     trade_history.append(TradeRecord(
                         symbol=sym, direction="SHORT", entry_time=str(pd.to_datetime(pos.entry_time, unit="ms", utc=True)),
                         exit_time=str(dt), entry_price=pos.entry_price, exit_price=exit_px,
-                        qty=pos.remaining_qty, pnl=net_pnl, return_pct=(1.0 - exit_px / pos.entry_price) * 100, reason="STOP",
+                        qty=pos.initial_qty, pnl=pos.accumulated_pnl, return_pct=(pos.accumulated_pnl / (pos.entry_price * pos.initial_qty)) * 100, reason="STOP",
                     ))
                     closed_symbols.append(sym)
                     continue
 
-                if use_partial_trailing and not pos.tp1_hit and lo <= pos.tp1_price:
-                    pos.tp1_hit = True
-                    close_qty = pos.initial_qty * 0.5
-                    exit_px = pos.tp1_price * (1.0 + slippage_rate)
-                    gross_pnl = (pos.entry_price - exit_px) * close_qty
-                    fee = (pos.entry_price * close_qty + exit_px * close_qty) * fee_rate
-                    net_pnl = gross_pnl - fee
-                    equity += net_pnl
-                    pos.remaining_qty -= close_qty
-                    pos.current_stop = pos.entry_price
-                    trade_history.append(TradeRecord(
-                        symbol=sym, direction="SHORT", entry_time=str(pd.to_datetime(pos.entry_time, unit="ms", utc=True)),
-                        exit_time=str(dt), entry_price=pos.entry_price, exit_price=exit_px,
-                        qty=close_qty, pnl=net_pnl, return_pct=(1.0 - exit_px / pos.entry_price) * 100, reason="TP1_HALF",
-                    ))
+                if not use_partial_trailing:
+                    if lo <= pos.tp_target_price:
+                        exit_px = pos.tp_target_price * (1.0 + slippage_rate)
+                        gross_pnl = (pos.entry_price - exit_px) * pos.remaining_qty
+                        fee = (pos.entry_price * pos.remaining_qty + exit_px * pos.remaining_qty) * fee_rate
+                        net_pnl = gross_pnl - fee
+                        equity += net_pnl
+                        pos.accumulated_pnl += net_pnl
+                        trade_history.append(TradeRecord(
+                            symbol=sym, direction="SHORT", entry_time=str(pd.to_datetime(pos.entry_time, unit="ms", utc=True)),
+                            exit_time=str(dt), entry_price=pos.entry_price, exit_price=exit_px,
+                            qty=pos.initial_qty, pnl=pos.accumulated_pnl, return_pct=(pos.accumulated_pnl / (pos.entry_price * pos.initial_qty)) * 100, reason="TAKE_PROFIT",
+                        ))
+                        closed_symbols.append(sym)
+                        continue
+                else:
+                    if not pos.tp1_hit and lo <= pos.tp1_price:
+                        pos.tp1_hit = True
+                        close_qty = pos.initial_qty * 0.5
+                        exit_px = pos.tp1_price * (1.0 + slippage_rate)
+                        gross_pnl = (pos.entry_price - exit_px) * close_qty
+                        fee = (pos.entry_price * close_qty + exit_px * close_qty) * fee_rate
+                        net_pnl = gross_pnl - fee
+                        equity += net_pnl
+                        pos.accumulated_pnl += net_pnl
+                        pos.remaining_qty -= close_qty
+                        pos.current_stop = pos.entry_price
 
-                if use_partial_trailing and pos.tp1_hit:
-                    r_dist = abs(pos.initial_stop - pos.entry_price)
-                    new_stop = pos.lowest_price + r_dist
-                    if new_stop < pos.current_stop:
-                        pos.current_stop = new_stop
+                    if pos.tp1_hit:
+                        r_dist = abs(pos.initial_stop - pos.entry_price)
+                        new_stop = pos.lowest_price + r_dist
+                        if new_stop < pos.current_stop:
+                            pos.current_stop = new_stop
 
         for sym in closed_symbols:
             del open_positions[sym]
@@ -281,26 +323,26 @@ def run_audit_simulation(
                 p4 = prep_4h[sym]
                 p1d = prep_1d[sym]
 
-                idx1 = indexer_1h[sym]([ts], method="pad")[0]
+                idx1 = ts_map_1h[sym].get(ts, -1)
                 if idx1 <= 2:
                     continue
 
                 prev_1h = p1.iloc[idx1 - 1]
                 prev2_1h = p1.iloc[idx1 - 2]
 
-                idx4 = indexer_4h[sym]([ts], method="pad")[0]
+                idx4 = get_prev_idx_4h(sym, ts)
                 if idx4 <= 1:
                     continue
                 prev_4h = p4.iloc[idx4 - 1]
 
-                idx1d = indexer_1d[sym]([ts], method="pad")[0]
+                idx1d = get_prev_idx_1d(sym, ts)
                 if idx1d <= 1:
                     continue
                 prev_1d = p1d.iloc[idx1d - 1]
 
                 if use_btc_gate and "BTC" not in sym:
                     p1d_btc = prep_1d["BTCUSDT"]
-                    idx_btc = indexer_1d["BTCUSDT"]([ts], method="pad")[0]
+                    idx_btc = get_prev_idx_1d("BTCUSDT", ts)
                     if idx_btc <= 1:
                         continue
                     prev_btc = p1d_btc.iloc[idx_btc - 1]
@@ -315,10 +357,14 @@ def run_audit_simulation(
 
                 retest_ok = True
                 if use_retest:
+                    res_lvl = prev_4h["resistance_3"] if not math.isnan(prev_4h["resistance_3"]) else prev_4h["close"]
+                    sup_lvl = prev_4h["support_3"] if not math.isnan(prev_4h["support_3"]) else prev_4h["close"]
                     if prev_1d["bullish_1d"]:
-                        retest_ok = (prev_1h["low"] <= prev_4h["close"])
+                        # Пробой сопротивления + возврат (retest) к нему
+                        retest_ok = (prev_4h["close"] >= res_lvl) and (prev_1h["low"] <= res_lvl)
                     elif prev_1d["bearish_1d"]:
-                        retest_ok = (prev_1h["high"] >= prev_4h["close"])
+                        # Пробой поддержки + возврат (retest) к ней
+                        retest_ok = (prev_4h["close"] <= sup_lvl) and (prev_1h["high"] >= sup_lvl)
 
                 if not retest_ok:
                     continue
@@ -348,6 +394,7 @@ def run_audit_simulation(
                         qty = risk_amount / risk_per_share
                         r_dist = abs(entry_px - stop_px)
                         tp1_px = entry_px + r_dist if signal_dir == "LONG" else entry_px - r_dist
+                        tp_target = entry_px + (r_dist * 2.0) if signal_dir == "LONG" else entry_px - (r_dist * 2.0)
 
                         open_positions[sym] = Position(
                             symbol=sym,
@@ -359,6 +406,7 @@ def run_audit_simulation(
                             initial_stop=stop_px,
                             current_stop=stop_px,
                             tp1_price=tp1_px,
+                            tp_target_price=tp_target,
                             highest_price=entry_px,
                             lowest_price=entry_px,
                         )

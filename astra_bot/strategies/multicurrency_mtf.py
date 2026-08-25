@@ -28,6 +28,8 @@ import logging
 from dataclasses import dataclass
 from decimal import Decimal
 
+import pandas as pd
+
 from ..core import models
 from ..core.utils import calculate_atr
 from .base import BaseStrategy, Signal, SignalType, StrategyConfig
@@ -36,7 +38,6 @@ logger = logging.getLogger(__name__)
 
 
 def _calc_ema(series_data: list[float], period: int) -> float:
-    import pandas as pd
     s = pd.Series(series_data)
     return float(s.ewm(span=period, adjust=False).mean().iloc[-1])
 
@@ -143,7 +144,6 @@ class MulticurrencyMTFStrategy(BaseStrategy):
 
         # 4. 1H Confirmation + Volume > SMA20
         v_1h = [float(c.volume) for c in candles_1h]
-        import pandas as pd
         v_sma20 = float(pd.Series(v_1h).rolling(self.config.volume_period_1h).mean().iloc[-1])
         if v_1h[-1] <= v_sma20:
             return None
