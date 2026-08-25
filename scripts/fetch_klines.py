@@ -132,30 +132,46 @@ def fetch_mexc(symbol: str, timeframe: str, start: datetime, end: datetime) -> s
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Выгрузка klines Binance Vision / MEXC")
-    parser.add_argument("--symbol", default="ETHUSDT")
-    parser.add_argument("--timeframe", default="4h", choices=sorted(TIMEFRAMES))
-    parser.add_argument("--start", default="2024-08-20", help="YYYY-MM-DD")
-    parser.add_argument("--end", default="2026-08-20", help="YYYY-MM-DD")
-    parser.add_argument("--out", default=None, help="выходной CSV (по умолчанию data/{SYMBOL}_{TF}.csv)")
+    parser.add_argument("--symbol", default=None, help="Одиночный символ")
+    parser.add_argument("--symbols", default=None, help="Список символов через запятую")
+    parser.add_argument("--timeframe", default=None, help="Одиночный таймфрейм")
+    parser.add_argument("--timeframes", default=None, help="Список таймфреймов через запятую")
+    parser.add_argument("--start", default="2021-01-01", help="YYYY-MM-DD")
+    parser.add_argument("--end", default="2026-08-22", help="YYYY-MM-DD")
+    parser.add_argument("--out", default=None, help="выходной CSV (для одиночного файла)")
+    parser.add_argument("--data-dir", default="data", help="Каталог выгрузки")
     parser.add_argument("--source", default="binance", choices=["binance", "mexc"])
     args = parser.parse_args()
 
+    symbols_raw = args.symbols or args.symbol or "BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT"
+    timeframes_raw = args.timeframes or args.timeframe or "1h,4h,1d"
+
+    symbols = [s.strip().upper() for s in symbols_raw.split(",") if s.strip()]
+    timeframes = [tf.strip() for tf in timeframes_raw.split(",") if tf.strip()]
+
     start = datetime.fromisoformat(args.start).replace(tzinfo=UTC)
     end = datetime.fromisoformat(args.end).replace(tzinfo=UTC)
-    out = Path(args.out) if args.out else (
-        Path(__file__).resolve().parent.parent / "data" / f"{args.symbol.upper()}_{args.timeframe}.csv"
-    )
-    out.parent.mkdir(parents=True, exist_ok=True)
 
-    print(f"Выгрузка {args.symbol} {args.timeframe} {start.date()} → {end.date()} ({args.source})", file=sys.stderr)
-    if args.source == "binance":
-        csv_text = fetch_binance_vision(args.symbol, args.timeframe, start, end)
-    else:
-        csv_text = fetch_mexc(args.symbol, args.timeframe, start, end)
+    data_dir = Path(__file__).resolve().parent.parent / args.data_dir
+    data_dir.mkdir(parents=True, exist_ok=True)
 
-    out.write_text(csv_text, encoding="utf-8")
-    n = max(len(csv_text.splitlines()) - 1, 0)
-    print(f"OK: {n} свечей → {out}")
+    for sym in symbols:
+        for tf in timeframes:
+            if args.out and len(symbols) == 1 and len(timeframes) == 1:
+                out = Path(args.out)
+            else:
+                out = data_dir / f"{sym}_{tf}.csv"
+            out.parent.mkdir(parents=True, exist_ok=True)
+
+            print(f"Выгрузка {sym} {tf} {start.date()} → {end.date()} ({args.source})", file=sys.stderr)
+            if args.source == "binance":
+                csv_text = fetch_binance_vision(sym, tf, start, end)
+            else:
+                csv_text = fetch_mexc(sym, tf, start, end)
+
+            out.write_text(csv_text, encoding="utf-8")
+            n = max(len(csv_text.splitlines()) - 1, 0)
+            print(f"OK: {n} свечей → {out}")
     return 0
 
 

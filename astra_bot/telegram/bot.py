@@ -72,8 +72,9 @@ BOT_COMMANDS: list[tuple[str, str]] = [
     ("schedule", "⏰ Бюджет торговых часов в месяц"),
     ("ready", "🎯 Готовность к реальному счёту"),
     ("account", "⚙️ Выбор демо/реального счёта"),
-    ("audit_status", "🔍 Статус исследовательского аудита"),
-    ("audit_summary", "📄 Итоговая сводка исследовательского аудита"),
+    ("audit", "🔍 Прогресс и статус исследовательского аудита"),
+    ("research", "📄 Сводные результаты и классификации исследований"),
+    ("strategies", "📊 Реестр стратегий и их ранги"),
     ("pause", "⏸ Приостановить торговлю (админ)"),
     ("resume", "▶️ Возобновить торговлю (админ)"),
     ("help", "❓ Справка по командам"),
@@ -93,8 +94,9 @@ COMMAND_HANDLERS: dict[str, str] = {
     "schedule": "_cmd_schedule",
     "ready": "_cmd_ready",
     "account": "_cmd_account",
-    "audit_status": "_cmd_audit_status",
-    "audit_summary": "_cmd_audit_summary",
+    "audit": "_cmd_audit_status",
+    "research": "_cmd_audit_summary",
+    "strategies": "_cmd_strategies",
     "pause": "_cmd_pause",
     "resume": "_cmd_resume",
     "help": "_cmd_help",
@@ -120,9 +122,9 @@ RUSSIAN_ALIASES: dict[str, str] = {
     "готовность": "ready",
     "счет": "account",
     "счёт": "account",
-    "аудит_статус": "audit_status",
-    "аудит_итог": "audit_summary",
-    "аудит_сводка": "audit_summary",
+    "аудит": "audit",
+    "исследование": "research",
+    "стратегии": "strategies",
     "пауза": "pause",
     "возобновить": "resume",
     "помощь": "help",
@@ -970,6 +972,28 @@ class AstraTelegramBot:
             await self._reply(update, content, reply_markup=MAIN_MENU)
         except Exception as exc:
             await self._reply(update, f"❌ Ошибка чтения сводки аудита: {exc}")
+
+    async def _cmd_strategies(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if await self._deny(update):
+            return
+        import json
+        from pathlib import Path
+        inv_file = Path("reports/research_2026/strategy_inventory.json")
+        if not inv_file.exists():
+            from astra_bot.decision.strategy_registry import STRATEGY_REGISTRY
+            lines = ["📊 *РЕЕСТР СТРАТЕГИЙ (LIVE REGISTRY)*\n"]
+            for k, v in STRATEGY_REGISTRY.items():
+                lines.append(f"• *{v.name}* (`{k}`): Tier `{v.tier}` | Blocked: {v.execution_blocked_reason}")
+            await self._reply(update, "\n".join(lines), reply_markup=MAIN_MENU)
+            return
+        try:
+            data = json.loads(inv_file.read_text(encoding="utf-8"))
+            lines = ["📊 *РЕЕСТР И ИНВЕНТАРЬ СТРАТЕГИЙ*\n"]
+            for k, v in data.items():
+                lines.append(f"• *{v.get('name', k)}* (`{k}`): Tier `{v.get('tier')}` | Status/Reason: {v.get('reason')}")
+            await self._reply(update, "\n".join(lines), reply_markup=MAIN_MENU)
+        except Exception as exc:
+            await self._reply(update, f"❌ Ошибка чтения реестра стратегий: {exc}")
 
     # -------------------------------------------------------- /готовность
     async def _cmd_ready(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

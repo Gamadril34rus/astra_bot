@@ -51,8 +51,8 @@ def main() -> int:
     parser.add_argument("--data-dir", default="data", help="Каталог с CSV данными")
     parser.add_argument("--symbols", default="BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT", help="Список символов через запятую")
     parser.add_argument("--start", default="2021-01-01", help="Начало IS YYYY-MM-DD")
-    parser.add_argument("--oos-start", default="2024-01-01", help="Начало OOS YYYY-MM-DD")
-    parser.add_argument("--end", default="2024-12-31", help="Конец YYYY-MM-DD")
+    parser.add_argument("--oos-start", default="2025-01-01", help="Начало OOS YYYY-MM-DD")
+    parser.add_argument("--end", default="2026-08-22", help="Конец YYYY-MM-DD")
     parser.add_argument("--capital", type=float, default=10000.0, help="Стартовый капитал USDT")
     parser.add_argument("--fee", type=float, default=0.001, help="Базовая комиссия (0.001 равно 0.1%)")
     parser.add_argument("--slippage", type=float, default=0.001, help="Базовое проскальзывание (0.001 равно 0.1%)")
@@ -103,8 +103,16 @@ def main() -> int:
 
     (out_dir / "data_quality.json").write_text(json.dumps(data_quality, indent=2, ensure_ascii=False), encoding="utf-8")
 
+    # Определение git SHA
+    import subprocess
+    try:
+        git_sha = subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("utf-8").strip()
+    except Exception:
+        git_sha = "unknown"
+
     protocol = {
         "created_at": str(datetime.now(UTC)),
+        "git_sha": git_sha,
         "symbols": symbols,
         "timeframes": ["1h", "4h", "1d"],
         "start": args.start,
