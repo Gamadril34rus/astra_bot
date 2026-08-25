@@ -37,42 +37,6 @@
       }
     },
     {
-      "id": "554154b0-cf80-4177-8bcc-75b478571ec1",
-      "symbol": "ETH-USDT",
-      "direction": "short",
-      "entry_price": "2461.12",
-      "quantity": "2.260820",
-      "stop_loss": "2473.42560",
-      "take_profits": [
-        "2448.814400",
-        "2438.969920",
-        "2430.356000"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "2.260820",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "2461.77",
-      "lowest_price": "2456.25",
-      "strategy": "scalp5m",
-      "opened_at": 1787637844956,
-      "notes": {
-        "score": 73.0,
-        "ml_probability": null,
-        "edge_pct": 0.16501664759453427,
-        "rr": 1.2
-      }
-    },
-    {
       "id": "4e2006b9-7e23-4afa-bb58-a5157c09ab0d",
       "symbol": "ADA-USDT",
       "direction": "short",
@@ -97,7 +61,7 @@
       "initial_quantity": "25291.583694",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.22",
+      "highest_price": "0.2211",
       "lowest_price": "0.22",
       "strategy": "pullback",
       "opened_at": 1787637847835,
@@ -109,16 +73,16 @@
       }
     },
     {
-      "id": "961d8a4d-1634-4759-98c2-f7a0928041c3",
-      "symbol": "SUI-USDT",
+      "id": "77f66af9-a508-4f48-8860-db5f06ccdf6c",
+      "symbol": "ETH-USDT",
       "direction": "short",
-      "entry_price": "0.8184",
-      "quantity": "6798.812821",
-      "stop_loss": "0.8224920",
+      "entry_price": "2474.72",
+      "quantity": "2.246709",
+      "stop_loss": "2487.09360",
       "take_profits": [
-        "0.81430800",
-        "0.81103440",
-        "0.80817000"
+        "2462.346400",
+        "2452.447520",
+        "2443.786000"
       ],
       "tp_filled": [
         false,
@@ -130,21 +94,57 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "6798.812821",
+      "initial_quantity": "2.246709",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.8202",
-      "lowest_price": "0.8188",
+      "highest_price": "2479.3",
+      "lowest_price": "2472.57",
       "strategy": "scalp5m",
-      "opened_at": 1787637858639,
+      "opened_at": 1787641574317,
       "notes": {
-        "score": 59.0,
+        "score": 73.0,
         "ml_probability": null,
-        "edge_pct": 0.15094157658716523,
+        "edge_pct": 0.22260591182281386,
+        "rr": 1.2
+      }
+    },
+    {
+      "id": "18126c95-4b26-4d35-a7fd-37bb9a016598",
+      "symbol": "SUI-USDT",
+      "direction": "short",
+      "entry_price": "0.8237",
+      "quantity": "6744.934065",
+      "stop_loss": "0.8278185",
+      "take_profits": [
+        "0.81958150",
+        "0.81628670",
+        "0.81340375"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "6744.934065",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "0.825",
+      "lowest_price": "0.8217",
+      "strategy": "scalp5m",
+      "opened_at": 1787641590312,
+      "notes": {
+        "score": 57.0,
+        "ml_probability": null,
+        "edge_pct": 0.1922144205471084,
         "rr": 1.2
       }
     }
   ],
-  "realized_pnl": "-3127.87724854845994390336",
+  "realized_pnl": "-3183.51873720399194390336",
   "initial_capital": "40222.20"
 }
