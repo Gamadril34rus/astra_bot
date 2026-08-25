@@ -26,7 +26,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "0.34458",
-      "lowest_price": "0.34339",
+      "lowest_price": "0.34327",
       "strategy": "scalp5m",
       "opened_at": 1787572893662,
       "notes": {
@@ -41,15 +41,15 @@
       "symbol": "NEAR-USDT",
       "direction": "short",
       "entry_price": "1.968",
-      "quantity": "2831.342069",
-      "stop_loss": "1.977840",
+      "quantity": "1415.6710345",
+      "stop_loss": "1.968",
       "take_profits": [
         "1.9581600",
         "1.9502880",
         "1.9434000"
       ],
       "tp_filled": [
-        false,
+        true,
         false,
         false
       ],
@@ -59,10 +59,10 @@
         0.2
       ],
       "initial_quantity": "2831.342069",
-      "trailing_activated": false,
+      "trailing_activated": true,
       "trailing_distance": null,
       "highest_price": "1.974",
-      "lowest_price": "1.959",
+      "lowest_price": "1.955",
       "strategy": "scalp5m",
       "opened_at": 1787634339439,
       "notes": {
@@ -73,6 +73,6 @@
       }
     }
   ],
-  "realized_pnl": "-3141.80745152793994390336",
+  "realized_pnl": "-3127.87724854845994390336",
   "initial_capital": "40222.20"
 }
