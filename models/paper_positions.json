@@ -98,7 +98,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "0.2211",
-      "lowest_price": "0.2185",
+      "lowest_price": "0.2181",
       "strategy": "pullback",
       "opened_at": 1787670853361,
       "notes": {
@@ -143,44 +143,8 @@
         "edge_pct": 0.4693764801422368,
         "rr": 0.75
       }
-    },
-    {
-      "id": "f7d7eea9-8598-41dc-b148-bf1bdedbd916",
-      "symbol": "SHIB-USDT",
-      "direction": "long",
-      "entry_price": "0.000005478",
-      "quantity": "1012109960.325501",
-      "stop_loss": "0.000005450610",
-      "take_profits": [
-        "0.0000055053900",
-        "0.0000055273020",
-        "0.0000055464750"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "1012109960.325501",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "0.000005478",
-      "lowest_price": "0.000005453",
-      "strategy": "scalp5m",
-      "opened_at": 1787673954237,
-      "notes": {
-        "score": 33.0,
-        "ml_probability": null,
-        "edge_pct": 0.15368111935584894,
-        "rr": 1.2
-      }
     }
   ],
-  "realized_pnl": "-3259.94424891270833417536",
+  "realized_pnl": "-3287.66594072602380656536",
   "initial_capital": "40222.20"
 }
