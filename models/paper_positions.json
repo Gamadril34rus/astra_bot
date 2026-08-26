@@ -26,7 +26,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "0.34506",
-      "lowest_price": "0.34185",
+      "lowest_price": "0.34179",
       "strategy": "scalp5m",
       "opened_at": 1787572893662,
       "notes": {
@@ -62,7 +62,7 @@
       "trailing_activated": true,
       "trailing_distance": null,
       "highest_price": "0.2227",
-      "lowest_price": "0.215",
+      "lowest_price": "0.2143",
       "strategy": "pullback",
       "opened_at": 1787670853361,
       "notes": {
@@ -170,7 +170,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "2479.23",
-      "lowest_price": "2475.08",
+      "lowest_price": "2466.38",
       "strategy": "pullback",
       "opened_at": 1787744370770,
       "notes": {
@@ -181,16 +181,16 @@
       }
     },
     {
-      "id": "2611871d-1a55-426e-b548-73a534e8935b",
+      "id": "b5403d16-e88b-4bb8-8e14-f290af256499",
       "symbol": "SUI-USDT",
       "direction": "long",
-      "entry_price": "0.7936",
-      "quantity": "6949.211727",
-      "stop_loss": "0.7896320",
+      "entry_price": "0.7915",
+      "quantity": "6962.423570",
+      "stop_loss": "0.7875425",
       "take_profits": [
-        "0.79756800",
-        "0.80074240",
-        "0.80352000"
+        "0.79545750",
+        "0.79862350",
+        "0.80139375"
       ],
       "tp_filled": [
         false,
@@ -202,21 +202,21 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "6949.211727",
+      "initial_quantity": "6962.423570",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.7953",
-      "lowest_price": "0.7926",
+      "highest_price": "0.7914",
+      "lowest_price": "0.7891",
       "strategy": "scalp5m",
-      "opened_at": 1787744386421,
+      "opened_at": 1787745898996,
       "notes": {
         "score": 57.0,
         "ml_probability": null,
-        "edge_pct": 0.084557330496622,
+        "edge_pct": 0.12983012388362103,
         "rr": 1.2
       }
     }
   ],
-  "realized_pnl": "-3456.23715817957518228736",
+  "realized_pnl": "-3483.81163031231118228736",
   "initial_capital": "40222.20"
 }
