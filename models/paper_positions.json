@@ -145,42 +145,6 @@
       }
     },
     {
-      "id": "9624bb87-2984-4212-acb7-72b24e0cafcf",
-      "symbol": "XRP-USDT",
-      "direction": "long",
-      "entry_price": "1.4821",
-      "quantity": "3725.737524",
-      "stop_loss": "1.4746895",
-      "take_profits": [
-        "1.48951050",
-        "1.49543890",
-        "1.50062625"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "3725.737524",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "1.4826",
-      "lowest_price": "1.478",
-      "strategy": "scalp5m",
-      "opened_at": 1787728077731,
-      "notes": {
-        "score": 53.0,
-        "ml_probability": null,
-        "edge_pct": 0.22489060381913523,
-        "rr": 1.2
-      }
-    },
-    {
       "id": "d7067aaf-3fe3-4536-9e53-36a756490c61",
       "symbol": "LTC-USDT",
       "direction": "long",
@@ -205,7 +169,7 @@
       "initial_quantity": "108.023968",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "51.21",
+      "highest_price": "51.33",
       "lowest_price": "51.02",
       "strategy": "scalp5m",
       "opened_at": 1787734583320,
@@ -215,8 +179,44 @@
         "edge_pct": 0.1528512023997416,
         "rr": 1.2
       }
+    },
+    {
+      "id": "42427de2-381d-425a-8a4f-481145a9cff6",
+      "symbol": "BTC-USDT",
+      "direction": "short",
+      "entry_price": "78861.3",
+      "quantity": "0.070095",
+      "stop_loss": "79255.6065",
+      "take_profits": [
+        "78466.99350",
+        "78151.54830",
+        "77875.53375"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "0.070095",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "79089",
+      "lowest_price": "78800",
+      "strategy": "scalp5m",
+      "opened_at": 1787737859046,
+      "notes": {
+        "score": 56.0,
+        "ml_probability": null,
+        "edge_pct": 0.21563471162575854,
+        "rr": 1.2
+      }
     }
   ],
-  "realized_pnl": "-3342.81744499427823828736",
+  "realized_pnl": "-3370.42702291588023828736",
   "initial_capital": "40222.20"
 }
