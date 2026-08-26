@@ -61,7 +61,7 @@
       "initial_quantity": "25197.456024",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.2217",
+      "highest_price": "0.2227",
       "lowest_price": "0.2181",
       "strategy": "pullback",
       "opened_at": 1787670853361,
@@ -97,7 +97,7 @@
       "initial_quantity": "7.884943",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "705",
+      "highest_price": "708.3",
       "lowest_price": "701",
       "strategy": "pullback",
       "opened_at": 1787670926593,
@@ -145,16 +145,16 @@
       }
     },
     {
-      "id": "ccf5e961-bcc7-4ad6-9325-6ad890aae469",
+      "id": "9a9e0741-7d52-4e92-931f-55a652a2f3e2",
       "symbol": "PEPE-USDT",
-      "direction": "short",
-      "entry_price": "0.000004026",
-      "quantity": "1376100374.786661",
-      "stop_loss": "0.000004074312",
+      "direction": "long",
+      "entry_price": "0.000004089",
+      "quantity": "1352459717.460282",
+      "stop_loss": "0.000004068555",
       "take_profits": [
-        "0.0000039776880",
-        "0.0000039390384",
-        "0.0000039052200"
+        "0.0000041094450",
+        "0.0000041258010",
+        "0.0000041401125"
       ],
       "tp_filled": [
         false,
@@ -166,21 +166,21 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "1376100374.786661",
+      "initial_quantity": "1352459717.460282",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.000004047",
-      "lowest_price": "0.000004004",
-      "strategy": "pullback",
-      "opened_at": 1787679067422,
+      "highest_price": "0.000004098",
+      "lowest_price": "0.00000407",
+      "strategy": "scalp5m",
+      "opened_at": 1787720586321,
       "notes": {
-        "score": 64.0,
+        "score": 56.0,
         "ml_probability": null,
-        "edge_pct": 0.3793559442172986,
-        "rr": 0.7500000000000001
+        "edge_pct": 0.12884925620615723,
+        "rr": 1.2
       }
     }
   ],
-  "realized_pnl": "-3287.66594072602380656536",
+  "realized_pnl": "-3354.14810203271697279736",
   "initial_capital": "40222.20"
 }
