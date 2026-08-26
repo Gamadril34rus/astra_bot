@@ -557,6 +557,12 @@ def main() -> int:
         "without_volume_filter": {"use_volume_filter": False},
         "without_retest": {"use_retest": False},
         "without_partial_trailing": {"use_partial_trailing": False},
+        "all_filters_disabled": {
+            "use_btc_gate": False,
+            "use_volume_filter": False,
+            "use_retest": False,
+            "use_partial_trailing": False,
+        },
     }
 
     ablation_results = {}

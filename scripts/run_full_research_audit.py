@@ -138,11 +138,17 @@ def main() -> int:
     end_ms = int(datetime.fromisoformat(args.end).replace(tzinfo=UTC).timestamp() * 1000)
 
     # 1. Single strategy audits via Strategy Lab Engine
-    save_progress(out_dir, "Strategy Lab Audit", 20.0, "RUNNING", "Аудит одиночных стратегий")
+    save_progress(out_dir, "Strategy Lab Audit", 20.0, "RUNNING", "Аудит одиночных стратегий по портфелю символов и таймфреймов")
     lab_results = {}
     cand_map = {c["key"]: c for c in CANDIDATES}
     cand_map["ts_momentum"] = cand_map.get("tsm45_ls")
     cand_map["ts_momentum_adx"] = cand_map.get("tsm45_adx")
+    cand_map["book_breakout"] = cand_map.get("don100_adx")
+    cand_map["momentum"] = cand_map.get("gc50200_adx")
+    cand_map["mean_reversion"] = cand_map.get("bbfade_lo")
+    cand_map["pullback"] = cand_map.get("pullback")
+    cand_map["high_winrate"] = cand_map.get("rsi2_trend")
+    cand_map["selective"] = cand_map.get("tsm45_lo_ema")
 
     for key, entry in STRATEGY_REGISTRY.items():
         if entry.tier == TIER_RESEARCH or key not in cand_map or cand_map[key] is None:
@@ -150,47 +156,75 @@ def main() -> int:
             continue
 
         cand = cand_map[key]
-        df_btc_4h = data_frames_4h["BTCUSDT"]
-        desired = cand["fn"](df_btc_4h)
-        atr_vals = atr(df_btc_4h, 14)
 
-        def eval_single(ms0, ms1, fee_val=args.fee, slip_val=args.slippage, df_data=df_btc_4h, sigs=desired, c_info=cand, atr_data=atr_vals):
-            m = (df_data["open_time"] >= ms0) & (df_data["open_time"] < ms1)
-            if m.sum() <= 1:
-                return {"trades": 0, "win_rate": 0.0, "pf": 0.0, "net_pnl": 0.0, "return_pct": 0.0, "max_dd": 0.0, "expectancy": 0.0}
-            rr = run_engine(
-                df_data[m].reset_index(drop=True), sigs[m].reset_index(drop=True),
-                c_info["stop_mult"], c_info["take_mult"], c_info["max_hold"], capital=args.capital,
-                atr_values=atr_data[m].reset_index(drop=True), long_only=c_info["long_only"],
-                vol_target=c_info["vol_target"], fee=fee_val, slippage=slip_val,
-            )
-            pnl = (rr.ret_pct / 100.0) * args.capital
-            exp = pnl / rr.trades if rr.trades > 0 else 0.0
+        # Портфельная оценка по всем символам и 4H таймфрейму (сводка)
+        def eval_multi(ms0, ms1, fee_val=args.fee, slip_val=args.slippage, c_info=cand):
+            total_trades_all = 0
+            wins_all = 0
+            net_pnl_all = 0.0
+            max_dd_max = 0.0
+            pfs = []
+
+            for sym in symbols:
+                df_sym = data_frames_4h[sym]
+                desired = c_info["fn"](df_sym)
+                atr_vals = atr(df_sym, 14)
+                m = (df_sym["open_time"] >= ms0) & (df_sym["open_time"] < ms1)
+                if m.sum() <= 1:
+                    continue
+                rr = run_engine(
+                    df_sym[m].reset_index(drop=True), desired[m].reset_index(drop=True),
+                    c_info["stop_mult"], c_info["take_mult"], c_info["max_hold"], capital=args.capital / len(symbols),
+                    atr_values=atr_vals[m].reset_index(drop=True), long_only=c_info["long_only"],
+                    vol_target=c_info["vol_target"], fee=fee_val, slippage=slip_val,
+                )
+                pnl = (rr.ret_pct / 100.0) * (args.capital / len(symbols))
+                total_trades_all += rr.trades
+                wins_all += rr.wins
+                net_pnl_all += pnl
+                max_dd_max = max(max_dd_max, rr.max_dd)
+                if rr.trades > 0:
+                    pfs.append(rr.pf if rr.pf != float("inf") else 999.0)
+
+            win_rate = (wins_all / total_trades_all * 100.0) if total_trades_all > 0 else 0.0
+            avg_pf = float(pd.Series(pfs).mean()) if pfs else 0.0
+            ret_pct = (net_pnl_all / args.capital) * 100.0
+            exp = net_pnl_all / total_trades_all if total_trades_all > 0 else 0.0
+
             return {
-                "trades": rr.trades,
-                "win_rate": round(rr.win_rate, 2),
-                "pf": round(rr.pf if rr.pf != float("inf") else 999.0, 2),
-                "net_pnl": round(pnl, 2),
-                "return_pct": round(rr.ret_pct, 2),
-                "max_dd": round(rr.max_dd, 2),
+                "trades": total_trades_all,
+                "total_trades": total_trades_all,
+                "win_rate": round(win_rate, 2),
+                "pf": round(avg_pf, 2),
+                "profit_factor": round(avg_pf, 2),
+                "net_pnl": round(net_pnl_all, 2),
+                "return_pct": round(ret_pct, 2),
+                "max_dd": round(max_dd_max, 2),
+                "max_drawdown": round(max_dd_max, 2),
                 "expectancy": round(exp, 2),
             }
 
-        is_metrics = eval_single(start_ms, oos_ms)
-        oos_metrics = eval_single(oos_ms, end_ms)
-        full_metrics = eval_single(start_ms, end_ms)
-        stress_metrics = eval_single(start_ms, end_ms, fee_val=0.002, slip_val=0.001)
+        is_metrics = eval_multi(start_ms, oos_ms)
+        oos_metrics = eval_multi(oos_ms, end_ms)
+        full_metrics = eval_multi(start_ms, end_ms)
+        stress_metrics = eval_multi(start_ms, end_ms, fee_val=0.002, slip_val=0.001)
 
-        # Normalize key names
-        for m in (is_metrics, oos_metrics, full_metrics, stress_metrics):
-            m["max_drawdown"] = m["max_dd"]
-            m["profit_factor"] = m["pf"]
-            m["total_trades"] = m["trades"]
+        # Строгие правила классификации
+        cond_candidate = (
+            oos_metrics["pf"] >= 1.10 and
+            oos_metrics["expectancy"] > 0 and
+            oos_metrics["return_pct"] >= 0 and
+            oos_metrics["max_dd"] <= 15.0 and
+            oos_metrics["trades"] >= 20 and
+            is_metrics["pf"] >= 1.0 and
+            full_metrics["pf"] >= 1.10 and
+            stress_metrics["pf"] >= 0.90 and
+            (stress_metrics["pf"] >= oos_metrics["pf"] * 0.75)
+        )
 
-        # Классификация
-        if oos_metrics["pf"] >= 1.10 and oos_metrics["expectancy"] > 0 and oos_metrics["return_pct"] >= 0 and oos_metrics["max_dd"] <= 15.0 and oos_metrics["trades"] >= 20:
+        if cond_candidate:
             classification = "CANDIDATE_FOR_MANUAL_REVIEW"
-        elif oos_metrics["pf"] > 0.9 or full_metrics["pf"] >= 1.10:
+        elif oos_metrics["pf"] >= 1.0 or full_metrics["pf"] >= 1.0:
             classification = "SHADOW_ONLY"
         else:
             classification = "REJECTED"
