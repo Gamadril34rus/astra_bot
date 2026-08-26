@@ -145,16 +145,16 @@
       }
     },
     {
-      "id": "9a9e0741-7d52-4e92-931f-55a652a2f3e2",
-      "symbol": "PEPE-USDT",
+      "id": "55f6f2fd-2bd7-4405-a779-1883bdf988e9",
+      "symbol": "XRP-USDT",
       "direction": "long",
-      "entry_price": "0.000004089",
-      "quantity": "1352459717.460282",
-      "stop_loss": "0.000004068555",
+      "entry_price": "1.4903",
+      "quantity": "3708.018606",
+      "stop_loss": "1.4828485",
       "take_profits": [
-        "0.0000041094450",
-        "0.0000041258010",
-        "0.0000041401125"
+        "1.49775150",
+        "1.50371270",
+        "1.50892875"
       ],
       "tp_filled": [
         false,
@@ -166,21 +166,21 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "1352459717.460282",
+      "initial_quantity": "3708.018606",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.000004098",
-      "lowest_price": "0.00000407",
+      "highest_price": "1.4903",
+      "lowest_price": "1.4879",
       "strategy": "scalp5m",
-      "opened_at": 1787720586321,
+      "opened_at": 1787722808863,
       "notes": {
-        "score": 56.0,
+        "score": 62.0,
         "ml_probability": null,
-        "edge_pct": 0.12884925620615723,
+        "edge_pct": 0.17310596913997062,
         "rr": 1.2
       }
     }
   ],
-  "realized_pnl": "-3354.14810203271697279736",
+  "realized_pnl": "-3381.79914095619243828736",
   "initial_capital": "40222.20"
 }
