@@ -192,7 +192,7 @@ def _merge_equity(equity_list: list[tuple[np.ndarray, np.ndarray, float]]) -> di
 def _eval_strategy_portfolio(cand: dict, data_frames: dict, symbols: list[str],
                              ms0: int, ms1: int, capital: float,
                              fee: float, slippage: float) -> dict:
-    """Портфельная оценка по 12 комбо (4 символа × 3 таймфрейма):
+    """Портфельная оценка по N символов × M таймфреймов:
     равное распределение капитала, слияние кривых эквити по юниону баров,
     реальный money-weighted PF и MaxDD по объединённой кривой.
 
@@ -249,7 +249,7 @@ def _eval_strategy_portfolio(cand: dict, data_frames: dict, symbols: list[str],
 def main() -> int:
     parser = argparse.ArgumentParser(description="Единый исследовательский аудит ASTRA (2021-2026)")
     parser.add_argument("--data-dir", default="data", help="Каталог с CSV данными")
-    parser.add_argument("--symbols", default="BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT", help="Символы через запятую")
+    parser.add_argument("--symbols", default="BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,ADAUSDT,DOGEUSDT,AVAXUSDT,LINKUSDT,LTCUSDT", help="Символы через запятую")
     parser.add_argument("--start", default="2021-01-01", help="IS start YYYY-MM-DD")
     parser.add_argument("--oos-start", default="2025-01-01", help="OOS start YYYY-MM-DD")
     parser.add_argument("--end", default="2026-08-22", help="Period end YYYY-MM-DD")
@@ -383,11 +383,18 @@ def main() -> int:
     actual_end_ms = min(int(data_frames["1h"][s]["open_time"].max()) for s in symbols)
     end_ms = min(requested_end_ms, actual_end_ms)
 
-    # ---- 1) Аудит OHLC-стратегий (9 правил) на 12-комбо портфеле
-    save_progress(out_dir, "Strategy-Lab Portfolio Audit", 15.0, "RUNNING", "12-комбо аудит (4 символа × 3 таймфрейма)")
+    # ---- 1) Аудит OHLC-стратегий на (N_symbols × 3 TF) портфеле
+    save_progress(
+        out_dir, "Strategy-Lab Portfolio Audit", 15.0, "RUNNING",
+        f"Портфельный аудит ({len(symbols)} символов × {len(TIMEFRAME_CANDIDATES)} таймфреймов)",
+    )
 
     cand_list = {c["key"]: c for c in CANDIDATES}
     lab_results: dict[str, dict] = {}
+
+    # Пороги устойчивости: ≥75% символов и ≥2/3 таймфреймов на OOS
+    sym_threshold = max(1, round(0.75 * len(symbols)))
+    tf_threshold = max(1, round(2 / 3 * len(TIMEFRAME_CANDIDATES)))
 
     strategies_to_audit = [
         (k, e) for k, e in STRATEGY_REGISTRY.items() if e.tier != TIER_RESEARCH and k != "multicurrency_mtf"
@@ -423,9 +430,9 @@ def main() -> int:
             is_ok = is_d["pf"] >= 1.0
             full_ok = full_d["pf"] >= 1.10
             stress_pf_ok = stress_d["pf"] >= 0.90 and stress_d["pf"] >= oos_d["pf"] * 0.75
-            # Stability: ≥3/4 символов положительно и ≥2/3 таймфреймов положительно
-            sym_ok = oos_d.get("_positive_symbols", 0) >= 3
-            tf_ok = oos_d.get("_positive_timeframes", 0) >= 2
+            # Stability: ≥75% символов положительно и ≥2/3 таймфреймов положительно
+            sym_ok = oos_d.get("_positive_symbols", 0) >= sym_threshold
+            tf_ok = oos_d.get("_positive_timeframes", 0) >= tf_threshold
 
             if not oos_ok:
                 reasons.append("OOS thresholds not met")
@@ -436,9 +443,15 @@ def main() -> int:
             if not stress_pf_ok:
                 reasons.append("Cost-stress degradation >25% or PF<0.9")
             if not sym_ok:
-                reasons.append(f"Not positive on >=3/4 symbols (got {oos_d.get('_positive_symbols',0)})")
+                reasons.append(
+                    f"Not positive on >={sym_threshold}/{len(symbols)} symbols "
+                    f"(got {oos_d.get('_positive_symbols',0)})"
+                )
             if not tf_ok:
-                reasons.append(f"Not positive on >=2/3 timeframes (got {oos_d.get('_positive_timeframes',0)})")
+                reasons.append(
+                    f"Not positive on >={tf_threshold}/{len(TIMEFRAME_CANDIDATES)} timeframes "
+                    f"(got {oos_d.get('_positive_timeframes',0)})"
+                )
 
             if oos_d["pf"] < 1.0 or oos_d["return_pct"] < 0:
                 return "REJECTED", reasons
@@ -589,7 +602,7 @@ def main() -> int:
     md.append("# Итоговый исследовательский аудит ASTRA (2021–2026)")
     md.append("")
     md.append(f"- **Символы**: `{', '.join(symbols)}`")
-    md.append(f"- **Таймфреймы**: {', '.join(TIMEFRAME_CANDIDATES)} (12 комбо: 4 × 3)")
+    md.append(f"- **Таймфреймы**: {', '.join(TIMEFRAME_CANDIDATES)} ({len(symbols) * len(TIMEFRAME_CANDIDATES)} комбо: {len(symbols)} × {len(TIMEFRAME_CANDIDATES)})")
     md.append(f"- **Период**: IS {args.start} → {args.oos_start}; OOS {args.oos_start} → конец данных")
     md.append(f"- **Запрошенный конец**: {args.end}; **фактический конец** (мин по символам 1h): "
               f"{datetime.fromtimestamp(end_ms/1000, tz=UTC).strftime('%Y-%m-%d %H:%M UTC')}")
@@ -605,7 +618,7 @@ def main() -> int:
         md.append(f"| {sym} | {dq['candles_1h']} | {dq['candles_4h']} | {dq['candles_1d']} | "
                   f"{dq['last_timestamp_1h'][:10]} | {'✅' if dq['reaches_requested_end'] else '❌'} | {dq['coverage_gap_days_to_2026_08_22']} |")
     md.append("")
-    md.append("## Результаты OHLC-стратегий (портфель 12 комбо)")
+    md.append(f"## Результаты OHLC-стратегий (портфель {len(symbols) * len(TIMEFRAME_CANDIDATES)} комбо)")
     md.append("")
     md.append("| Стратегия | Классификация | IS PF | OOS PF | Full PF | Stress PF | OOS Ret% | OOS MaxDD% | Trades | ⊕sym | ⊕TF |")
     md.append("|---|---|---|---|---|---|---|---|---|---|---|")
@@ -622,7 +635,7 @@ def main() -> int:
         tr_p = v["out_of_sample"].get("trades", 0)
         sym_p = v.get("positive_symbols_oos", "—")
         tf_p = v.get("positive_timeframes_oos", "—")
-        md.append(f"| {v['name']} | {v['status']} | {is_p} | {oos_p} | {full_p} | {str_p} | {ret_p:+.2f}% | {dd_p:.2f}% | {tr_p} | {sym_p}/4 | {tf_p}/3 |")
+        md.append(f"| {v['name']} | {v['status']} | {is_p} | {oos_p} | {full_p} | {str_p} | {ret_p:+.2f}% | {dd_p:.2f}% | {tr_p} | {sym_p}/{len(symbols)} | {tf_p}/{len(TIMEFRAME_CANDIDATES)} |")
     md.append("")
     md.append("## Multicurrency MTF: ablation-исследования (full window)")
     md.append("")
