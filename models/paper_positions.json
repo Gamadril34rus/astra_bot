@@ -62,7 +62,7 @@
       "trailing_activated": true,
       "trailing_distance": null,
       "highest_price": "0.2227",
-      "lowest_price": "0.2155",
+      "lowest_price": "0.215",
       "strategy": "pullback",
       "opened_at": 1787670853361,
       "notes": {
@@ -142,6 +142,42 @@
         "ml_probability": null,
         "edge_pct": 0.21563471162575854,
         "rr": 1.2
+      }
+    },
+    {
+      "id": "342a7c82-b5be-42f8-a1b4-02225570169e",
+      "symbol": "LINK-USDT",
+      "direction": "long",
+      "entry_price": "11.51",
+      "quantity": "479.499588",
+      "stop_loss": "11.37188",
+      "take_profits": [
+        "11.648120",
+        "11.758616",
+        "11.855300"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "479.499588",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "11.532",
+      "lowest_price": "11.503",
+      "strategy": "pullback",
+      "opened_at": 1787742144075,
+      "notes": {
+        "score": 50.0,
+        "ml_probability": null,
+        "edge_pct": 0.3130764150305464,
+        "rr": 0.7500000000000001
       }
     }
   ],
