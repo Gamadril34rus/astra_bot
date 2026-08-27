@@ -398,6 +398,72 @@ def shock_dip_signal(df: pd.DataFrame, drop: float):
     return entry_exit_state(entry, exit_sig)
 
 
+def academy_hybrid_mtf_signal(df: pd.DataFrame):
+    """OHLC-адаптация Academy Hybrid MTF (EMA50/200 тренд + sweep структуры + объём).
+
+    Оригинальная бот-реализация (astra_bot/strategies/academy_hybrid_mtf.py) работает
+    через мульти-таймфрейм async-интерфейс с 1D/4H/1H свечами. Для аудирующего
+    бэктестера на 1h/4h/1d используем однотаймфреймовую проекцию:
+      - Тренд: EMA50 > EMA200 (лонг) / < (шорт).
+      - Sweep структуры: минимум Low за N=10 баров пробивается тенью, но закрытие
+        выше этого уровня (лонг); аналогично для шорта.
+      - Подтверждение объёмом: volume > SMA(volume, 20) на баре пробоя.
+      - Stop = 1.5 × ATR14 за уровень sweep; TP = 2R.
+    Параметры N/ATR/RR выбраны так, чтобы правило давало схожую частоту сигналов
+    на всех трёх ТФ (1h/4h/1d) без хардкода под конкретный масштаб.
+    """
+    from research_free_strategies import atr as _atr_fn  # noqa: WPS433
+
+    c = df["close"]
+    h = df["high"]
+    lo = df["low"]
+    v = df["volume"] if "volume" in df.columns else pd.Series(1.0, index=df.index)
+
+    bpd = _bars_per_day(df)
+    n_structure = max(5, round(bpd * (10 / 6)))  # ~10 баров в эквиваленте 4h
+    vol_window = max(5, round(bpd * (20 / 24)))   # SMA20 в 1h-эквиваленте
+    atr_period = max(5, round(bpd * (14 / 6)))
+    ema_fast = 50
+    ema_slow = 200
+
+    e50 = ema(c, ema_fast)
+    e200 = ema(c, ema_slow)
+    up_trend = e50 > e200
+    dn_trend = e50 < e200
+
+    # Структурные уровни: экстремумы за окно n_structure без последнего бара
+    # (на баре t сигнал смотрит на предыдущие N баров).
+    recent_low = lo.shift(1).rolling(n_structure, min_periods=1).min()
+    recent_high = h.shift(1).rolling(n_structure, min_periods=1).max()
+
+    vol_sma = v.rolling(vol_window, min_periods=1).mean()
+    vol_ok = v > vol_sma
+
+    atr_s = _atr_fn(df, atr_period)
+
+    # Sweep лоев (LONG): текущий low < recent_low, close > recent_low, объём выше SMA
+    sell_sweep = (lo < recent_low) & (c > recent_low) & vol_ok & up_trend
+    buy_sweep = (h > recent_high) & (c < recent_high) & vol_ok & dn_trend
+
+    # Вход при sweep; выход по противоположному sweep или развороту макро-тренда.
+    # SL/TP/таймаут дополнительно применяются в run_engine.
+    entry = sell_sweep | buy_sweep
+    exit_sig = (up_trend & buy_sweep) | (dn_trend & sell_sweep) | \
+        (up_trend & (e50 < e200)) | (dn_trend & (e50 > e200))
+    # entry_exit_state разворачивает сигнал в ±1 и держит позицию до выхода;
+    # направление определяется тем, какой тип sweep сработал в entry-баре.
+    state = entry_exit_state(entry, exit_sig).astype(int)
+    # Коррекция направления: state даёт «в позиции / не в позиции» (1/0),
+    # но нам нужен знак long/short. Умножаем на (sell_sweep → +1, buy_sweep → -1),
+    # заполняя знак forward-fill внутри серии удержания.
+    direction = pd.Series(0, index=df.index, dtype=int)
+    direction[sell_sweep] = 1
+    direction[buy_sweep] = -1
+    # ffill без look-ahead: направление удерживается с последнего входа.
+    direction = direction.replace(0, np.nan).ffill().fillna(0).astype(int)
+    return state * direction
+
+
 CANDIDATES: list[dict] = []
 
 
@@ -467,6 +533,11 @@ _add("rsi2_trend", "RSI(2)<10 в тренде EMA200 (4h)", lambda df: rsi2_tren
 _add("shock_dip", "Шок-дип −15% от 100-бар max + RSI2<5 (4h)",
      lambda df: shock_dip_signal(df, 0.15), stop_mult=2.5, take_mult=3.0,
      max_hold=200, long_only=True)
+
+# Семейство 9: Academy Hybrid MTF (EMA50/200 + sweep + volume), OHLC-адаптация.
+_add("academy_hybrid_mtf", "Academy Hybrid MTF (EMA50/200 + sweep + VSA)",
+     lambda df: academy_hybrid_mtf_signal(df),
+     stop_mult=1.5, take_mult=3.0, max_hold=100)
 
 
 # ---------------------------------------------------------------------------

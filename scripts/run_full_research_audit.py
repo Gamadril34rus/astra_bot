@@ -44,6 +44,7 @@ STRATEGY_TO_CANDIDATE = {
     "ts_momentum": "tsm45_ls",
     "ts_momentum_adx": "tsm45_adx",
     "book_breakout": "don100_adx",
+    "academy_hybrid_mtf": "academy_hybrid_mtf",
     "momentum": "gc50200_adx",
     "mean_reversion": "bbfade_lo",
     "pullback": "pullback",
