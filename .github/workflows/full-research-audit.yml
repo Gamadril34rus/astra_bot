@@ -31,11 +31,11 @@ jobs:
 
       - name: Download Real Public OHLCV Data
         run: |
-          python scripts/fetch_klines.py --symbols BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT --timeframes 1h,4h,1d --start 2021-01-01 --end 2026-08-22
+          python scripts/fetch_klines.py --symbols BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,ADAUSDT,DOGEUSDT,AVAXUSDT,LINKUSDT,LTCUSDT --timeframes 1h,4h,1d --start 2021-01-01 --end 2026-08-22
 
       - name: Run Unified Research Audit
         run: |
-          python scripts/run_full_research_audit.py --data-dir data --symbols BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT --start 2021-01-01 --oos-start 2025-01-01 --end 2026-08-22 --out reports/research_2026
+          python scripts/run_full_research_audit.py --data-dir data --symbols BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,ADAUSDT,DOGEUSDT,AVAXUSDT,LINKUSDT,LTCUSDT --start 2021-01-01 --oos-start 2025-01-01 --end 2026-08-22 --out reports/research_2026
 
       - name: Upload Audit Artifacts
         if: always()
