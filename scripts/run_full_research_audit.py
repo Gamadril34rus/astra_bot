@@ -2,7 +2,8 @@
 """Единый скрипт многолетнего исследовательского аудита стратегий ASTRA.
 
 Прогоняет строгий аудит всех формализованных OHLC-стратегий и MTF протокола:
-- Пул данных: BTCUSDT, ETHUSDT, SOLUSDT, XRPUSDT на 1h/4h/1d;
+- Пул данных: BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT, XRPUSDT, ADAUSDT, DOGEUSDT,
+  AVAXUSDT, LINKUSDT, LTCUSDT на 1h/4h/1d;
 - Период: 2021-01-01 → 2026-08-22, IS до 2024-12-31, OOS с 2025-01-01;
 - Исполнение: сигнал по закрытой свече t, вход по открытию t+1 (строго в run_engine);
 - Стоимости: база fee=0.1%/slippage=0.1%, stress fee=0.2%/slip=0.1%;
@@ -53,8 +54,9 @@ STRATEGY_TO_CANDIDATE = {
 TIMEFRAME_CANDIDATES = ("1h", "4h", "1d")
 
 # Таймфреймы, на которые спроецированы сигнатуры правил strategy_lab.
-# (Параметры lb=days*6 и bars_year заточены под 4h; на 1h/1d правило прогоняется
-# как есть, что эквивалентно разным горизонтам импульса и даёт диверсификацию.)
+# TSM-семейство и run_engine теперь авто-детектят bars/day по медианному
+# шагу open_time (см. strategy_lab._bars_per_day), так что lookback в
+# календарных днях и annualization шарпа корректно масштабируются под 1h/4h/1d.
 CAND_LOOKBACK_BARS = {"1h": 24, "4h": 6, "1d": 1}  # bars per day for each TF
 
 RESEARCH_PROFILE_NOTES = {
