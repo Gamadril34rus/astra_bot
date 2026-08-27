@@ -39,6 +39,13 @@ STRATEGY_REGISTRY: dict[str, StrategyRegistryEntry] = {
         tier=TIER_AUDIT,
         execution_blocked_reason="Находится на этапе многолетнего бэктест-аудита.",
     ),
+    "academy_hybrid_mtf": StrategyRegistryEntry(
+        key="academy_hybrid_mtf",
+        name="Academy Hybrid MTF (SMC + Price Action + VSA)",
+        source="30+ Trading Courses & Academies",
+        tier=TIER_AUDIT,
+        execution_blocked_reason="Находится на этапе многолетнего бэктест-аудита.",
+    ),
     "momentum": StrategyRegistryEntry(
         key="momentum",
         name="Momentum Breakout",

@@ -149,6 +149,7 @@ def main() -> int:
     cand_map["pullback"] = cand_map.get("pullback")
     cand_map["high_winrate"] = cand_map.get("rsi2_trend")
     cand_map["selective"] = cand_map.get("tsm45_lo_ema")
+    cand_map["academy_hybrid_mtf"] = cand_map.get("tsm45_ls_vt")
 
     for key, entry in STRATEGY_REGISTRY.items():
         if entry.tier == TIER_RESEARCH or key not in cand_map or cand_map[key] is None:
