@@ -2,7 +2,7 @@
 pydantic>=2.0
 
 # Database
-sqlalchemy>=2.0
+sqlalchemy>=2.0.52
 asyncpg>=0.28
 psycopg2-binary>=2.9
 
@@ -44,7 +44,7 @@ prometheus-client>=0.19
 pytest>=8.0
 pytest-asyncio>=0.23
 pytest-cov>=4.0
-pytest-mock>=3.12
+pytest-mock>=3.15.1
 
 # Code quality
 black>=24.0

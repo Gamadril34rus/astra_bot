@@ -20,8 +20,9 @@ def test_fetch_klines_cli_interface(tmp_path, monkeypatch):
         "--end", "2024-01-02",
         "--data-dir", str(data_dir),
     ])
-    # Перехватываем спуск на сеть
-    monkeypatch.setattr("scripts.fetch_klines.fetch_binance_vision", lambda sym, tf, s, e: "open_time,open,high,low,close,volume\n1704067200000,1,2,0.5,1.5,100\n")
+    # Перехватываем спуск на сеть (fetch_* возвращает (csv_text, meta))
+    sample_csv = "open_time,open,high,low,close,volume,close_time,quote_volume,count,taker_buy_volume,taker_buy_quote_volume,ignore\n1704067200000,1,2,0.5,1.5,100,1704070799999,1000,1,50,500,0\n"
+    monkeypatch.setattr("scripts.fetch_klines.fetch_binance_vision", lambda sym, tf, s, e: (sample_csv, {"source": "binance_vision", "candles": 1}))
     code = fetch_main()
     assert code == 0
     assert (data_dir / "BTCUSDT_1h.csv").exists()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 from astra_bot.core import models
@@ -97,6 +98,34 @@ async def test_multicurrency_mtf_btc_bearish_gate_blocks_altcoin_long():
 
 def test_audit_cli_generates_json_report(tmp_path):
     from scripts.audit_brains import main as audit_main
+
+    # Для теста генерируем минимальный синтетический CSV в фиксированном
+    # месте, откуда скрипт ожидает данные (не используем сеть).
+    data_dir = Path("data")
+    data_dir.mkdir(parents=True, exist_ok=True)
+    data_csv = data_dir / "BTCUSDT_4h.csv"
+    if not data_csv.exists():
+        import numpy as np
+        import pandas as pd
+        idx = pd.date_range("2021-01-01", "2024-12-31", freq="4h")
+        n = len(idx)
+        rng = np.random.default_rng(42)
+        price = 100.0 * np.exp(np.cumsum(rng.normal(0, 0.005, n)))
+        df = pd.DataFrame({
+            "open_time": [int(t.timestamp() * 1000) for t in idx],
+            "open": price,
+            "high": price * 1.002,
+            "low": price * 0.998,
+            "close": price * (1 + rng.normal(0, 0.001, n)),
+            "volume": rng.uniform(100, 1000, n),
+            "close_time": [int(t.timestamp() * 1000) + 4*3600*1000-1 for t in idx],
+            "quote_volume": rng.uniform(1e5, 1e6, n),
+            "count": rng.integers(100, 1000, n),
+            "taker_buy_volume": rng.uniform(50, 500, n),
+            "taker_buy_quote_volume": rng.uniform(5e4, 5e5, n),
+            "ignore": 0,
+        })
+        df.to_csv(data_csv, index=False)
 
     out_json = tmp_path / "brain_audit.json"
     sys_argv = [

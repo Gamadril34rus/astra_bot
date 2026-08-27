@@ -1,0 +1,457 @@
+Работаешь в репозитории Gamadril34rus/astra_bot. Выполни полный самостоятельный research-cycle вместо старого бота: сам собери данные, проверь их качество, проведи многолетний аудит всех существующих и новых формализуемых стратегий, проанализируй результаты, зафиксируй всё в отчётах, создай только доказуемые стратегии-кандидаты и запушь результат в отдельную ветку с Pull Request в master.
+
+Не проси пользователя вручную собирать CSV, запускать команды, считать результаты или переносить артефакты. Все возможные действия по сбору данных, тестированию, анализу, документированию, commit/push/PR выполни сам.
+
+КРИТИЧЕСКИЕ ПРАВИЛА:
+- Никаких реальных ордеров, API-ключей, withdrawal, плеча и реальных денег.
+- Не выдавать backtest за прогноз или гарантию доходности.
+- Не подбирать параметры по Out-of-Sample.
+- Не использовать look-ahead bias, текущие незакрытые свечи, будущие данные, дубли свечей.
+- Не создавать fake data, fake metrics, fake reports или fake historical news.
+- Не оставлять положительные только результаты и не скрывать отрицательные.
+- Стратегия с отрицательным OOS, PF < 1, чрезмерной просадкой или недостаточным числом сделок должна быть помечена REJECTED или SHADOW_ONLY, а не champion.
+- Новые стратегии не должны попадать в execution_strategies() автоматически.
+- Старый five-year pretrain и demo-worker не возвращать.
+- Не удалять существующие корректные V2 paper safety limits.
+- Не переписывать успешный TSM audit из PR #21 без необходимости; используй его как baseline и сравнивай честно.
+
+ЦЕЛЬ:
+Создать единый воспроизводимый исследовательский контур для:
+BTC/USDT
+ETH/USDT
+SOL/USDT
+XRP/USDT
+
+Период:
+2021-01-01 → 2026-08-22
+
+Основные таймфреймы:
+1H
+4H
+1D
+
+Разделение:
+In-Sample:
+2021-01-01 → 2024-12-31
+
+Out-of-Sample:
+2025-01-01 → 2026-08-22
+
+ИСТОЧНИКИ СТРАТЕГИЙ И ПРАВИЛ:
+1. Simple Trading Book_compressed.pdf.
+2. Мультивалютная_торговая_система.docx.
+3. docs/TRADER_METHODS.md.
+4. docs/EDGE_RESEARCH_PLAN.md.
+5. Существующие стратегии в astra_bot/strategies/.
+6. Существующий scripts/strategy_lab.py из PR #21.
+7. Существующий scripts/research_free_strategies.py.
+8. Существующий multicurrency_mtf audit и его текущие отрицательные результаты.
+
+СБОР ДАННЫХ:
+1. Сам загрузи исторические OHLCV:
+- BTCUSDT 1H, 4H, 1D;
+- ETHUSDT 1H, 4H, 1D;
+- SOLUSDT 1H, 4H, 1D;
+- XRPUSDT 1H, 4H, 1D.
+
+2. Используй публичные источники без ключей:
+- Binance Vision как основной источник;
+- MEXC или другой публичный источник только как fallback;
+- используй существующий scripts/fetch_klines.py, расширь его при необходимости.
+
+3. Сохрани локальные данные в:
+data/
+
+Пример имен:
+data/BTCUSDT_1h.csv
+data/BTCUSDT_4h.csv
+data/BTCUSDT_1d.csv
+data/ETHUSDT_1h.csv
+и так далее.
+
+4. Не коммить большие raw data CSV в git, если они не соответствуют существующим правилам репозитория. Raw data должны быть локальными или artifact-ами CI. В git коммитить только компактные отчёты, конфигурации, тесты и код.
+
+5. Сделай data quality report:
+reports/research_2026/data_quality.json
+
+Для каждого файла фиксируй:
+- источник;
+- symbol;
+- timeframe;
+- first/last timestamp;
+- raw rows;
+- usable rows;
+- duplicates removed;
+- missing intervals;
+- процент пропусков;
+- исключённые интервалы;
+- причину исключения;
+- checksum/sha256, если возможно.
+
+Если какая-то монета не имеет полных данных с 2021 года, используй доступную историю, но явно укажи реальную дату начала и не смешивай результаты с полным пятилетним набором без пометки.
+
+ЕДИНЫЙ AUDIT PROTOCOL:
+Создай или расширь audit harness так, чтобы любой результат был воспроизводим.
+
+Общие условия:
+- сигнал формируется только после закрытия свечи;
+- вход не раньше открытия следующей доступной свечи;
+- fee = 0.001 на сторону;
+- slippage = 0.001 на сторону;
+- дополнительно сделать cost stress:
+  fee = 0.002 на сторону;
+  slippage = 0.001 на сторону;
+- одинаковый initial capital = 10_000 USDT;
+- не более трёх одновременных позиций;
+- считать BTC+ETH одной high-correlation exposure group;
+- no leverage;
+- сохранять seed, config, data period и версии правил.
+
+Создай:
+scripts/run_full_research_audit.py
+
+CLI пример:
+python scripts/run_full_research_audit.py --data-dir data --symbols BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT --start 2021-01-01 --oos-start 2025-01-01 --end 2026-08-22 --capital 10000 --fee 0.001 --slippage 0.001 --out reports/research_2026
+
+Если historical data отсутствуют, не рисуй фальшивые результаты. Заверши с понятной ошибкой и укажи, какие файлы/периоды отсутствуют.
+
+ЧТО ПРОВЕРЯТЬ:
+1. Existing baselines:
+- ts_momentum;
+- ts_momentum_adx;
+- book_breakout;
+- momentum;
+- mean_reversion;
+- pullback;
+- high_winrate;
+- selective.
+
+2. Multicurrency MTF system:
+1D context:
+LONG:
+close > EMA20 > EMA50 > EMA200.
+SHORT:
+close < EMA20 < EMA50 < EMA200.
+EMA mixed:
+NO TRADE.
+
+4H:
+consolidation/level → breakout → retest.
+Вход на breakout запрещён.
+
+1H:
+hammer/bullish engulfing для long;
+shooting star/bearish engulfing для short;
+volume > SMA(volume, 20);
+entry следующей свечой.
+
+BTC gate:
+BTC daily bearish блокирует long ETH/SOL/XRP.
+
+Risk:
+BTC/ETH risk per trade = 0.4% equity.
+SOL/XRP risk per trade = 0.25% equity.
+daily loss stop = 3%.
+
+Position lifecycle:
+- initial stop за retest extreme + 0.5 ATR;
+- minimum R:R >= 2;
+- TP1 на 1R;
+- закрыть 50% на TP1;
+- stop остатка в breakeven;
+- trailing остатка;
+- одна позиция считается одной итоговой сделкой.
+
+3. Реальные идеи из docs/TRADER_METHODS.md:
+Не создавать фейковые Soros/Druckenmiller/Livermore стратегии.
+Если идея может быть честно выражена OHLCV-правилом, добавь её только как отдельную audit strategy:
+- Livermore-style pivot/breakout/retest;
+- Tudor-style risk timing/volatility filter;
+- trend-following/systematic baseline.
+Soros/Druckenmiller macro/news ideas оставить research-only, пока не будет реального historical macro/news dataset.
+
+4. Новые правила создавать только если:
+- они формализованы;
+- имеют отдельный strategy key;
+- имеют unit tests;
+- имеют IS/OOS и cost-stress результаты;
+- не получают champion автоматически.
+
+ABLATION:
+Для multicurrency_mtf обязательно сравнить:
+- baseline;
+- without_btc_gate;
+- without_volume_filter;
+- without_retest;
+- without_partial_trailing;
+- without_daily_context;
+- without_cost_stress.
+
+Для каждого варианта сохранить IS, OOS, full-window и stress results.
+
+ОТБОР:
+Сделай прозрачный policy, например:
+CHAMPION CANDIDATE только если одновременно:
+- OOS PF >= 1.10;
+- OOS expectancy > 0 после costs;
+- OOS return не отрицательный;
+- OOS max drawdown <= 15%;
+- минимум 20 закрытых OOS positions;
+- нет катастрофического года;
+- не разваливается при cost stress;
+- нет явного data leakage;
+- либо работает на нескольких активах, либо строго ограничен конкретным активом/режимом.
+
+Если условия не выполнены:
+REJECTED или SHADOW_ONLY.
+
+Не назначай champion автоматически даже если все thresholds выполнены. Для champion candidate нужен отдельный ручной review.
+
+ОТЧЁТЫ:
+Создай:
+reports/research_2026/
+
+Структура:
+reports/research_2026/
+- protocol.json
+- data_quality.json
+- strategy_inventory.json
+- aggregate_summary.json
+- aggregate_summary.md
+- rejected_strategies.md
+- candidate_strategies.md
+- full/
+- in_sample/
+- out_of_sample/
+- cost_stress/
+- ablation/
+- per_symbol/
+- per_strategy/
+- charts/ только если существующий стек умеет строить их стабильно.
+
+protocol.json:
+- created_at;
+- symbols;
+- timeframes;
+- start/end;
+- IS/OOS boundary;
+- capital;
+- fees/slippage;
+- stress costs;
+- risk rules;
+- portfolio rules;
+- data source;
+- strategy configs;
+- seed;
+- explicit anti-lookahead rules;
+- news dataset status.
+
+aggregate_summary.md:
+- краткая таблица всех стратегий;
+- IS/OOS/full/stress metrics;
+- результаты по symbols;
+- результаты по годам;
+- лучшие/худшие режимы;
+- correlation/exposure notes;
+- which strategies are REJECTED;
+- which are SHADOW_ONLY;
+- which are candidate for manual review;
+- честное объяснение текущих отрицательных результатов multicurrency_mtf;
+- никаких обещаний доходности.
+
+Для каждой стратегии метрики:
+- total positions;
+- wins/losses;
+- win rate;
+- PF;
+- gross profit/gross loss;
+- net PnL;
+- return;
+- max drawdown;
+- Sharpe при возможности;
+- expectancy;
+- fees;
+- slippage;
+- average holding time;
+- long/short breakdown;
+- yearly breakdown;
+- symbol breakdown;
+- exit reason breakdown.
+
+TELEGRAM:
+Обнови astra_bot/telegram/bot.py.
+
+Добавь разрешённым пользователям read-only команды:
+- /аудит
+- /audit
+- /стратегии
+- /strategies
+- /исследование
+- /research
+
+Команда /audit или /аудит:
+читает reports/research_2026/progress.json.
+Если audit не запускался:
+📊 Research audit ещё не запускался.
+Статус: NOT_STARTED.
+
+Если running:
+📊 ASTRA research audit
+Статус: RUNNING
+Этап: <stage>
+Стратегия: <strategy>
+Символ: <symbol>
+Сценарий: <scenario>
+Прогресс: <percent>%
+Обновлено: <updated_at>.
+
+Если completed:
+✅ ASTRA research audit завершён
+Период: <start> — <end>
+OOS: <oos_start> — <end>
+Символы: <symbols>
+Проверено стратегий: <count>
+Candidate for review: <count>
+Shadow only: <count>
+Rejected: <count>
+Отчёт: reports/research_2026/aggregate_summary.md
+Режим: RESEARCH/AUDIT ONLY. Автоматическое исполнение запрещено.
+
+Если failed:
+⚠️ ASTRA research audit завершился ошибкой
+Этап: <stage>
+Ошибка: <last_error>
+Обновлено: <updated_at>.
+
+Команда /strategies или /стратегии:
+показывает:
+- champion;
+- candidate for manual review;
+- shadow only;
+- rejected;
+- research-only;
+- почему multicurrency_mtf не допущена к execution, если её OOS отрицательный.
+
+Команда /research или /исследование:
+показывает компактную сводку:
+- сколько данных собрано;
+- какие symbols/timeframes покрыты;
+- последняя дата данных;
+- текущий audit status;
+- дата последнего completed report;
+- есть ли full OOS coverage до 2026-08-22.
+
+Telegram-команды:
+- не запускают audit;
+- не скачивают данные;
+- не размещают ордера;
+- не меняют paper state;
+- не показывают secrets, stack traces или credential paths;
+- корректно работают, если report/progress files отсутствуют.
+
+Создай:
+reports/research_2026/progress.json
+
+Структура:
+- status: not_started/running/completed/failed;
+- started_at;
+- updated_at;
+- finished_at;
+- stage;
+- strategy;
+- symbol;
+- scenario;
+- percent;
+- processed_symbols;
+- total_symbols;
+- processed_strategies;
+- total_strategies;
+- last_error;
+- output_dir.
+
+progress.json должен обновляться в ходе реального audit. Нельзя писать completed, пока все необходимые отчёты не созданы.
+
+TESTS:
+Создай или обнови tests так, чтобы проверить:
+- data quality validation;
+- no future candle leakage;
+- 1H → 4H и 1H → 1D resampling;
+- BTC bearish gate;
+- volume filter;
+- retest requirement;
+- TP1 exactly 50%;
+- breakeven after TP1;
+- trailing logic;
+- BTC/ETH correlation exposure;
+- daily -3% stop;
+- IS/OOS temporal boundary;
+- cost stress affects PnL;
+- negative multicurrency result remains audit-only;
+- missing data fails honestly;
+- progress.json lifecycle;
+- /audit statuses;
+- /strategies tiers;
+- /research data coverage;
+- Telegram commands do not modify paper broker state or create orders.
+
+WORKFLOW:
+Не создавать old five-year pretrain.
+Разрешено создать один manual workflow_dispatch для full research audit, если:
+- он не включает real trading;
+- не пушит training/model state;
+- не запускается раз в несколько часов;
+- не обрабатывает месяц за запуск;
+- загружает reports как artifacts;
+- имеет timeout;
+- cron максимум один раз в неделю, либо только manual.
+Если workflow не может скачать данные, он должен закончиться понятной ошибкой и не создавать fake reports.
+
+ДОКУМЕНТАЦИЯ:
+Обнови:
+- README.md;
+- docs/INDEX.md;
+- docs/RISK_AND_GOALS.md;
+- docs/strategy_portfolio.md;
+- при необходимости docs/AUDIT_2026-08-21.md.
+
+Добавь:
+- команду самостоятельного полного audit;
+- необходимые данные;
+- IS/OOS protocol;
+- strategy tiers;
+- Telegram monitoring commands;
+- warning, что audit results не являются гарантией доходности;
+- warning, что multicurrency_mtf с отрицательным OOS не может быть execution strategy.
+
+ПЕРЕД ЗАВЕРШЕНИЕМ:
+Запусти:
+python -m pytest tests/unit tests/integration
+python -m ruff check astra_bot scripts tests
+git diff --check
+python scripts/run_full_research_audit.py --help
+
+Сделай smoke run на маленьких fixture CSV и проверь:
+- progress.json;
+- data_quality.json;
+- reports;
+- Telegram status parser;
+- no fake result при плохих данных.
+
+После этого сам запусти полный audit на доступных реальных исторических данных. Если полный диапазон 2021-01-01 → 2026-08-22 недоступен, запусти максимально доступный диапазон, но явно зафиксируй это в protocol и report. Не подменяй отсутствующие годы.
+
+Сделай commit:
+feat: run full multi-strategy historical research audit
+
+Запушь свою ветку в GitHub и создай Pull Request в master.
+
+В финальном отчёте дай только:
+1. ссылку на PR;
+2. commit hash;
+3. точный результат pytest;
+4. точный результат ruff;
+5. фактическое покрытие данных по каждому symbol/timeframe;
+6. IS/OOS результаты по каждой стратегии;
+7. список REJECTED, SHADOW_ONLY и candidate for manual review;
+8. ссылку/пути к итоговым reports;
+9. статус Telegram-команд;
+10. честные ограничения исследования.
