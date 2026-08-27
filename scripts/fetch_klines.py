@@ -206,7 +206,7 @@ def main() -> int:
     parser.add_argument("--source", default="binance", choices=["binance", "mexc"])
     args = parser.parse_args()
 
-    symbols_raw = args.symbols or args.symbol or "BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT"
+    symbols_raw = args.symbols or args.symbol or "BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,ADAUSDT,DOGEUSDT,AVAXUSDT,LINKUSDT,LTCUSDT"
     timeframes_raw = args.timeframes or args.timeframe or "1h,4h,1d"
 
     symbols = [s.strip().upper() for s in symbols_raw.split(",") if s.strip()]

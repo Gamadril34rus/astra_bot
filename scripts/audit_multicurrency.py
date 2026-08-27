@@ -311,7 +311,7 @@ def run_audit_simulation(
             del open_positions[sym]
 
         # 2. Поиск новых входов
-        if not daily_trading_disabled and len(open_positions) < 3:
+        if not daily_trading_disabled and len(open_positions) < 5:
             for sym in symbols:
                 if sym in open_positions:
                     continue
@@ -386,7 +386,7 @@ def run_audit_simulation(
                     stop_dist = atr4h * 1.5
                     stop_px = entry_px - stop_dist if signal_dir == "LONG" else entry_px + stop_dist
 
-                    risk_pct = 0.004 if sym in ("BTCUSDT", "ETHUSDT") else 0.0025
+                    risk_pct = 0.004 if sym in ("BTCUSDT", "ETHUSDT") else (0.003 if sym in ("BNBUSDT", "SOLUSDT", "AVAXUSDT", "LINKUSDT", "LTCUSDT") else 0.0025)
                     risk_amount = equity * risk_pct
                     risk_per_share = abs(entry_px - stop_px)
 
@@ -452,7 +452,7 @@ def run_audit_simulation(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Многовалютный аудит multicurrency_mtf")
     parser.add_argument("--data-dir", default="data", help="Директория с CSV файлами")
-    parser.add_argument("--symbols", default="BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT", help="Символы через запятую")
+    parser.add_argument("--symbols", default="BTCUSDT,ETHUSDT,BNBUSDT,SOLUSDT,XRPUSDT,ADAUSDT,DOGEUSDT,AVAXUSDT,LINKUSDT,LTCUSDT", help="Символы через запятую")
     parser.add_argument("--start", default="2021-01-01", help="Начало IS YYYY-MM-DD")
     parser.add_argument("--oos-start", default="2024-01-01", help="Начало OOS YYYY-MM-DD")
     parser.add_argument("--end", default="2024-12-31", help="Конец YYYY-MM-DD")
@@ -516,9 +516,10 @@ def main() -> int:
         "slippage": args.slippage,
         "news_filter_tested": args.news_file is not None,
         "risk_rules": {
-            "max_open_positions": 3,
-            "correlation_group": ["BTCUSDT", "ETHUSDT"],
-            "risk_btc_eth": 0.004,
+            "max_open_positions": 5,
+            "majors_correlation_group": ["BTCUSDT", "ETHUSDT"],
+            "risk_majors": 0.004,
+            "risk_midcaps": 0.003,
             "risk_altcoins": 0.0025,
             "daily_drawdown_stop": 0.03,
         },
