@@ -56,6 +56,22 @@ from research_free_strategies import (
 )
 
 
+def _bars_per_day(df: pd.DataFrame) -> int:
+    """Определить число баров в сутках по медианному шагу open_time.
+
+    Используется в TSM/похожих правилах, где lookback задан в календарных
+    днях, а код не должен быть жёстко заточен под один таймфрейм.
+    Возвращает 6 при невозможности определить (разумный fallback = 4h).
+    """
+    if "open_time" not in df.columns or len(df) < 3:
+        return 6
+    step_ms = float(df["open_time"].diff().median())
+    if step_ms <= 0 or math.isnan(step_ms):
+        return 6
+    bars = max(1, round(86_400_000.0 / step_ms))
+    return max(1, min(bars, 24))
+
+
 def entry_exit_state(entry: pd.Series, exit_sig: pd.Series) -> pd.Series:
     """State-machine для entry/exit-правил: 1 пока позиция открыта.
 
@@ -221,8 +237,16 @@ def run_engine(
     equity_curve[0] = capital
     equity = realized
 
+    # Annualization factor — auto-detect bars/year по медианному шагу open_time.
+    if "open_time" in df.columns and len(df) >= 3:
+        step_ms = float(df["open_time"].diff().median())
+        bpd = max(1, round(86_400_000.0 / step_ms)) if step_ms > 0 and not math.isnan(step_ms) else 6
+    else:
+        bpd = 6
+    bars_year_sharpe = 365 * bpd
+
     rets = pd.Series(equity_curve).pct_change().dropna()
-    sharpe = float(rets.mean() / rets.std() * math.sqrt(365 * 6)) if len(rets) > 2 and rets.std() > 0 else 0.0
+    sharpe = float(rets.mean() / rets.std() * math.sqrt(bars_year_sharpe)) if len(rets) > 2 and rets.std() > 0 else 0.0
     pf = gw / gl if gl > 0 else (float("inf") if gw > 0 else 0.0)
     return Result(
         trades=n_trades,
@@ -240,7 +264,7 @@ def run_engine(
 # Кандидаты: семейства правил
 # ---------------------------------------------------------------------------
 def tsm_signal(df: pd.DataFrame, days: int, band: float, ema_filter: int | None):
-    lb = days * 6  # 4h
+    lb = max(1, round(days * _bars_per_day(df)))
     c = df["close"]
     ret = c / c.shift(lb) - 1
     raw = pd.Series(np.where(ret > band, 1, np.where(ret < -band, -1, np.nan)), index=df.index)
@@ -302,7 +326,7 @@ def pullback_signal(df: pd.DataFrame):
 def tsm_hysteresis_signal(df: pd.DataFrame, days: int, band_entry: float, band_exit: float):
     """TSM с гистерезисом: вход при |импульсе| > band_entry,
     выход при возврате ниже band_exit (меньше ложных флипов)."""
-    lb = days * 6
+    lb = max(1, round(days * _bars_per_day(df)))
     ret = (df["close"] / df["close"].shift(lb) - 1).values
     out = np.zeros(len(df), dtype=int)
     state = 0
@@ -328,7 +352,7 @@ def tsm_adx_signal(df: pd.DataFrame, days: int, adx_min: float):
     (ADX > порог); выходы не фильтруются."""
     from research_free_strategies import adx_di
 
-    lb = days * 6
+    lb = max(1, round(days * _bars_per_day(df)))
     ret = (df["close"] / df["close"].shift(lb) - 1).values
     adx, _, _ = adx_di(df, 14)
     a = adx.values
