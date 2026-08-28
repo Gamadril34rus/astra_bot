@@ -164,6 +164,23 @@ class TradingEngine:
                 max_exposure_pct=Decimal(self.config.max_total_exposure_pct),
             )
         )
+        # StateStore (Этап 3): единый атомарный checkpoint состояния.
+        # Компонентные файлы остаются source of truth; бандл — для
+        # crash-восстановления (например, утерянный paper_positions.json).
+        # Путь бандла — рядом с ФАЙЛОМ БРОКЕРА (а не из config), чтобы
+        # checkpoint всегда соответствовал именно этому компонентному
+        # файлу (и тесты с hermetic-брокером не зацикливают models/).
+        from ..core.state_store import StateStore
+
+        self.state_store = StateStore(
+            Path(self.broker.state_path).parent / "state_bundle.json"
+        )
+        try:
+            bundle = self.state_store.load()
+            if bundle is not None:
+                self.state_store.restore_broker(self.broker, bundle)
+        except Exception as exc:
+            logger.debug("state bundle restore: %s", exc)
         # Единая проверка «можно ли входить прямо сейчас»: расписание/бюджет
         # часов, новости, волатильность, спред, дисбаланс стакана.
         self.safety = MarketSafety()
@@ -589,6 +606,8 @@ class TradingEngine:
             self.risk.add_position(pos.id)
         except Exception as exc:
             logger.debug("risk.add_position: %s", exc)
+        # Значимое событие (открыта позиция) — checkpoint (Этап 3).
+        self._save_state_bundle()
         # Структурированная строка решения (TZ §32): режим, стратегия,
         # EV, confidence, риск-решение, размер.
         logger.info(
@@ -698,6 +717,14 @@ class TradingEngine:
             decision.reason_code or (decision.reasons[0] if decision.reasons else "?"),
         )
 
+    def _save_state_bundle(self) -> None:
+        """Checkpoint состояния (Этап 3): атомарно, не блокирует торговлю."""
+        try:
+            bundle = self.state_store.snapshot(broker=self.broker, risk=self.risk)
+            self.state_store.save(bundle)
+        except Exception as exc:
+            logger.debug("state bundle save: %s", exc)
+
     def _record_closed(self, closed: list) -> None:
         """Сохранить закрытые сделки: уроки, Risk Engine, статистика режимов.
 
@@ -765,6 +792,9 @@ class TradingEngine:
                     self._check_hypothesis_degradation(d)
             except Exception as exc:
                 logger.debug("stats_store.record: %s", exc)
+        # Значимое событие (закрыта сделка → лимиты/PnL изменились) —
+        # checkpoint (Этап 3).
+        self._save_state_bundle()
 
     def _check_hypothesis_degradation(self, trade: dict) -> None:
         """ACTIVE-гипотеза стратегии деградирует -> WEAKENING (TZ §31)."""

@@ -381,12 +381,43 @@ class AstraBot:
 
         started = time.monotonic()
         await self._trading_engine.step()
+        # Периодический checkpoint (Этап 3): атомарный state-бандл.
+        self._save_state()
         logger.debug("Tick done in %.1fs", time.monotonic() - started)
+
+    def _save_state(self) -> None:
+        """Собрать и атомарно сохранить state-бандл (Этап 3)."""
+        if self._trading_engine is None:
+            return
+        try:
+            readiness_info = None
+            try:
+                readiness_info = readiness.evaluate()
+            except Exception as exc:
+                logger.debug("Readiness для бандла: %s", exc)
+            registry = None
+            if Path("models/registry/registry.json").exists():
+                from astra_bot.ml.model_registry import get_registry
+
+                registry = get_registry()
+            bundle = self._trading_engine.state_store.snapshot(
+                broker=self._trading_engine.broker,
+                risk=self._trading_engine.risk,
+                readiness_info=readiness_info,
+                registry=registry,
+                hypotheses=self._trading_engine.hypotheses,
+            )
+            self._trading_engine.state_store.save(bundle)
+        except Exception as exc:
+            logger.debug("State bundle save: %s", exc)
 
     async def stop(self):
         """Остановка системы"""
         logger.info("ASTRA BOT Stopping...")
         self._running = False
+
+        # Финальный checkpoint перед остановкой (Этап 3).
+        self._save_state()
 
         # Отменяем все фоновые задачи (WebSocket, paper engine и т.п.).
         for task in list(self._background_tasks):
