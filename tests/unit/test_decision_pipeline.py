@@ -125,15 +125,15 @@ def test_correlation_blocks_alt_long_when_btc_panic():
     assert rep.blocked is True
 
 
-def test_pipeline_blocks_when_no_data():
+async def test_pipeline_blocks_when_no_data():
     pipe = DecisionPipeline(DecisionConfig())
     ctx = MarketContext(symbol="BTC/USDT", current_price=Decimal("100"), candles={})
-    decision = pipe.decide(ctx)
+    decision = await pipe.decide(ctx)
     assert decision.action == "NO_TRADE"
     assert "insufficient_data" in decision.reasons
 
 
-def test_pipeline_runs_end_to_end_with_bull_trend():
+async def test_pipeline_runs_end_to_end_with_bull_trend():
     cfg = DecisionConfig()
     pipe = DecisionPipeline(cfg, strategies=[_LongStrategy()])
     candles = _candles("BTC/USDT", 500, bull=True)
@@ -144,7 +144,7 @@ def test_pipeline_runs_end_to_end_with_bull_trend():
         candles={"1h": candles, "4h": candles[::4], "15m": candles},
         global_market={"btc_regime": MarketRegime.WEAK_BULL.value},
     )
-    decision = pipe.decide(ctx)
+    decision = await pipe.decide(ctx)
     assert decision.action in {"LONG", "NO_TRADE"}
     if decision.action == "LONG":
         assert decision.candidate is not None
@@ -154,7 +154,7 @@ def test_pipeline_runs_end_to_end_with_bull_trend():
         assert decision.reasons
 
 
-def test_pipeline_blocks_panic_regime_globally():
+async def test_pipeline_blocks_panic_regime_globally():
     cfg = DecisionConfig()
     pipe = DecisionPipeline(cfg, strategies=[_LongStrategy()])
     candles = _candles("BTC/USDT", 500)
@@ -164,7 +164,7 @@ def test_pipeline_blocks_panic_regime_globally():
         candles={"1h": candles},
         news_score=90,
     )
-    decision = pipe.decide(ctx)
+    decision = await pipe.decide(ctx)
     assert decision.action == "NO_TRADE"
 
 
@@ -208,29 +208,29 @@ def _tsm_context(candles):
     )
 
 
-def test_pipeline_flat_signal_returns_close():
+async def test_pipeline_flat_signal_returns_close():
     from astra_bot.strategies.ts_momentum import TSM_ACTION_FLAT
 
     pipe = DecisionPipeline(DecisionConfig(), strategies=[_FlipStubStrategy(TSM_ACTION_FLAT)])
     candles = _candles("BTC/USDT", 500, bull=True)
-    decision = pipe.decide(_tsm_context(candles))
+    decision = await pipe.decide(_tsm_context(candles))
     assert decision.action == "CLOSE"
     assert decision.candidate is None
 
 
-def test_pipeline_flip_signal_returns_flip_with_candidate():
+async def test_pipeline_flip_signal_returns_flip_with_candidate():
     from astra_bot.strategies.ts_momentum import TSM_ACTION_FLIP
 
     pipe = DecisionPipeline(DecisionConfig(), strategies=[_FlipStubStrategy(TSM_ACTION_FLIP)])
     candles = _candles("BTC/USDT", 500, bull=True)
-    decision = pipe.decide(_tsm_context(candles))
+    decision = await pipe.decide(_tsm_context(candles))
     assert decision.action == "FLIP"
     assert decision.candidate is not None
     assert decision.candidate.strategy == "tsm_stub"
     assert decision.candidate.features.get("no_take_profit") == 1.0
 
 
-def test_pipeline_prefers_strategy_timeframe_candles():
+async def test_pipeline_prefers_strategy_timeframe_candles():
     """Стратегия с preferred_timeframe получает свои свечи (4h)."""
     seen: dict = {}
 
@@ -247,5 +247,5 @@ def test_pipeline_prefers_strategy_timeframe_candles():
 
     pipe = DecisionPipeline(DecisionConfig(), strategies=[_TfSpy()])
     candles = _candles("BTC/USDT", 500, bull=True)
-    pipe.decide(_tsm_context(candles))
+    await pipe.decide(_tsm_context(candles))
     assert seen["step_ms"] == 4 * 3_600_000

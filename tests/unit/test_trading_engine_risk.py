@@ -66,7 +66,7 @@ class _AsyncMockReturn:
 class FakePipeline:
     """Детерминированный пайплайн: всегда предлагает LONG 100/99/103."""
 
-    def decide(self, ctx):
+    async def decide(self, ctx):
         cand = SignalCandidate(
             symbol=ctx.symbol,
             direction="long",

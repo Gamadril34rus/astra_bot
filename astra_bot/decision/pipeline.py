@@ -8,7 +8,6 @@ Data → Regime → Strategy → ML → EV → Risk → Execution.
 
 from __future__ import annotations
 
-import asyncio
 import inspect
 import logging
 from dataclasses import dataclass, field
@@ -101,27 +100,21 @@ class DecisionPipeline:
         self.ev = EVEngine(self.config.min_expected_edge_pct)
 
     # ----------------------------------------------------------- builders
-    def _run_evaluate(self, strategy, **kwargs):
-        """Запустить evaluate стратегии, корректно дождавшись корутины.
+    @staticmethod
+    async def _await_evaluate(maybe: Any) -> Any:
+        """Дождаться результата ``strategy.evaluate`` без хак-обвязок.
 
-        Раньше тут был ``asyncio.run`` внутри синхронного ``decide``, что
-        падало с "asyncio.run cannot be called from a running event loop"
-        в живом движке — поэтому сигналы не генерировались.
+        Стратегии в проекте — ``async def evaluate``; sync-обёртки тоже
+        принимаем (исполняются как есть — это быстрые чистые функции).
+        Вызов всегда происходит внутри running event loop (decide —
+        async), поэтому это просто ``await`` — без ThreadPoolExecutor
+        и вложенных ``asyncio.run``.
         """
-        maybe = strategy.evaluate(**kwargs)
-        if not inspect.iscoroutine(maybe):
-            return maybe
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            return asyncio.run(maybe)
-        # Уже внутри event loop: гоняем корутину до завершения в отдельном
-        # потоке со своим циклом, чтобы не ломать вызывающий loop.
-        import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-            return ex.submit(asyncio.run, maybe).result()
+        if inspect.isawaitable(maybe):
+            return await maybe
+        return maybe
 
-    def _candidates_from_strategies(
+    async def _candidates_from_strategies(
         self,
         ctx: MarketContext,
         regime: str,
@@ -139,13 +132,14 @@ class DecisionPipeline:
                     candles = ctx.candles_on(preferred_tf)
                 else:
                     candles = primary
-                signal = self._run_evaluate(
-                    strategy,
-                    symbol=ctx.symbol,
-                    candles=candles,
-                    orderbook=ctx.orderbook,
-                    current_price=float(ctx.current_price),
-                    market_regime=regime,
+                signal = await self._await_evaluate(
+                    strategy.evaluate(
+                        symbol=ctx.symbol,
+                        candles=candles,
+                        orderbook=ctx.orderbook,
+                        current_price=float(ctx.current_price),
+                        market_regime=regime,
+                    )
                 )
                 if signal is None:
                     continue
@@ -183,7 +177,12 @@ class DecisionPipeline:
             return None
 
     # ----------------------------------------------------------- main
-    def decide(self, ctx: MarketContext) -> Decision:
+    async def decide(self, ctx: MarketContext) -> Decision:
+        """Асинхронное решение по символу.
+
+        Вызывается из running event loop (TradingEngine.process_symbol /
+        main._tick); стратегии await'ятся напрямую, без потоковых хак-обвязок.
+        """
         reasons: list[str] = []
 
         # 1. Качество данных.
@@ -254,7 +253,9 @@ class DecisionPipeline:
         # 6. Корреляция с BTC. Значение используется в цикле кандидатов.
 
         # 7. Стратегии.
-        candidates = self._candidates_from_strategies(ctx, regime.regime.value)
+        candidates = await self._candidates_from_strategies(
+            ctx, regime.regime.value
+        )
         if not candidates:
             return Decision(
                 "NO_TRADE",
