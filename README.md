@@ -286,6 +286,9 @@ OBSERVATIONS/HYPOTHESES/STRATEGIES/LESSONS/MODELS со стабильными id
 **Exit Research — 8 стратегий выхода (STATIC_TP/ATR/STRUCTURE/
 TRAILING/BREAKEVEN/TIME/MOMENTUM/REGIME), исследуемых walk-forward
 и применяемых к live-позициям только после VALIDATED+ACTIVE**,
+**Model Registry — версии моделей с promotion chain
+development→validated→production, A/B-сравнением, stress-гейтами
+(UNSTABLE не ACTIVE) и rollback без потери старых версий**
 walk-forward simulation,
 research-first memory, lesson/pattern memory, ML pipeline, Telegram reporting
 и GitHub Actions.

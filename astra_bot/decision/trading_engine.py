@@ -192,6 +192,22 @@ class TradingEngine:
         from .exit_controller import ExitController
 
         self.exit_controller = ExitController(self.hypotheses)
+        # Model Registry (TZ §18): живому пайплайну отдаём только
+        # ACTIVE (production) модель; без неё пайплайн работает как
+        # раньше (ml_probability = None). Сбой загрузки не роняет бота.
+        if getattr(pipeline, "model", None) is None:
+            try:
+                from ..ml.model_registry import get_registry
+                from ..ml.model_trainer import MLModel
+
+                prod = get_registry().get_production_model()
+                if prod is not None and prod.model_path and Path(prod.model_path).exists():
+                    pipeline.model = MLModel.load(prod.model_path)
+                    logger.info(
+                        "ML model из registry (production): %s", prod.version
+                    )
+            except Exception as exc:
+                logger.debug("registry model load: %s", exc)
         self._last_bar_ts: dict[str, int] = {}
         self._running = False
         self._capital_synced = False
