@@ -118,6 +118,8 @@ def make_engine(tmp_path, okx, pipeline, lessons_collector):
         stats_path=str(tmp_path / "stats.json"),
         no_trade_observations_path=str(tmp_path / "obs.jsonl"),
         no_trade_outcomes_path=str(tmp_path / "outcomes.json"),
+        # Hermetic: гипотезы — в tmp, не в repo-state.
+        hypotheses_path=str(tmp_path / "hypotheses.json"),
     )
     broker = PaperBroker(
         state_path=__import__("pathlib").Path(cfg.state_path),

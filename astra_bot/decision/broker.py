@@ -61,6 +61,8 @@ class PaperPosition:
     # Контекст входа для статистики по режимам (meta-strategy, TZ §3.1).
     regime: str = ""
     timeframe: str = ""
+    # Сколько баров прожито позицией (для TIME_STOP и ATR_STOP, TZ §16).
+    bars_held: int = 0
 
 
 @dataclass
@@ -251,16 +253,31 @@ class PaperBroker:
         return pos
 
     def on_bar(self, bar) -> list[ClosedTrade]:
-        """Обработать новый бар: обновить стопы/тейки."""
+        """Обработать новый бар (совместимость): экстремумы + выходы."""
+        self.update_extremes(bar)
+        return self.check_exits(bar)
+
+    def update_extremes(self, bar) -> None:
+        """Обновить экстремумы/счётчик баров (вынесено из on_bar, чтобы
+        Exit Controller мог скорректировать стопы ДО проверки их срабатывания
+        на том же баре — TZ §16)."""
+        high = Decimal(str(bar.high))
+        low = Decimal(str(bar.low))
+        for pos in self.positions:
+            if pos.symbol != getattr(bar, "symbol", pos.symbol):
+                continue
+            pos.highest_price = high if pos.highest_price is None else max(pos.highest_price, high)
+            pos.lowest_price = low if pos.lowest_price is None else min(pos.lowest_price, low)
+            pos.bars_held += 1
+
+    def check_exits(self, bar) -> list[ClosedTrade]:
+        """Стоп-лосс и частичные тейки по обновлённым экстремумам."""
         closed: list[ClosedTrade] = []
         high = Decimal(str(bar.high))
         low = Decimal(str(bar.low))
         for pos in list(self.positions):
             if pos.symbol != getattr(bar, "symbol", pos.symbol):
                 continue
-            pos.highest_price = high if pos.highest_price is None else max(pos.highest_price, high)
-            pos.lowest_price = low if pos.lowest_price is None else min(pos.lowest_price, low)
-
             # Стоп-лосс.
             stop_hit = (
                 (pos.direction == "long" and low <= pos.stop_loss)
@@ -329,6 +346,15 @@ class PaperBroker:
                 self.positions.remove(pos)
         self.save()
         return closed
+
+    def close_position(self, pos_id: str, price: Decimal, reason: str) -> ClosedTrade | None:
+        """Закрыть одну позицию (для Exit Controller, TZ §16)."""
+        for pos in list(self.positions):
+            if pos.id == pos_id:
+                trade = self._close(pos, price, reason)
+                self.save()
+                return trade
+        return None
 
     def close_positions(
         self, symbol: str, price: Decimal, reason: str

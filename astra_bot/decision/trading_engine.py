@@ -187,6 +187,11 @@ class TradingEngine:
         from ..ml.hypothesis_engine import HypothesisStore
 
         self.hypotheses = HypothesisStore(Path(self.config.hypotheses_path))
+        # Exit Controller (TZ §16/§17): применяет план выхода только если
+        # Hypothesis Engine допустил вариант до ACTIVE.
+        from .exit_controller import ExitController
+
+        self.exit_controller = ExitController(self.hypotheses)
         self._last_bar_ts: dict[str, int] = {}
         self._running = False
         self._capital_synced = False
@@ -380,16 +385,34 @@ class TradingEngine:
             return []
 
         # Обновляем уже открытые позиции по последнему бару.
+        # Экстремумы обновляем до решения: Exit Controller скорректирует
+        # стопы ДО проверки срабатывания на этом же баре (TZ §16).
         last_bar = primary[-1]
-        closed = self.broker.on_bar(last_bar)
+        self.broker.update_extremes(last_bar)
+
+        # Решение по стратегиям — вычисляем до обработки выходов и
+        # проверки «есть ли позиция», чтобы флип-стратегии (ts_momentum)
+        # могли перевернуть/закрыть её.
+        decision = self.pipeline.decide(ctx)
+        regime_name = str(
+            (decision.diagnostics.get("regime") or {}).get("regime", "")
+        )
+
+        # Exit Research (TZ §16/§17): активная гипотеза выхода -> план;
+        # иначе STATIC_TP — live-поведение не меняется.
+        forced: list = []
+        try:
+            forced = self.exit_controller.apply(
+                self.broker, symbol, last_bar, list(primary), regime_name
+            )
+        except Exception as exc:
+            logger.debug("exit_controller: %s", exc)
+
+        closed = forced + self.broker.check_exits(last_bar)
 
         # Закрытые на этом баре сделки → реальные уроки + уведомления.
         if closed:
             self._record_closed(closed)
-
-        # Решение по стратегиям — вычисляем до проверки «есть ли позиция»,
-        # чтобы флип-стратегии (ts_momentum) могли перевернуть/закрыть её.
-        decision = self.pipeline.decide(ctx)
 
         # --- Research: NO_TRADE — результат модели, а не «пустой цикл».
         # Дедупликация по стабильному id (bar_time) — повторная обработка
