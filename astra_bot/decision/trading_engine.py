@@ -409,7 +409,7 @@ class TradingEngine:
         # Решение по стратегиям — вычисляем до обработки выходов и
         # проверки «есть ли позиция», чтобы флип-стратегии (ts_momentum)
         # могли перевернуть/закрыть её.
-        decision = self.pipeline.decide(ctx)
+        decision = await self.pipeline.decide(ctx)
         regime_name = str(
             (decision.diagnostics.get("regime") or {}).get("regime", "")
         )
