@@ -13,6 +13,8 @@
 | `PULLBACK_STRATEGY.md` | Детали pullback-стратегии |
 | `RISK_INTEGRATION.md` | Risk Engine в живом paper-контуре: лимиты, HALT, persistence, издержки |
 | `META_STRATEGY.md` | Meta-Strategy: выбор по EV в режиме, shrinkage, NO_TRADE-память |
+| `HYPOTHESIS_ENGINE.md` | Lifecycle гипотез (DISCOVERED…RETIRED), допуски к VALIDATED, live-деградация |
+| `RESEARCH_MEMORY.md` | Типизированная память: OBSERVATIONS/HYPOTHESES/STRATEGIES/LESSONS/MODELS |
 
 ## 2. Обучение и память
 
