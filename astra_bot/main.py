@@ -22,6 +22,7 @@ from astra_bot.core import readiness
 from astra_bot.core.config import get_settings, load_settings
 from astra_bot.core.instruments import to_okx
 from astra_bot.core.logger import get_component_logger, setup_logging
+from astra_bot.core.metrics import READINESS_READY, READINESS_SCORE
 from astra_bot.data.database import close_database, init_database
 from astra_bot.decision.trading_engine import TradingEngine, TradingEngineConfig
 from astra_bot.engines.execution_engine import get_execution_engine
@@ -376,6 +377,9 @@ class AstraBot:
                 readiness_info["threshold"],
                 readiness_info["ready"],
             )
+            # Гейджи readiness (Этап 7): видимость readiness-gate.
+            READINESS_SCORE.set(float(readiness_info["score"]))
+            READINESS_READY.set(1.0 if readiness_info["ready"] else 0.0)
         except Exception as exc:
             logger.debug("Readiness check error: %s", exc)
 
