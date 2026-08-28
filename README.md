@@ -138,7 +138,31 @@ Research выполняется **до self-play**. Виртуальные сд�
 | Circuit breaker | включён |
 | Реальный счёт | **не включается автоматически** |
 
-GitHub Actions используется как временная инфраструктура. Worker должен сохранять state/checkpoint, уроки и исследовательскую память.
+GitHub Actions используется как временная инфраструктура. Worker сохраняет state/checkpoint, уроки и исследовательскую память.
+
+### Современный торговый путь (paper)
+
+Реальный поток одного тика (`AstraBot._tick` → `TradingEngine.step`):
+
+1. рыночные данные по universe (REST OKX, `fetch_context`);
+2. `DecisionPipeline.decide()` — async, стратегии await'ятся напрямую
+   (без `asyncio.run`/потоковых хак-обвязок), режим рынка, EV-скоринг,
+   meta-стратегия, NO_TRADE-коды;
+3. **Risk Engine — независимый слой, обхода нет**: дневные/недельные
+   лимиты, drawdown HALT (переживает рестарт), gross/net-экспозиция,
+   корреляционные группы, бета-скейлинг к BTC;
+4. исполнение только через `PaperBroker` (реальные fees/slippage);
+5. **Exit Manager**: обязательные safety-выходы с причинами —
+   MAX_HOLD (48 ч), VOL_EXPANSION, BTC_PANIC (flatten) — поверх
+   ExitController (гипотезы выхода) и TP/SL/trailing/BREAKEVEN;
+6. **StateStore**: атомарный checkpoint (`state_bundle.json`,
+   tmp+`os.replace`) на значимых событиях — состояние переживает
+   рестарт worker;
+7. метрики Prometheus: решения `{action, reason}`, причины выходов,
+   латентность тика/решения, readiness-гейджи, гипотезы по статусам.
+
+Один упавший символ не останавливает остальные (per-symbol изоляция);
+legacy `PaperTradingEngine`-цикл отключается, когда активен современный путь.
 
 ## 🛡️ Readiness Gate
 
@@ -157,6 +181,18 @@ GitHub Actions используется как временная инфраст
 | Readiness score | ≥ 85/100 |
 
 Дополнительно требуется подтверждённое research coverage и out-of-sample стабильность. Реальный запуск остаётся отдельным ручным решением.
+
+### Двойной safety-gate для live-ордеров
+
+Live-ордера **запрещены по умолчанию** (fail-closed). Включение требует
+ОДНОВРЕМЕННО всех трёх условий (`astra_bot.main.live_orders_allowed()`):
+
+1. `ENABLE_LIVE_ORDERS=true` в окружении (явное решение оператора —
+   секреты/флаги только из env, никогда в код/конфиг по умолчанию);
+2. `trading_enabled: true` в `settings.yaml`;
+3. readiness-gate пройден (таблица выше).
+
+Любое незаполненное условие → live закрыт, причина — в логе при старте.
 
 ## 📲 Telegram
 
@@ -272,28 +308,44 @@ Connors RSI-2, Bollinger, Ichimoku и др.): `python scripts/research_free_stra
 
 ## 🚧 Статус
 
-**Реализовано:** OKX integration, защищённый Demo-контур, risk layer (в живом
-paper-контуре: лимиты потерь, drawdown HALT, восстановление между CI-сессиями,
-реальные fees/slippage в paper-счёте), **Meta-Strategy — выбор стратегии по
-EV в текущем рыночном режиме с bayesian shrinkage по sample size** (не по
-`total_score`), **NO_TRADE-наблюдения с future-outcome по горизонтам 1/3/6/12/24
-бара** (отказ от сделки — тоже обучение), **Hypothesis Engine — lifecycle
-гипотез DISCOVERED→TESTING→VALIDATED→ACTIVE→WEAKENING→INVALIDATED→RETIRED
-с полным набором доказательств для VALIDATED (train+validation+OOS+
-walk-forward+stress+sample size) и live-мониторингом деградации**,
-**Research Memory — типизированные хранилища
-OBSERVATIONS/HYPOTHESES/STRATEGIES/LESSONS/MODELS со стабильными id**,
-**Exit Research — 8 стратегий выхода (STATIC_TP/ATR/STRUCTURE/
-TRAILING/BREAKEVEN/TIME/MOMENTUM/REGIME), исследуемых walk-forward
-и применяемых к live-позициям только после VALIDATED+ACTIVE**,
-**Model Registry — версии моделей с promotion chain
-development→validated→production, A/B-сравнением, stress-гейтами
-(UNSTABLE не ACTIVE) и rollback без потери старых версий**
-walk-forward simulation,
-research-first memory, lesson/pattern memory, ML pipeline, Telegram reporting
-и GitHub Actions.
+**Архитектура (рабочий paper-контур):**
 
-**В работе:** длительная Demo-валидация, calibration/drift, надёжный checkpoint/resume и перенос на VPS.
+- **`_tick`-оркестратор** — тонкий слой в `main.py`: fail-closed без
+  исполнителя, троттлинг, readiness-лог, вся торговая логика в
+  `TradingEngine.step()`; graceful shutdown (SIGINT/SIGTERM);
+- **async-pipeline** — `decide()` async, стратегии await'ятся напрямую
+  (нет `asyncio.run` в потоках и вложенных event loops);
+- **Risk Engine (независимый слой)** — дневные/недельные лимиты,
+  drawdown HALT (переживает рестарт), gross/net-экспозиция,
+  корреляционные группы, бета-скейлинг к BTC;
+- **Meta-Strategy** — выбор стратегии по EV в текущем режиме с bayesian
+  shrinkage по sample size (не по `total_score`);
+- **NO_TRADE-наблюдения** с future-outcome по горизонтам 1/3/6/12/24 бара;
+- **Hypothesis Engine** — lifecycle DISCOVERED→TESTING→VALIDATED→ACTIVE→
+  WEAKENING→INVALIDATED→RETIRED; VALIDATED — только полный набор
+  доказательств (train+validation+OOS+walk-forward+stress+sample size)
+  **и прохождение FDR-гейта Benjamini-Hochberg** (множественная проверка);
+  auto-retirement устаревших гипотез; negative results сохраняются;
+- **Exit Manager + Exit Research** — обязательные safety-выходы с
+  причинами (MAX_HOLD/VOL_EXPANSION/BTC_PANIC) поверх 8 исследуемых
+  стратегий выхода (применяются к позициям только после VALIDATED+ACTIVE);
+- **StateStore** — атомарные checkpoints, состояние переживает рестарт
+  worker; state-ротация JSONL (CI не растит state);
+- **Model Registry** — promotion chain development→validated→production,
+  A/B, stress-гейты, rollback;
+- **Метрики** — решения `{action, reason}`, выходы `{reason}`,
+  латентность, readiness-гейджи, гипотезы по статусам (Prometheus);
+- **Research-first memory** — OBSERVATIONS/HYPOTHESES/STRATEGIES/
+  LESSONS/MODELS со стабильными id, leakage-тесты walk-forward;
+- **Тесты** — 553: unit + integration, sizing-инварианты,
+  replay-детерминизм, chaos (NaN/гэп/сбой API/HALT+panic),
+  anti-leakage (FDR + walk-forward).
+
+**Live-торговля:** ЗАПРЕЩЕНА по умолчанию (fail-closed, двойной
+safety-gate: `ENABLE_LIVE_ORDERS` + `trading_enabled` + readiness).
+
+**В работе:** длительная Demo-валидация (readiness), calibration/drift,
+перенос на VPS.
 
 **Запрещено:** автоматическое включение реальной торговли.
 

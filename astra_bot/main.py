@@ -56,6 +56,40 @@ setup_logging(
 logger = get_component_logger("main")
 
 
+def live_orders_allowed() -> tuple[bool, list[str]]:
+    """Двойной safety-gate для live-ордеров (fail-closed, Этап 9).
+
+    LIVE разрешён только когда ВСЕ условия выполнены:
+    1. ``ENABLE_LIVE_ORDERS=true`` в окружении — явное решение
+       оператора (по умолчанию ЗАПРЕЩЕНО, TZ: реальные деньги
+       отключены);
+    2. ``trading_enabled=true`` в конфиге (settings.yaml);
+    3. readiness-gate пройден (30+ дней, 200+ сделок, WR/PF/DD/
+       Sharpe — см. core/readiness.py).
+
+    Возвращает ``(allowed, reasons)`` — reasons не пусты, когда
+    gate закрыт (логгируются, чтобы «почему live выключен» всегда
+    было объяснимо).
+    """
+    reasons: list[str] = []
+    if os.environ.get("ENABLE_LIVE_ORDERS", "").strip().lower() != "true":
+        reasons.append("ENABLE_LIVE_ORDERS не установлен в true (по умолчанию запрещено)")
+    try:
+        if not get_settings().trading_enabled:
+            reasons.append("trading_enabled=false в конфиге")
+    except RuntimeError:
+        reasons.append("конфигурация не загружена")
+    try:
+        info = readiness.evaluate()
+        if not info["ready"]:
+            reasons.append(
+                f"readiness {info['score']}/{info['threshold']} (не готов к live)"
+            )
+    except Exception as exc:
+        reasons.append(f"readiness-проверка недоступна: {exc}")
+    return (len(reasons) == 0), reasons
+
+
 class AstraBot:
     """
     Основной класс ASTRA BOT.
@@ -297,6 +331,19 @@ class AstraBot:
 
         self._running = True
         logger.info("ASTRA BOT Starting...")
+
+        # Двойной safety-gate (Этап 9): live-ордера запрещены по
+        # умолчанию; статус гейта всегда в логе.
+        live_ok, live_reasons = live_orders_allowed()
+        if live_ok:
+            logger.warning(
+                "LIVE ORDERS ENABLED: ENABLE_LIVE_ORDERS + trading_enabled "
+                "+ readiness — проверяйте намеренность!"
+            )
+        else:
+            logger.info(
+                "LIVE disabled (fail-closed): %s", "; ".join(live_reasons)
+            )
 
         # Запуск WebSocket
         if self._exchange_websocket and (
