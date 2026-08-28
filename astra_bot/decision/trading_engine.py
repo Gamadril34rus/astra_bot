@@ -84,6 +84,7 @@ class TradingEngineConfig:
     stats_path: str = "models/strategy_stats.json"
     no_trade_observations_path: str = "models/no_trade_observations.jsonl"
     no_trade_outcomes_path: str = "models/no_trade_outcomes.json"
+    hypotheses_path: str = "models/research/hypotheses.json"
 
 
 class TradingEngine:
@@ -181,6 +182,11 @@ class TradingEngine:
             observations_path=Path(self.config.no_trade_observations_path),
             outcomes_path=Path(self.config.no_trade_outcomes_path),
         )
+        # Hypothesis Engine (TZ §9): lifecycle гипотез + live-мониторинг
+        # деградации (ACTIVE -> WEAKENING при ухудшении статистики).
+        from ..ml.hypothesis_engine import HypothesisStore
+
+        self.hypotheses = HypothesisStore(Path(self.config.hypotheses_path))
         self._last_bar_ts: dict[str, int] = {}
         self._running = False
         self._capital_synced = False
@@ -715,8 +721,33 @@ class TradingEngine:
                         mae_r=float(d.get("mae_r") or 0.0),
                         fees=float(d.get("fees") or 0.0),
                     )
+                    # Live-мониторинг гипотез (TZ §31): статистика ухудшилась
+                    # -> DEGRADE. Только по достижившейся live-выборке.
+                    self._check_hypothesis_degradation(d)
             except Exception as exc:
                 logger.debug("stats_store.record: %s", exc)
+
+    def _check_hypothesis_degradation(self, trade: dict) -> None:
+        """ACTIVE-гипотеза стратегии деградирует -> WEAKENING (TZ §31)."""
+        strategy = str(trade.get("strategy") or "")
+        if not strategy:
+            return
+        bucket = self.stats_store.get(
+            strategy, str(trade.get("regime") or "UNKNOWN"),
+            str(trade.get("timeframe") or ""),
+        ) or self.stats_store.get_any(strategy, str(trade.get("timeframe") or ""))
+        if bucket is None or bucket.sample_size < 20:
+            return
+        demoted = self.hypotheses.check_live_degradation(
+            strategy_id=strategy,
+            live_expectancy=bucket.expectancy_r,
+            live_samples=bucket.sample_size,
+        )
+        for hid in demoted:
+            logger.warning(
+                "HYPOTHESIS %s DEGRADED: ACTIVE -> WEAKENING (live expectancy %.3fR)",
+                hid, bucket.expectancy_r,
+            )
 
     def _notify(self, text: str, severity: str = "info") -> None:
         if self._notifier is None:

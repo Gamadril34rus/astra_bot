@@ -277,7 +277,13 @@ paper-контуре: лимиты потерь, drawdown HALT, восстано
 реальные fees/slippage в paper-счёте), **Meta-Strategy — выбор стратегии по
 EV в текущем рыночном режиме с bayesian shrinkage по sample size** (не по
 `total_score`), **NO_TRADE-наблюдения с future-outcome по горизонтам 1/3/6/12/24
-бара** (отказ от сделки — тоже обучение), walk-forward simulation,
+бара** (отказ от сделки — тоже обучение), **Hypothesis Engine — lifecycle
+гипотез DISCOVERED→TESTING→VALIDATED→ACTIVE→WEAKENING→INVALIDATED→RETIRED
+с полным набором доказательств для VALIDATED (train+validation+OOS+
+walk-forward+stress+sample size) и live-мониторингом деградации**,
+**Research Memory — типизированные хранилища
+OBSERVATIONS/HYPOTHESES/STRATEGIES/LESSONS/MODELS со стабильными id**,
+walk-forward simulation,
 research-first memory, lesson/pattern memory, ML pipeline, Telegram reporting
 и GitHub Actions.
 
