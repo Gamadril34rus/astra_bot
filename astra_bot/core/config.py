@@ -140,6 +140,9 @@ class MarketDataConfig:
     poll_interval_ms: int = 1000
     websocket_reconnect_delay: int = 5
     stale_data_timeout_seconds: int = 5
+    # Период основного тика оркестратора (main.py _tick), секунд.
+    # Не путать с poll_interval_ms (внутренний REST-поллинг).
+    tick_interval_seconds: int = 60
     candle_timeframes: list = field(default_factory=lambda: [
         "1m", "5m", "15m", "1h", "4h", "1d"
     ])
