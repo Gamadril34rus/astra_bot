@@ -87,6 +87,48 @@ OPEN_POSITIONS = Gauge(
     registry=REGISTRY,
 )
 
+# --- Решения / выходы / гипотезы (Этап 7) ---------------------------------
+DECISIONS_TOTAL = Counter(
+    "astra_decisions_total",
+    "Total pipeline decisions by action and reason code",
+    labelnames=("action", "reason"),
+    registry=REGISTRY,
+)
+DECISION_LATENCY = Histogram(
+    "astra_decision_duration_seconds",
+    "Pipeline decision latency (decide)",
+    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5),
+    registry=REGISTRY,
+)
+TICK_LATENCY = Histogram(
+    "astra_tick_duration_seconds",
+    "Full engine tick latency (step)",
+    buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0),
+    registry=REGISTRY,
+)
+EXITS_TOTAL = Counter(
+    "astra_exits_total",
+    "Total position exits by reason (TP/SL/trailing/BE/max_hold/vol/panic)",
+    labelnames=("reason",),
+    registry=REGISTRY,
+)
+HYPOTHESES_TOTAL = Gauge(
+    "astra_hypotheses_total",
+    "Hypotheses by lifecycle status",
+    labelnames=("status",),
+    registry=REGISTRY,
+)
+READINESS_SCORE = Gauge(
+    "astra_readiness_score",
+    "Current readiness score (0-100)",
+    registry=REGISTRY,
+)
+READINESS_READY = Gauge(
+    "astra_readiness_ready",
+    "1 = readiness gate passed, 0 = not ready",
+    registry=REGISTRY,
+)
+
 # --- Система -------------------------------------------------------------
 SYSTEM_ERRORS = Counter(
     "astra_system_errors_total",

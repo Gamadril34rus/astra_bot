@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -26,6 +27,12 @@ from typing import Any
 from ..adapters.okx import OKXClient
 from ..core import models, trading_schedule
 from ..core.market_safety import MarketSafety
+from ..core.metrics import (
+    DECISION_LATENCY,
+    DECISIONS_TOTAL,
+    EXITS_TOTAL,
+    TICK_LATENCY,
+)
 from ..engines.risk_engine import RiskConfig, RiskEngine
 from ..ml.live_lessons import append_lessons
 from .broker import PaperBroker
@@ -448,7 +455,16 @@ class TradingEngine:
         # Решение по стратегиям — вычисляем до обработки выходов и
         # проверки «есть ли позиция», чтобы флип-стратегии (ts_momentum)
         # могли перевернуть/закрыть её.
+        # Решение + метрики (Этап 7): счётчик по (action, reason_code)
+        # и латентность decide. reason_code — кодированный (низкая
+        # кардинальность лейблов), свободные причины не в лейблы.
+        _dec_started = time.monotonic()
         decision = await self.pipeline.decide(ctx)
+        DECISIONS_TOTAL.labels(
+            action=decision.action,
+            reason=decision.reason_code or "none",
+        ).inc()
+        DECISION_LATENCY.observe(time.monotonic() - _dec_started)
         regime_name = str(
             (decision.diagnostics.get("regime") or {}).get("regime", "")
         )
@@ -816,6 +832,13 @@ class TradingEngine:
                 self.risk.remove_position(d["id"])
             except Exception as exc:
                 logger.debug("risk.record_trade: %s", exc)
+            # Метрика выходов (Этап 7): причина закрытия — кодированный
+            # набор (STOP_LOSS/TAKE_PROFIT/TRAILING/BREAKEVEN/MAX_HOLD/
+            # VOL_EXPANSION/BTC_PANIC/FLIP/CLOSE/STATIC_TP).
+            try:
+                EXITS_TOTAL.labels(reason=str(d.get("exit_reason") or "unknown")).inc()
+            except Exception as exc:
+                logger.debug("EXITS_TOTAL: %s", exc)
             try:
                 if d.get("r_multiple") or d.get("regime"):
                     self.stats_store.record(
@@ -870,6 +893,14 @@ class TradingEngine:
             logger.debug("notifier error: %s", exc)
 
     async def step(self) -> None:
+        _step_started = time.monotonic()
+        try:
+            await self._step_impl()
+        finally:
+            # Латентность тика (Этап 7): деградация видна в дашборде.
+            TICK_LATENCY.observe(time.monotonic() - _step_started)
+
+    async def _step_impl(self) -> None:
         # Раз при первом шаге подтягиваем реальный капитал демо OKX.
         if not self._capital_synced:
             await self.sync_capital()

@@ -211,9 +211,26 @@ class HypothesisStore:
         except Exception as exc:
             logger.warning("Не загрузил hypotheses: %s", exc)
             self.hypotheses = {}
+        self._export_status_metrics()
+
+    def _export_status_metrics(self) -> None:
+        """Гейдж гипотез по статусам (Этап 7): lifecycle в Prometheus."""
+        from ..core.metrics import HYPOTHESES_TOTAL
+
+        counts: dict[str, int] = {}
+        for h in self.hypotheses.values():
+            counts[h.status.value] = counts.get(h.status.value, 0) + 1
+        for status in (
+            "DISCOVERED", "TESTING", "VALIDATED", "ACTIVE",
+            "WEAKENING", "INVALIDATED", "RETIRED",
+        ):
+            HYPOTHESES_TOTAL.labels(status=status).set(
+                counts.get(status, 0)
+            )
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._export_status_metrics()
         tmp = self.path.with_suffix(".tmp")
         tmp.write_text(
             json.dumps(
