@@ -669,10 +669,74 @@ def main() -> int:
     md.append("")
     (out_dir / "aggregate_summary.md").write_text("\n".join(md), encoding="utf-8")
 
+    # ---- 6) Опциональная публикация сводки в issue #36 для сбора результатов
+    # Работает только когда есть GITHUB_TOKEN (т.е. в CI); локально пропускается.
+    _publish_summary_to_issue(out_dir, md)
+
     save_progress(out_dir, "Completed", 100.0, "COMPLETED",
                   f"Исследовательский аудит завершён: CANDIDATE={len(candidate)}, SHADOW={len(shadow)}, REJECTED={len(rejected)}, NA={len(na)}")
     print(f"Полный исследовательский аудит завершён. Артефакты: {out_dir}")
     return 0
+
+
+def _publish_summary_to_issue(out_dir: Path, md: list[str]) -> None:
+    """Постит aggregate_summary как комментарий в issue #36 через GitHub API.
+
+    В CI доступен GITHUB_TOKEN с правами на issues. Вне CI (без токена)
+    молча выходит. Это нужно, чтобы забирать результаты из песочницы
+    без доступа к blob-хранилищу артефактов.
+    """
+    import os
+    import urllib.request
+    import urllib.error
+    import json
+
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    repo = os.environ.get("GITHUB_REPOSITORY") or os.environ.get("GH_REPO")
+    issue_num = os.environ.get("AUDIT_PUBLISH_ISSUE", "36")
+    if not token or not repo:
+        print("[publish] GITHUB_TOKEN/GITHUB_REPOSITORY не заданы — пропускаю публикацию в issue")
+        return
+    try:
+        body_full = "\n".join(md)
+        ts = datetime.now(tz=UTC).strftime("%Y-%m-%d %H:%M UTC")
+        # Комментарии в issues ограничены ~65536 символов; агрегат обычно влезает,
+        # но на всякий случай подстрахуемся и разобьём на чанки по 30КБ.
+        header = f"## Агрегат аудита @ {ts}\n\n"
+        chunk_size = 30000
+        chunks = []
+        rest = body_full
+        first = True
+        while rest:
+            chunk = rest[:chunk_size]
+            rest = rest[chunk_size:]
+            prefix = header if first else f"\n*продолжение ({len(chunks)+1})*\n\n"
+            chunks.append(prefix + chunk)
+            first = False
+        for i, body in enumerate(chunks):
+            payload = json.dumps({"body": body}).encode("utf-8")
+            req = urllib.request.Request(
+                f"https://api.github.com/repos/{repo}/issues/{issue_num}/comments",
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/vnd.github+json",
+                    "Content-Type": "application/json",
+                    "User-Agent": "astra-bot-audit/1.0",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    resp.read()
+                print(f"[publish] chunk {i+1}/{len(chunks)} опубликован в issue #{issue_num}")
+            except urllib.error.HTTPError as e:
+                err_body = e.read().decode("utf-8", errors="replace")[:500]
+                print(f"[publish] chunk {i+1} HTTP {e.code}: {err_body}")
+                break
+    except Exception as exc:
+        print(f"[publish] не удалось опубликовать: {exc!r}")
 
 
 if __name__ == "__main__":
