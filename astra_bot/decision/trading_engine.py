@@ -15,15 +15,18 @@ ASTRA BOT — Trading engine.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 from ..adapters.okx import OKXClient
 from ..core import models, trading_schedule
 from ..core.market_safety import MarketSafety
+from ..engines.risk_engine import RiskConfig, RiskEngine
 from ..ml.live_lessons import append_lessons
 from .broker import PaperBroker
 from .context import MarketContext
@@ -73,6 +76,10 @@ class TradingEngineConfig:
     poll_interval_seconds: int = 60 * 5
     state_path: str = "models/paper_positions.json"
     trades_path: str = "models/paper_trades.jsonl"
+    # Реальные издержки paper-счёта (тейкер-комиссия / slippage на сторону).
+    # База 0.1%/0.1% совпадает с baseline в run_full_research_audit.py.
+    fee_pct: Decimal = Decimal("0.001")
+    slippage_pct: Decimal = Decimal("0.001")
 
 
 class TradingEngine:
@@ -83,6 +90,7 @@ class TradingEngine:
         config: TradingEngineConfig | None = None,
         broker: PaperBroker | None = None,
         notifier: Any | None = None,
+        risk_engine: RiskEngine | None = None,
     ):
         # Колбэк для уведомлений в Telegram: notifier(text, severity).
         self._notifier = notifier
@@ -128,9 +136,17 @@ class TradingEngine:
                 ],
             )
         self.pipeline = pipeline
-        self.broker = broker or PaperBroker(
-            state_path=__import__("pathlib").Path(self.config.state_path),
-            trades_path=__import__("pathlib").Path(self.config.trades_path),
+        self.broker = broker or self._make_broker()
+        # Risk Engine — независимый слой защиты (master prompt §11):
+        # дневные/недельные лимиты потерь, просадка, exposure, TRADING HALT.
+        # Стратегии и ML не имеют права его обойти. Лимиты согласованы
+        # с торговым конфигом, чтобы sizing не конфликтовал с чекером.
+        self.risk = risk_engine or RiskEngine(
+            RiskConfig(
+                risk_per_trade=Decimal(self.config.risk_per_trade_pct),
+                max_open_positions=self.config.max_open_positions,
+                max_exposure_pct=Decimal(self.config.max_total_exposure_pct),
+            )
         )
         # Единая проверка «можно ли входить прямо сейчас»: расписание/бюджет
         # часов, новости, волатильность, спред, дисбаланс стакана.
@@ -138,7 +154,20 @@ class TradingEngine:
         self._last_bar_ts: dict[str, int] = {}
         self._running = False
         self._capital_synced = False
+        self._risk_synced = False
         self._minute_bucket: int | None = None
+
+    def _make_broker(self, initial_capital: Decimal | None = None) -> PaperBroker:
+        """Брокер с реальными издержками (fee/slippage) по торговому конфигу."""
+        kwargs: dict[str, Any] = dict(
+            state_path=Path(self.config.state_path),
+            trades_path=Path(self.config.trades_path),
+            fee_pct=self.config.fee_pct,
+            slippage_pct=self.config.slippage_pct,
+        )
+        if initial_capital is not None:
+            kwargs["initial_capital"] = initial_capital
+        return PaperBroker(**kwargs)
 
     async def sync_capital(self) -> Decimal:
         """Синхронизировать торговый капитал с демо-портфелем OKX.
@@ -176,18 +205,48 @@ class TradingEngine:
                     "Портфель демо OKX=%.2f USDT; в управлении половина=%.2f USDT",
                     total_usdt, cap,
                 )
-                from .broker import PaperBroker
-                self.broker = PaperBroker(
-                    state_path=__import__("pathlib").Path(self.config.state_path),
-                    trades_path=__import__("pathlib").Path(self.config.trades_path),
-                    initial_capital=cap,
-                )
+                self.broker = self._make_broker(cap)
             self._capital_synced = True
             return cap
         except Exception as exc:
             logger.debug("Не смог синхронизировать капитал: %s", exc)
         self._capital_synced = True
         return self.broker.initial_capital
+
+    def _sync_risk_state(self) -> None:
+        """Однократно за сессию восстановить риск-состояние из персиста.
+
+        GitHub Actions поднимает свежий процесс на каждой 5-минутной
+        сессии, поэтому дневной/недельный PnL, high water mark и
+        HALT-статус пересобираются из ``paper_trades.jsonl`` (источник
+        истины уже персистится в CI). Это делает лимиты потерь и
+        TRADING HALT живыми между сессиями, а не только внутри одной.
+        """
+        if self._risk_synced:
+            return
+        trades: list[dict] = []
+        try:
+            if self.broker.trades_path.exists():
+                for line in self.broker.trades_path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if line:
+                        trades.append(json.loads(line))
+        except Exception as exc:
+            logger.debug("Не прочитал paper_trades для risk-состояния: %s", exc)
+        self.risk.restore_from_trades(trades, self.broker.initial_capital)
+        # Фактическая оценка брокера (initial + realized PnL) приоритетнее
+        # кривой из файла, если состояние было правлено вручную.
+        self.risk.set_capital(self.broker.equity, self.broker.initial_capital)
+        for pos in self.broker.positions:
+            self.risk.add_position(pos.id)
+        self._risk_synced = True
+        logger.info(
+            "Risk state восстановлен: equity=%s, daily_pnl=%s, weekly_pnl=%s, "
+            "state=%s, trading_enabled=%s, open_positions=%d",
+            self.broker.equity, self.risk.daily_pnl, self.risk.weekly_pnl,
+            self.risk.risk_state.value, self.risk.trading_enabled,
+            len(self.broker.positions),
+        )
 
     # ----------------------------------------------------------- market data
     async def fetch_context(self, symbol: str) -> MarketContext:
@@ -232,8 +291,53 @@ class TradingEngine:
             qty = max_notional / entry
         return qty.quantize(Decimal("0.000001"))
 
+    def _risk_check_and_adjust(
+        self,
+        symbol: str,
+        side: str,
+        cand: Any,
+        size: Decimal,
+    ) -> Decimal | None:
+        """Прогнать сделку через Risk Engine; вернуть допустимый размер.
+
+        Возвращает ``None``, если вход запрещён (TRADING HALT, дневной/
+        недельный лимит потерь, лимиты, которые нельзя закрыть уменьшением
+        размера). Иначе — исходный или уменьшенный до лимита размер.
+        """
+        for _ in range(2):
+            verdict = self.risk.check_trade(
+                symbol=symbol,
+                side=side,
+                entry_price=cand.entry_price,
+                stop_loss=cand.stop_loss,
+                take_profit=cand.take_profit,
+                proposed_size=size,
+                strategy_name=cand.strategy,
+            )
+            if verdict.approved:
+                return size
+            adjusted = verdict.details.get("adjusted_size")
+            if not self.risk.trading_enabled or not adjusted:
+                logger.warning(
+                    "RISK: вход %s запрещён (%s): %s",
+                    symbol, self.risk.risk_state.value, verdict.reason,
+                )
+                return None
+            size = Decimal(str(adjusted)).quantize(Decimal("0.000001"))
+            if size <= 0:
+                logger.warning(
+                    "RISK: размер %s упирается в лимит: %s", symbol, verdict.reason
+                )
+                return None
+        # Два прохода не помогли (лимиты пересекаются) — не входим.
+        logger.warning("RISK: не уложился в лимиты для %s, вход пропущен", symbol)
+        return None
+
     # ----------------------------------------------------------- main loop
     async def process_symbol(self, symbol: str) -> list[Any]:
+        # Риск-состояние (лимиты, HALT) живое между CI-сессиями:
+        # восстанавливаем из персиста перед любым решением о входе.
+        self._sync_risk_state()
         ctx = await self.fetch_context(symbol)
         primary = ctx.candles.get("5m") or ctx.candles.get("1h") or []
         if not primary:
@@ -356,6 +460,14 @@ class TradingEngine:
             logger.info("%s: size=0, пропускаю", symbol)
             return closed
 
+        # ---- Risk Engine: независимый слой защиты (master prompt §11).
+        # Дневные/недельные лимиты потерь, просадка, exposure, HALT.
+        # Если торговля остановлена — вход запрещён независимо от силы
+        # сигнала. Если размер можно уменьшить — уменьшаем и проверяем.
+        size = self._risk_check_and_adjust(symbol, wanted_dir, cand, size)
+        if size is None or size <= 0:
+            return closed
+
         cand_features = cand.features or {}
         pos = self.broker.open_position(
             symbol=symbol,
@@ -373,17 +485,27 @@ class TradingEngine:
                 "rr": cand.risk_reward,
             },
         )
+        # Книга позиций Risk Engine живая внутри сессии: экспозиция и
+        # лимит числа позиций считаются по актуальному набору.
+        try:
+            self.risk.add_position(pos.id)
+        except Exception as exc:
+            logger.debug("risk.add_position: %s", exc)
         # Уведомления по каждой сделке отключены: шлём только утренний
         # отчёт и отвечаем на команды из меню.
         logger.info("OPEN %s %s entry=%s", pos.direction, pos.symbol, pos.entry_price)
         return closed
 
     def _record_closed(self, closed: list) -> None:
-        """Сохранить закрытые сделки как уроки и уведомить о результате."""
-        try:
-            trades = []
-            for t in closed:
-                d = {
+        """Сохранить закрытые сделки как уроки, учсть их в Risk Engine.
+
+        Risk Engine получает результат каждой закрытой сделки: именно это
+        подпитывает дневные/недельные лимиты, просадку и HALT-логика.
+        """
+        trades = []
+        for t in closed:
+            trades.append(
+                {
                     "id": getattr(t, "id", ""),
                     "symbol": getattr(t, "symbol", ""),
                     "direction": getattr(t, "direction", ""),
@@ -392,16 +514,32 @@ class TradingEngine:
                     "quantity": getattr(t, "quantity", 0.0),
                     "pnl": getattr(t, "pnl", 0.0),
                     "pnl_pct": getattr(t, "pnl_pct", 0.0),
+                    "fees": getattr(t, "fees", 0.0),
                     "exit_reason": getattr(t, "exit_reason", ""),
                     "strategy": getattr(t, "strategy", ""),
                     "opened_at": getattr(t, "opened_at", 0),
                     "closed_at": getattr(t, "closed_at", 0),
                 }
-                trades.append(d)
-            if trades:
-                append_lessons(trades)
+            )
+        if not trades:
+            return
+        try:
+            append_lessons(trades)
         except Exception as exc:
-            logger.warning("Не смог записать уроки/уведомления: %s", exc)
+            logger.warning("Не смог записать уроки: %s", exc)
+        for d in trades:
+            try:
+                self.risk.record_trade(
+                    symbol=d["symbol"],
+                    side=d["direction"],
+                    entry_price=Decimal(str(d["entry_price"])),
+                    quantity=Decimal(str(d["quantity"])),
+                    pnl=Decimal(str(d["pnl"])),
+                    won=float(d["pnl"]) > 0,
+                )
+                self.risk.remove_position(d["id"])
+            except Exception as exc:
+                logger.debug("risk.record_trade: %s", exc)
 
     def _notify(self, text: str, severity: str = "info") -> None:
         if self._notifier is None:

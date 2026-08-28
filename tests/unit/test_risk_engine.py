@@ -2,6 +2,7 @@
 ASTRA BOT — Unit Tests for Risk Engine
 """
 
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock
 
@@ -40,16 +41,17 @@ class TestRiskConfig:
         assert config.max_open_positions == 3
 
 
+@pytest.fixture()
+def risk_engine():
+    """Создать Risk Engine"""
+    config = RiskConfig()
+    engine = RiskEngine(config)
+    engine.set_capital(Decimal("1000"), Decimal("1000"))
+    return engine
+
+
 class TestRiskEngine:
     """Тесты Risk Engine"""
-
-    @pytest.fixture
-    def risk_engine(self):
-        """Создать Risk Engine"""
-        config = RiskConfig()
-        engine = RiskEngine(config)
-        engine.set_capital(Decimal("1000"), Decimal("1000"))
-        return engine
 
     def test_initial_state(self, risk_engine):
         """Тест начального состояния"""
@@ -255,6 +257,116 @@ class TestRiskEngine:
         assert result.approved is False
         # Либо превышение риска, либо превышение количества позиций
         assert result.reason is not None
+
+
+class TestRollingWindows:
+    """PnL скользящих окон 24ч/7д пересчитывается из отфильтрованных сделок.
+
+    Регрессия: раньше _daily_pnl/_weekly_pnl только накапливались и
+    никогда не сбрасывались — дневной лимит срабатывал «навсегда».
+    """
+
+    def test_daily_pnl_resets_after_24h(self, risk_engine):
+        risk_engine.record_trade(
+            symbol="BTC/USDT", side="buy", entry_price=Decimal("100"),
+            quantity=Decimal("1"), pnl=Decimal("-2"), won=False,
+        )
+        assert risk_engine._daily_pnl == Decimal("-2")
+        assert risk_engine._weekly_pnl == Decimal("-2")
+
+        # Сделка «стала старше» 24 часов.
+        for t in risk_engine._today_trades:
+            t["timestamp"] = datetime.utcnow() - timedelta(hours=25)
+        for t in risk_engine._week_trades:
+            t["timestamp"] = datetime.utcnow() - timedelta(hours=25)
+        risk_engine._cleanup_old_trades()
+
+        assert risk_engine._daily_pnl == Decimal("0")
+        assert risk_engine._weekly_pnl == Decimal("-2")  # 25ч < 7д
+
+    def test_weekly_pnl_resets_after_7d(self, risk_engine):
+        risk_engine.record_trade(
+            symbol="BTC/USDT", side="buy", entry_price=Decimal("100"),
+            quantity=Decimal("1"), pnl=Decimal("-2"), won=False,
+        )
+        for t in risk_engine._today_trades:
+            t["timestamp"] = datetime.utcnow() - timedelta(days=8)
+        for t in risk_engine._week_trades:
+            t["timestamp"] = datetime.utcnow() - timedelta(days=8)
+        risk_engine._cleanup_old_trades()
+
+        assert risk_engine._daily_pnl == Decimal("0")
+        assert risk_engine._weekly_pnl == Decimal("0")
+
+    def test_new_trades_keep_windows(self, risk_engine):
+        risk_engine.record_trade(
+            symbol="BTC/USDT", side="buy", entry_price=Decimal("100"),
+            quantity=Decimal("1"), pnl=Decimal("-5"), won=False,
+        )
+        risk_engine.record_trade(
+            symbol="ETH/USDT", side="buy", entry_price=Decimal("100"),
+            quantity=Decimal("1"), pnl=Decimal("3"), won=True,
+        )
+        risk_engine._cleanup_old_trades()
+        assert risk_engine._daily_pnl == Decimal("-2")
+        assert risk_engine._weekly_pnl == Decimal("-2")
+
+
+class TestRestoreFromTrades:
+    """Восстановление риск-состояния из персистентного paper_trades.jsonl
+    (GitHub Actions: свежий процесс на каждой 5-минутной сессии)."""
+
+    @staticmethod
+    def _trade(pnl: float, hours_ago: float) -> dict:
+        return {
+            "symbol": "BTC-USDT",
+            "direction": "long",
+            "entry_price": 100.0,
+            "quantity": 1.0,
+            "pnl": pnl,
+            "closed_at": int(
+                (datetime.now(UTC).timestamp() - hours_ago * 3600) * 1000
+            ),
+        }
+
+    def test_windows_equity_hwm(self):
+        engine = RiskEngine()
+        # Хронологически: -10 (200ч назад), +100 (48ч), -50 (1ч).
+        engine.restore_from_trades(
+            [self._trade(-50, 1), self._trade(100, 48), self._trade(-10, 200)],
+            Decimal("1000"),
+        )
+        assert engine._daily_pnl == Decimal("-50")
+        # 200ч = 8.3д — вне недельного окна: -50 + 100.
+        assert engine._weekly_pnl == Decimal("50")
+        # Кривая капитала строится по полной истории:
+        # 1000 -> 990 -> 1090 -> 1040
+        assert engine._current_equity == Decimal("1040")
+        assert engine._high_water_mark == Decimal("1090")
+        # Просадка 50/1090 ≈ 4.59% — ниже soft (5%), риск-статус NORMAL.
+        assert engine.risk_state.value == "NORMAL"
+
+    def test_hard_drawdown_halts_trading(self):
+        engine = RiskEngine()
+        engine.restore_from_trades([self._trade(-90, 1)], Decimal("1000"))
+        # Просадка 9% >= 8% (hard) — торговля остановлена.
+        assert engine.trading_enabled is False
+        assert engine.risk_state.value == "STOP"
+        verdict = engine.check_trade(
+            symbol="BTC-USDT", side="long",
+            entry_price=Decimal("100"), stop_loss=Decimal("99"),
+            take_profit=Decimal("103"), proposed_size=Decimal("1"),
+        )
+        assert verdict.approved is False
+        assert "disabled" in (verdict.reason or "").lower()
+
+    def test_empty_history_keeps_capital(self):
+        engine = RiskEngine()
+        engine.restore_from_trades([], Decimal("2000"))
+        assert engine._current_equity == Decimal("2000")
+        assert engine._high_water_mark == Decimal("2000")
+        assert engine.trading_enabled is True
+        assert engine._daily_pnl == Decimal("0")
 
 
 class TestPositionSizeResult:

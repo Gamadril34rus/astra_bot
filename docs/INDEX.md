@@ -11,6 +11,7 @@
 | `STRATEGY_SPEC.md` | Спецификация стратегий |
 | `strategy_portfolio.md` | Портфель стратегий «трендовая книга», walk-forward и мультивалютный MTF-аудит |
 | `PULLBACK_STRATEGY.md` | Детали pullback-стратегии |
+| `RISK_INTEGRATION.md` | Risk Engine в живом paper-контуре: лимиты, HALT, persistence, издержки |
 
 ## 2. Обучение и память
 
