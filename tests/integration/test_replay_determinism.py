@@ -37,6 +37,10 @@ def _norm_trades(path: Path) -> list[dict]:
 def _scenario(tmp_path: Path, monkeypatch) -> list[dict]:
     """Одинаковый сценарий: тик (вход) → стоп-бар (выход)."""
     tmp_path.mkdir(parents=True, exist_ok=True)
+    # Изоляция: тестовые сделки не засоряют реальные lessons.
+    monkeypatch.setattr(
+        "astra_bot.decision.trading_engine.append_lessons", lambda trades: 0
+    )
     bot = make_bot(tmp_path, OkxStub(gen_candles(230)), monkeypatch)
     eng = bot._trading_engine
     asyncio.run(bot._tick())
@@ -65,6 +69,9 @@ def test_replay_state_bundle_equivalent(tmp_path, monkeypatch):
     """State-бандлы двух прогонов сходятся по торговому содержимому."""
     (tmp_path / "r1").mkdir(parents=True, exist_ok=True)
     (tmp_path / "r2").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(
+        "astra_bot.decision.trading_engine.append_lessons", lambda trades: 0
+    )
     bot1 = make_bot(tmp_path / "r1", OkxStub(gen_candles(230)), monkeypatch)
     asyncio.run(bot1._tick())
     b1 = json.loads(bot1._trading_engine.state_store.path.read_text())
