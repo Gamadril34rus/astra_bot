@@ -6,7 +6,7 @@ ASTRA BOT — Risk Engine
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from enum import Enum
 
 from ..adapters.base import Instrument
@@ -49,6 +49,17 @@ class RiskConfig:
     max_exposure_pct: Decimal = Decimal("0.30")  # 30%
     max_open_positions: int = 5
 
+    # Portfolio-экспозиция (Этап 5): gross / net / корреляционная группа.
+    # None = max_exposure_pct, т.е. по умолчанию поведение НЕ меняется;
+    # конфиг может только УЖЕСТОЧАТЬ (survival > returns).
+    max_gross_exposure_pct: Decimal | None = None
+    max_net_exposure_pct: Decimal | None = None
+    max_group_exposure_pct: Decimal | None = None
+    # Группы корреляции: символ → группа. Пусто = одна группа «crypto»
+    # (все крипто-пары в крахе коррелируют с BTC ≈ 1).
+    correlation_groups: dict[str, str] = field(default_factory=dict)
+    default_correlation_group: str = "crypto"
+
     # Волатильность
     high_volatility_multiplier: Decimal = Decimal("0.5")
     extreme_volatility_threshold: Decimal = Decimal("0.15")
@@ -56,6 +67,19 @@ class RiskConfig:
 
     # Корреляция
     correlation_limit: Decimal = Decimal("0.7")
+
+    # Бета к BTC (Этап 5): размер позиции делится на max(1, beta) —
+    # только уменьшает, никогда не увеличивает. BTC = 1.0 (основной
+    # бенчмарк), альты — выше (скачистее). Unknown-символ → default_beta.
+    default_beta: Decimal = Decimal("1.5")
+    betas: dict[str, Decimal] = field(default_factory=lambda: {
+        "BTC": Decimal("1.0"),
+        "ETH": Decimal("1.4"),
+        "SOL": Decimal("1.8"),
+        "XRP": Decimal("1.3"),
+        "DOGE": Decimal("1.8"),
+        "TON": Decimal("1.5"),
+    })
 
     # Инкременты риска по просадке
     drawdown_adaptation: list[dict] = field(default_factory=lambda: [
@@ -111,6 +135,10 @@ class RiskEngine:
 
         # Открытые позиции
         self._open_positions: dict[str, models.Position] = {}
+        # Мета открытых позиций (Этап 5): id → {symbol, side, notional}.
+        # Позиции могут добавляться по id (str) — для portfolio-лимитов
+        # нужен номинал/сторон, поэтому meta передаётся явно.
+        self._open_meta: dict[str, dict] = {}
 
         # История сделок за день/неделю
         self._today_trades: list[dict] = []
@@ -164,6 +192,10 @@ class RiskEngine:
             return "risk_per_trade"
         if "position" in lowered:
             return "max_positions"
+        if "net exposure" in lowered:
+            return "net_exposure"
+        if "group" in lowered:
+            return "group_exposure"
         if "exposure" in lowered:
             return "max_exposure"
         if "disabled" in lowered:
@@ -293,6 +325,61 @@ class RiskEngine:
 
         return multiplier
 
+    # --------------------------------------------------- portfolio (Этап 5)
+    def _beta_for(self, symbol: str) -> Decimal:
+        """Бета символа к BTC (статическая оценка, консервативная)."""
+        base = symbol.split("-")[0].split("/")[0].upper()
+        return self.config.betas.get(base, self.config.default_beta)
+
+    def _group_for(self, symbol: str) -> str:
+        """Корреляционная группа символа (по умолчанию одна — crypto)."""
+        return self.config.correlation_groups.get(
+            symbol, self.config.default_correlation_group
+        )
+
+    def _position_notional(self, pos: object) -> Decimal:
+        """Номинал позиции: из meta (при str-id) или из самого объекта."""
+        meta = self._open_meta.get(
+            pos if isinstance(pos, str) else getattr(pos, "id", ""), {}
+        )
+        if meta.get("notional") is not None:
+            try:
+                return Decimal(str(meta["notional"]))
+            except (InvalidOperation, ValueError):
+                return Decimal("0")
+        qty = getattr(pos, "quantity", None)
+        price = getattr(pos, "entry_price", None)
+        if qty is None or price is None:
+            return Decimal("0")
+        return abs(Decimal(str(qty)) * Decimal(str(price)))
+
+    def _position_side(self, pos: object) -> str:
+        meta = self._open_meta.get(
+            pos if isinstance(pos, str) else getattr(pos, "id", ""), {}
+        )
+        side = meta.get("side") or getattr(pos, "direction", "") or ""
+        return str(side).lower()
+
+    def _portfolio_exposures(self) -> dict:
+        """Gross / net(long-short) / по группам по открытым позициям."""
+        gross = Decimal("0")
+        net = Decimal("0")
+        groups: dict[str, Decimal] = {}
+        for pos in self._open_positions.values():
+            notional = self._position_notional(pos)
+            gross += notional
+            side = self._position_side(pos)
+            if side == "short":
+                net -= notional
+            else:
+                net += notional
+            meta = self._open_meta.get(
+                pos if isinstance(pos, str) else getattr(pos, "id", ""), {}
+            )
+            group = self._group_for(str(meta.get("symbol") or ""))
+            groups[group] = groups.get(group, Decimal("0")) + notional
+        return {"gross": gross, "net": net, "groups": groups}
+
     def check_trade(
         self,
         symbol: str,
@@ -392,13 +479,16 @@ class RiskEngine:
                 reason=f"Weekly loss limit reached: {weekly_loss:.2f} / {max_weekly_loss:.2f}",
             )
 
-        # 5. Расчёт риска по сделке
+        # 5. Расчёт риска по сделке (Этап 5: бета к BTC — риск-бюджет
+        # высокобетового символа делится на beta; только уменьшает)
         risk_multiplier = self._get_risk_multiplier()
+        beta = self._beta_for(symbol)
+        beta = max(Decimal("1"), beta)
         max_risk_per_trade = (
             self._current_equity
             * self.config.risk_per_trade
             * risk_multiplier
-        )
+        ) / beta
 
         # 6. Расчёт фактического риска
         stop_distance = abs(entry_price - stop_loss)
@@ -441,13 +531,17 @@ class RiskEngine:
                 reason=f"Max positions reached: {len(self._open_positions)}",
             )
 
-        # 8. Проверка экспозиции
-        current_exposure = sum(
-            abs(p.quantity * p.entry_price)
-            for p in self._open_positions.values()
+        # 8. Проверка gross-экспозиции (Этап 5: max_gross может быть
+        # строже max_exposure; по умолчанию совпадает)
+        expo = self._portfolio_exposures()
+        gross_cap_pct = (
+            self.config.max_gross_exposure_pct
+            if self.config.max_gross_exposure_pct is not None
+            else self.config.max_exposure_pct
         )
+        current_exposure = expo["gross"]
         new_exposure = current_exposure + proposed_size * entry_price
-        max_exposure = self._current_equity * self.config.max_exposure_pct
+        max_exposure = self._current_equity * gross_cap_pct
 
         if new_exposure > max_exposure:
             allowed_exposure = max_exposure - current_exposure
@@ -472,6 +566,82 @@ class RiskEngine:
                 max_allowed_loss=max_risk_per_trade,
                 reason=f"Exposure limit would be exceeded. Adjusted size: {adjusted_size:.4f}",
                 details={"adjusted_size": adjusted_size},
+            )
+
+        # 8.5. Portfolio-лимиты (Этап 5): net-экспозиция (long − short)
+        # и корреляционная группа (по умолчанию все крипто-пары — одна
+        # группа: в крахе их корреляция с BTC ≈ 1). Значения по умолчанию
+        # равны max_exposure_pct → дефолтное поведение не меняется;
+        # конфиг может только ужесточать.
+        side_l = str(side).lower()
+        new_notional = proposed_size * entry_price
+        signed = -new_notional if side_l == "short" else new_notional
+        new_net = abs(expo["net"] + signed)
+        net_cap = (
+            self.config.max_net_exposure_pct
+            if self.config.max_net_exposure_pct is not None
+            else self.config.max_exposure_pct
+        )
+        if new_net > self._current_equity * net_cap:
+            allowed_net = self._current_equity * net_cap - abs(expo["net"])
+            if allowed_net <= 0:
+                return RiskCheckResult(
+                    approved=False,
+                    risk_state=self.risk_state.value,
+                    daily_loss_used=daily_loss,
+                    weekly_loss_used=weekly_loss,
+                    current_drawdown=self.current_drawdown,
+                    max_allowed_loss=max_risk_per_trade,
+                    reason=f"Net exposure limit reached: {expo['net']:.2f}",
+                )
+            return RiskCheckResult(
+                approved=False,
+                risk_state=self.risk_state.value,
+                daily_loss_used=daily_loss,
+                weekly_loss_used=weekly_loss,
+                current_drawdown=self.current_drawdown,
+                max_allowed_loss=max_risk_per_trade,
+                reason=f"Net exposure limit would be exceeded. Adjusted size: {allowed_net / entry_price:.4f}",
+                details={"adjusted_size": allowed_net / entry_price},
+            )
+
+        group = self._group_for(symbol)
+        group_cap = (
+            self.config.max_group_exposure_pct
+            if self.config.max_group_exposure_pct is not None
+            else self.config.max_exposure_pct
+        )
+        new_group = expo["groups"].get(group, Decimal("0")) + new_notional
+        if new_group > self._current_equity * group_cap:
+            allowed_group = (
+                self._current_equity * group_cap
+                - expo["groups"].get(group, Decimal("0"))
+            )
+            if allowed_group <= 0:
+                return RiskCheckResult(
+                    approved=False,
+                    risk_state=self.risk_state.value,
+                    daily_loss_used=daily_loss,
+                    weekly_loss_used=weekly_loss,
+                    current_drawdown=self.current_drawdown,
+                    max_allowed_loss=max_risk_per_trade,
+                    reason=(
+                        f"Correlated group '{group}' exposure limit reached: "
+                        f"{expo['groups'].get(group, Decimal('0')):.2f}"
+                    ),
+                )
+            return RiskCheckResult(
+                approved=False,
+                risk_state=self.risk_state.value,
+                daily_loss_used=daily_loss,
+                weekly_loss_used=weekly_loss,
+                current_drawdown=self.current_drawdown,
+                max_allowed_loss=max_risk_per_trade,
+                reason=(
+                    f"Correlated group '{group}' limit would be exceeded. "
+                    f"Adjusted size: {allowed_group / entry_price:.4f}"
+                ),
+                details={"adjusted_size": allowed_group / entry_price},
             )
 
         # Все проверки пройдены
@@ -701,15 +871,36 @@ class RiskEngine:
             (Decimal(str(t["pnl"])) for t in self._week_trades), Decimal("0")
         )
 
-    def add_position(self, position: models.Position | str):
-        """Добавить позицию (объект позиции или её идентификатор)."""
+    def add_position(
+        self,
+        position: models.Position | str,
+        *,
+        symbol: str | None = None,
+        side: str | None = None,
+        notional: Decimal | None = None,
+    ):
+        """Добавить позицию (объект позиции или её идентификатор).
+
+        Для позиций, добавленных по id (str), передать meta
+        (symbol/side/notional) — она нужна для portfolio-лимитов (Этап 5).
+        """
         position_id = position if isinstance(position, str) else position.id
         self._open_positions[position_id] = position
+        if symbol is not None or side is not None or notional is not None:
+            meta = self._open_meta.get(position_id, {})
+            if symbol is not None:
+                meta["symbol"] = symbol
+            if side is not None:
+                meta["side"] = str(side).lower()
+            if notional is not None:
+                meta["notional"] = str(notional)
+            self._open_meta[position_id] = meta
         OPEN_POSITIONS.labels(engine="risk").set(len(self._open_positions))
 
     def remove_position(self, position_id: str):
         """Удалить позицию"""
         self._open_positions.pop(position_id, None)
+        self._open_meta.pop(position_id, None)
         OPEN_POSITIONS.labels(engine="risk").set(len(self._open_positions))
 
     def get_open_positions(self) -> dict[str, models.Position]:
