@@ -12,6 +12,7 @@
 | `strategy_portfolio.md` | Портфель стратегий «трендовая книга», walk-forward и мультивалютный MTF-аудит |
 | `PULLBACK_STRATEGY.md` | Детали pullback-стратегии |
 | `RISK_INTEGRATION.md` | Risk Engine в живом paper-контуре: лимиты, HALT, persistence, издержки |
+| `META_STRATEGY.md` | Meta-Strategy: выбор по EV в режиме, shrinkage, NO_TRADE-память |
 
 ## 2. Обучение и память
 

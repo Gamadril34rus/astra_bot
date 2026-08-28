@@ -272,7 +272,14 @@ Connors RSI-2, Bollinger, Ichimoku и др.): `python scripts/research_free_stra
 
 ## 🚧 Статус
 
-**Реализовано:** OKX integration, защищённый Demo-контур, risk layer, walk-forward simulation, research-first memory, lesson/pattern memory, ML pipeline, Telegram reporting и GitHub Actions.
+**Реализовано:** OKX integration, защищённый Demo-контур, risk layer (в живом
+paper-контуре: лимиты потерь, drawdown HALT, восстановление между CI-сессиями,
+реальные fees/slippage в paper-счёте), **Meta-Strategy — выбор стратегии по
+EV в текущем рыночном режиме с bayesian shrinkage по sample size** (не по
+`total_score`), **NO_TRADE-наблюдения с future-outcome по горизонтам 1/3/6/12/24
+бара** (отказ от сделки — тоже обучение), walk-forward simulation,
+research-first memory, lesson/pattern memory, ML pipeline, Telegram reporting
+и GitHub Actions.
 
 **В работе:** длительная Demo-валидация, calibration/drift, надёжный checkpoint/resume и перенос на VPS.
 

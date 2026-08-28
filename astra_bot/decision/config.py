@@ -57,6 +57,16 @@ class DecisionConfig:
     min_ml_probability: float = 0.60
     min_expected_edge_pct: float = 0.4  # %
 
+    # Meta-Strategy: выбор стратегии по EV в текущем режиме (TZ §5/§6).
+    # min_ev_r — минимальный shrunken EV (в R); отрицательный EV всегда
+    # блокирует. min_ev_confidence — порог надёжности при достаточной
+    # выборке. min_ev_samples — от какой выборки включается confidence-гейт.
+    # ev_shrinkage_k — сила bayesian shrinkage к prior (n/(n+k) вес).
+    min_ev_r: float = 0.05
+    min_ev_confidence: float = 0.3
+    min_ev_samples: int = 30
+    ev_shrinkage_k: float = 30.0
+
     # Веса для скоров.
     score_weights: dict[str, float] = field(
         default_factory=lambda: {

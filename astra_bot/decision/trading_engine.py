@@ -18,7 +18,7 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import UTC
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -30,7 +30,7 @@ from ..engines.risk_engine import RiskConfig, RiskEngine
 from ..ml.live_lessons import append_lessons
 from .broker import PaperBroker
 from .context import MarketContext
-from .pipeline import DecisionPipeline
+from .pipeline import Decision, DecisionPipeline
 
 # Fire-and-forget задачи (уведомления и т.п.). Ссылки хранятся явно:
 # без них задача может быть собрана GC до выполнения и цикл уронит
@@ -80,6 +80,10 @@ class TradingEngineConfig:
     # База 0.1%/0.1% совпадает с baseline в run_full_research_audit.py.
     fee_pct: Decimal = Decimal("0.001")
     slippage_pct: Decimal = Decimal("0.001")
+    # Research memory: статистика стратегий по режимам + NO_TRADE-наблюдения.
+    stats_path: str = "models/strategy_stats.json"
+    no_trade_observations_path: str = "models/no_trade_observations.jsonl"
+    no_trade_outcomes_path: str = "models/no_trade_outcomes.json"
 
 
 class TradingEngine:
@@ -107,6 +111,7 @@ class TradingEngine:
                 TimeSeriesMomentumStrategy,
             )
             from .config import DecisionConfig
+            from .strategy_stats import StrategyStatsStore
             # Пороги согласованы со стратегиями. Scalp даёт много мелких
             # сделок на 15m для быстрого обучения; Pullback — крупнее на 1h;
             # ts_momentum — флипы по 45-дневному импульсу на 4h, плюс
@@ -119,8 +124,18 @@ class TradingEngine:
             cfg.max_spread_pct = 0.30
             cfg.slippage_buffer_pct = 0.02
             cfg.min_book_depth = 1_000.0
+            # Meta-Strategy: cold start — EV-гейт по prior (0.0), как и
+            # прежний edge-гейт; по мере накопления статистики по режимам
+            # оценка становится эмпирической автоматически (shrinkage).
+            cfg.min_ev_r = 0.0
+            stats_store = StrategyStatsStore(
+                Path(self.config.stats_path),
+                shrinkage_k=cfg.ev_shrinkage_k,
+                min_samples=cfg.min_ev_samples,
+            )
             pipeline = DecisionPipeline(
                 cfg,
+                stats_store=stats_store,
                 strategies=[
                     Scalp5mStrategy(),
                     ScalpStrategy(),
@@ -151,6 +166,21 @@ class TradingEngine:
         # Единая проверка «можно ли входить прямо сейчас»: расписание/бюджет
         # часов, новости, волатильность, спред, дисбаланс стакана.
         self.safety = MarketSafety()
+        # Research memory: одна статистика на движок+пайплайн, чтобы
+        # meta-выбор и запись уроков смотрели на один источник (TZ §14).
+        if pipeline is not None and getattr(pipeline, "stats_store", None) is not None:
+            self.stats_store = pipeline.stats_store
+        else:
+            from .strategy_stats import StrategyStatsStore
+
+            self.stats_store = StrategyStatsStore(Path(self.config.stats_path))
+        # NO_TRADE — тоже результат модели (TZ §12): журнал + исходы.
+        from ..ml.no_trade_observations import NoTradeObservationLog
+
+        self.obs_log = NoTradeObservationLog(
+            observations_path=Path(self.config.no_trade_observations_path),
+            outcomes_path=Path(self.config.no_trade_outcomes_path),
+        )
         self._last_bar_ts: dict[str, int] = {}
         self._running = False
         self._capital_synced = False
@@ -355,6 +385,24 @@ class TradingEngine:
         # чтобы флип-стратегии (ts_momentum) могли перевернуть/закрыть её.
         decision = self.pipeline.decide(ctx)
 
+        # --- Research: NO_TRADE — результат модели, а не «пустой цикл».
+        # Дедупликация по стабильному id (bar_time) — повторная обработка
+        # того же бара дубль не создаёт (TZ §30).
+        if decision.action == "NO_TRADE":
+            self._record_no_trade(symbol, decision, list(primary))
+
+        # --- Research: обогащение прошлых NO_TRADE будущим исходом.
+        # Только на новом баре (throttle) — pending() читает файл.
+        bar_ts = int(last_bar.open_time)
+        if self._last_bar_ts.get(symbol) != bar_ts:
+            self._last_bar_ts[symbol] = bar_ts
+            try:
+                self.obs_log.enrich({symbol: list(primary)})
+            except Exception as exc:
+                logger.debug("no_trade enrich: %s", exc)
+
+        self._log_decision_line(symbol, decision)
+
         # CLOSE: режим тренда окончился — закрываем позицию без входа.
         if decision.action == "CLOSE":
             newly = self.broker.close_positions(symbol, ctx.current_price, "flat_regime")
@@ -469,6 +517,7 @@ class TradingEngine:
             return closed
 
         cand_features = cand.features or {}
+        regime_info = decision.diagnostics.get("regime") or {}
         pos = self.broker.open_position(
             symbol=symbol,
             direction="long" if cand.direction == "long" else "short",
@@ -478,10 +527,14 @@ class TradingEngine:
             quantity=size,
             strategy=cand.strategy,
             no_take_profit=bool(cand_features.get("no_take_profit")),
+            regime=str(regime_info.get("regime", "")),
+            timeframe=cand.timeframe,
             notes={
                 "score": cand.total_score,
                 "ml_probability": cand.ml_probability,
                 "edge_pct": cand.expected_edge_pct,
+                "ev_r": cand_features.get("ev_r"),
+                "ev_confidence": cand_features.get("ev_confidence"),
                 "rr": cand.risk_reward,
             },
         )
@@ -491,16 +544,122 @@ class TradingEngine:
             self.risk.add_position(pos.id)
         except Exception as exc:
             logger.debug("risk.add_position: %s", exc)
+        # Структурированная строка решения (TZ §32): режим, стратегия,
+        # EV, confidence, риск-решение, размер.
+        logger.info(
+            "DECISION %s REGIME=%s STRATEGY=%s EV=%+.3fR CONF=%.2f RISK=APPROVED SIZE=%s",
+            symbol,
+            regime_info.get("regime", "?"),
+            pos.strategy,
+            float(cand_features.get("ev_r") or 0.0),
+            float(cand_features.get("ev_confidence") or 0.0),
+            pos.quantity,
+        )
         # Уведомления по каждой сделке отключены: шлём только утренний
         # отчёт и отвечаем на команды из меню.
         logger.info("OPEN %s %s entry=%s", pos.direction, pos.symbol, pos.entry_price)
         return closed
 
+    def _record_no_trade(self, symbol: str, decision: Decision, primary: list) -> None:
+        """Записать NO_TRADE-наблюдение (TZ §12). Append-only, idempotent."""
+        try:
+            from ..ml.no_trade_observations import (
+                NoTradeObservation,
+                make_observation_id,
+                quick_features,
+            )
+
+            bar = primary[-1]
+            regime_info = decision.diagnostics.get("regime") or {}
+            meta_evals = [
+                e for e in (decision.diagnostics.get("meta") or [])
+                if isinstance(e, dict)
+            ]
+            candidate = None
+            if meta_evals:
+                finite = [
+                    e for e in meta_evals
+                    if isinstance(e.get("ev_r"), (int, float))
+                    and e["ev_r"] > float("-inf")
+                ]
+                if finite:
+                    best = max(finite, key=lambda e: e.get("ev_r", 0.0))
+                    candidate = {
+                        "strategy": best.get("strategy"),
+                        "direction": best.get("direction"),
+                        "ev_r": best.get("ev_r"),
+                        "confidence": best.get("confidence"),
+                        "sample_size": best.get("sample_size"),
+                        "score": best.get("total_score"),
+                    }
+            reason_code = decision.reason_code or "NO_VALID_SETUP"
+            obs = NoTradeObservation(
+                id=make_observation_id(
+                    symbol,
+                    int(bar.open_time),
+                    reason_code,
+                    candidate.get("strategy") if candidate else "",
+                    candidate.get("direction") if candidate else "",
+                ),
+                symbol=symbol,
+                bar_time=int(bar.open_time),
+                timestamp=int(datetime.now(tz=UTC).timestamp() * 1000),
+                market_regime=str(regime_info.get("regime", "UNKNOWN")),
+                regime_confidence=float(regime_info.get("confidence", 0.0)),
+                reason_code=reason_code,
+                reasons=list(decision.reasons),
+                candidate=candidate,
+                features=quick_features(list(primary)),
+            )
+            if self.obs_log.add(obs):
+                logger.info(
+                    "NO_TRADE %s REGIME=%s BEST=%s REASON=%s",
+                    symbol,
+                    obs.market_regime,
+                    candidate.get("strategy") if candidate else "-",
+                    reason_code,
+                )
+        except Exception as exc:
+            logger.debug("no_trade record: %s", exc)
+
+    def _log_decision_line(self, symbol: str, decision: Decision) -> None:
+        """Одна строка на решение (TZ §32) — для NO_TRADE и TRADE-потока."""
+        if decision.action != "NO_TRADE":
+            return  # TRADE-ветка логирует собственную строку после size
+        meta_evals = decision.diagnostics.get("meta") or []
+        best_ev, best_conf = None, None
+        if meta_evals:
+            finite = [
+                e for e in meta_evals
+                if isinstance(e, dict)
+                and isinstance(e.get("ev_r"), (int, float))
+                and e["ev_r"] > float("-inf")
+            ]
+            if finite:
+                top = max(finite, key=lambda e: e.get("ev_r", 0.0))
+                best_ev, best_conf = top.get("ev_r"), top.get("confidence")
+                best = top.get("strategy")
+            else:
+                best = None
+        else:
+            best = None
+        logger.info(
+            "NO_TRADE %s REGIME=%s BEST_STRATEGY=%s EV=%s CONF=%s REASON=%s",
+            symbol,
+            (decision.diagnostics.get("regime") or {}).get("regime", "?"),
+            best or "-",
+            f"{best_ev:+.3f}R" if isinstance(best_ev, (int, float)) else "-",
+            f"{best_conf:.2f}" if isinstance(best_conf, (int, float)) else "-",
+            decision.reason_code or (decision.reasons[0] if decision.reasons else "?"),
+        )
+
     def _record_closed(self, closed: list) -> None:
-        """Сохранить закрытые сделки как уроки, учсть их в Risk Engine.
+        """Сохранить закрытые сделки: уроки, Risk Engine, статистика режимов.
 
         Risk Engine получает результат каждой закрытой сделки: именно это
         подпитывает дневные/недельные лимиты, просадку и HALT-логика.
+        StrategyStatsStore — R-метрики по (strategy, regime, timeframe):
+        источник EV для Meta-Strategy (TZ §3.1/§5).
         """
         trades = []
         for t in closed:
@@ -515,6 +674,11 @@ class TradingEngine:
                     "pnl": getattr(t, "pnl", 0.0),
                     "pnl_pct": getattr(t, "pnl_pct", 0.0),
                     "fees": getattr(t, "fees", 0.0),
+                    "r_multiple": getattr(t, "r_multiple", 0.0),
+                    "mfe_r": getattr(t, "mfe_r", 0.0),
+                    "mae_r": getattr(t, "mae_r", 0.0),
+                    "regime": getattr(t, "regime", ""),
+                    "timeframe": getattr(t, "timeframe", ""),
                     "exit_reason": getattr(t, "exit_reason", ""),
                     "strategy": getattr(t, "strategy", ""),
                     "opened_at": getattr(t, "opened_at", 0),
@@ -540,6 +704,19 @@ class TradingEngine:
                 self.risk.remove_position(d["id"])
             except Exception as exc:
                 logger.debug("risk.record_trade: %s", exc)
+            try:
+                if d.get("r_multiple") or d.get("regime"):
+                    self.stats_store.record(
+                        strategy=str(d.get("strategy") or ""),
+                        regime=str(d.get("regime") or "UNKNOWN"),
+                        timeframe=str(d.get("timeframe") or ""),
+                        r_multiple=float(d.get("r_multiple") or 0.0),
+                        mfe_r=float(d.get("mfe_r") or 0.0),
+                        mae_r=float(d.get("mae_r") or 0.0),
+                        fees=float(d.get("fees") or 0.0),
+                    )
+            except Exception as exc:
+                logger.debug("stats_store.record: %s", exc)
 
     def _notify(self, text: str, severity: str = "info") -> None:
         if self._notifier is None:
