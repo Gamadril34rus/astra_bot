@@ -10,7 +10,8 @@ import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path: sys.path.insert(0, str(PROJECT_ROOT))
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 try:
     from dotenv import load_dotenv
     load_dotenv(PROJECT_ROOT / ".env")
@@ -27,7 +28,18 @@ setup_logging(level=os.environ.get("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("bot_runner")
 LISTEN_SECONDS = int(os.environ.get("BOT_LISTEN_SECONDS", "200"))
 
+def _rotate_state() -> None:
+    """Прокачка торговых state-файлов в начале сессии (TZ §29):
+    Git не должен хранить бесконечную торговую БД."""
+    try:
+        from astra_bot.core.state_rotation import rotate_all
+        rotate_all(PROJECT_ROOT / "models")
+    except Exception as exc:
+        logger.warning("State rotation error (не блокирует сессию): %s", exc)
+
+
 async def amain() -> int:
+    _rotate_state()
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     admin = os.environ.get("TELEGRAM_ADMIN_ID", "")
     if not token or not admin:
@@ -35,7 +47,8 @@ async def amain() -> int:
         return 2
     admin_ids = [int(x) for x in admin.split(",") if x.strip()]
     allowed = [int(x) for x in os.environ.get("TELEGRAM_USER_ID", str(admin)).split(",") if x.strip()] or admin_ids
-    status = trading_schedule.get_status(); can_trade = status["can_trade_now"]
+    status = trading_schedule.get_status()
+    can_trade = status["can_trade_now"]
     logger.info("Старт: торговля %s | осталось %s ч/мес | %s", "разрешена" if can_trade else "на паузе", status["remaining_hours"], status["now_msk"])
     okx = OKXClient({
         "api_key": os.environ.get("OKX_API_KEY", ""),
@@ -58,34 +71,45 @@ async def amain() -> int:
         logger.warning("Skipped unavailable instruments: %s", ", ".join(skipped))
     if not symbols:
         logger.error("No configured instruments are currently tradable on OKX")
-        await okx.close(); return 3
+        await okx.close()
+        return 3
     engine = TradingEngine(okx=okx, config=TradingEngineConfig(symbols=symbols, poll_interval_seconds=300))
     bot = await create_telegram_bot(bot_token=token, allowed_user_ids=allowed, admin_user_ids=admin_ids)
     stop = asyncio.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
-        try: asyncio.get_running_loop().add_signal_handler(sig, stop.set)
-        except NotImplementedError: pass
+        try:
+            asyncio.get_running_loop().add_signal_handler(sig, stop.set)
+        except NotImplementedError:
+            pass
     await bot.start()
     async def trade_loop():
         while not stop.is_set():
             try:
                 if trading_schedule.can_trade_now():
-                    trading_schedule.tick(); await engine.step()
+                    trading_schedule.tick()
+                    await engine.step()
                 else:
                     logger.info("Вне торгового расписания — шаг пропущен")
             except Exception as exc:
                 logger.exception("Ошибка торгового шага: %s", exc)
-            try: await asyncio.wait_for(stop.wait(), timeout=45)
-            except TimeoutError: pass
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=45)
+            except TimeoutError:
+                pass
     trade_task = asyncio.create_task(trade_loop())
     try:
         await asyncio.wait_for(stop.wait(), timeout=LISTEN_SECONDS)
-    except TimeoutError: pass
+    except TimeoutError:
+        pass
     finally:
-        stop.set(); trade_task.cancel()
-        try: await trade_task
-        except (asyncio.CancelledError, Exception): pass
-        await bot.stop(); await okx.close()
+        stop.set()
+        trade_task.cancel()
+        try:
+            await trade_task
+        except (asyncio.CancelledError, Exception):
+            pass
+        await bot.stop()
+        await okx.close()
     logger.info("Сессия завершена.")
     return 0
 
@@ -97,8 +121,8 @@ def main() -> None:
     # триггера файл удаляется и пушится. После завершения аудита скрипт
     # run_full_research_audit.py сам опубликует aggregate_summary в issue #36.
     import json as _json
-    import urllib.request as _ur
     import urllib.error as _ue
+    import urllib.request as _ur
     _repo = os.environ.get("GITHUB_REPOSITORY")
     _api_url = os.environ.get("GITHUB_API_URL", "https://api.github.com")
     _token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
@@ -160,7 +184,10 @@ def main() -> None:
             # Любая ошибка в этой логике не должна уронить запуск бота
             logging.getLogger("bot_runner").debug("dispatch-логика пропущена: %r", _exc)
 
-    try: code = asyncio.run(amain())
-    except KeyboardInterrupt: code = 0
+    try:
+        code = asyncio.run(amain())
+    except KeyboardInterrupt:
+        code = 0
     sys.exit(code or 0)
-if __name__ == "__main__": main()
+if __name__ == "__main__":
+    main()
