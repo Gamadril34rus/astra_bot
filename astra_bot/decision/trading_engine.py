@@ -317,7 +317,14 @@ class TradingEngine:
         # кривой из файла, если состояние было правлено вручную.
         self.risk.set_capital(self.broker.equity, self.broker.initial_capital)
         for pos in self.broker.positions:
-            self.risk.add_position(pos.id)
+            # Meta для portfolio-лимитов (Этап 5): id-позиции без
+            # номинала не видны в gross/net/группе — передаём явно.
+            self.risk.add_position(
+                pos.id,
+                symbol=pos.symbol,
+                side=pos.direction,
+                notional=abs(pos.quantity * pos.entry_price),
+            )
         self._risk_synced = True
         logger.info(
             "Risk state восстановлен: equity=%s, daily_pnl=%s, weekly_pnl=%s, "
@@ -629,8 +636,14 @@ class TradingEngine:
         )
         # Книга позиций Risk Engine живая внутри сессии: экспозиция и
         # лимит числа позиций считаются по актуальному набору.
+        # Meta (Этап 5) — для gross/net/групповых portfolio-лимитов.
         try:
-            self.risk.add_position(pos.id)
+            self.risk.add_position(
+                pos.id,
+                symbol=pos.symbol,
+                side=pos.direction,
+                notional=abs(pos.quantity * pos.entry_price),
+            )
         except Exception as exc:
             logger.debug("risk.add_position: %s", exc)
         # Значимое событие (открыта позиция) — checkpoint (Этап 3).
