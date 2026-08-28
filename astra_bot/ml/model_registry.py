@@ -28,6 +28,14 @@ class ModelInfo:
     model_path: str | None = None
     description: str = ""
     tags: list[str] = field(default_factory=list)
+    # --- TZ §18-22: evidence for the promotion chain and A/B/stress ---
+    status_log: list[dict[str, str]] = field(default_factory=list)
+    sample_size: int = 0
+    expectancy: float | None = None
+    oos_expectancy: float | None = None
+    walk_forward_expectancy: float | None = None
+    stress_metrics: dict[str, Any] = field(default_factory=dict)
+    rollback_reason: str | None = None
 
     @property
     def is_production(self) -> bool:
@@ -53,6 +61,13 @@ class ModelInfo:
             "feature_count": len(self.feature_names),
             "description": self.description,
             "tags": self.tags,
+            "status_log": self.status_log,
+            "sample_size": self.sample_size,
+            "expectancy": self.expectancy,
+            "oos_expectancy": self.oos_expectancy,
+            "walk_forward_expectancy": self.walk_forward_expectancy,
+            "stress_metrics": self.stress_metrics,
+            "rollback_reason": self.rollback_reason,
         }
 
 
@@ -98,6 +113,15 @@ class ModelRegistry:
                         description=info.get("description", ""),
                         tags=info.get("tags", []),
                         model_path=info.get("model_path"),
+                        status_log=info.get("status_log", []),
+                        sample_size=int(info.get("sample_size", 0)),
+                        expectancy=info.get("expectancy"),
+                        oos_expectancy=info.get("oos_expectancy"),
+                        walk_forward_expectancy=info.get(
+                            "walk_forward_expectancy"
+                        ),
+                        stress_metrics=info.get("stress_metrics", {}),
+                        rollback_reason=info.get("rollback_reason"),
                     )
                     self._models[version] = model_info
 
@@ -119,6 +143,9 @@ class ModelRegistry:
         }
 
         for version, info in self._models.items():
+            row = info.to_dict()
+            row["created_at"] = info.created_at.isoformat()
+            row["production"] = version == self._production_model
             data["models"][version] = {
                 "model_type": info.model_type,
                 "created_at": info.created_at.isoformat(),
@@ -127,6 +154,13 @@ class ModelRegistry:
                 "tags": info.tags,
                 "model_path": info.model_path,
                 "production": version == self._production_model,
+                "status_log": info.status_log,
+                "sample_size": info.sample_size,
+                "expectancy": info.expectancy,
+                "oos_expectancy": info.oos_expectancy,
+                "walk_forward_expectancy": info.walk_forward_expectancy,
+                "stress_metrics": info.stress_metrics,
+                "rollback_reason": info.rollback_reason,
             }
 
         with open(registry_file, "w") as f:
@@ -272,25 +306,205 @@ class ModelRegistry:
 
         return sorted(models, key=lambda m: m.created_at, reverse=True)
 
-    def delete_model(self, version: str) -> bool:
-        """Удалить модель"""
+    def delete_model(self, version: str, reason: str = "") -> bool:
+        """Мягкое удаление: модель уходит в ``deprecated``, файл и история
+        ХРАНИТСЯ (TZ §18: старые версии нужны для rollback)."""
         if version not in self._models:
             return False
 
-        # Нельзя удалить production модель
-        if version == self._production_model:
-            raise ValueError("Cannot delete production model")
-
-        # Удаляем файл
         model_info = self._models[version]
-        if model_info.model_path and Path(model_info.model_path).exists():
-            Path(model_info.model_path).unlink()
-
-        del self._models[version]
+        model_info.status = "deprecated"
+        model_info.status_log.append({
+            "at": datetime.utcnow().isoformat(),
+            "status": "deprecated",
+            "reason": f"delete_model: {reason}" if reason else "delete_model",
+        })
         self._save_registry()
 
-        logger.info(f"Deleted model: {version}")
+        logger.info(f"Soft-deleted (deprecated) model: {version}")
         return True
+
+    # ------------------------------------------------------------------
+    # TZ §18-22: цепочка продвижения, A/B, stress, rollback
+    # ------------------------------------------------------------------
+
+    PROMOTION_CHAIN = ["development", "validated", "production", "deprecated"]
+
+    def set_stress_metrics(self, version: str, stress: dict[str, Any]) -> None:
+        """Записать stress-результаты (fees×2, slippage×2/×3, Monte Carlo).
+
+        Ожидается ключ ``stable`` (bool) — модель с ``stable: False``
+        никогда не поднимается до production автоматически (TZ §22)."""
+        if version not in self._models:
+            raise ValueError(f"Model not found: {version}")
+        self._models[version].stress_metrics = dict(stress)
+        self._save_registry()
+
+    def set_evaluation(
+        self,
+        version: str,
+        *,
+        sample_size: int = 0,
+        expectancy: float | None = None,
+        oos_expectancy: float | None = None,
+        walk_forward_expectancy: float | None = None,
+    ) -> None:
+        """Записать оценки (OOS/walk-forward expectancy) для продвижения."""
+        if version not in self._models:
+            raise ValueError(f"Model not found: {version}")
+        info = self._models[version]
+        if sample_size:
+            info.sample_size = sample_size
+        if expectancy is not None:
+            info.expectancy = expectancy
+        if oos_expectancy is not None:
+            info.oos_expectancy = oos_expectancy
+        if walk_forward_expectancy is not None:
+            info.walk_forward_expectancy = walk_forward_expectancy
+        self._save_registry()
+
+    def _transition(self, info: ModelInfo, status: str, reason: str) -> None:
+        info.status = status
+        info.status_log.append({
+            "at": datetime.utcnow().isoformat(),
+            "status": status,
+            "reason": reason,
+        })
+
+    def promote(
+        self,
+        version: str,
+        target_status: str,
+        evidence: dict[str, Any] | None = None,
+        min_samples: int = 20,
+    ) -> tuple[bool, str]:
+        """Продвижение по цепочке с гейтами (TZ §18/§22).
+
+        development -> validated: есть метрики и sample size.
+        validated -> production: OOS > 0, walk-forward > 0, stress stable,
+        A/B не хуже текущей production (иначе нужен override_reason).
+        Возвращает (ok, reason).
+        """
+        if version not in self._models:
+            return False, f"Model not found: {version}"
+        if target_status not in self.PROMOTION_CHAIN:
+            return False, f"unknown status: {target_status}"
+        info = self._models[version]
+        cur = info.status
+        evidence = evidence or {}
+
+        if target_status == "validated" and cur == "development":
+            if info.sample_size < min_samples:
+                return False, (
+                    f"sample_size {info.sample_size} < min_samples {min_samples}"
+                )
+            if info.metrics is None and not info.expectancy:
+                return False, "нет метрик для валидации"
+            self._transition(info, "validated", evidence.get("reason", ""))
+            self._save_registry()
+            return True, ""
+
+        if target_status == "production" and cur == "validated":
+            if (info.oos_expectancy or 0) <= 0:
+                return False, "OOS expectancy <= 0 — нет доказательства"
+            if (info.walk_forward_expectancy or 0) <= 0:
+                return False, "walk-forward expectancy <= 0"
+            if not info.stress_metrics or info.stress_metrics.get("stable") is not True:
+                return False, "нет stable stress test (TZ §22: UNSTABLE не ACTIVE)"
+            # A/B против текущей production (если есть): challenger не хуже.
+            if self._production_model and self._production_model != version:
+                base = self._models[self._production_model]
+                if base.expectancy is not None and info.expectancy is not None:
+                    if info.expectancy < base.expectancy:
+                        if not evidence.get("override_reason"):
+                            return False, (
+                                f"A/B: expectancy {info.expectancy:.3f} < "
+                                f"production {base.expectancy:.3f} "
+                                "(нужен override_reason)"
+                            )
+                        self._transition(
+                            info, "production",
+                            f"override: {evidence['override_reason']}",
+                        )
+                    else:
+                        self._transition(info, "production", "A/B: не хуже production")
+                else:
+                    self._transition(info, "production", "A/B: без базовых метрик")
+            else:
+                self._transition(info, "production", evidence.get("reason", ""))
+            # Предыдущая production -> deprecated (файл и история сохраняются).
+            if self._production_model and self._production_model != version:
+                old = self._models[self._production_model]
+                self._transition(old, "deprecated", "заменена новой production")
+            self._production_model = version
+            self._save_registry()
+            return True, ""
+
+        return False, (
+            f"переход {cur} -> {target_status} запрещён "
+            f"(цепочка: {' -> '.join(self.PROMOTION_CHAIN)})"
+        )
+
+    def ab_compare(
+        self, base_version: str, challenger_version: str, min_samples: int = 20
+    ) -> dict[str, Any]:
+        """A/B сравнение (TZ §23): expectancy + sample size, без магии."""
+        base = self._models.get(base_version)
+        chal = self._models.get(challenger_version)
+        if base is None or chal is None:
+            return {"verdict": "error", "reason": "model not found"}
+        bn, cn = base.sample_size, chal.sample_size
+        b_exp = base.expectancy or 0.0
+        c_exp = chal.expectancy or 0.0
+        insufficient = bn < min_samples or cn < min_samples
+        if c_exp > b_exp:
+            verdict = "challenger_wins"
+        elif c_exp < b_exp:
+            verdict = "base_wins"
+        else:
+            verdict = "tie"
+        return {
+            "base_version": base_version,
+            "challenger_version": challenger_version,
+            "base_expectancy": b_exp,
+            "challenger_expectancy": c_exp,
+            "delta": c_exp - b_exp,
+            "base_n": bn,
+            "challenger_n": cn,
+            "insufficient_samples": insufficient,
+            "verdict": verdict,
+        }
+
+    def rollback(self, target_version: str, reason: str = "") -> tuple[bool, str]:
+        """Rollback на предыдущую версию (TZ §18).
+
+        Текущая production -> deprecated; target (не deprecated) ->
+        production. Возвращает (ok, previous_version)."""
+        if target_version not in self._models:
+            return False, f"Model not found: {target_version}"
+        target = self._models[target_version]
+        if target_version == self._production_model:
+            return False, "уже production"
+        # Deprecated делится на «снят при замене» (можно вернуть) и
+        # «удалён пользователем» (нельзя): последнее событие в истории —
+        # delete_model => заблокировано.
+        if target.status == "deprecated":
+            last = target.status_log[-1] if target.status_log else {}
+            if str(last.get("reason", "")).startswith("delete_model"):
+                return False, (
+                    f"нельзя rollback на удалённую версию: {target_version}"
+                )
+        previous = self._production_model
+        if previous:
+            self._transition(
+                self._models[previous], "deprecated",
+                f"rollback -> {target_version}: {reason}",
+            )
+        target.rollback_reason = reason
+        self._transition(target, "production", f"rollback: {reason}")
+        self._production_model = target_version
+        self._save_registry()
+        return True, previous or ""
 
     def validate_model(
         self,

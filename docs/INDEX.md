@@ -16,6 +16,7 @@
 | `HYPOTHESIS_ENGINE.md` | Lifecycle гипотез (DISCOVERED…RETIRED), допуски к VALIDATED, live-деградация |
 | `RESEARCH_MEMORY.md` | Типизированная память: OBSERVATIONS/HYPOTHESES/STRATEGIES/LESSONS/MODELS |
 | `EXIT_RESEARCH.md` | 8 exit-стратегий, walk-forward исследование, применение только ACTIVE |
+| `MODEL_REGISTRY.md` | Версии моделей, promotion chain, A/B, stress, rollback |
 
 ## 2. Обучение и память
 
