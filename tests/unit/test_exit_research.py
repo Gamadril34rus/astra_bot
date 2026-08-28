@@ -183,8 +183,10 @@ def _full_positive_metrics() -> dict:
         return ExitMetrics(n=n, wins=n, expectancy=exp, win_rate=1.0,
                            profit_factor=2.0, avg_mfe_r=exp, avg_mae_r=-0.2)
 
-    return {"train": mk(10, 0.5), "validation": mk(5, 0.4),
-            "oos": mk(5, 0.3), "walk_forward": mk(2, 0.4)}
+    # Выборки, при которых oos-сигнал статистически значим (Этап 6):
+    # sample = 20+15+20 = 55, oos ev 0.4 → z≈3 → p≈0.0015 < 0.05 (FDR).
+    return {"train": mk(20, 0.5), "validation": mk(15, 0.4),
+            "oos": mk(20, 0.4), "walk_forward": mk(4, 0.4)}
 
 
 class TestPromotionGating:
@@ -210,7 +212,9 @@ class TestPromotionGating:
             stress_metrics={"fees_x2": 0.1},
         )
         assert not promoted
-        assert "oos" in reason
+        # Отрицательный OOS блокирует либо через FDR (p≈1), либо через
+        # требование expectancy > 0 в oos — оба пути запрещают промоцию.
+        assert "oos" in reason or "FDR" in reason
         assert store.get(hid).status.value == "TESTING"
 
     def test_small_sample_blocks(self, tmp_path):

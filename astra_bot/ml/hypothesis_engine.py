@@ -51,11 +51,15 @@ class HypothesisStatus(str, Enum):
 
 # Допустимые переходы: статус -> множество допустимых следующих.
 ALLOWED_TRANSITIONS: dict[HypothesisStatus, set[HypothesisStatus]] = {
-    HypothesisStatus.DISCOVERED: {HypothesisStatus.TESTING},
+    # RETIRED из DISCOVERED/TESTING — auto-retirement устаревших гипотез
+    # (Этап 6): долгая жизнь без достаточных данных = отрицательный
+    # результат, запись сохраняется (TZ §10).
+    HypothesisStatus.DISCOVERED: {HypothesisStatus.TESTING, HypothesisStatus.RETIRED},
     HypothesisStatus.TESTING: {
         HypothesisStatus.VALIDATED,
         HypothesisStatus.INVALIDATED,
         HypothesisStatus.DISCOVERED,
+        HypothesisStatus.RETIRED,
     },
     HypothesisStatus.VALIDATED: {HypothesisStatus.ACTIVE, HypothesisStatus.INVALIDATED},
     HypothesisStatus.ACTIVE: {
@@ -112,6 +116,30 @@ class Hypothesis:
         self.status_log.append(
             {"at": self.updated_at, "status": new_status.value, "reason": reason}
         )
+
+    def evidence_p_value(self) -> float:
+        """Односторонний p-value выборки expectancy (R-множители).
+
+        t = R̄·√n при sd(R) ≈ 1 (R нормализован к единичному риску).
+        Нормальное приближение (df = n−1 ≥ 19 по правилу валидации) +
+        консервативная поправка для малых выборок (t-распределение
+        тяжелее нормального → p недооценивается). Это СКРИНИНГ-гейт:
+        итоговое решение о валидации принимают OOS + walk-forward +
+        stress, а p-value отсекает «удачный шум» при множественной
+        проверке (FDR, Этап 6).
+        """
+        from math import erfc, sqrt
+
+        n = max(int(self.sample_size), 2)
+        ev = float(self.expectancy)
+        if ev <= 0:
+            return 1.0
+        z = ev * sqrt(n)
+        p = 0.5 * erfc(z / sqrt(2.0))
+        df = n - 1
+        if df < 30:
+            p = min(1.0, p * (1.0 + 1.0 / (4.0 * df)))
+        return p
 
     def transition(
         self, new_status: HypothesisStatus, reason: str = "", min_samples: int = 20
@@ -229,14 +257,126 @@ class HypothesisStore:
     def transition(
         self, hid: str, new_status: HypothesisStatus, reason: str = "",
         min_samples: int = 20,
+        fdr_alpha: float = 0.05,
     ) -> tuple[bool, str]:
         hyp = self.hypotheses.get(hid)
         if hyp is None:
             return False, f"гипотеза {hid} не найдена"
+        # FDR-гейт (Этап 6): VALIDATED выдаётся только гипотезам,
+        # прошедшим Benjamini-Hochberg по множеству всех TESTING-
+        # кандидатов с достаточной выборкой — контроль ложных открытий
+        # при множественной проверке (TZ: research-first, no auto-promotion).
+        if new_status is HypothesisStatus.VALIDATED:
+            ok_fdr, why_fdr = self._fdr_gate(hid, min_samples, fdr_alpha)
+            if not ok_fdr:
+                return False, why_fdr
         ok, why = hyp.transition(new_status, reason, min_samples=min_samples)
         if ok:
             self.save()
         return ok, why
+
+    # ------------------------------------------------------------ FDR (Этап 6)
+    def _fdr_gate(
+        self, hid: str, min_samples: int, alpha: float
+    ) -> tuple[bool, str]:
+        """Benjamini-Hochberg по p-value-ам всех TESTING-кандидатов.
+
+        Кандидаты: гипотезы в TESTING с sample_size >= min_samples
+        (включая переводимую). m = число кандидатов. Упорядоченные
+        p-значения p_(1) <= ... <= p_(m): принимаем k — максимальный
+        индекс с p_(k) <= (k/m)·alpha — и все гипотезы с рангом <= k.
+        При m = 1 деградирует до p <= alpha.
+        """
+        candidates = [
+            h for h in self.hypotheses.values()
+            if h.status is HypothesisStatus.TESTING
+            and h.sample_size >= min_samples
+        ]
+        if not any(h.id == hid for h in candidates):
+            # Переводимая гипотеза сама не кандидат (недостаточно данных) —
+            # требования _validate_requirements и так отклонят переход.
+            return True, ""
+        pvals = sorted((h.evidence_p_value(), h.id) for h in candidates)
+        m = len(pvals)
+        k_max = 0
+        for k, (p, _id) in enumerate(pvals, start=1):
+            if p <= (k / m) * alpha:
+                k_max = k
+        accepted = {pid for _, pid in pvals[:k_max]}
+        target = next(h for h in candidates if h.id == hid)
+        if hid not in accepted:
+            return False, (
+                f"FDR: p={target.evidence_p_value():.4f} не прошёл "
+                f"Benjamini-Hochberg (m={m}, alpha={alpha}) — "
+                f"недостаточно доказательств против шума"
+            )
+        return True, ""
+
+    # ------------------------------------------------------------ auto-retirement (Этап 6)
+    def auto_retire_stale(self, max_age_days: float = 90.0) -> list[str]:
+        """Auto-retirement устаревших гипотез (Этап 6).
+
+        DISCOVERED/TESTING старше ``max_age_days`` — это ответ системы:
+        «проверили, edge не подтверждён» (negative knowledge, TZ §10).
+        Записи НЕ удаляются — статус RETIRED с причиной сохраняется.
+        Возвращает id переведённых в RETIRED.
+        """
+        now = datetime.now(UTC)
+        retired: list[str] = []
+        for hyp in self.hypotheses.values():
+            if hyp.status not in (
+                HypothesisStatus.DISCOVERED, HypothesisStatus.TESTING
+            ):
+                continue
+            try:
+                created = datetime.fromisoformat(hyp.updated_at)
+            except (ValueError, TypeError):
+                continue
+            age_days = (now - created).total_seconds() / 86400.0
+            if age_days <= max_age_days:
+                continue
+            if hyp.sample_size >= 20:
+                why = (
+                    f"stale {age_days:.0f}d: данные есть, edge не "
+                    f"подтверждён (negative result)"
+                )
+            else:
+                why = (
+                    f"stale {age_days:.0f}d: недостаточно данных "
+                    f"(n={hyp.sample_size})"
+                )
+            ok, _ = hyp.transition(HypothesisStatus.RETIRED, reason=why)
+            if ok:
+                retired.append(hyp.id)
+        if retired:
+            self.save()
+        return retired
+
+    # ------------------------------------------------------------ negative results (Этап 6)
+    def negative_results(self) -> list[dict[str, Any]]:
+        """Отрицательные знания: INVALIDATED/RETIRED с причинами (TZ §10).
+
+        Неудающиеся гипотезы — часть памяти системы, а не мусор:
+        они запрещают повторную автопромоцию того же паттерна.
+        """
+        out: list[dict[str, Any]] = []
+        for h in self.hypotheses.values():
+            if h.status not in (
+                HypothesisStatus.INVALIDATED, HypothesisStatus.RETIRED
+            ):
+                continue
+            last_log = h.status_log[-1].get("reason", "") if h.status_log else ""
+            out.append(
+                {
+                    "id": h.id,
+                    "strategy_id": h.strategy_id,
+                    "status": h.status.value,
+                    "reason": h.invalidation_reason or last_log,
+                    "description": h.description,
+                    "updated_at": h.updated_at,
+                }
+            )
+        return out
 
     # ------------------------------------------------------------ live monitor
     def check_live_degradation(

@@ -24,9 +24,11 @@ def _validated_hyp(id="hyp-test", **kw) -> Hypothesis:
         oos_metrics={"expectancy": 0.12, "profit_factor": 1.25},
         walk_forward_metrics={"expectancy": 0.1, "profit_factor": 1.2},
         stress_metrics={"fees_x2": 0.08, "slippage_x3": 0.05, "stable": True},
-        expectancy=0.12,
-        profit_factor=1.25,
-        win_rate=0.55,
+        # expectancy 0.25 при n=100 → p≈0.006: проходит FDR-гейт (Этап 6)
+        # — «все доказательства» теперь включают и значимость сигнала.
+        expectancy=0.25,
+        profit_factor=1.35,
+        win_rate=0.58,
     )
     for k, v in kw.items():
         setattr(hyp, k, v)

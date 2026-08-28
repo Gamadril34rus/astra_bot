@@ -886,6 +886,13 @@ class TradingEngine:
         # за step; процессинг символов флаттит позиции при обвале.
         await self.exit_manager.refresh_btc_panic()
 
+        # Research (Этап 6): auto-retirement устаревших гипотез —
+        # «проверили, edge не подтверждён» = negative knowledge (TZ §10).
+        try:
+            self.hypotheses.auto_retire_stale()
+        except Exception as exc:
+            logger.debug("auto_retire_stale: %s", exc)
+
         for symbol in self.config.symbols:
             try:
                 await self.process_symbol(symbol)
