@@ -5,7 +5,7 @@ ASTRA BOT — Risk Engine
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from enum import Enum
 
@@ -174,6 +174,74 @@ class RiskEngine:
         """Обновить high water mark"""
         if self._current_equity > self._high_water_mark:
             self._high_water_mark = self._current_equity
+
+    def restore_from_trades(self, trades, initial_capital: Decimal) -> None:
+        """Восстановить состояние risk-движка из персистентных сделок.
+
+        GitHub Actions поднимает свежий процесс на каждой 5-минутной
+        сессии, поэтому дневной/недельный PnL, high water mark и
+        HALT-статус пересобираются из ``models/paper_trades.jsonl``
+        (источник истины уже персистится в CI — новый state-файл не нужен).
+
+        ``trades`` — итерируемый список словарей с полями ``closed_at``
+        (миллисекунды), ``pnl``, ``symbol``, ``direction``,
+        ``entry_price``, ``quantity``.
+        """
+        now_ms = datetime.now(UTC).timestamp() * 1000
+        day_ago_ms = now_ms - timedelta(hours=24).total_seconds() * 1000
+        week_ago_ms = now_ms - timedelta(days=7).total_seconds() * 1000
+
+        self._initial_capital = Decimal(initial_capital)
+        self._current_equity = self._initial_capital
+        peak = self._initial_capital
+        running = self._initial_capital
+
+        parsed: list[tuple[int, dict]] = []
+        for t in trades or []:
+            try:
+                ts = int(float(t.get("closed_at") or 0))
+                pnl = Decimal(str(t.get("pnl") or 0))
+            except (TypeError, ValueError):
+                continue
+            if ts <= 0:
+                continue
+            parsed.append(
+                (
+                    ts,
+                    {
+                        "symbol": str(t.get("symbol", "")),
+                        "side": str(t.get("direction", "")),
+                        "entry_price": Decimal(str(t.get("entry_price") or 0)),
+                        "quantity": Decimal(str(t.get("quantity") or 0)),
+                        "pnl": pnl,
+                        "won": pnl > 0,
+                        "timestamp": datetime.fromtimestamp(ts / 1000, tz=UTC).replace(tzinfo=None),
+                    },
+                )
+            )
+
+        # Кривая капитала считается в хронологическом порядке.
+        today: list[dict] = []
+        week: list[dict] = []
+        for ts, rec in sorted(parsed, key=lambda item: item[0]):
+            running += rec["pnl"]
+            if running > peak:
+                peak = running
+            if ts > week_ago_ms:
+                week.append(rec)
+            if ts > day_ago_ms:
+                today.append(rec)
+
+        self._today_trades = today
+        self._week_trades = week
+        self._daily_pnl = sum((t["pnl"] for t in today), Decimal("0"))
+        self._weekly_pnl = sum((t["pnl"] for t in week), Decimal("0"))
+        self._current_equity = running
+        self._high_water_mark = peak
+        # Если просадка уже выше порогов — HALT восстанавливается
+        # автоматически, даже если процесс только что стартовал.
+        self._check_drawdown_state()
+        self._export_metrics()
 
     @property
     def daily_pnl(self) -> Decimal:
@@ -602,7 +670,13 @@ class RiskEngine:
                     logger.info("Risk state normalized")
 
     def _cleanup_old_trades(self):
-        """Очистить старые записи сделок"""
+        """Очистить старые записи сделок.
+
+        ВАЖНО: PnL скользящих окон пересчитывается из отфильтрованных
+        списков. Раньше ``_daily_pnl``/``_weekly_pnl`` только накапливались
+        и никогда не сбрасывались, из-за чего дневной лимит потерь
+        срабатывал «навсегда» по мере накопления истории.
+        """
         now = datetime.utcnow()
 
         # Дневные сделки — оставляем за последние 24 часа
@@ -618,6 +692,14 @@ class RiskEngine:
             t for t in self._week_trades
             if t["timestamp"] > week_ago
         ]
+
+        # Пересчёт PnL окон из фактически оставшихся сделок.
+        self._daily_pnl = sum(
+            (Decimal(str(t["pnl"])) for t in self._today_trades), Decimal("0")
+        )
+        self._weekly_pnl = sum(
+            (Decimal(str(t["pnl"])) for t in self._week_trades), Decimal("0")
+        )
 
     def add_position(self, position: models.Position | str):
         """Добавить позицию (объект позиции или её идентификатор)."""

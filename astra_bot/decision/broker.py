@@ -50,6 +50,11 @@ class PaperPosition:
         )
     )
     notes: dict[str, Any] = field(default_factory=dict)
+    # Эффективная цена входа с учётом slippage (None для позиций,
+    # открытых до введения издержек — тогда считается entry_price).
+    fill_price: Decimal | None = None
+    # Тейкер-комиссия на единицу объёма, начисленная при входе.
+    entry_fee_per_unit: Decimal = Decimal("0")
 
 
 @dataclass
@@ -66,6 +71,8 @@ class ClosedTrade:
     strategy: str
     opened_at: int
     closed_at: int
+    # Комиссии + slippage-издержки, учтённые в pnl (нетто-результат).
+    fees: float = 0.0
 
 
 class PaperBroker:
@@ -76,12 +83,20 @@ class PaperBroker:
         state_path: Path = Path("models/paper_positions.json"),
         trades_path: Path = Path("models/paper_trades.jsonl"),
         initial_capital: Decimal = Decimal("2000"),
+        fee_pct: Decimal = Decimal("0.001"),
+        slippage_pct: Decimal = Decimal("0.001"),
     ):
         self.state_path = state_path
         self.trades_path = trades_path
         self.initial_capital = initial_capital
         self.positions: list[PaperPosition] = []
         self.realized_pnl: Decimal = Decimal("0")
+        # Реальные издержки исполнения (master prompt §24): тейкер-комиссия
+        # и slippage на каждую сторону. База 0.1%/0.1% совпадает с baseline
+        # в scripts/run_full_research_audit.py, чтобы live-paper цифры были
+        # сравнимы с audit.
+        self.fee_pct = fee_pct
+        self.slippage_pct = slippage_pct
         self._load()
 
     # ------------------------------------------------------------ persistence
@@ -105,6 +120,13 @@ class PaperBroker:
                     pos.initial_quantity = pos.quantity
                 else:
                     pos.initial_quantity = Decimal(str(pos.initial_quantity))
+                if pos.fill_price is not None:
+                    pos.fill_price = Decimal(str(pos.fill_price))
+                else:
+                    # Позиция открыта до введения модели издержек.
+                    pos.fill_price = pos.entry_price
+                if pos.entry_fee_per_unit:
+                    pos.entry_fee_per_unit = Decimal(str(pos.entry_fee_per_unit))
             self.realized_pnl = Decimal(str(data.get("realized_pnl", 0)))
             # Восстанавливаем стартовый капитал из состояния, если он там есть.
             if data.get("initial_capital"):
@@ -125,6 +147,8 @@ class PaperBroker:
                     "initial_quantity": str(p.initial_quantity),
                     "highest_price": str(p.highest_price) if p.highest_price else None,
                     "lowest_price": str(p.lowest_price) if p.lowest_price else None,
+                    "fill_price": str(p.fill_price) if p.fill_price is not None else None,
+                    "entry_fee_per_unit": str(p.entry_fee_per_unit),
                 }
                 for p in self.positions
             ],
@@ -176,6 +200,11 @@ class PaperBroker:
                     entry_price - risk * Decimal("2.5"),
                 ]
         qty = quantity
+        # Эффективный вход: slippage против нас + тейкер-комиссия.
+        if direction == "long":
+            fill = entry_price * (Decimal("1") + self.slippage_pct)
+        else:
+            fill = entry_price * (Decimal("1") - self.slippage_pct)
         pos = PaperPosition(
             id=str(uuid.uuid4()),
             symbol=symbol,
@@ -186,6 +215,8 @@ class PaperBroker:
             take_profits=tps,
             strategy=strategy,
             notes=notes or {},
+            fill_price=fill,
+            entry_fee_per_unit=fill * self.fee_pct,
         )
         pos.tp_filled = [False] * len(tps)
         pos.initial_quantity = qty
@@ -231,7 +262,7 @@ class PaperBroker:
                 pos.tp_filled[i] = True
                 frac = pos.tp_fractions[i]
                 part_qty = pos.initial_quantity * Decimal(str(frac))
-                pnl = self._pnl(pos, part_qty, tp)
+                pnl, fees = self._pnl_with_fees(pos, part_qty, tp)
                 self.realized_pnl += pnl
                 trade = ClosedTrade(
                     id=pos.id,
@@ -246,6 +277,7 @@ class PaperBroker:
                     strategy=pos.strategy,
                     opened_at=pos.opened_at,
                     closed_at=int(datetime.now(tz=UTC).timestamp() * 1000),
+                    fees=float(fees),
                 )
                 self._log_trade(trade)
                 closed.append(trade)
@@ -285,7 +317,7 @@ class PaperBroker:
 
     def _close(self, pos: PaperPosition, price: Decimal, reason: str) -> ClosedTrade:
         qty = pos.quantity
-        pnl = self._pnl(pos, qty, price)
+        pnl, fees = self._pnl_with_fees(pos, qty, price)
         self.realized_pnl += pnl
         self.positions.remove(pos)
         trade = ClosedTrade(
@@ -301,12 +333,30 @@ class PaperBroker:
             strategy=pos.strategy,
             opened_at=pos.opened_at,
             closed_at=int(datetime.now(tz=UTC).timestamp() * 1000),
+            fees=float(fees),
         )
         self._log_trade(trade)
         return trade
 
-    @staticmethod
-    def _pnl(pos: PaperPosition, qty: Decimal, exit_price: Decimal) -> Decimal:
+    def _pnl_with_fees(
+        self, pos: PaperPosition, qty: Decimal, exit_price: Decimal
+    ) -> tuple[Decimal, Decimal]:
+        """Нетто PnL и издержки закрытия ``qty`` по цене ``exit_price``.
+
+        Считаем по эффективной цене входа (с slippage), применяем
+        slippage на выход и тейкер-комиссию с обеих сторон. Комиссия входа
+        делится пропорционально закрытому объёму (для частичных тейков).
+        """
+        fill = pos.fill_price if pos.fill_price is not None else pos.entry_price
         if pos.direction == "long":
-            return (exit_price - pos.entry_price) * qty
-        return (pos.entry_price - exit_price) * qty
+            exit_fill = exit_price * (Decimal("1") - self.slippage_pct)
+            gross = (exit_fill - fill) * qty
+        else:
+            exit_fill = exit_price * (Decimal("1") + self.slippage_pct)
+            gross = (fill - exit_fill) * qty
+        fees = pos.entry_fee_per_unit * qty + exit_fill * self.fee_pct * qty
+        return gross - fees, fees
+
+    def _pnl(self, pos: PaperPosition, qty: Decimal, exit_price: Decimal) -> Decimal:
+        pnl, _ = self._pnl_with_fees(pos, qty, exit_price)
+        return pnl
