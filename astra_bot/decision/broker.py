@@ -55,6 +55,12 @@ class PaperPosition:
     fill_price: Decimal | None = None
     # Тейкер-комиссия на единицу объёма, начисленная при входе.
     entry_fee_per_unit: Decimal = Decimal("0")
+    # Первоначальное расстояние входа-стоп (R-единица). Не меняется при
+    # трейлинге — R-метрики сделок всегда считаются от исходного риска.
+    risk_distance: Decimal = Decimal("0")
+    # Контекст входа для статистики по режимам (meta-strategy, TZ §3.1).
+    regime: str = ""
+    timeframe: str = ""
 
 
 @dataclass
@@ -73,6 +79,13 @@ class ClosedTrade:
     closed_at: int
     # Комиссии + slippage-издержки, учтённые в pnl (нетто-результат).
     fees: float = 0.0
+    # R-метрики (R = первоначальный риск входа-стоп, net-значения).
+    r_multiple: float = 0.0
+    mfe_r: float = 0.0
+    mae_r: float = 0.0
+    # Контекст входа (из позиции).
+    regime: str = ""
+    timeframe: str = ""
 
 
 class PaperBroker:
@@ -149,6 +162,9 @@ class PaperBroker:
                     "lowest_price": str(p.lowest_price) if p.lowest_price else None,
                     "fill_price": str(p.fill_price) if p.fill_price is not None else None,
                     "entry_fee_per_unit": str(p.entry_fee_per_unit),
+                    "risk_distance": str(p.risk_distance),
+                    "regime": p.regime,
+                    "timeframe": p.timeframe,
                 }
                 for p in self.positions
             ],
@@ -179,6 +195,8 @@ class PaperBroker:
         strategy: str = "",
         notes: dict | None = None,
         no_take_profit: bool = False,
+        regime: str = "",
+        timeframe: str = "",
     ) -> PaperPosition:
         # Разбиваем тейк на 3 уровня: 1R, 1.8R, 2.5R.
         # Флип-стратегии (ts_momentum) живут до смены режима — тейки им
@@ -217,6 +235,9 @@ class PaperBroker:
             notes=notes or {},
             fill_price=fill,
             entry_fee_per_unit=fill * self.fee_pct,
+            risk_distance=abs(entry_price - stop_loss),
+            regime=regime,
+            timeframe=timeframe,
         )
         pos.tp_filled = [False] * len(tps)
         pos.initial_quantity = qty
@@ -263,6 +284,7 @@ class PaperBroker:
                 frac = pos.tp_fractions[i]
                 part_qty = pos.initial_quantity * Decimal(str(frac))
                 pnl, fees = self._pnl_with_fees(pos, part_qty, tp)
+                r_mult, mfe_r, mae_r = self._r_metrics(pos, part_qty, pnl)
                 self.realized_pnl += pnl
                 trade = ClosedTrade(
                     id=pos.id,
@@ -278,6 +300,11 @@ class PaperBroker:
                     opened_at=pos.opened_at,
                     closed_at=int(datetime.now(tz=UTC).timestamp() * 1000),
                     fees=float(fees),
+                    r_multiple=r_mult,
+                    mfe_r=mfe_r,
+                    mae_r=mae_r,
+                    regime=pos.regime,
+                    timeframe=pos.timeframe,
                 )
                 self._log_trade(trade)
                 closed.append(trade)
@@ -318,6 +345,7 @@ class PaperBroker:
     def _close(self, pos: PaperPosition, price: Decimal, reason: str) -> ClosedTrade:
         qty = pos.quantity
         pnl, fees = self._pnl_with_fees(pos, qty, price)
+        r_mult, mfe_r, mae_r = self._r_metrics(pos, qty, pnl)
         self.realized_pnl += pnl
         self.positions.remove(pos)
         trade = ClosedTrade(
@@ -334,9 +362,46 @@ class PaperBroker:
             opened_at=pos.opened_at,
             closed_at=int(datetime.now(tz=UTC).timestamp() * 1000),
             fees=float(fees),
+            r_multiple=r_mult,
+            mfe_r=mfe_r,
+            mae_r=mae_r,
+            regime=pos.regime,
+            timeframe=pos.timeframe,
         )
         self._log_trade(trade)
         return trade
+
+    def _r_metrics(
+        self, pos: PaperPosition, qty: Decimal, pnl: Decimal
+    ) -> tuple[float, float, float]:
+        """(r_multiple, mfe_r, mae_r) закрытой части в R-единицах (net)."""
+        if not pos.risk_distance or qty <= 0:
+            return 0.0, 0.0, 0.0
+        risk_d = pos.risk_distance
+        r = float(pnl / (risk_d * qty))
+        if pos.direction == "long":
+            mfe = (
+                (pos.highest_price - pos.entry_price) / risk_d
+                if pos.highest_price is not None
+                else Decimal("0")
+            )
+            mae = (
+                (pos.entry_price - pos.lowest_price) / risk_d
+                if pos.lowest_price is not None
+                else Decimal("0")
+            )
+        else:
+            mfe = (
+                (pos.entry_price - pos.lowest_price) / risk_d
+                if pos.lowest_price is not None
+                else Decimal("0")
+            )
+            mae = (
+                (pos.highest_price - pos.entry_price) / risk_d
+                if pos.highest_price is not None
+                else Decimal("0")
+            )
+        return r, float(mfe), float(mae)
 
     def _pnl_with_fees(
         self, pos: PaperPosition, qty: Decimal, exit_price: Decimal

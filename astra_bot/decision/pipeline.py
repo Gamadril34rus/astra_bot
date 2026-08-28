@@ -22,11 +22,13 @@ from .derivatives_engine import DerivativesEngine
 from .ev_engine import EVEngine
 from .feature_engine import FeatureEngine
 from .liquidity_engine import LiquidityEngine
+from .meta_strategy import MetaStrategy, NoTradeReason
 from .news_engine import NewsEngine, NewsReport
 from .onchain_engine import OnChainEngine
 from .orderbook_engine import OrderBookEngine
 from .regime_engine import MarketRegime, RegimeEngine
 from .scoring import SignalScorer
+from .strategy_stats import StrategyStatsStore
 from .structure_engine import StructureEngine
 from .technical_engine import TechnicalEngine
 
@@ -40,6 +42,8 @@ class Decision:
     reasons: list[str] = field(default_factory=list)
     candidate: SignalCandidate | None = None
     diagnostics: dict[str, Any] = field(default_factory=dict)
+    # Кодированная причина NO_TRADE (TZ §12): LOW_EV / BAD_REGIME / ...
+    reason_code: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -48,6 +52,7 @@ class Decision:
             "reasons": self.reasons,
             "candidate": self.candidate.to_dict() if self.candidate else None,
             "diagnostics": self.diagnostics,
+            "reason_code": self.reason_code,
         }
 
 
@@ -57,10 +62,18 @@ class DecisionPipeline:
         config: DecisionConfig | None = None,
         strategies: list | None = None,
         model: Any | None = None,
+        stats_store: StrategyStatsStore | None = None,
     ):
         self.config = config or DecisionConfig()
         self.strategies = strategies or []
         self.model = model
+
+        # Meta-Strategy: выбор кандидата по EV в текущем режиме (TZ §5).
+        self.stats_store = stats_store or StrategyStatsStore(
+            shrinkage_k=self.config.ev_shrinkage_k,
+            min_samples=self.config.min_ev_samples,
+        )
+        self.meta = MetaStrategy(self.stats_store, self.config)
 
         self.features = FeatureEngine(self.config)
         self.regime = RegimeEngine(
@@ -176,7 +189,10 @@ class DecisionPipeline:
         # 1. Качество данных.
         primary = ctx.candles_on("5m") or ctx.candles_on("15m") or ctx.candles_on("1h") or ctx.candles_on("4h")
         if not primary or len(primary) < self.config.ema_slow + 5:
-            return Decision("NO_TRADE", ctx.symbol, ["insufficient_data"])
+            return Decision(
+                "NO_TRADE", ctx.symbol, ["insufficient_data"],
+                reason_code=NoTradeReason.INSUFFICIENT_DATA.value,
+            )
 
         # 2. Regime.
         regime = self.regime.classify(
@@ -190,6 +206,20 @@ class DecisionPipeline:
                 ctx.symbol,
                 [f"market_regime={regime.regime.value}"],
                 diagnostics={"regime": regime.to_dict()},
+                reason_code=(
+                    NoTradeReason.BAD_REGIME.value
+                    if regime.regime == MarketRegime.PANIC
+                    else NoTradeReason.HIGH_VOLATILITY.value
+                ),
+            )
+        # Неизвестный режим — не торговый режим (TZ §8): NO_TRADE.
+        if regime.regime == MarketRegime.UNKNOWN:
+            return Decision(
+                "NO_TRADE",
+                ctx.symbol,
+                ["market_regime=UNKNOWN"],
+                diagnostics={"regime": regime.to_dict()},
+                reason_code=NoTradeReason.BAD_REGIME.value,
             )
 
         # 3. News.
@@ -199,12 +229,18 @@ class DecisionPipeline:
             blocked=ctx.news_score >= 75,
         )
         if news_report.blocked:
-            return Decision("NO_TRADE", ctx.symbol, ["news_critical"])
+            return Decision(
+                "NO_TRADE", ctx.symbol, ["news_critical"],
+                reason_code=NoTradeReason.NEWS.value,
+            )
 
         # 4. Technical/structure.
         technical = self.technical.analyse(primary)
         if technical.volatility == "EXTREME":
-            return Decision("NO_TRADE", ctx.symbol, ["extreme_volatility"])
+            return Decision(
+                "NO_TRADE", ctx.symbol, ["extreme_volatility"],
+                reason_code=NoTradeReason.HIGH_VOLATILITY.value,
+            )
 
         structure = self.structure.analyse(
             primary, volume_confirmed=technical.volume_confirmed
@@ -225,6 +261,7 @@ class DecisionPipeline:
                 ctx.symbol,
                 ["no_strategy_signal"],
                 diagnostics={"regime": regime.to_dict()},
+                reason_code=NoTradeReason.NO_VALID_SETUP.value,
             )
 
         # 7.1 Флип-стратегии (ts_momentum): смена режима — детерминированное
@@ -251,7 +288,9 @@ class DecisionPipeline:
         # 8. Признаки.
         feats = self.features.compute(ctx)
 
-        best: tuple[SignalCandidate, Any] | None = None
+        # 8.1 Жёсткие гейты + скоринг (режим не определяет выбор —
+        # он определяется EV стратегии в режиме, см. шаг 8.2).
+        diag_by_cand: dict[int, Any] = {}
         for candidate in candidates:
             if candidate.risk_reward < self.config.min_rr:
                 candidate.reject("rr_too_low")
@@ -279,7 +318,7 @@ class DecisionPipeline:
                 candidate.reject(corr.reason)
                 continue
 
-            # EV.
+            # EV (-generic, % цены — базовый гейт «не убыточно в вакууме»).
             ev = self.ev.calculate(
                 p_win=(
                     candidate.ml_probability
@@ -317,21 +356,30 @@ class DecisionPipeline:
                 correlation=corr,
             )
             candidate.features["component_scores"] = scores.as_dict()
+            diag_by_cand[id(candidate)] = (regime, technical, structure, book, ev, liq)
 
-            if best is None or candidate.total_score > best[0].total_score:
-                best = (candidate, (regime, technical, structure, book, ev, liq))
-
-        if best is None:
+        # 8.2 Meta-Strategy: выбор по shrunken EV в текущем режиме (TZ §5).
+        # total_score — лишь диагностика; не он определяет выбор.
+        meta = self.meta.select(candidates, regime.regime.value)
+        if meta.chosen is None:
             rejected = [
                 f"{c.strategy}:{c.direction} -> {','.join(c.rejections) or 'no_reason'}"
                 for c in candidates
+                if c.rejections
             ]
             return Decision(
-                "NO_TRADE", ctx.symbol, rejected,
-                diagnostics={"regime": regime.to_dict()},
+                "NO_TRADE",
+                ctx.symbol,
+                [f"meta_strategy:{meta.reason}", *rejected],
+                diagnostics={
+                    "regime": regime.to_dict(),
+                    "meta": [e.to_dict() for e in meta.evaluations],
+                },
+                reason_code=meta.reason_code.value if meta.reason_code else None,
             )
 
-        cand, diag = best
+        cand = meta.chosen
+        diag = diag_by_cand[id(cand)]
         # 9. Risk engine — упрощённо: размер позиции и экспозиция.
         max_risk = Decimal(str(self.config.initial_capital if hasattr(self.config, 'initial_capital') else 1000)) * self.config.risk_per_trade_pct
         stop_dist = abs(cand.entry_price - cand.stop_loss)
@@ -350,5 +398,6 @@ class DecisionPipeline:
                 "book": diag[3].to_dict(),
                 "ev": diag[4].to_dict(),
                 "liquidity": diag[5].to_dict(),
+                "meta": [e.to_dict() for e in meta.evaluations],
             },
         )
