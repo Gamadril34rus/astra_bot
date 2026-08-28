@@ -73,7 +73,12 @@ jobs:
 
       - name: Run bot session
         # ~200 сек слушаем команды и торгуем; укладываемся в 5-мин окно.
+        # В начале сессии run_bot прокручивает state-файлы (TZ §29).
         run: BOT_LISTEN_SECONDS=200 python scripts/run_bot.py
+
+      - name: State size gate (небесконечный рост запрещён, TZ §29)
+        if: ${{ !cancelled() }}
+        run: python scripts/check_state_size.py --root models
 
       - name: Save state
         if: always()
@@ -81,7 +86,12 @@ jobs:
           for f in models/paper_positions.json models/paper_trades.jsonl \
                    models/live_lessons.jsonl models/trading_budget.json \
                    models/readiness.json models/training_state.json \
-                   models/telegram_offset.json; do
+                   models/telegram_offset.json \
+                   models/strategy_stats.json \
+                   models/no_trade_observations.jsonl \
+                   models/no_trade_outcomes.json \
+                   models/research/hypotheses.json \
+                   models/research/observations.jsonl; do
             [ -f "$f" ] && git add -f "$f" || true
           done
           git diff --cached --quiet || \

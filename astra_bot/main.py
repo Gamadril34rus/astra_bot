@@ -6,7 +6,9 @@ ASTRA BOT — Main Entry Point
 
 import asyncio
 import os
+import signal
 import sys
+import time
 from decimal import Decimal
 from pathlib import Path
 
@@ -16,9 +18,12 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from astra_bot.adapters.okx import OKXClient, OKXOrderManager, OKXWebSocket
+from astra_bot.core import readiness
 from astra_bot.core.config import get_settings, load_settings
+from astra_bot.core.instruments import to_okx
 from astra_bot.core.logger import get_component_logger, setup_logging
 from astra_bot.data.database import close_database, init_database
+from astra_bot.decision.trading_engine import TradingEngine, TradingEngineConfig
 from astra_bot.engines.execution_engine import get_execution_engine
 from astra_bot.engines.regime_detector import get_regime_detector
 from astra_bot.engines.risk_engine import RiskConfig, get_risk_engine
@@ -69,6 +74,10 @@ class AstraBot:
         self._risk_engine = None
         self._execution_engine = None
         self._paper_engine = None
+        # Современный paper-путь (DecisionPipeline + RiskEngine + PaperBroker)
+        # — единственный исполнитель решений в _tick.
+        self._trading_engine = None
+        self._last_tick_at = 0.0
 
         self._strategies = {}
         self._running = False
@@ -100,6 +109,9 @@ class AstraBot:
 
         # 6. Инициализация paper engine
         self._init_paper_engine()
+
+        # 7. Современный paper-путь (исполнитель _tick)
+        self._init_trading_engine()
 
         logger.info("ASTRA BOT Initialized Successfully")
         logger.info("=" * 60)
@@ -239,6 +251,38 @@ class AstraBot:
 
         logger.info("Paper engine initialized")
 
+    def _init_trading_engine(self):
+        """Современный paper-путь: DecisionPipeline → RiskEngine → PaperBroker.
+
+        Единственный исполнитель решений в ``_tick``: по каждому символу
+        сам тянет рыночные данные, собирает MarketContext, обновляет
+        regime, решает, проверяет риск и исполняет в paper-брокере.
+        Без exchange-клиента движок НЕ создаётся (fail-closed).
+        """
+        if self._exchange_client is None:
+            logger.warning(
+                "TradingEngine не создан: нет exchange-клиента (fail-closed)"
+            )
+            return
+        settings = get_settings()
+        symbols = tuple(to_okx(s) for s in settings.instruments)
+        # Каталог state: по умолчанию models/ (общий с CI-сессиями);
+        # ASTRA_STATE_DIR позволяет изолировать локальный run.
+        state_dir = os.environ.get("ASTRA_STATE_DIR", "models")
+        self._trading_engine = TradingEngine(
+            okx=self._exchange_client,
+            config=TradingEngineConfig(
+                symbols=symbols,
+                state_path=f"{state_dir}/paper_positions.json",
+                trades_path=f"{state_dir}/paper_trades.jsonl",
+                stats_path=f"{state_dir}/strategy_stats.json",
+                no_trade_observations_path=f"{state_dir}/no_trade_observations.jsonl",
+                no_trade_outcomes_path=f"{state_dir}/no_trade_outcomes.json",
+                hypotheses_path=f"{state_dir}/research/hypotheses.json",
+            ),
+        )
+        logger.info("TradingEngine (modern paper path) initialized: %s", symbols)
+
     def _spawn_background(self, coro) -> asyncio.Task:
         task = asyncio.create_task(coro)
         self._background_tasks.add(task)
@@ -254,14 +298,21 @@ class AstraBot:
         logger.info("ASTRA BOT Starting...")
 
         # Запуск WebSocket
-        if self._exchange_websocket and get_settings().market_data.get(
-            "websocket_reconnect_delay", 5
-        ) > 0:
+        if self._exchange_websocket and (
+            get_settings().market_data.websocket_reconnect_delay > 0
+        ):
             self._spawn_background(self._exchange_websocket.start())
 
-        # Запуск paper engine если включен
-        if get_settings().paper_trading:
-            self._spawn_background(self._paper_engine.start())
+        # Legacy paper engine: свой цикл запускаем ТОЛЬКО если современный
+        # путь (TradingEngine) недоступен — иначе двойная торговля.
+        if get_settings().paper_trading and self._paper_engine:
+            if self._trading_engine is not None:
+                logger.info(
+                    "Legacy PaperTradingEngine loop disabled: "
+                    "используется TradingEngine (modern path)"
+                )
+            else:
+                self._spawn_background(self._paper_engine.start())
 
         # Запуск основного цикла
         await self._run()
@@ -285,13 +336,52 @@ class AstraBot:
         await self.stop()
 
     async def _tick(self):
-        """Один тик системы"""
-        # TODO: Реализовать основной цикл
-        # 1. Получить рыночные данные
-        # 2. Обновить regime detector
-        # 3. Оценить стратегии
-        # 4. Проверить риск
-        # 5. Исполнить сделки
+        """Один тик системы.
+
+        Поток тика (реализован в TradingEngine, логика сюда не дублируется):
+        1) рыночные данные по universe (REST, кэш в engine);
+        2) MarketContext по символам;
+        3) regime detector (внутри pipeline.decide);
+        4) DecisionPipeline.decide() — решения + структурированные
+           NO_TRADE reasons (логи engine: NO_TRADE ... REASON=...);
+        5) RiskEngine.check_trade — независимый слой, обхода нет;
+        6) исполнение только через PaperBroker (paper-контур);
+        7) обновление state/metrics/lessons (engine: stats, lessons,
+           NO_TRADE-наблюдения, risk-state).
+
+        Один упавший символ не останавливает остальные: per-symbol
+        изоляция внутри TradingEngine.step (try/except на символ).
+        Ошибка всего тика пробрасывается наверх — цикл _run её логирует
+        и продолжает (не роняя бота).
+        """
+        # Fail-closed: без исполнителя решений тик ничего не делает.
+        if self._trading_engine is None:
+            return
+
+        # Троттлинг: тик не чаще, чем раз в tick_interval_seconds.
+        interval = get_settings().market_data.tick_interval_seconds
+        now = time.monotonic()
+        if now - self._last_tick_at < interval:
+            return
+        self._last_tick_at = now
+
+        # Readiness gate: paper-торговля идёт (накапливает данные),
+        # score уходит в лог/метрики; LIVE-переход разрешён только после
+        # readiness (двойной safety-gate, см. live_orders_allowed).
+        try:
+            readiness_info = readiness.evaluate()
+            logger.info(
+                "Tick start: readiness score=%s/%s ready=%s",
+                readiness_info["score"],
+                readiness_info["threshold"],
+                readiness_info["ready"],
+            )
+        except Exception as exc:
+            logger.debug("Readiness check error: %s", exc)
+
+        started = time.monotonic()
+        await self._trading_engine.step()
+        logger.debug("Tick done in %.1fs", time.monotonic() - started)
 
     async def stop(self):
         """Остановка системы"""
@@ -387,6 +477,19 @@ async def main():
             exit_code = await preflight_main()
             sys.exit(exit_code)
         else:
+            # Graceful shutdown: SIGINT/SIGTERM → плавная остановка
+            # (отмена фоновых задач, закрытие клиента и БД в bot.stop()).
+            loop = asyncio.get_running_loop()
+
+            def _request_stop():
+                logger.info("Сигнал остановки — graceful shutdown")
+                bot._running = False
+
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                try:
+                    loop.add_signal_handler(sig, _request_stop)
+                except NotImplementedError:
+                    pass
             await bot.start()
 
     except KeyboardInterrupt:
