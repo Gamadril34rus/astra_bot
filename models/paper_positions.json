@@ -1,16 +1,16 @@
 {
   "positions": [
     {
-      "id": "77b901f3-252a-483e-81e4-9e152b6bcd32",
-      "symbol": "BCH-USDT",
-      "direction": "long",
-      "entry_price": "271.88",
-      "quantity": "19.989680",
-      "stop_loss": "270.52060",
+      "id": "4e12b1fe-069b-43ee-a45f-85264a4ecc13",
+      "symbol": "BTC-USDT",
+      "direction": "short",
+      "entry_price": "79993.4",
+      "quantity": "0.067941",
+      "stop_loss": "80393.3670",
       "take_profits": [
-        "273.239400",
-        "274.326920",
-        "275.278500"
+        "79593.43300",
+        "79273.45940",
+        "78993.48250"
       ],
       "tp_filled": [
         false,
@@ -22,21 +22,129 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "19.989680",
+      "initial_quantity": "0.067941",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "80054",
+      "lowest_price": "79945.9",
       "strategy": "scalp5m",
-      "opened_at": 1787893784100,
+      "opened_at": 1787937145977,
       "notes": {
-        "score": 60.0,
+        "score": 57.0,
         "ml_probability": null,
-        "edge_pct": 0.18930847961982467,
-        "rr": 1.2000000000000002
+        "edge_pct": 0.19169152831920688,
+        "rr": 1.2
+      }
+    },
+    {
+      "id": "40573133-fd56-43ca-a90b-f9137f383ea1",
+      "symbol": "BNB-USDT",
+      "direction": "short",
+      "entry_price": "710.1",
+      "quantity": "7.653562",
+      "stop_loss": "713.6505",
+      "take_profits": [
+        "706.54950",
+        "703.70910",
+        "701.22375"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "7.653562",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "710.3",
+      "lowest_price": "710",
+      "strategy": "scalp5m",
+      "opened_at": 1787937148687,
+      "notes": {
+        "score": 51.0,
+        "ml_probability": null,
+        "edge_pct": 0.22300630698445767,
+        "rr": 1.2
+      }
+    },
+    {
+      "id": "737c123d-9443-4fab-9561-008e10e90ee0",
+      "symbol": "ADA-USDT",
+      "direction": "short",
+      "entry_price": "0.2144",
+      "quantity": "25348.853490",
+      "stop_loss": "0.2154720",
+      "take_profits": [
+        "0.21332800",
+        "0.21247040",
+        "0.21172000"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "25348.853490",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "0.2149",
+      "lowest_price": "0.2143",
+      "strategy": "scalp5m",
+      "opened_at": 1787937150644,
+      "notes": {
+        "score": 40.0,
+        "ml_probability": null,
+        "edge_pct": 0.17266677648947315,
+        "rr": 1.2
+      }
+    },
+    {
+      "id": "e956546e-afe5-40a5-b129-df6d16987e48",
+      "symbol": "DOGE-USDT",
+      "direction": "short",
+      "entry_price": "0.08855",
+      "quantity": "61375.428438",
+      "stop_loss": "0.08899275",
+      "take_profits": [
+        "0.088107250",
+        "0.087753050",
+        "0.087443125"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "61375.428438",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "0.0887",
+      "lowest_price": "0.08845",
+      "strategy": "scalp5m",
+      "opened_at": 1787937152732,
+      "notes": {
+        "score": 47.0,
+        "ml_probability": null,
+        "edge_pct": 0.18904223821795657,
+        "rr": 1.2
       }
     }
   ],
-  "realized_pnl": "-3990.23874531907169518736",
+  "realized_pnl": "-4017.41271631107169518736",
   "initial_capital": "40222.20"
 }
