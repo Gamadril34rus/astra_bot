@@ -181,6 +181,11 @@ class TradingEngine:
                 self.state_store.restore_broker(self.broker, bundle)
         except Exception as exc:
             logger.debug("state bundle restore: %s", exc)
+        # Exit Manager (Этап 4): обязательные safety-выходы с причинами
+        # (MAX_HOLD / VOL_EXPANSION / BTC_PANIC) поверх ExitController.
+        from .exit_manager import ExitManager
+
+        self.exit_manager = ExitManager(okx=self.okx, broker=self.broker)
         # Единая проверка «можно ли входить прямо сейчас»: расписание/бюджет
         # часов, новости, волатильность, спред, дисбаланс стакана.
         self.safety = MarketSafety()
@@ -417,6 +422,16 @@ class TradingEngine:
         if not primary:
             return []
 
+        # BTC PANIC (Этап 4): это ВЫХОД, а не вход — работает независимо
+        # от risk-состояния (HALT не отменяет обязательные выходы).
+        if self.exit_manager.btc_panic:
+            panic = self.exit_manager.flatten_symbol(
+                symbol, float(ctx.current_price)
+            )
+            if panic:
+                self._record_closed(panic)
+            return panic
+
         # Обновляем уже открытые позиции по последнему бару.
         # Экстремумы обновляем до решения: Exit Controller скорректирует
         # стопы ДО проверки срабатывания на этом же баре (TZ §16).
@@ -442,6 +457,18 @@ class TradingEngine:
             logger.debug("exit_controller: %s", exc)
 
         closed = forced + self.broker.check_exits(last_bar)
+
+        # Exit Manager (Этап 4): обязательные safety-выходы поверх
+        # контроллера — MAX_HOLD / VOL_EXPANSION (не зависят от гипотезы
+        # выхода, а только от состояния позиции и рынка).
+        try:
+            open_pos = [p for p in self.broker.positions if p.symbol == symbol]
+            if open_pos:
+                closed = closed + self.exit_manager.check_symbol(
+                    open_pos, ctx.candles, float(ctx.current_price)
+                )
+        except Exception as exc:
+            logger.debug("ExitManager.check_symbol: %s", exc)
 
         # Закрытые на этом баре сделки → реальные уроки + уведомления.
         if closed:
@@ -841,6 +868,10 @@ class TradingEngine:
         if self._minute_bucket != bucket:
             self._minute_bucket = bucket
             trading_schedule.tick()
+
+        # BTC PANIC (Этап 4): глобальный safety-флаг — один запрос 4h
+        # за step; процессинг символов флаттит позиции при обвале.
+        await self.exit_manager.refresh_btc_panic()
 
         for symbol in self.config.symbols:
             try:
