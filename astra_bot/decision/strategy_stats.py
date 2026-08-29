@@ -169,8 +169,25 @@ class StrategyStatsStore:
         tmp.replace(self.path)
 
     # ------------------------------------------------------------ access
-    def get(self, strategy: str, regime: str, timeframe: str) -> StrategyRegimeStats | None:
-        """Бакет режима; при пустой выборке — агрегированный ANY; затем None."""
+    def get(
+        self,
+        strategy: str,
+        regime: str,
+        timeframe: str,
+        regime_axes: str | None = None,
+    ) -> StrategyRegimeStats | None:
+        """Бакет режима с миграцией A2.
+
+        Порядок: композитный ключ осей (``regime_axes``, Regime 2.0) →
+        legacy-ключ режима (старые файлы читаются как раньше) →
+        агрегированный ANY → None.
+        """
+        if regime_axes:
+            axes_bucket = self.buckets.get(
+                self.bucket_key(strategy, regime_axes, timeframe)
+            )
+            if axes_bucket and axes_bucket.sample_size > 0:
+                return axes_bucket
         bucket = self.buckets.get(self.bucket_key(strategy, regime, timeframe))
         if bucket and bucket.sample_size > 0:
             return bucket
@@ -188,9 +205,10 @@ class StrategyStatsStore:
         regime: str,
         timeframe: str,
         prior_r: float,
+        regime_axes: str | None = None,
     ) -> tuple[float, float, StrategyRegimeStats | None]:
-        """(ev_r, confidence, stats) — с fallback на ANY-режим."""
-        stats = self.get(strategy, regime, timeframe)
+        """(ev_r, confidence, stats) — с fallback на legacy-ключ и ANY-режим."""
+        stats = self.get(strategy, regime, timeframe, regime_axes=regime_axes)
         ev, conf = shrunken_expectancy(stats, prior_r, self.shrinkage_k)
         return ev, conf, stats
 
@@ -205,9 +223,16 @@ class StrategyStatsStore:
         mfe_r: float = 0.0,
         mae_r: float = 0.0,
         fees: float = 0.0,
+        regime_axes: str | None = None,
     ) -> None:
-        """Записать закрытую сделку в бакет режима и в агрегированный ANY."""
-        for key_regime in dict.fromkeys((regime, ANY_REGIME)):
+        """Записать закрытую сделку в бакеты режимов и в агрегированный ANY.
+
+        Миграция A2: при наличии композитного ключа осей пишем и в него, и
+        в legacy-бакет режима — старые читатели (даунгрейд, отчёты) не
+        «голодают», а новые выборки накапливаются по Regime 2.0.
+        """
+        regimes = (regime_axes, regime, ANY_REGIME) if regime_axes else (regime, ANY_REGIME)
+        for key_regime in dict.fromkeys(r for r in regimes if r):
             key = self.bucket_key(strategy, key_regime, timeframe)
             bucket = self.buckets.setdefault(key, StrategyRegimeStats())
             bucket.record(r_multiple, mfe_r, mae_r, fees)

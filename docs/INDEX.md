@@ -13,6 +13,7 @@
 | `PULLBACK_STRATEGY.md` | Детали pullback-стратегии |
 | `RISK_INTEGRATION.md` | Risk Engine в живом paper-контуре: лимиты, HALT, persistence, издержки |
 | `META_STRATEGY.md` | Meta-Strategy: выбор по EV в режиме, shrinkage, NO_TRADE-память |
+| `MARKET_REGIME.md` | Regime 2.0: оси trend×volatility×liquidity, кросс-маркет RS, миграция ключей статистики |
 | `HYPOTHESIS_ENGINE.md` | Lifecycle гипотез (DISCOVERED…RETIRED), допуски к VALIDATED, live-деградация |
 | `RESEARCH_MEMORY.md` | Типизированная память: OBSERVATIONS/HYPOTHESES/STRATEGIES/LESSONS/MODELS |
 | `EXIT_RESEARCH.md` | 8 exit-стратегий, walk-forward исследование, применение только ACTIVE |

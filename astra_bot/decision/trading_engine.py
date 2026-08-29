@@ -641,6 +641,9 @@ class TradingEngine:
             no_take_profit=bool(cand_features.get("no_take_profit")),
             regime=str(regime_info.get("regime", "")),
             timeframe=cand.timeframe,
+            # A2 (МТЗ §10): композитный ключ осей Regime 2.0 — прокидывается
+            # до закрытия в статистику бакетов; пусто => legacy-режим.
+            regime_axes=str(regime_info.get("axes_key") or ""),
             notes={
                 "score": cand.total_score,
                 "ml_probability": cand.ml_probability,
@@ -806,6 +809,7 @@ class TradingEngine:
                     "mfe_r": getattr(t, "mfe_r", 0.0),
                     "mae_r": getattr(t, "mae_r", 0.0),
                     "regime": getattr(t, "regime", ""),
+                    "regime_axes": getattr(t, "regime_axes", ""),
                     "timeframe": getattr(t, "timeframe", ""),
                     "exit_reason": getattr(t, "exit_reason", ""),
                     "strategy": getattr(t, "strategy", ""),
@@ -849,6 +853,8 @@ class TradingEngine:
                         mfe_r=float(d.get("mfe_r") or 0.0),
                         mae_r=float(d.get("mae_r") or 0.0),
                         fees=float(d.get("fees") or 0.0),
+                        # A2: двойная запись в бакет осей + legacy (миграция).
+                        regime_axes=str(d.get("regime_axes") or "") or None,
                     )
                     # Live-мониторинг гипотез (TZ §31): статистика ухудшилась
                     # -> DEGRADE. Только по достижившейся live-выборке.

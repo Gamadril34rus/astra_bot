@@ -198,6 +198,9 @@ class DecisionPipeline:
             primary,
             news_score=ctx.news_score,
             btc_regime=ctx.global_market.get("btc_regime"),
+            orderbook=ctx.orderbook,
+            current_price=float(ctx.current_price),
+            cross_market=ctx.global_market,
         )
         if regime.regime in (MarketRegime.PANIC, MarketRegime.HIGH_VOL):
             return Decision(
@@ -361,7 +364,13 @@ class DecisionPipeline:
 
         # 8.2 Meta-Strategy: выбор по shrunken EV в текущем режиме (TZ §5).
         # total_score — лишь диагностика; не он определяет выбор.
-        meta = self.meta.select(candidates, regime.regime.value)
+        # A2 (МТЗ §10): приоритет у композитного ключа осей Regime 2.0,
+        # фолбэк на legacy-ключ режима — внутри StrategyStatsStore.
+        meta = self.meta.select(
+            candidates,
+            regime.regime.value,
+            regime_axes=regime.axes.axes_key() if regime.axes else None,
+        )
         if meta.chosen is None:
             rejected = [
                 f"{c.strategy}:{c.direction} -> {','.join(c.rejections) or 'no_reason'}"
