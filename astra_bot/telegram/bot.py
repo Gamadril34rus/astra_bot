@@ -847,6 +847,19 @@ class AstraTelegramBot:
             f"  Дневной PnL: {self._fmt_money(risk.daily_pnl)}\n"
             f"  Множитель: {state.get_risk_multiplier():.2f}\n"
         )
+
+        # «Чему научилась» (learning digest): уроки, переходы гипотез,
+        # исходы NO_TRADE, база знаний EV — вместо сухих счётчиков.
+        try:
+            from ..ml.learning_digest import build_digest
+
+            digest, _ = build_digest()
+            digest_body = digest.split("\n", 1)[1] if "\n" in digest else ""
+            if digest_body.strip():
+                text += f"\n*📚 Чему научилась* (24 ч)\n{digest_body}"
+        except Exception as exc:
+            logger.debug("learning digest в /отчёт: %s", exc)
+
         await self._reply(update, text, reply_markup=MAIN_MENU)
 
     async def _cmd_positions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
