@@ -61,6 +61,9 @@ class PaperPosition:
     # Контекст входа для статистики по режимам (meta-strategy, TZ §3.1).
     regime: str = ""
     timeframe: str = ""
+    # Regime 2.0 (МТЗ §10): композитный ключ осей (T../V../L..); пусто —
+    # позиция открыта до A2 или оси не вычислились (legacy-режим работает).
+    regime_axes: str = ""
     # Сколько баров прожито позицией (для TIME_STOP и ATR_STOP, TZ §16).
     bars_held: int = 0
 
@@ -88,6 +91,7 @@ class ClosedTrade:
     # Контекст входа (из позиции).
     regime: str = ""
     timeframe: str = ""
+    regime_axes: str = ""
 
 
 class PaperBroker:
@@ -199,6 +203,7 @@ class PaperBroker:
         no_take_profit: bool = False,
         regime: str = "",
         timeframe: str = "",
+        regime_axes: str = "",
     ) -> PaperPosition:
         # Разбиваем тейк на 3 уровня: 1R, 1.8R, 2.5R.
         # Флип-стратегии (ts_momentum) живут до смены режима — тейки им
@@ -240,6 +245,7 @@ class PaperBroker:
             risk_distance=abs(entry_price - stop_loss),
             regime=regime,
             timeframe=timeframe,
+            regime_axes=regime_axes,
         )
         pos.tp_filled = [False] * len(tps)
         pos.initial_quantity = qty
@@ -322,6 +328,7 @@ class PaperBroker:
                     mae_r=mae_r,
                     regime=pos.regime,
                     timeframe=pos.timeframe,
+                    regime_axes=pos.regime_axes,
                 )
                 self._log_trade(trade)
                 closed.append(trade)
@@ -393,6 +400,7 @@ class PaperBroker:
             mae_r=mae_r,
             regime=pos.regime,
             timeframe=pos.timeframe,
+            regime_axes=pos.regime_axes,
         )
         self._log_trade(trade)
         return trade

@@ -152,6 +152,7 @@ class MetaStrategy:
         self,
         candidate: SignalCandidate,
         regime: str,
+        regime_axes: str | None = None,
     ) -> CandidateEvaluation:
         prior_r = candidate_prior_r(candidate)
         ev_r, confidence, bucket = self.stats.expectancy(
@@ -159,6 +160,7 @@ class MetaStrategy:
             regime=regime,
             timeframe=candidate.timeframe,
             prior_r=prior_r,
+            regime_axes=regime_axes,
         )
         sample_size = bucket.sample_size if bucket else 0
         ev = CandidateEvaluation(
@@ -185,8 +187,13 @@ class MetaStrategy:
         self,
         candidates: list[SignalCandidate],
         regime: str,
+        regime_axes: str | None = None,
     ) -> MetaDecision:
         """Выбрать лучшего кандидата по EV; иначе NO_TRADE с причиной.
+
+        ``regime_axes`` — композитный ключ Regime 2.0 (МТЗ §10): статистика
+        сначала ищется по нему, фолбэк на legacy ``regime`` — внутри
+        ``StrategyStatsStore``.
 
         Кандидаты, уже отвергнутые жёсткими гейтами пайплайна (rr,
         liquidity, correlation...), не рассматриваются.
@@ -212,7 +219,7 @@ class MetaStrategy:
                 )
                 evaluations.append(ev)
                 continue
-            ev = self.evaluate_candidate(candidate, regime)
+            ev = self.evaluate_candidate(candidate, regime, regime_axes=regime_axes)
             evaluations.append(ev)
             if not ev.rejected:
                 alive.append((candidate, ev))
