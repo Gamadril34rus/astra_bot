@@ -86,7 +86,12 @@ jobs:
           for f in models/paper_positions.json models/paper_trades.jsonl \
                    models/live_lessons.jsonl models/trading_budget.json \
                    models/readiness.json models/training_state.json \
-                   models/telegram_offset.json; do
+                                      models/telegram_offset.json \
+                   models/strategy_stats.json \
+                   models/no_trade_observations.jsonl \
+                   models/no_trade_outcomes.json \
+                   models/research/hypotheses.json \
+                   models/research/observations.jsonl; do
             [ -f "$f" ] && git add -f "$f" || true
           done
           git diff --cached --quiet || \
