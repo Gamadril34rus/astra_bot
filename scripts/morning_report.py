@@ -36,7 +36,7 @@ async def send_to_telegram(text: str) -> None:
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     admin_raw = os.environ.get("TELEGRAM_ADMIN_ID", "").strip()
     if not token or not admin_raw:
-        print(text)
+        # Без токена отправка невозможна; текст main() уже вывел в лог.
         return
 
     bot = Bot(token=token)
@@ -55,18 +55,35 @@ def main() -> None:
     pnl = float(state.get("daily_pnl", state.get("daily_pnl_usdt", 0.0)))
     verdict = readiness.evaluate()
 
+    # «Чему научилась» вместо счётчиков: уроки, переходы гипотез,
+    # исходы NO_TRADE, база знаний (EV по strategy × regime).
+    from astra_bot.ml.learning_digest import (
+        build_digest,
+        save_watermark,
+    )
+
+    models_dir = Path("models")
+    digest, new_wm = build_digest(models_dir)
+
     text = (
         f"ASTRA BOT — {now} МСК\n\n"
-        f"Сделок за сутки: {trades}\n"
-        f"В плюс: {wins}\n"
-        f"В минус: {losses}\n"
-        f"PnL: {pnl:+.2f} USDT\n\n"
-        f"Готовность к реальному счёту: {'ДА' if verdict['ready'] else 'НЕТ'}\n"
-        f"Demo: {verdict['trading_days']} дн. / {verdict['total_trades']} сделок\n"
-        f"Win-rate: {verdict['win_rate']}% | PF: {verdict['profit_factor']} | DD: {verdict['max_drawdown_pct']}%"
+        f"{digest}\n\n"
+        f"📊 Сделок за сутки: {trades} (+{wins}/−{losses}), PnL: {pnl:+.2f} USDT\n"
+        f"🎯 Готовность: {'ДА' if verdict['ready'] else 'НЕТ'} "
+        f"({verdict.get('score', '?')}/{verdict.get('threshold', '?')}) | "
+        f"{verdict['trading_days']} дн. | WR {verdict['win_rate']}% | "
+        f"PF {verdict['profit_factor']} | DD {verdict['max_drawdown_pct']}%"
     )
+    # Вывод: в логе CI (или в консоль, если токена нет — fallback внутри
+    # send_to_telegram). Не дублируем.
     print(text)
     asyncio.run(send_to_telegram(text))
+    # Watermark только после успешной отправки: сбой → повторное
+    # окно при следующем запуске, знания не теряются.
+    try:
+        save_watermark(models_dir, new_wm)
+    except Exception as exc:
+        print(f"watermark: {exc}")
 
 
 if __name__ == "__main__":
