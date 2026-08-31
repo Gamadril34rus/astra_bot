@@ -19,6 +19,7 @@ from .news_engine import NewsEngine, NewsReport
 from .onchain_engine import OnChainEngine
 from .orderbook_engine import OrderBookEngine
 from .pipeline import Decision, DecisionPipeline
+from .pipeline_v2 import DecisionPipelineV2, Decision as DecisionV2
 from .regime_axes import (
     CrossMarketContext,
     LiquidityAxis,
@@ -38,6 +39,8 @@ __all__ = [
     "Decision",
     "DecisionConfig",
     "DecisionPipeline",
+    "DecisionPipelineV2",
+    "DecisionV2",
     "DerivativesEngine",
     "EVEngine",
     "FeatureEngine",
