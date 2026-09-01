@@ -350,9 +350,10 @@ Connors RSI-2, Bollinger, Ichimoku и др.): `python scripts/research_free_stra
   латентность, readiness-гейджи, гипотезы по статусам (Prometheus);
 - **Research-first memory** — OBSERVATIONS/HYPOTHESES/STRATEGIES/
   LESSONS/MODELS со стабильными id, leakage-тесты walk-forward;
-- **Тесты** — 553: unit + integration, sizing-инварианты,
+- **Тесты** — 645: unit + integration, sizing-инварианты,
   replay-детерминизм, chaos (NaN/гэп/сбой API/HALT+panic),
-  anti-leakage (FDR + walk-forward).
+  anti-leakage (FDR + walk-forward), CostModel invariant (P0-1),
+  baseline control group (P0-2), kill-switch (P2-3).
 
 **Live-торговля:** ЗАПРЕЩЕНА по умолчанию (fail-closed, двойной
 safety-gate: `ENABLE_LIVE_ORDERS` + `trading_enabled` + readiness).
