@@ -29,6 +29,9 @@ def _validated_hyp(id="hyp-test", **kw) -> Hypothesis:
         expectancy=0.25,
         profit_factor=1.35,
         win_rate=0.58,
+        # TZ P0-2: lift vs baseline (положительный для VALIDATED).
+        baseline_expectancy=0.05,
+        lift_vs_baseline=0.20,
     )
     for k, v in kw.items():
         setattr(hyp, k, v)

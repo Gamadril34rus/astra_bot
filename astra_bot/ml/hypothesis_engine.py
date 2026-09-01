@@ -109,6 +109,9 @@ class Hypothesis:
     version: int = 1
     invalidation_reason: str | None = None
     status_log: list[dict[str, str]] = field(default_factory=list)
+    # TZ P0-2: lift vs baseline контрольной группы.
+    baseline_expectancy: float = 0.0
+    lift_vs_baseline: float = 0.0
 
     def _log(self, new_status: HypothesisStatus, reason: str = "") -> None:
         self.status = new_status
@@ -174,6 +177,12 @@ class Hypothesis:
             metrics = getattr(self, f"{period}_metrics")
             if float(metrics.get("expectancy", 0.0)) <= 0:
                 return False, f"expectancy <= 0 в периоде {period}"
+        # TZ P0-2: без baseline контрольной группы VALIDATED невозможен.
+        if self.lift_vs_baseline <= 0:
+            return False, (
+                f"lift_vs_baseline={self.lift_vs_baseline} <= 0: "
+                f"нет преимущества над baseline (P0-2)"
+            )
         return True, ""
 
     def to_dict(self) -> dict[str, Any]:

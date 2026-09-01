@@ -48,6 +48,9 @@ def _evidenced(store: HypothesisStore, hid: str, *, expectancy: float,
     h.stress_metrics = {"fees_x2": {"expectancy": max(expectancy * 0.6, 0.02)}}
     h.sample_size = sample_size
     h.expectancy = expectancy
+    # TZ P0-2: lift vs baseline (положительный, baseline=0).
+    h.lift_vs_baseline = max(expectancy * 0.8, 0.01)
+    h.baseline_expectancy = expectancy * 0.2
 
 
 class TestFdrGate:

@@ -344,6 +344,7 @@ def register_exit_hypothesis(
     metrics: dict[str, ExitMetrics],
     stress_metrics: dict[str, Any] | None = None,
     min_samples: int = 20,
+    lift_vs_baseline: float | None = None,
 ) -> tuple[str, bool, str]:
     """Создать/обновить гипотезу варианта выхода и попытаться довести до
     VALIDATED (если есть ВСЕ доказательства). Возвращает
@@ -383,6 +384,12 @@ def register_exit_hypothesis(
     existing.win_rate = oos.win_rate
     existing.mfe = oos.avg_mfe_r
     existing.mae = oos.avg_mae_r
+    # TZ P0-2: lift vs baseline. Если не указан, считаем от OOS expectancy
+    # (baseline для exit research = "без оптимизации выхода" = 0).
+    if lift_vs_baseline is not None:
+        existing.lift_vs_baseline = lift_vs_baseline
+    else:
+        existing.lift_vs_baseline = max(0.0, oos.expectancy)
 
     promoted, reason = False, "not validated"
     if existing.status is HypothesisStatus.DISCOVERED:
