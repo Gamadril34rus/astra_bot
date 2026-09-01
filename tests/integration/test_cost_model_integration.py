@@ -12,11 +12,9 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
-
-from astra_bot.engines.cost_model import CostModel, cost_model_from_flat
 from astra_bot.decision.broker import PaperBroker
+from astra_bot.engines.cost_model import CostModel, cost_model_from_flat
 from astra_bot.paperengine.paper_engine import PaperTradingEngine
-
 
 # ---------- Legacy engine uses CostModel ----------
 
@@ -136,8 +134,9 @@ class TestRoundTripInvariant:
     def test_no_paper_pnl_without_costs(self, tmp_path):
         """P0-1 инвариант: paper-PnL без издержек не публикуется.
         Все trades в PaperBroker имеют fees > 0 при ненулевом cost_model."""
-        from astra_bot.core import models
         import json
+
+        from astra_bot.core import models
 
         cm = CostModel(taker_fee_rate=Decimal("0.001"), slippage_pct=Decimal("0.001"))
         broker = PaperBroker(

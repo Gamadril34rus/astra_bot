@@ -10,8 +10,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 
 class TestSingleConfigSource:
     def test_no_duplicate_config_files(self):

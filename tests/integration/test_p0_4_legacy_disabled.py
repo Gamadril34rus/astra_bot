@@ -13,10 +13,9 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-
-from astra_bot.strategies.scalp5m import Scalp5mConfig
-from astra_bot.strategies.scalp import ScalpConfig
 from astra_bot.strategies.pullback import PullbackConfig
+from astra_bot.strategies.scalp import ScalpConfig
+from astra_bot.strategies.scalp5m import Scalp5mConfig
 
 
 class TestLegacyStrategiesDisabled:

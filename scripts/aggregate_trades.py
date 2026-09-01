@@ -13,10 +13,8 @@ Usage:
 from __future__ import annotations
 
 import json
-import sys
 from collections import defaultdict
-from dataclasses import dataclass, field, asdict
-from decimal import Decimal
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 

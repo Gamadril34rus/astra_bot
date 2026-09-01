@@ -13,8 +13,7 @@ import json
 from pathlib import Path
 
 import pytest
-
-from scripts.aggregate_trades import aggregate_trades, AggregatedTrade
+from scripts.aggregate_trades import aggregate_trades
 
 
 def _write_trades(path: Path, trades: list[dict]) -> None:

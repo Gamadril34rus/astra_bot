@@ -10,14 +10,10 @@ from __future__ import annotations
 
 import json
 from decimal import Decimal
-from pathlib import Path
 
 import numpy as np
-import pytest
-
-from astra_bot.ml.market_research import research_history, compute_market_features
 from astra_bot.ml.hypothesis_engine import Hypothesis, HypothesisStatus
-
+from astra_bot.ml.market_research import research_history
 
 # ---------- Synthetic candle helper ----------
 
@@ -142,7 +138,7 @@ class TestHypothesesBaseline:
         data = json.loads(hypotheses.read_text())
         hyps = data.get("hypotheses", {})
         # At least some hypotheses should have lift_vs_baseline
-        has_lift = sum(1 for h in hyps.values() if "lift_vs_baseline" in h)
+        sum(1 for h in hyps.values() if "lift_vs_baseline" in h)
         has_bl = sum(1 for h in hyps.values() if "baseline_expectancy" in h)
         assert has_bl > 0 or len(hyps) == 0, "Expected some hypotheses with baseline_expectancy"
 

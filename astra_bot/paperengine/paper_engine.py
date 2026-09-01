@@ -12,7 +12,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 from ..core import events, models
-from ..engines.cost_model import CostModel, cost_model_from_flat
+from ..engines.cost_model import CostModel
 from ..engines.execution_engine import ExecutionConfig, ExecutionEngine
 from ..engines.risk_engine import RiskConfig, RiskEngine
 from ..strategies.base import BaseStrategy

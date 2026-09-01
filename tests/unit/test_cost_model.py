@@ -13,9 +13,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
-
 from astra_bot.engines.cost_model import CostModel, cost_model_from_flat
-
 
 # ---------- effective prices ----------
 

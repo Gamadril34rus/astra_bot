@@ -9,9 +9,7 @@
 
 from __future__ import annotations
 
-import pytest
-
-from astra_bot.core.kill_switch import KillSwitch, KillSwitchConfig, KillSwitchState
+from astra_bot.core.kill_switch import KillSwitch, KillSwitchConfig
 
 
 class TestKillSwitchConsecutiveLosses:
