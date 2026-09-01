@@ -221,6 +221,18 @@ class PaperTradingEngine:
             if trade.symbol == symbol:
                 trade.update_price(current_price)
 
+        # TZ P0-5: MAX_HOLD — закрыть позиции старше max_hold.
+        # Legacy engine не использует ExitManager, поэтому проверяем здесь.
+        max_hold_seconds = 48 * 3600  # 48 часов
+        now_ms = int(datetime.utcnow().timestamp() * 1000)
+        to_close = []
+        for trade_id, trade in self.account.open_positions.items():
+            entry_ts_ms = int(trade.entry_time.timestamp() * 1000)
+            if (now_ms - entry_ts_ms) >= max_hold_seconds * 1000:
+                to_close.append((trade_id, "MAX_HOLD"))
+        for trade_id, reason in to_close:
+            await self.close_position(trade_id, reason=reason)
+
         # Обновить equity
         self.account.update_equity(current_price)
 
@@ -325,7 +337,7 @@ class PaperTradingEngine:
                 logger.error(f"Trade opened callback error: {e}")
 
         # Уведомить через events
-        await events.publish_async(events.EventType.ORDER_PLACED, {
+        await events.emit_async(events.EventType.ORDER_PLACED, {
             "trade_id": trade.id,
             "symbol": signal.symbol,
             "side": trade.side,
@@ -382,7 +394,7 @@ class PaperTradingEngine:
                 logger.error(f"Trade closed callback error: {e}")
 
         # Уведомить через events
-        await events.publish_async(events.EventType.ORDER_FILLED, {
+        await events.emit_async(events.EventType.ORDER_FILLED, {
             "trade_id": trade_id,
             "symbol": trade.symbol,
             "pnl": str(trade.pnl),
