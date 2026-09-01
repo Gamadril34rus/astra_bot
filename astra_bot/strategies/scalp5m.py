@@ -19,6 +19,9 @@ from .base import BaseStrategy, Signal, SignalType, StrategyConfig
 @dataclass
 class Scalp5mConfig(StrategyConfig):
     name: str = "scalp5m"
+    # TZ P0-4: отключена по умолчанию (PF 0.39, −4 086 USDT, 0/15 дней).
+    # Включается только ручным флагом после re-validation.
+    enabled: bool = False
     ema_fast: int = 9
     ema_mid: int = 21
     ema_slow: int = 50
