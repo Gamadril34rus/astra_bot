@@ -211,6 +211,9 @@ class NoTradeObservationLog:
         Возвращает список наблюдений, к которым результат (полный или
         частичный) записан в индекс исходов. Вызывается из живого
         цикла: будущие бары уже доступны в рыночных данных.
+
+        TZ P0-3: после обогащения обновляет result в JSONL-файле наблюдений
+        (backfill_jsonl), чтобы result != null для ≥90% записей старше 24 баров.
         """
         enriched: list[NoTradeObservation] = []
         changed = False
@@ -232,7 +235,43 @@ class NoTradeObservationLog:
         if changed:
             self._prune_outcomes()
             self._save_outcomes()
+            # TZ P0-3: backfill result в JSONL.
+            self.backfill_jsonl()
         return enriched
+
+    def backfill_jsonl(self) -> int:
+        """Переписать JSONL-файл наблюдений, заполняя result из outcomes.
+
+        Возвращает количество обновлённых записей.
+        """
+        if not self.observations_path.exists() or not self._outcomes:
+            return 0
+        updated = 0
+        tmp_path = self.observations_path.with_suffix(".jsonl.tmp")
+        try:
+            with self.observations_path.open("r", encoding="utf-8") as fin, \
+                 tmp_path.open("w", encoding="utf-8") as fout:
+                for line in fin:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        row = json.loads(line)
+                    except Exception:
+                        fout.write(line + "\n")
+                        continue
+                    obs_id = str(row.get("id", ""))
+                    if obs_id in self._outcomes and row.get("result") is None:
+                        outcome = self._outcomes[obs_id]
+                        row["result"] = outcome.get("horizons")
+                        updated += 1
+                    fout.write(json.dumps(row, ensure_ascii=False) + "\n")
+            tmp_path.replace(self.observations_path)
+        except OSError as exc:
+            logger.debug("no_trade: backfill error: %s", exc)
+            if tmp_path.exists():
+                tmp_path.unlink(missing_ok=True)
+        return updated
 
     def _prune_outcomes(self) -> None:
         # bar_time — open_time свечи (секунды), сравниваем в секундах.

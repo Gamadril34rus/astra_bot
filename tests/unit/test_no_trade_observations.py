@@ -162,6 +162,55 @@ class TestEnrichment:
         assert log.enrich({"BTC-USDT": _candles()}) == []
 
 
+class TestBackfillJsonl:
+    """TZ P0-3: результат обогащения записывается обратно в JSONL."""
+
+    def test_enrich_fills_jsonl_result(self, tmp_path):
+        """После enrich() JSONL содержит result != null."""
+        log = NoTradeObservationLog(
+            observations_path=tmp_path / "obs.jsonl",
+            outcomes_path=tmp_path / "out.json",
+            horizons=(1, 3),
+        )
+        base = int(time.time() - 10 * 900)
+        candles = _candles(n=10, base=base, drift=0.1)
+        obs = _obs(bar_time=base + 2 * 900)
+        log.add(obs)
+
+        # Before enrich: result is null in JSONL
+        lines = (tmp_path / "obs.jsonl").read_text().strip().splitlines()
+        row_before = json.loads(lines[0])
+        assert row_before["result"] is None
+
+        # Enrich
+        enriched = log.enrich({"BTC-USDT": candles})
+        assert len(enriched) == 1
+
+        # After enrich: result is filled in JSONL
+        lines = (tmp_path / "obs.jsonl").read_text().strip().splitlines()
+        row_after = json.loads(lines[0])
+        assert row_after["result"] is not None
+        assert "1" in row_after["result"]
+        assert "3" in row_after["result"]
+        assert "future_return" in row_after["result"]["1"]
+
+    def test_backfill_returns_count(self, tmp_path):
+        """backfill_jsonl возвращает количество обновлённых записей."""
+        log = NoTradeObservationLog(
+            observations_path=tmp_path / "obs.jsonl",
+            outcomes_path=tmp_path / "out.json",
+            horizons=(1,),
+        )
+        base = int(time.time() - 10 * 900)
+        candles = _candles(n=10, base=base, drift=0.1)
+        obs = _obs(bar_time=base + 2 * 900)
+        log.add(obs)
+        log.enrich({"BTC-USDT": candles})
+        # Second call to backfill should return 0 (already filled)
+        count = log.backfill_jsonl()
+        assert count == 0
+
+
 class TestQuickFeatures:
     def test_returns_state_without_future(self):
         candles = _candles(n=30, drift=0.1)
