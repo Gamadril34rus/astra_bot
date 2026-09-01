@@ -12,6 +12,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 from ..core import events, models
+from ..engines.cost_model import CostModel
 from ..engines.execution_engine import ExecutionConfig, ExecutionEngine
 from ..engines.risk_engine import RiskConfig, RiskEngine
 from ..strategies.base import BaseStrategy
@@ -124,6 +125,7 @@ class PaperTradingEngine:
         strategies: dict[str, BaseStrategy] = None,
         risk_config: RiskConfig = None,
         execution_config: ExecutionConfig = None,
+        cost_model: CostModel | None = None,
     ):
         self.initial_capital = initial_capital
         self.account = PaperAccount(usdt_balance=initial_capital)
@@ -134,6 +136,11 @@ class PaperTradingEngine:
 
         # Execution engine для управления "ордерами"
         self._execution_engine = ExecutionEngine(execution_config or ExecutionConfig())
+
+        # Единая модель издержек (TZ P0-1): комиссии + slippage.
+        # Раньше paper-engine работал без комиссий (fees=0), что искажало
+        # PnL. Теперь обязательно используем CostModel.
+        self._cost_model = cost_model or CostModel()
 
         # Callback'и
         self._on_trade_opened: list[Callable] = []
@@ -214,6 +221,18 @@ class PaperTradingEngine:
             if trade.symbol == symbol:
                 trade.update_price(current_price)
 
+        # TZ P0-5: MAX_HOLD — закрыть позиции старше max_hold.
+        # Legacy engine не использует ExitManager, поэтому проверяем здесь.
+        max_hold_seconds = 48 * 3600  # 48 часов
+        now_ms = int(datetime.utcnow().timestamp() * 1000)
+        to_close = []
+        for trade_id, trade in self.account.open_positions.items():
+            entry_ts_ms = int(trade.entry_time.timestamp() * 1000)
+            if (now_ms - entry_ts_ms) >= max_hold_seconds * 1000:
+                to_close.append((trade_id, "MAX_HOLD"))
+        for trade_id, reason in to_close:
+            await self.close_position(trade_id, reason=reason)
+
         # Обновить equity
         self.account.update_equity(current_price)
 
@@ -278,17 +297,23 @@ class PaperTradingEngine:
             stop_loss=signal.stop_loss,
         )
 
+        # Рассчитать издержки входа через CostModel (TZ P0-1).
+        direction = signal.direction.value
+        entry_fee = self._cost_model.entry_fee(
+            current_price, signal.position_size, direction
+        )
+
         # Создать сделку
         trade = PaperTrade(
             symbol=signal.symbol,
-            side=signal.direction.value,
+            side=direction,
             strategy_name=signal.strategy_name,
             entry_price=signal.entry_price,
             current_price=current_price,
             quantity=signal.position_size,
             stop_loss=signal.stop_loss,
             take_profit=signal.take_profit,
-            fees=Decimal("0"),  # Без комиссий в paper
+            fees=entry_fee,  # Комиссия входа (TZ P0-1: запрет fees=0)
             status="open",
         )
 
@@ -312,7 +337,7 @@ class PaperTradingEngine:
                 logger.error(f"Trade opened callback error: {e}")
 
         # Уведомить через events
-        await events.publish_async(events.EventType.ORDER_PLACED, {
+        await events.emit_async(events.EventType.ORDER_PLACED, {
             "trade_id": trade.id,
             "symbol": signal.symbol,
             "side": trade.side,
@@ -329,6 +354,15 @@ class PaperTradingEngine:
         trade.status = "closed"
         trade.exit_time = datetime.utcnow()
         trade.exit_reason = reason
+
+        # Добавить комиссию выхода к total fees (TZ P0-1: round-trip).
+        exit_price = trade.current_price
+        exit_fee = self._cost_model.exit_fee(
+            exit_price, trade.quantity, trade.side
+        )
+        trade.fees += exit_fee
+        # Пересчитать PnL с полными издержками.
+        trade.pnl = trade.unrealized_pnl - trade.fees
 
         # Обновить статистику
         if trade.pnl > 0:
@@ -360,7 +394,7 @@ class PaperTradingEngine:
                 logger.error(f"Trade closed callback error: {e}")
 
         # Уведомить через events
-        await events.publish_async(events.EventType.ORDER_FILLED, {
+        await events.emit_async(events.EventType.ORDER_FILLED, {
             "trade_id": trade_id,
             "symbol": trade.symbol,
             "pnl": str(trade.pnl),

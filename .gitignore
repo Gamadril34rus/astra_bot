@@ -45,7 +45,17 @@ logs/
 # Data — sensitive, don't commit
 data/
 backups/
-models/           # ML модели — большие файлы, не коммитить
+# P2-2: Runtime state — never commit. Historical files remain in git
+# (cleaning history is too risky), but NEW state changes are forbidden.
+models/*.jsonl
+models/*.json
+models/*.csv
+models/*.pkl
+models/*.bin
+# Allow: samples (schemas), archive dir, .gitkeep
+!models/samples/
+!models/archive/
+!models/.gitkeep
 reports/
 
 # Config with secrets — don't commit
@@ -81,4 +91,3 @@ temp/
 # Microsoft
 Thumbs.db
 .env
-models/

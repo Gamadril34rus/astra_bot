@@ -68,6 +68,9 @@ def make_active_exit_hypothesis(
         stress_metrics={"fees_x2": 0.15, "stable": True},
         expectancy=0.2,
         confidence=0.8,
+        # TZ P0-2: lift vs baseline (positive for VALIDATED).
+        baseline_expectancy=0.05,
+        lift_vs_baseline=0.15,
     )
     store.add(hyp)
     for status in (HypothesisStatus.TESTING, HypothesisStatus.VALIDATED,

@@ -81,11 +81,20 @@ def research_history(
     sample_every: int | dict[str, int] = 12,
     append: bool = False,
 ) -> dict[str, int]:
-    """Study event, baseline and regime-conditioned outcomes across horizons."""
+    """Study event, baseline and regime-conditioned outcomes across horizons.
+
+    TZ P0-2: baseline-наблюдения сэмплируются НЕЗАВИСИМО от наличия событий.
+    Каждый baseline_step-й сэмпл (по умолчанию каждый 4-й) помечается как
+    baseline-наблюдение, даже если есть события. Это даёт контрольную группу
+    для расчёта lift_vs_baseline в гипотезах.
+    """
     aggregates: dict[str, dict[str, Any]] = defaultdict(lambda: {"observations": 0, "returns": defaultdict(list), "max_up": defaultdict(list), "max_down": defaultdict(list)})
     stats = {"observations": 0, "events": 0, "symbols": 0, "baseline_observations": 0}
     output.parent.mkdir(parents=True, exist_ok=True)
     mode = "a" if append else "w"
+    # Базовый шаг для baseline-квоты: каждый 4-й сэмпл = baseline.
+    baseline_step = 4
+    baseline_counter = 0
 
     with output.open(mode, encoding="utf-8") as out:
         for symbol, candles in history.items():
@@ -103,11 +112,21 @@ def research_history(
                 features = compute_market_features(candles[: i + 1], timeframe=timeframe)
                 events = _events(features)
                 regime = _regime(features)
-                labels = events or ["baseline"]
-                if events:
+
+                # TZ P0-2: baseline сэмплируется независимо от событий.
+                baseline_counter += 1
+                is_baseline = (baseline_counter % baseline_step == 0)
+
+                if is_baseline:
+                    labels = ["baseline"]
+                    stats["baseline_observations"] += 1
+                elif events:
+                    labels = events
                     stats["events"] += len(events)
                 else:
+                    labels = ["baseline"]
                     stats["baseline_observations"] += 1
+
                 stats["observations"] += 1
                 forward: dict[str, dict[str, float]] = {}
                 for label, bars in horizons.items():
@@ -135,6 +154,13 @@ def research_history(
                         agg["max_up"][horizon].append(result["max_up"])
                         agg["max_down"][horizon].append(result["max_down"])
 
+    # TZ P0-2: собрать baseline-статистику для расчёта lift_vs_baseline.
+    # Ключ baseline-агрегатов: "baseline|{timeframe}|{regime}"
+    baseline_agg: dict[str, dict[str, list]] = {}
+    for key, agg in aggregates.items():
+        if key.startswith("baseline|"):
+            baseline_agg[key] = agg
+
     hypotheses: dict[str, Any] = {}
     for key, agg in aggregates.items():
         if agg["observations"] < 20:
@@ -154,13 +180,41 @@ def research_history(
                 "mean_max_up": float(np.mean(agg["max_up"][label])),
                 "mean_max_down": float(np.mean(agg["max_down"][label])),
             }
-        hypotheses[key] = {
+
+        # TZ P0-2: baseline_expectancy и lift_vs_baseline.
+        # Найти baseline для того же timeframe+regime.
+        parts = key.split("|")
+        if len(parts) == 3:
+            _, tf, regime = parts
+            bl_key = f"baseline|{tf}|{regime}"
+        else:
+            bl_key = None
+        baseline_expectancy: dict[str, float] = {}
+        lift_vs_baseline: dict[str, float] = {}
+        if bl_key and bl_key in baseline_agg:
+            bl_agg = baseline_agg[bl_key]
+            for horizon, values in bl_agg["returns"].items():
+                arr = np.asarray(values, dtype=float)
+                if len(arr) >= 5:
+                    bl_mean = float(np.mean(arr))
+                    baseline_expectancy[horizon] = bl_mean
+                    # Lift = event_mean - baseline_mean
+                    if horizon in horizon_stats:
+                        event_mean = horizon_stats[horizon]["mean_return"]
+                        lift_vs_baseline[horizon] = event_mean - bl_mean
+
+        hyp_entry: dict[str, Any] = {
             "observations": agg["observations"],
             "horizons": horizon_stats,
             "status": "candidate",
             "confidence": min(1.0, agg["observations"] / 500.0),
             "status_reason": "Candidate only; require walk-forward and out-of-sample confirmation before use.",
         }
+        if baseline_expectancy:
+            hyp_entry["baseline_expectancy"] = baseline_expectancy
+        if lift_vs_baseline:
+            hyp_entry["lift_vs_baseline"] = lift_vs_baseline
+        hypotheses[key] = hyp_entry
 
     hypotheses_output.parent.mkdir(parents=True, exist_ok=True)
     hypotheses_output.write_text(

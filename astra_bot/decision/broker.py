@@ -22,6 +22,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from ..engines.cost_model import CostModel, cost_model_from_flat
+
 logger = logging.getLogger(__name__)
 
 
@@ -102,20 +104,43 @@ class PaperBroker:
         state_path: Path = Path("models/paper_positions.json"),
         trades_path: Path = Path("models/paper_trades.jsonl"),
         initial_capital: Decimal = Decimal("2000"),
-        fee_pct: Decimal = Decimal("0.001"),
-        slippage_pct: Decimal = Decimal("0.001"),
+        fee_pct: Decimal | None = None,
+        slippage_pct: Decimal | None = None,
+        cost_model: CostModel | None = None,
     ):
         self.state_path = state_path
         self.trades_path = trades_path
         self.initial_capital = initial_capital
         self.positions: list[PaperPosition] = []
         self.realized_pnl: Decimal = Decimal("0")
-        # Реальные издержки исполнения (master prompt §24): тейкер-комиссия
-        # и slippage на каждую сторону. База 0.1%/0.1% совпадает с baseline
-        # в scripts/run_full_research_audit.py, чтобы live-paper цифры были
-        # сравнимы с audit.
-        self.fee_pct = fee_pct
-        self.slippage_pct = slippage_pct
+
+        # Единая модель издержек (TZ P0-1).
+        # Если передан cost_model — используем его напрямую.
+        # Если переданы fee_pct/slippage_pct — создаём CostModel из них.
+        # Если ничего не передано — дефолт 0.1%/0.1%.
+        if cost_model is not None:
+            self.cost_model = cost_model
+        else:
+            fp = fee_pct if fee_pct is not None else Decimal("0.001")
+            sp = slippage_pct if slippage_pct is not None else Decimal("0.001")
+            if fp == 0 and sp == 0:
+                # Legacy test mode: нулевые издержки для проверки механики.
+                # CostModel не допускает taker_fee_rate=0, поэтому храним
+                # плоские значения и используем упрощённую логику.
+                self.cost_model = None
+                self.fee_pct = Decimal("0")
+                self.slippage_pct = Decimal("0")
+            else:
+                try:
+                    self.cost_model = cost_model_from_flat(fp, sp)
+                    self.fee_pct = fp
+                    self.slippage_pct = sp
+                except ValueError:
+                    # Fallback if fee_pct=0 but slippage>0 or vice versa.
+                    self.cost_model = None
+                    self.fee_pct = fp
+                    self.slippage_pct = sp
+
         self._load()
 
     # ------------------------------------------------------------ persistence
@@ -226,10 +251,15 @@ class PaperBroker:
                 ]
         qty = quantity
         # Эффективный вход: slippage против нас + тейкер-комиссия.
-        if direction == "long":
-            fill = entry_price * (Decimal("1") + self.slippage_pct)
+        if self.cost_model is not None:
+            fill = self.cost_model.effective_entry_price(entry_price, direction)
+            fee_per_unit = fill * self.cost_model.taker_fee_rate
         else:
-            fill = entry_price * (Decimal("1") - self.slippage_pct)
+            if direction == "long":
+                fill = entry_price * (Decimal("1") + self.slippage_pct)
+            else:
+                fill = entry_price * (Decimal("1") - self.slippage_pct)
+            fee_per_unit = fill * self.fee_pct
         pos = PaperPosition(
             id=str(uuid.uuid4()),
             symbol=symbol,
@@ -241,7 +271,7 @@ class PaperBroker:
             strategy=strategy,
             notes=notes or {},
             fill_price=fill,
-            entry_fee_per_unit=fill * self.fee_pct,
+            entry_fee_per_unit=fee_per_unit,
             risk_distance=abs(entry_price - stop_loss),
             regime=regime,
             timeframe=timeframe,
@@ -445,15 +475,26 @@ class PaperBroker:
         Считаем по эффективной цене входа (с slippage), применяем
         slippage на выход и тейкер-комиссию с обеих сторон. Комиссия входа
         делится пропорционально закрытому объёму (для частичных тейков).
+
+        Использует CostModel если доступен (TZ P0-1), иначе legacy-логику.
         """
         fill = pos.fill_price if pos.fill_price is not None else pos.entry_price
-        if pos.direction == "long":
-            exit_fill = exit_price * (Decimal("1") - self.slippage_pct)
-            gross = (exit_fill - fill) * qty
+        if self.cost_model is not None:
+            exit_fill = self.cost_model.effective_exit_price(exit_price, pos.direction)
+            if pos.direction in ("long", "buy"):
+                gross = (exit_fill - fill) * qty
+            else:
+                gross = (fill - exit_fill) * qty
+            exit_fee = exit_fill * self.cost_model.taker_fee_rate * qty
+            fees = pos.entry_fee_per_unit * qty + exit_fee
         else:
-            exit_fill = exit_price * (Decimal("1") + self.slippage_pct)
-            gross = (fill - exit_fill) * qty
-        fees = pos.entry_fee_per_unit * qty + exit_fill * self.fee_pct * qty
+            if pos.direction == "long":
+                exit_fill = exit_price * (Decimal("1") - self.slippage_pct)
+                gross = (exit_fill - fill) * qty
+            else:
+                exit_fill = exit_price * (Decimal("1") + self.slippage_pct)
+                gross = (fill - exit_fill) * qty
+            fees = pos.entry_fee_per_unit * qty + exit_fill * self.fee_pct * qty
         return gross - fees, fees
 
     def _pnl(self, pos: PaperPosition, qty: Decimal, exit_price: Decimal) -> Decimal:

@@ -21,6 +21,8 @@ from .base import BaseStrategy, Signal, SignalType, StrategyConfig
 @dataclass
 class ScalpConfig(StrategyConfig):
     name: str = "scalp"
+    # TZ P0-4: отключена по умолчанию (данные дискредитировали стратегию).
+    enabled: bool = False
     ema_fast: int = 9
     ema_mid: int = 21
     ema_slow: int = 50

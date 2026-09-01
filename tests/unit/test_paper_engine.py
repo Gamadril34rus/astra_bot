@@ -2,6 +2,7 @@
 ASTRA BOT — Unit Tests for Paper Trading Engine
 """
 
+from datetime import datetime
 from decimal import Decimal
 
 import pytest
@@ -307,6 +308,76 @@ class TestIntegration:
         assert sim._paper_engine is not None
         assert sim._market_sim is not None
         assert len(generated) == 100
+
+
+class TestMaxHold:
+    """TZ P0-5: MAX_HOLD enforcement in legacy PaperTradingEngine."""
+
+    @pytest.mark.asyncio
+    async def test_max_hold_closes_old_position(self):
+        """Позиция старше 48ч закрывается с reason=MAX_HOLD."""
+        from datetime import timedelta
+
+        engine = PaperTradingEngine(initial_capital=Decimal("10000"))
+
+        # Manually create an old position (49 hours old)
+        from astra_bot.paperengine.paper_engine import PaperTrade
+
+        old_trade = PaperTrade(
+            symbol="BTC/USDT",
+            side="long",
+            strategy_name="test",
+            entry_price=Decimal("50000"),
+            current_price=Decimal("50100"),
+            quantity=Decimal("0.01"),
+            stop_loss=Decimal("49000"),
+            take_profit=Decimal("52000"),
+            fees=Decimal("0.5"),
+            status="open",
+        )
+        # Set entry time to 49 hours ago
+        old_trade.entry_time = datetime.utcnow() - timedelta(hours=49)
+        engine.account.open_positions[old_trade.id] = old_trade
+
+        # Process market data — should trigger MAX_HOLD close
+        await engine.process_market_data("BTC/USDT", Decimal("50100"))
+
+        # Position should be closed
+        assert old_trade.id not in engine.account.open_positions
+        assert old_trade.status == "closed"
+        assert old_trade.exit_reason == "MAX_HOLD"
+
+    @pytest.mark.asyncio
+    async def test_young_position_not_closed_by_max_hold(self):
+        """Позиция моложе 48ч НЕ закрывается по MAX_HOLD."""
+        from datetime import timedelta
+
+        engine = PaperTradingEngine(initial_capital=Decimal("10000"))
+
+        from astra_bot.paperengine.paper_engine import PaperTrade
+
+        young_trade = PaperTrade(
+            symbol="ETH/USDT",
+            side="long",
+            strategy_name="test",
+            entry_price=Decimal("3000"),
+            current_price=Decimal("3050"),
+            quantity=Decimal("0.1"),
+            stop_loss=Decimal("2900"),
+            take_profit=Decimal("3200"),
+            fees=Decimal("0.3"),
+            status="open",
+        )
+        # Set entry time to 1 hour ago (well within 48h)
+        young_trade.entry_time = datetime.utcnow() - timedelta(hours=1)
+        engine.account.open_positions[young_trade.id] = young_trade
+
+        # Process market data
+        await engine.process_market_data("ETH/USDT", Decimal("3050"))
+
+        # Position should still be open
+        assert young_trade.id in engine.account.open_positions
+        assert young_trade.status == "open"
 
 
 if __name__ == "__main__":

@@ -30,6 +30,8 @@ from .base import BaseStrategy, Signal, SignalType, StrategyConfig
 @dataclass
 class PullbackConfig(StrategyConfig):
     name: str = "pullback"
+    # TZ P0-4: отключена по умолчанию (данные дискредитировали стратегию).
+    enabled: bool = False
     ema_fast: int = 20
     ema_mid: int = 50
     ema_slow: int = 200
