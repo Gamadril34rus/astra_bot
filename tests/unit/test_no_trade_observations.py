@@ -45,7 +45,7 @@ def _candles(n=40, base=1700000000, step=900, start_price=100.0, drift=0.1):
         c = o + drift
         out.append(
             models.Candle(
-                exchange="okx",
+                exchange="bingx",
                 symbol="BTC-USDT",
                 timeframe="5m",
                 open_time=base + i * step,

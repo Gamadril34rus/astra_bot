@@ -18,17 +18,18 @@
 1. Сделайте репозиторий **публичным**:
    Settings → General → Danger Zone → Change visibility.
 
-2. **Отзовите старый OKX API-ключ** (он был в публичной истории git).
-   Создайте новый **demo-trading** ключ с правами Read + Trade, без Withdraw.
-   IP whitelist оставьте пустым.
+2. **Ретир OKX → BingX.** Отзовите старый OKX API-ключ (он был в публичной
+   истории git). Активная биржа — BingX spot: для paper-контура ключи
+   ОПЦИОНАЛЬНЫ (рыночные данные публичны); при создании ключа BingX дайте
+   права Read (Trade — только перед намеренным включением live), БЕЗ
+   Withdraw. IP whitelist оставьте пустым. Passphrase у BingX нет.
 
 3. Добавьте секреты (Settings → Secrets and variables → Actions):
 
    | Имя | Значение |
    |---|---|
-   | `OKX_API_KEY` | demo API key |
-   | `OKX_API_SECRET` | demo API secret |
-   | `OKX_API_PASSPHRASE` | passphrase |
+   | `BINGX_API_KEY` | BingX spot API key (опционально для paper) |
+   | `BINGX_API_SECRET` | BingX spot API secret (опционально для paper) |
    | `TELEGRAM_BOT_TOKEN` | токен от @BotFather (необязательно) |
    | `TELEGRAM_ADMIN_ID` | ваш ID от @userinfobot (необязательно) |
 
@@ -39,7 +40,7 @@
 
 ## Как работает
 
-- В 08:00 МСК GitHub поднимает Ubuntu, качает 3 года свечей OKX,
+- В 08:00 МСК GitHub поднимает Ubuntu, качает историю свечей BingX (публичные kline),
   прогоняет self-play на 15m/1h/4h/1d, обучает LightGBM, шлёт
   утренний отчёт в Telegram и коммитит модель и lessons в ветку.
 - Каждый час запускается `paper-trade.yml`, делает один цикл
@@ -63,4 +64,4 @@
 ## Выключение
 
 - Actions → выбрать workflow → «…» → Disable workflow.
-- Или удалить OKX-секреты — джоба упадёт на шаге Connection test.
+- Или удалить ключи BingX/Telegram — соответствующие шаги упадут.

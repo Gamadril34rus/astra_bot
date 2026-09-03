@@ -1,7 +1,7 @@
 """
 ASTRA BOT — Trading engine.
 
-Связывает DecisionPipeline, OKX market data и PaperBroker:
+Связывает DecisionPipeline, BingX market data и PaperBroker:
 
 1. Тянет свечи 4h/1h/15m/5m и стакан по инструментам.
 2. На каждом 5m-баре вызывает ``pipeline.decide``.
@@ -24,7 +24,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from ..adapters.okx import OKXClient
+from ..adapters.base import ExchangeAdapter
 from ..core import models, trading_schedule
 from ..core.market_safety import MarketSafety
 from ..core.metrics import (
@@ -97,7 +97,7 @@ class TradingEngineConfig:
 class TradingEngine:
     def __init__(
         self,
-        okx: OKXClient,
+        exchange: ExchangeAdapter,
         pipeline: DecisionPipeline | None = None,
         config: TradingEngineConfig | None = None,
         broker: PaperBroker | None = None,
@@ -106,7 +106,7 @@ class TradingEngine:
     ):
         # Колбэк для уведомлений в Telegram: notifier(text, severity).
         self._notifier = notifier
-        self.okx = okx
+        self.exchange = exchange
         self.config = config or TradingEngineConfig()
         if pipeline is None:
             from ..strategies import (
@@ -192,7 +192,7 @@ class TradingEngine:
         # (MAX_HOLD / VOL_EXPANSION / BTC_PANIC) поверх ExitController.
         from .exit_manager import ExitManager
 
-        self.exit_manager = ExitManager(okx=self.okx, broker=self.broker)
+        self.exit_manager = ExitManager(exchange=self.exchange, broker=self.broker)
         # Единая проверка «можно ли входить прямо сейчас»: расписание/бюджет
         # часов, новости, волатильность, спред, дисбаланс стакана.
         self.safety = MarketSafety()
@@ -256,16 +256,17 @@ class TradingEngine:
         return PaperBroker(**kwargs)
 
     async def sync_capital(self) -> Decimal:
-        """Синхронизировать торговый капитал с демо-портфелем OKX.
+        """Синхронизировать торговый капитал со спот-балансом BingX.
 
-        В управлении бота — ПОЛОВИНА оценки всего демо-портфеля в USDT
-        (BTC+ETH+OKB+USDT по текущим ценам), как просил владелец. Это
-        масштаб «сколько реально есть», а не зашитые 2000.
+        Если заданы BINGX_API_KEY/BINGX_API_SECRET, в управление берётся
+        ПОЛОВИНА оценки всего спот-портфеля в USDT (активы по текущим
+        ценам), как просил владелец. Это масштаб «сколько реально есть»,
+        а не зашитые 2000. Без ключей остаёмся на дефолтном капитале.
         """
         if self._capital_synced:
             return self.broker.initial_capital
         try:
-            bals = await self.okx.get_account_balance()
+            bals = await self.exchange.get_account_balance()
             # Оцениваем портфель в USDT по текущим ценам.
             total_usdt = Decimal("0")
             for asset, b in bals.items():
@@ -273,7 +274,7 @@ class TradingEngine:
                     total_usdt += b.total
                 else:
                     try:
-                        t = await self.okx.get_ticker(f"{asset}-USDT")
+                        t = await self.exchange.get_ticker(f"{asset}-USDT")
                         if t and t.get("last"):
                             total_usdt += b.total * Decimal(str(t["last"]))
                     except Exception:
@@ -283,12 +284,12 @@ class TradingEngine:
             cap = (total_usdt / Decimal("2")).quantize(Decimal("0.01"))
             if self.broker.positions:
                 logger.info(
-                    "Портфель демо=%.2f USDT, половина=%.2f, но есть позиции — "
+                    "Спот-портфель=%.2f USDT, половина=%.2f, но есть позиции — "
                     "продолжаю с %s", total_usdt, cap, self.broker.initial_capital,
                 )
             else:
                 logger.info(
-                    "Портфель демо OKX=%.2f USDT; в управлении половина=%.2f USDT",
+                    "Спот-портфель BingX=%.2f USDT; в управлении половина=%.2f USDT",
                     total_usdt, cap,
                 )
                 self.broker = self._make_broker(cap)
@@ -345,7 +346,7 @@ class TradingEngine:
     async def fetch_context(self, symbol: str) -> MarketContext:
         candles: dict[str, list[models.Candle]] = {}
         for tf in self.config.timeframes:
-            candles[tf] = await self.okx.get_candles(
+            candles[tf] = await self.exchange.get_candles(
                 symbol,
                 timeframe=tf,
                 limit=self.config.bars_per_tf.get(tf, 300),
@@ -355,7 +356,7 @@ class TradingEngine:
             raise RuntimeError(f"Нет данных по {symbol}")
         price = Decimal(str(primary[-1].close))
         try:
-            orderbook = await self.okx.get_orderbook(symbol, depth=20)
+            orderbook = await self.exchange.get_orderbook(symbol, depth=20)
         except Exception as exc:
             logger.warning("Стакан %s недоступен: %s", symbol, exc)
             orderbook = None
@@ -562,7 +563,7 @@ class TradingEngine:
         # волатильность, спред, дисбаланс стакана. Если не прошли —
         # пропускаем вход (это главный щит от слива депозита).
         try:
-            ticker = await self.okx.get_ticker(symbol)
+            ticker = await self.exchange.get_ticker(symbol)
         except Exception:
             ticker = {}
         ob = ctx.orderbook
@@ -907,7 +908,7 @@ class TradingEngine:
             TICK_LATENCY.observe(time.monotonic() - _step_started)
 
     async def _step_impl(self) -> None:
-        # Раз при первом шаге подтягиваем реальный капитал демо OKX.
+        # Раз при первом шаге подтягиваем реальный капитал спот-счёта BingX.
         if not self._capital_synced:
             await self.sync_capital()
 

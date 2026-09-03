@@ -75,8 +75,8 @@ Equity в бэктестере вычисляется как `realized_equity + 
 
 Пайплайн:
 
-1. **Загрузка истории.** `fetch_historical_candles` ходит в OKX
-   `/api/v5/market/history-candles` с курсором `before` и собирает
+1. **Загрузка истории.** `fetch_historical_candles` ходит в BingX
+   `/openApi/spot/v1/market/kline` (пагинация назад через `endTime`) и собирает
    `lookback_days * 24 * 60 / timeframe_minutes` свечей. По умолчанию
    это год (365 дней) часовых свечей. Публичный эндпоинт не требует
    API-ключа и депозита.

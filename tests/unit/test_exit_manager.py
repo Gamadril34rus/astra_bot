@@ -12,7 +12,7 @@ from astra_bot.core import models
 from astra_bot.decision.broker import PaperBroker, PaperPosition
 from astra_bot.decision.exit_manager import ExitManager
 from tests.integration.test_main_tick import make_bot
-from tests.integration.test_meta_strategy_execution import OkxStub, gen_candles
+from tests.integration.test_meta_strategy_execution import FeedStub, gen_candles
 
 SYMBOL = "BTC-USDT"
 
@@ -30,7 +30,7 @@ def _candles(n: int = 90, price: float = 100.0, rng: float = 0.5, seed: int = 7,
         lo = min(o, c) - rnd.uniform(0, rng * 0.5)
         out.append(
             models.Candle(
-                exchange="okx", symbol=symbol, timeframe=timeframe,
+                exchange="feed", symbol=symbol, timeframe=timeframe,
                 open_time=t0 + i * 3600,
                 open=Decimal(str(round(o, 8))), high=Decimal(str(round(h, 8))),
                 low=Decimal(str(round(lo, 8))), close=Decimal(str(round(c, 8))),
@@ -45,7 +45,7 @@ def _with_spike(candles: list[models.Candle], rng: float = 4.0) -> list[models.C
     last = candles[-1]
     mid = float(last.close)
     spike = models.Candle(
-        exchange="okx", symbol=SYMBOL, timeframe=candles[-1].timeframe,
+        exchange="feed", symbol=SYMBOL, timeframe=candles[-1].timeframe,
         open_time=last.open_time + 3600,
         open=Decimal(str(mid)), high=Decimal(str(mid + rng)),
         low=Decimal(str(mid - rng)), close=Decimal(str(mid)),
@@ -60,7 +60,7 @@ def _crash(n: int = 30, price: float = 100.0, drop: float = 0.08) -> list[models
     last = out[-1]
     mid = float(last.close)
     crash = models.Candle(
-        exchange="okx", symbol=SYMBOL, timeframe="4h",
+        exchange="feed", symbol=SYMBOL, timeframe="4h",
         open_time=last.open_time + 14400,
         open=Decimal(str(mid)), high=Decimal(str(mid * 1.001)),
         low=Decimal(str(mid * (1 - drop) * 0.999)),
@@ -105,7 +105,7 @@ class TestMaxHold:
     def test_position_held_too_long_is_closed(self, tmp_path):
         broker = _mk_broker(tmp_path)
         pos = _mk_pos(broker, opened_at=int(time.time() * 1000) - 49 * 3600 * 1000)
-        em = ExitManager(okx=None, broker=broker)
+        em = ExitManager(exchange=None, broker=broker)
         closed = em.check_symbol([pos], {"1h": _candles()}, 100.0)
         assert len(closed) == 1
         assert closed[0].exit_reason == "MAX_HOLD"
@@ -114,7 +114,7 @@ class TestMaxHold:
     def test_fresh_position_kept(self, tmp_path):
         broker = _mk_broker(tmp_path)
         pos = _mk_pos(broker, opened_at=int(time.time() * 1000))
-        em = ExitManager(okx=None, broker=broker)
+        em = ExitManager(exchange=None, broker=broker)
         assert em.check_symbol([pos], {"1h": _candles()}, 100.0) == []
         assert broker.positions == [pos]
 
@@ -123,7 +123,7 @@ class TestVolExpansion:
     def test_spike_closes_position(self, tmp_path):
         broker = _mk_broker(tmp_path)
         pos = _mk_pos(broker)
-        em = ExitManager(okx=None, broker=broker)
+        em = ExitManager(exchange=None, broker=broker)
         candles = _with_spike(_candles())
         closed = em.check_symbol([pos], {"1h": candles}, 100.0)
         assert len(closed) == 1
@@ -132,24 +132,24 @@ class TestVolExpansion:
     def test_stable_vol_kept(self, tmp_path):
         broker = _mk_broker(tmp_path)
         pos = _mk_pos(broker)
-        em = ExitManager(okx=None, broker=broker)
+        em = ExitManager(exchange=None, broker=broker)
         assert em.check_symbol([pos], {"1h": _candles()}, 100.0) == []
 
     def test_no_candles_no_close(self, tmp_path):
         """Недостаточно баров → решение не принимается (не выходим вслепую)."""
         broker = _mk_broker(tmp_path)
         pos = _mk_pos(broker)
-        em = ExitManager(okx=None, broker=broker)
+        em = ExitManager(exchange=None, broker=broker)
         assert em.check_symbol([pos], {"1h": _candles(20)}, 100.0) == []
 
 
 class TestBtcPanic:
     def test_panic_flag_set_on_crash(self):
-        em = ExitManager(okx=OkxStub(_crash()), broker=None)
+        em = ExitManager(exchange=FeedStub(_crash()), broker=None)
         assert asyncio.run(em.refresh_btc_panic()) is True
 
     def test_no_panic_on_flat_market(self):
-        em = ExitManager(okx=OkxStub(_candles(30, timeframe="4h")), broker=None)
+        em = ExitManager(exchange=FeedStub(_candles(30, timeframe="4h")), broker=None)
         assert asyncio.run(em.refresh_btc_panic()) is False
 
     def test_api_error_keeps_last_flag(self):
@@ -157,7 +157,7 @@ class TestBtcPanic:
             async def get_candles(self, *a, **k):
                 raise RuntimeError("no network")
 
-        em = ExitManager(okx=Broken(), broker=None)
+        em = ExitManager(exchange=Broken(), broker=None)
         em.btc_panic = True  # был обвал, теперь сеть недоступна
         assert asyncio.run(em.refresh_btc_panic()) is True
 
@@ -165,7 +165,7 @@ class TestBtcPanic:
         broker = _mk_broker(tmp_path)
         _mk_pos(broker, id="p1")
         _mk_pos(broker, id="p2", direction="short")
-        em = ExitManager(okx=None, broker=broker)
+        em = ExitManager(exchange=None, broker=broker)
         closed = em.flatten_symbol(SYMBOL, 100.0)
         assert {t.id for t in closed} == {"p1", "p2"}
         assert all(t.exit_reason == "BTC_PANIC" for t in closed)
@@ -179,14 +179,14 @@ class TestEngineIntegration:
             "astra_bot.decision.trading_engine.append_lessons",
             lambda trades: lessons.extend(trades) or 1,
         )
-        bot = make_bot(tmp_path, OkxStub(gen_candles()), monkeypatch)
+        bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
         eng = bot._trading_engine
         asyncio.run(bot._tick())
         assert len(eng.broker.positions) == 1
         opened = [p.id for p in eng.broker.positions]
 
         # Обвал BTC (стуб возвращает серию краха для любого запроса).
-        eng.okx.candles = _crash()
+        eng.exchange.candles = _crash()
         bot._last_tick_at = 0.0
         asyncio.run(bot._tick())
 
@@ -201,7 +201,7 @@ class TestEngineIntegration:
             "astra_bot.decision.trading_engine.append_lessons",
             lambda trades: lessons.extend(trades) or 1,
         )
-        bot = make_bot(tmp_path, OkxStub(gen_candles()), monkeypatch)
+        bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
         eng = bot._trading_engine
         asyncio.run(bot._tick())
         pos = eng.broker.positions[0]

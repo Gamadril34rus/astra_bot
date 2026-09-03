@@ -1,4 +1,4 @@
-# ASTRA: 5 лет обучения → непрерывный OKX Demo
+# ASTRA: 5 лет обучения → непрерывный BingX Spot / paper (ретир OKX)
 
 ## 1. Подготовить окружение
 
@@ -16,10 +16,9 @@ chmod 600 .env
 ```dotenv
 ENVIRONMENT=paper
 PAPER_TRADING=true
-OKX_DEMO=1
-OKX_API_KEY=...
-OKX_API_SECRET=...
-OKX_API_PASSPHRASE=...
+# BingX Spot API — опционально для paper (публичные данные без ключей)
+BINGX_API_KEY=...
+BINGX_API_SECRET=...
 TELEGRAM_BOT_TOKEN=...
 TELEGRAM_ADMIN_ID=...
 ```
@@ -72,14 +71,14 @@ Worker:
 - работает беспрерывно;
 - сканирует весь доступный 35-coin universe;
 - учитывает ML + графические признаки + news sentiment;
-- торгует только OKX Demo;
+- торгует на данных BingX Spot (paper-контур);
 - использует не более 50% общей стоимости demo-счёта;
 - оставляет 50% капитала резервом;
 - максимум 8 собственных открытых позиций;
 - фиксирует каждую закрытую сделку как урок;
 - после каждых 200 новых уроков делает дообучение.
 
-OKX Demo Trading требует специальный заголовок `x-simulated-trading: 1`; worker запускается только с `OKX_DEMO=1`.
+Ранее demo-торговля OKX требовала заголовок `x-simulated-trading: 1` и `OKX_DEMO=1`; после ретира OKX → BingX worker работает на бумажном контуре с данными BingX (ключи BingX не обязательны).
 
 ## 4. Единственный Telegram-отчёт
 

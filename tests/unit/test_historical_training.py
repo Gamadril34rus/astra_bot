@@ -22,7 +22,7 @@ def _make_candles(n: int = 400, seed: int = 7) -> list[models.Candle]:
         base *= 1 + random.uniform(-0.005, 0.006)
         candles.append(
             models.Candle(
-                exchange="okx",
+                exchange="bingx",
                 symbol="BTC-USDT",
                 timeframe="1h",
                 open_time=start + i * 3_600_000,

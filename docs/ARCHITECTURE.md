@@ -70,9 +70,12 @@ astra_bot/
 ├── adapters/                  # Exchange Abstraction Layer
 │   ├── __init__.py
 │   ├── base.py                # Базовый адаптер биржи
-│   ├── okx/                   # OKX адаптер
+│   ├── bingx/                 # BingX адаптер (активный; ретир OKX)
 │   │   ├── __init__.py
 │   │   ├── client.py          # REST API клиент
+│   ├── okx/                   # OKX адаптер (legacy, откат)
+│   │   ├── __init__.py
+│   │   ├── client.py          # REST API клиент (legacy)
 │   │   ├── websocket.py       # WebSocket клиент
 │   │   └── order_manager.py   # Управление ордерами
 │   └── bybit/                 # Bybit адаптер (позже)
@@ -164,7 +167,7 @@ astra_bot/
 ### 2.1 Рыночные данные
 
 **Источники:**
-- OKX REST API / WebSocket
+- BingX REST API / WebSocket (активная биржа; ретир OKX)
 - Bybit REST API / WebSocket
 
 **Данные для сбора:**
@@ -1524,14 +1527,13 @@ system:
     db: 0
 
 exchanges:
-  okx:
+  bingx:
     enabled: true
-    sandbox: true  # Включить для тестирования
-    api_key: "${OKX_API_KEY}"
-    api_secret: "${OKX_API_SECRET}"
-    passphrase: "${OKX_PASSPHRASE}"
+    api_key: "${BINGX_API_KEY}"     # опционально: публичные данные без ключей
+    api_secret: "${BINGX_API_SECRET}"
     contract_type: "spot"
-    base_url: "https://www.okx.com"  # Или sandbox URL
+    base_url: "https://open-api.bingx.com"
+  okx:  # legacy (ретир OKX → BingX), disabled
   
   bybit:
     enabled: false
@@ -1694,7 +1696,7 @@ CMD ["python", "-m", "astra_bot.main"]
 ### V0.1 — Market Data + PostgreSQL
 - [ ] Базовая структура проекта
 - [ ] PostgreSQL схема
-- [ ] OKX адаптер (REST)
+- [x] BingX адаптер (REST) (ретир OKX → BingX)
 - [ ] Сбор OHLCV данных
 - [ ] Сохранение в БД
 
@@ -1730,7 +1732,7 @@ CMD ["python", "-m", "astra_bot.main"]
 - [ ] Уведомления
 
 ### V0.8 — Exchange Execution
-- [ ] Нативный OKX адаптер
+- [x] Нативный BingX адаптер (ретир OKX → BingX)
 - [ ] Управление ордерами
 - [ ] Reconciliation
 - [ ] Circuit breakers
@@ -1758,10 +1760,10 @@ CMD ["python", "-m", "astra_bot.main"]
 При капитале 1 000 ₽ и risk_per_trade = 0.4%:
 - Допустимый риск = 4 ₽
 - При стоп-лоссе 1% от цены: размер позиции = 400 ₽
-- Если минимальный ордер OKX = 10 USDT, то минимальный риск = 10 × 0.01 = 0.1 USDT ≈ 9 ₽
+- Если минимальный ордер BingX = 5 USDT (minNotional spot), то минимальный риск = 5 × 0.01 = 0.05 USDT ≈ 5 ₽
 
 Это может быть проблематично. **Решение:**
-1. Проверить актуальные минимальные ордеры OKX
+1. Проверить актуальные минимальные ордеры BingX
 2. Если минимальный размер выше рассчитанного — trade = REJECTED
 3. Возможно, потребуется начальный капитал больше 1 000 ₽
 

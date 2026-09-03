@@ -135,7 +135,7 @@ Avoid sending model noise, every scan result or every feature calculation to the
 
 Never commit exchange or Telegram secrets.
 
-OKX permissions should be minimum necessary. Withdrawal permission must remain disabled.
+Exchange API-key permissions should be minimum necessary (BingX: Read; Trade only before enabling live). Withdrawal permission must remain disabled.
 
 Before real-money operation, document:
 

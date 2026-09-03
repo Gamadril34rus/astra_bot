@@ -17,9 +17,9 @@ try:
     load_dotenv(PROJECT_ROOT / ".env")
 except ImportError:
     pass
-from astra_bot.adapters.okx import OKXClient
+from astra_bot.adapters.bingx import BingXClient
 from astra_bot.core import trading_schedule
-from astra_bot.core.instruments import TRADING_UNIVERSE, to_okx
+from astra_bot.core.instruments import TRADING_UNIVERSE, to_bingx
 from astra_bot.core.logger import setup_logging
 from astra_bot.decision.trading_engine import TradingEngine, TradingEngineConfig
 from astra_bot.telegram.bot import create_telegram_bot
@@ -50,30 +50,29 @@ async def amain() -> int:
     status = trading_schedule.get_status()
     can_trade = status["can_trade_now"]
     logger.info("Старт: торговля %s | осталось %s ч/мес | %s", "разрешена" if can_trade else "на паузе", status["remaining_hours"], status["now_msk"])
-    okx = OKXClient({
-        "api_key": os.environ.get("OKX_API_KEY", ""),
-        "api_secret": os.environ.get("OKX_API_SECRET", ""),
-        "passphrase": os.environ.get("OKX_API_PASSPHRASE", os.environ.get("OKX_PASSPHRASE", "")),
-        "sandbox": os.environ.get("OKX_DEMO", "1").lower() not in {"0", "false", "no"},
+    bingx = BingXClient({
+        "api_key": os.environ.get("BINGX_API_KEY", ""),
+        "api_secret": os.environ.get("BINGX_API_SECRET", ""),
         "enabled": True,
-        "rate_limit_qps": 4,
+        "rate_limit_qps": 5,
     })
-    await okx.initialize()
-    # Never send a delisted/unsupported symbol to the candle endpoint. OKX is
-    # the source of truth; the static universe is only a candidate list.
-    candidates = tuple(to_okx(s) for s in TRADING_UNIVERSE)
-    available = await okx.get_instruments()
-    available_ids = {i.symbol for i in available if getattr(i, "trading_status", "") in {"trading", "live"}}
+    await bingx.initialize()
+    # BingX is the source of truth for the tradable universe; the static
+    # universe is only a candidate list. Публичные рыночные данные BingX
+    # не требуют ключей — контур работает и без них.
+    candidates = tuple(to_bingx(s) for s in TRADING_UNIVERSE)
+    available = await bingx.get_instruments()
+    available_ids = {i.symbol for i in available if getattr(i, "trading_status", "") == "trading"}
     symbols = tuple(s for s in candidates if s in available_ids)
     skipped = tuple(s for s in candidates if s not in available_ids)
-    logger.info("OKX spot universe: %d/%d instruments available", len(symbols), len(candidates))
+    logger.info("BingX spot universe: %d/%d instruments available", len(symbols), len(candidates))
     if skipped:
         logger.warning("Skipped unavailable instruments: %s", ", ".join(skipped))
     if not symbols:
-        logger.error("No configured instruments are currently tradable on OKX")
-        await okx.close()
+        logger.error("No configured instruments are currently tradable on BingX")
+        await bingx.close()
         return 3
-    engine = TradingEngine(okx=okx, config=TradingEngineConfig(symbols=symbols, poll_interval_seconds=300))
+    engine = TradingEngine(exchange=bingx, config=TradingEngineConfig(symbols=symbols, poll_interval_seconds=300))
     bot = await create_telegram_bot(bot_token=token, allowed_user_ids=allowed, admin_user_ids=admin_ids)
     stop = asyncio.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -109,7 +108,7 @@ async def amain() -> int:
         except (asyncio.CancelledError, Exception):
             pass
         await bot.stop()
-        await okx.close()
+        await bingx.close()
     logger.info("Сессия завершена.")
     return 0
 

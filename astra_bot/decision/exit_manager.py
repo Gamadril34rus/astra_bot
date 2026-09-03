@@ -67,11 +67,11 @@ class ExitManager:
 
     def __init__(
         self,
-        okx: Any,
+        exchange: Any,
         broker: Any,
         config: ExitManagerConfig | None = None,
     ) -> None:
-        self.okx = okx
+        self.exchange = exchange
         self.broker = broker
         self.config = config or ExitManagerConfig()
         self.btc_panic: bool = False
@@ -87,7 +87,7 @@ class ExitManager:
         """
         cfg = self.config
         try:
-            candles = await self.okx.get_candles(
+            candles = await self.exchange.get_candles(
                 BTC_SYMBOL, timeframe="4h", limit=cfg.btc_panic_bars
             )
         except Exception as exc:

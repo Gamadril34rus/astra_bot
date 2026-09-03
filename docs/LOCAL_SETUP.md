@@ -81,10 +81,10 @@ nano .env
 ENVIRONMENT=paper
 PAPER_TRADING=true
 
-# OKX API (demo trading)
-OKX_API_KEY=ваш-ключ
-OKX_API_SECRET=ваш-секрет
-OKX_API_PASSPHRASE=ваша-фраза
+# BingX Spot API (активная биржа; ретир OKX). Опционально для paper:
+# рыночные данные публичны, ключи нужны только для баланса спот-счёта.
+BINGX_API_KEY=
+BINGX_API_SECRET=
 
 # Telegram (опционально, для отчётов)
 TELEGRAM_BOT_TOKEN=токен-от-@BotFather
@@ -92,32 +92,34 @@ TELEGRAM_ADMIN_ID=ваш-id-из-@userinfobot
 ```
 
 > ⚠️ **Безопасность:** файл `.env` уже в `.gitignore` и не попадёт в git.
-> Ключи OKX создавайте **только для demo trading**, без прав на вывод.
 > Если вы уже когда-то запушили ключи в git — отзовите их и создайте новые.
 
-### Как получить OKX demo API ключи
-1. Зайдите на https://www.okx.com/
-2. Переключитесь в **Demo Trading** (в шапке сайта)
-3. Profile → API → **Create demo-trading API key**
-4. Права: **Read** + **Trade**, без Withdraw
-5. Passphrase придумайте сами и запишите
-6. IP whitelist можно оставить пустым
+### Как получить BingX API ключи (опционально)
+Для paper-контура ключи не обязательны: рынок BingX публичен. Ключи нужны
+только чтобы команда `/баланс` показывала реальный спот-баланс BingX.
+1. Зайдите на https://www.bingx.com/
+2. Аккаунт → **API** → **Create API key**
+3. Права: **Read** (+ **Trade** — только перед осознанным включением live),
+   **Withdraw: NO** (никогда)
+4. Скопируйте API Key и API Secret в `.env` (passphrase у BingX нет)
+5. IP whitelist можно оставить пустым
 
-## 6. Проверить соединение с OKX
+## 6. Проверить соединение с BingX
 
 ```bash
-python scripts/test_okx.py
+python scripts/test_bingx.py
 ```
 
 Ожидаемый вывод:
 ```
-Using key: xxxxxxxx...
-Public candles: 5
-Account balances: 2
-  USDT: free=10000.00 total=10000.00
+Public endpoint: OK (5 candles)
+Private endpoint: пропущен (ключи не заданы)   # если ключей нет
+Private endpoint: OK (2 balances)              # если ключи заданы
 ```
 
-Если видите `Cannot connect to host www.okx.com` — у вас брандмауэр/провайдер блокирует OKX. Попробуйте VPN или сервер в другой стране.
+Если видите ошибку соединения с `open-api.bingx.com` — у вас
+брандмауэр/провайдер блокирует API BingX. Попробуйте VPN или сервер в
+другой стране.
 
 ## 7. Обучить бота
 
@@ -132,7 +134,7 @@ python scripts/train_multi_timeframe.py --days 1095 --target-trades 1000
 ```
 
 Что произойдёт:
-* бот скачает реальные свечи OKX по BTC/ETH/SOL;
+* бот скачает реальные свечи BingX по BTC/ETH/SOL;
 * прогонит self-play на 15m/1h/4h/1d;
 * сохранит уроки в `models/lessons.jsonl`;
 * обучит LightGBM и сохранит в `models/current.pkl`.
@@ -220,7 +222,7 @@ python scripts/morning_report.py
 ```
 astra_bot/
 ├── astra_bot/
-│   ├── adapters/         # OKX клиент
+│   ├── adapters/         # BingX клиент (ретир OKX)
 │   ├── core/             # модели, индикаторы
 │   ├── decision/         # пайплайн решений (regime, risk, EV)
 │   ├── ml/               # обучение, LightGBM
@@ -228,7 +230,7 @@ astra_bot/
 │   ├── strategies/       # PullbackStrategy, Momentum, ...
 │   └── telegram/         # бот и кнопки
 ├── scripts/
-│   ├── test_okx.py            # проверка ключей и сети
+│   ├── test_bingx.py          # проверка ключей и сети
 │   ├── train_multi_timeframe.py  # обучение
 │   ├── train_weekly.py        # дообучение вручную
 │   ├── morning_report.py      # отчёт за сутки
@@ -243,8 +245,8 @@ astra_bot/
 
 ## Частые проблемы
 
-### `Cannot connect to host www.okx.com`
-OKX недоступен с вашего IP. Включите VPN или арендуйте VPS в стране, где OKX работает (Германия, Нидерланды, Сингапур).
+### `Cannot connect to host open-api.bingx.com`
+BingX API недоступен с вашего IP. Включите VPN или арендуйте VPS в стране, где API BingX работает.
 
 ### `ModuleNotFoundError: No module named 'dotenv'`
 Вы забыли активировать виртуальное окружение (`source .venv/bin/activate` или `.\.venv\Scripts\Activate.ps1`).

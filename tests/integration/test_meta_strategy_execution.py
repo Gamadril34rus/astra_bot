@@ -11,7 +11,7 @@
 
 Реальные объекты: DecisionPipeline (regime/feature/EV/liquidity/scorer),
 ScalpStrategy, StrategyStatsStore, MetaStrategy, RiskEngine, PaperBroker.
-Мок только внешний мир (OKX), как в production-раундах.
+Мок только внешний мир (биржа), как в production-раундах.
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ def gen_candles(n: int = 230, tf: str = "5m") -> list[models.Candle]:
         lo = min(o, c) - 0.02
         out.append(
             models.Candle(
-                exchange="okx",
+                exchange="feed",
                 symbol="BTC-USDT",
                 timeframe=tf,
                 open_time=BASE_TS + i * STEP,
@@ -76,7 +76,7 @@ def stop_hit_bar(prev: models.Candle, stop: Decimal) -> models.Candle:
     lo = float(stop) - 0.5
     h = o + 0.2
     return models.Candle(
-        exchange="okx",
+        exchange="feed",
         symbol="BTC-USDT",
         timeframe="5m",
         open_time=prev.open_time + STEP,
@@ -89,8 +89,8 @@ def stop_hit_bar(prev: models.Candle, stop: Decimal) -> models.Candle:
     )
 
 
-class OkxStub:
-    """Мок OKX: возвращает управляемый набор свечей (внешний мир)."""
+class FeedStub:
+    """Мок биржи: возвращает управляемый набор свечей (внешний мир)."""
 
     def __init__(self, candles: list[models.Candle]):
         self.candles = candles
@@ -106,7 +106,7 @@ class OkxStub:
         return {"last": str(last), "high_24h": str(last + 1), "low_24h": str(last - 1)}
 
 
-def make_engine(tmp_path, okx, pipeline, lessons_collector):
+def make_engine(tmp_path, feed, pipeline, lessons_collector):
     cfg = TradingEngineConfig(
         symbols=("BTC-USDT",),
         timeframes=("5m",),
@@ -129,7 +129,7 @@ def make_engine(tmp_path, okx, pipeline, lessons_collector):
         slippage_pct=Decimal("0"),
     )
     eng = TradingEngine(
-        okx=okx, pipeline=pipeline, config=cfg, broker=broker
+        exchange=feed, pipeline=pipeline, config=cfg, broker=broker
     )
     # Внешние зависимости изолируем: сеть (новости) и расписание.
     eng.safety.check = lambda *a, **k: SafetyVerdict(allowed=True)
@@ -158,8 +158,8 @@ class TestTradeExecutionPath:
             lambda trades: lessons.extend(trades) or 1,
         )
         store = StrategyStatsStore(tmp_path / "stats.json")
-        okx = OkxStub(gen_candles())
-        eng = make_engine(tmp_path, okx, make_pipeline(tmp_path, store), lessons)
+        feed = FeedStub(gen_candles())
+        eng = make_engine(tmp_path, feed, make_pipeline(tmp_path, store), lessons)
 
         # Шаг 1: сигнал → позиция (через риск-контур).
         closed = asyncio.run(eng.process_symbol("BTC-USDT"))
@@ -176,8 +176,8 @@ class TestTradeExecutionPath:
         assert pos.notes.get("ev_r") is not None
 
         # Шаг 2: бар пробивает стоп → закрытие → lesson + stats.
-        stop_bar = stop_hit_bar(okx.candles[-1], pos.stop_loss)
-        okx.candles = [*okx.candles, stop_bar]
+        stop_bar = stop_hit_bar(feed.candles[-1], pos.stop_loss)
+        feed.candles = [*feed.candles, stop_bar]
         closed = asyncio.run(eng.process_symbol("BTC-USDT"))
         stops = [c for c in closed if c.exit_reason == "stop_loss"]
         assert len(stops) == 1
@@ -222,9 +222,9 @@ class TestTradeExecutionPath:
                 timeframe="1h",
                 r_multiple=-0.9,
             )
-        okx = OkxStub(base)
+        feed = FeedStub(base)
         eng = make_engine(
-            tmp_path, okx, make_pipeline(tmp_path, store), []
+            tmp_path, feed, make_pipeline(tmp_path, store), []
         )
 
         # Шаг 1: NO_TRADE (EV в режиме отрицательный).
@@ -244,7 +244,7 @@ class TestTradeExecutionPath:
         assert len(obs_path.read_text().strip().splitlines()) == 1
 
         # Шаг 3: новый бар → обогащение исходом (TZ §13).
-        okx.candles = [*okx.candles, stop_hit_bar(okx.candles[-1], Decimal("90"))]
+        feed.candles = [*feed.candles, stop_hit_bar(feed.candles[-1], Decimal("90"))]
         asyncio.run(eng.process_symbol("BTC-USDT"))
         outcomes = json.loads((tmp_path / "outcomes.json").read_text())["outcomes"]
         assert row["id"] in outcomes

@@ -75,7 +75,7 @@ async def build_daily_plan(
     """Собрать отсортированный план сделок на ближайшие 24 часа.
 
     Args:
-        history: свечи по инструментам, как их отдаёт OKXClient.
+        history: свечи по инструментам, как их отдаёт клиент биржи (BingX).
         strategies: список стратегий с методом ``evaluate``.
         model_path: путь к ``current.pkl`` weekly-модели.
         min_ml_probability: минимальная предсказанная вероятность win.

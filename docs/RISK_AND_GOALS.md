@@ -44,7 +44,7 @@
 ## Как запустить на неделю
 
 ```bash
-# 1. Первичное multi-timeframe обучение на годе истории OKX:
+# 1. Первичное multi-timeframe обучение на годе истории BingX:
 python scripts/train_multi_timeframe.py --days 365 --target-trades 700
 
 # 2. Ежедневный цикл (08:00 — обучение, 09:00 — отчёт):

@@ -22,11 +22,18 @@ from .base import (
     PositionStatus,
     Trade,
 )
+from .bingx import BingXAdapter, BingXClient, BingXWebSocket
 from .bybit import BybitAdapter
 from .okx import OKXAdapter, OKXClient, OKXOrderManager, OKXWebSocket
 
+# OKX — legacy-адаптер после ретира OKX → BingX (см. config/settings.yaml):
+# остаётся импортируемым для тестов и отката, но в активных путях не создаётся.
+
 __all__ = [
     "AccountBalance",
+    "BingXAdapter",
+    "BingXClient",
+    "BingXWebSocket",
     "BybitAdapter",
     "Candle",
     "ExchangeAdapter",

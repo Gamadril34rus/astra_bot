@@ -12,7 +12,7 @@ from decimal import Decimal
 from astra_bot.core import models
 from tests.integration.test_main_tick import make_bot
 from tests.integration.test_meta_strategy_execution import (
-    OkxStub,
+    FeedStub,
     gen_candles,
     stop_hit_bar,
 )
@@ -23,13 +23,13 @@ class _AllBrokenOkx:
     """API биржи полностью лежит (все запросы — ошибка)."""
 
     async def get_candles(self, *a, **k):
-        raise RuntimeError("okx down")
+        raise RuntimeError("feed down")
 
     async def get_orderbook(self, *a, **k):
-        raise RuntimeError("okx down")
+        raise RuntimeError("feed down")
 
     async def get_ticker(self, *a, **k):
-        raise RuntimeError("okx down")
+        raise RuntimeError("feed down")
 
 
 class TestChaos:
@@ -50,15 +50,15 @@ class TestChaos:
         candles = gen_candles(230)
         last = candles[-1]
         nan_candle = models.Candle(
-            exchange="okx", symbol="BTC-USDT", timeframe="5m",
+            exchange="feed", symbol="BTC-USDT", timeframe="5m",
             open_time=last.open_time,
             open=Decimal("NaN"), high=Decimal("NaN"),
             low=Decimal("NaN"), close=Decimal("NaN"),
             volume=Decimal("100"), quote_volume=Decimal("10000"),
         )
-        bot = make_bot(tmp_path, OkxStub(candles), monkeypatch)
+        bot = make_bot(tmp_path, FeedStub(candles), monkeypatch)
         eng = bot._trading_engine
-        eng.okx.candles = [*candles[:-1], nan_candle]
+        eng.exchange.candles = [*candles[:-1], nan_candle]
         asyncio.run(bot._tick())  # не должно бросить
         assert eng.broker.positions == []  # fail-closed: не входим вслепую
 
@@ -68,15 +68,15 @@ class TestChaos:
         )
         """Резкий гэп: тик переживает, открытая позиция закрывается
         стопом (а не остаётся висеть с битыми экстремумами)."""
-        bot = make_bot(tmp_path, OkxStub(gen_candles(230)), monkeypatch)
+        bot = make_bot(tmp_path, FeedStub(gen_candles(230)), monkeypatch)
         eng = bot._trading_engine
         asyncio.run(bot._tick())
         assert len(eng.broker.positions) == 1
         pos = eng.broker.positions[0]
         # Гэп вниз на 20% + пробой стопа.
-        last = eng.okx.candles[-1]
+        last = eng.exchange.candles[-1]
         gap = models.Candle(
-            exchange="okx", symbol="BTC-USDT", timeframe="5m",
+            exchange="feed", symbol="BTC-USDT", timeframe="5m",
             open_time=last.open_time + 300,
             open=Decimal(str(float(last.close) * 0.8)),
             high=Decimal(str(float(last.close) * 0.82)),
@@ -84,7 +84,7 @@ class TestChaos:
             close=Decimal(str(float(last.close) * 0.79)),
             volume=Decimal("100"), quote_volume=Decimal("10000"),
         )
-        eng.okx.candles = [*eng.okx.candles, gap]
+        eng.exchange.candles = [*eng.exchange.candles, gap]
         bot._last_tick_at = 0.0
         asyncio.run(bot._tick())  # без исключений
         # Позиция закрыта стопом (гэп пробил стоп) — либо re-entry не
@@ -96,13 +96,13 @@ class TestChaos:
             "astra_bot.decision.trading_engine.append_lessons", lambda trades: 0
         )
         """HALT запрещает ВХОДЫ, но BTC PANIC — выход: flatten работает."""
-        bot = make_bot(tmp_path, OkxStub(gen_candles(230)), monkeypatch)
+        bot = make_bot(tmp_path, FeedStub(gen_candles(230)), monkeypatch)
         eng = bot._trading_engine
         asyncio.run(bot._tick())
         assert len(eng.broker.positions) == 1
         # Имитация HALT (например, после hard drawdown).
         eng.risk.trading_enabled = False
-        eng.okx.candles = _crash()
+        eng.exchange.candles = _crash()
         bot._last_tick_at = 0.0
         asyncio.run(bot._tick())
         assert eng.broker.positions == []
@@ -112,14 +112,14 @@ class TestChaos:
             "astra_bot.decision.trading_engine.append_lessons", lambda trades: 0
         )
         """После «апатии» API торговля возобновляется."""
-        okx = _AllBrokenOkx()
-        bot = make_bot(tmp_path, okx, monkeypatch)
+        feed = _AllBrokenOkx()
+        bot = make_bot(tmp_path, feed, monkeypatch)
         eng = bot._trading_engine
         asyncio.run(eng.step())
         # API вернулся.
-        okx.get_candles = OkxStub(gen_candles(230)).get_candles
-        okx.get_orderbook = OkxStub([]).get_orderbook
-        okx.get_ticker = OkxStub(gen_candles(230)).get_ticker
+        feed.get_candles = FeedStub(gen_candles(230)).get_candles
+        feed.get_orderbook = FeedStub([]).get_orderbook
+        feed.get_ticker = FeedStub(gen_candles(230)).get_ticker
         asyncio.run(eng.step())  # без исключений
 
     def test_double_stop_bar_no_crash(self, tmp_path, monkeypatch):
@@ -128,12 +128,12 @@ class TestChaos:
         )
         """Повторный стоп-бар после закрытия (re-entry возможен) —
         система стабильна, broker согласован с бандлом."""
-        bot = make_bot(tmp_path, OkxStub(gen_candles(230)), monkeypatch)
+        bot = make_bot(tmp_path, FeedStub(gen_candles(230)), monkeypatch)
         eng = bot._trading_engine
         asyncio.run(bot._tick())
         pos = eng.broker.positions[0]
-        bar = stop_hit_bar(eng.okx.candles[-1], pos.stop_loss)
-        eng.okx.candles = [*eng.okx.candles, bar, bar]  # два «одинаковых»
+        bar = stop_hit_bar(eng.exchange.candles[-1], pos.stop_loss)
+        eng.exchange.candles = [*eng.exchange.candles, bar, bar]  # два «одинаковых»
         bot._last_tick_at = 0.0
         asyncio.run(bot._tick())
         bundle = eng.state_store.load()

@@ -13,7 +13,7 @@ from astra_bot.strategies.book_breakout import BookBreakoutConfig, BookBreakoutS
 
 def _candle(o: float, h: float, lo: float, c: float, t: int = 0, tf: str = "1h") -> models.Candle:
     return models.Candle(
-        exchange="okx", symbol="BTC/USDT", timeframe=tf, open_time=t,
+        exchange="bingx", symbol="BTC/USDT", timeframe=tf, open_time=t,
         open=Decimal(str(o)), high=Decimal(str(h)), low=Decimal(str(lo)),
         close=Decimal(str(c)), volume=Decimal("10"), quote_volume=Decimal("1000"),
     )

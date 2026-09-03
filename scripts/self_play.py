@@ -22,7 +22,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from datetime import UTC
 
-from astra_bot.adapters.okx import OKXClient
+from astra_bot.adapters.bingx import BingXClient
 from astra_bot.core.logger import setup_logging
 from astra_bot.ml.self_play import (
     SelfPlayConfig,
@@ -41,7 +41,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--symbols", nargs="+", default=["BTC/USDT", "ETH/USDT", "SOL/USDT"])
     p.add_argument("--offline-candles", type=int, default=0,
                    help="Если >0, сгенерировать указанное число баров на инструмент "
-                        "без обращения к OKX (для отладки)")
+                        "без обращения к бирже (для отладки)")
     return p.parse_args()
 
 
@@ -72,7 +72,7 @@ async def amain(args: argparse.Namespace) -> int:
             for j in range(args.offline_candles):
                 base *= 1 + random.uniform(-0.005, 0.0055)
                 bars.append(models.Candle(
-                    exchange="okx", symbol=symbol, timeframe=config.timeframe,
+                    exchange="bingx", symbol=symbol, timeframe=config.timeframe,
                     open_time=start + j * 3_600_000,
                     open=Decimal(str(base * 0.999)),
                     high=Decimal(str(base * 1.004)),
@@ -84,10 +84,7 @@ async def amain(args: argparse.Namespace) -> int:
             history[symbol] = bars
         report = await engine.run(history=history)
     else:
-        client = OKXClient({
-            "api_key": "",
-            "api_secret": "",
-            "sandbox": False,
+        client = BingXClient({
             "enabled": True,
             "rate_limit_qps": 5,
         })

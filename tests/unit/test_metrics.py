@@ -5,13 +5,13 @@ from astra_bot.core import metrics
 
 def test_render_metrics_returns_prometheus_format():
     metrics.HTTP_REQUESTS_TOTAL.labels(
-        service="okx", method="GET", endpoint="/test", status="200"
+        service="bingx", method="GET", endpoint="/test", status="200"
     ).inc()
 
     body = metrics.render_metrics().decode("utf-8")
 
     assert "astra_http_requests_total" in body
-    assert 'service="okx"' in body
+    assert 'service="bingx"' in body
 
 
 def test_risk_engine_updates_gauges():

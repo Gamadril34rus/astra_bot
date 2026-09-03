@@ -2,19 +2,19 @@
 
 import pytest
 from astra_bot.core import market_safety
-from astra_bot.core.instruments import TRADING_UNIVERSE, position_fraction_for, to_okx
+from astra_bot.core.instruments import TRADING_UNIVERSE, position_fraction_for, to_bingx
 from astra_bot.decision.news_engine import NewsEngine, NewsItem
 
 
 def test_universe_has_ten_liquid_symbols():
     # Юниверс намеренно расширен: worker перед торговлей фильтрует его по
-    # фактическим SPOT-инструментам OKX. Контракт — достаточно широкий набор
+    # фактическим SPOT-инструментам BingX. Контракт — достаточно широкий набор
     # ликвидных USDT-пар без дублей.
     assert len(TRADING_UNIVERSE) >= 10
     assert len(set(TRADING_UNIVERSE)) == len(TRADING_UNIVERSE)
     for s in TRADING_UNIVERSE:
         assert s.endswith("/USDT")
-        assert to_okx(s) == s.replace("/", "-")
+        assert to_bingx(s) == s.replace("/", "-")
 
 
 def test_alts_get_half_position_size():

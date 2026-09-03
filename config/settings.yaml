@@ -137,19 +137,26 @@ redis:
   db: 0
 
 # Биржи
+# Активная биржа — BingX (спот; ретир OKX). Публичные рыночные данные
+# работают без ключей; приватные эндпоинты (баланс, ордера) — только с
+# ключами БЕЗ права вывода. У BingX нет passphrase.
 exchanges:
-  okx:
+  bingx:
     enabled: true
-    sandbox: true
-    api_key: "${OKX_API_KEY}"      # Установите переменную окружения
-    api_secret: "${OKX_API_SECRET}" # Установите переменную окружения
-    passphrase: "${OKX_PASSPHRASE}" # Установите переменную окружения
+    api_key: "${BINGX_API_KEY}"      # Установите переменную окружения
+    api_secret: "${BINGX_API_SECRET}" # Установите переменную окружения
+    contract_type: "spot"
+    base_url: "https://open-api.bingx.com"
+
+  # OKX — legacy (ретир OKX → BingX). Оставлен только как справочная
+  # реализация, в активных путях не создаётся.
+  okx:
+    enabled: false
+    api_key: "${OKX_API_KEY}"
+    api_secret: "${OKX_API_SECRET}"
+    passphrase: "${OKX_PASSPHRASE}"
     contract_type: "spot"
     base_url: "https://www.okx.com"
-  
-  bybit:
-    enabled: false
-    # Аналогично OKX
 
 # Безопасность
 security:

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 # Широкий набор известных ликвидных криптоактивов.
-# Перед торговлей worker фильтрует его по фактическим SPOT-инструментам OKX.
+# Перед торговлей worker фильтрует его по фактическим SPOT-инструментам
+# BingX (свечи/стакан тянутся оттуда же).
 TRADING_UNIVERSE: tuple[str, ...] = (
     "BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT",
     "ADA/USDT", "AVAX/USDT", "DOGE/USDT", "LINK/USDT", "DOT/USDT",
@@ -19,8 +20,14 @@ MAJOR_SYMBOLS: frozenset[str] = frozenset({
 })
 
 
-def to_okx(symbol: str) -> str:
+def to_bingx(symbol: str) -> str:
+    """Формат символа BingX spot: ``BTC/USDT`` → ``BTC-USDT``."""
     return symbol.replace("/", "-")
+
+
+# Deprecated alias: формат символов OKX spot совпадает с BingX (дефис).
+# Оставлен на время переходного периода, новые вызовы используют to_bingx.
+to_okx = to_bingx
 
 
 def is_alt(symbol: str) -> bool:

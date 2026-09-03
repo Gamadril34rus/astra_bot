@@ -24,7 +24,7 @@ from astra_bot.ml.hypothesis_engine import (
     new_hypothesis,
 )
 from tests.integration.test_meta_strategy_execution import (
-    OkxStub,
+    FeedStub,
     gen_candles,
     make_engine,
     make_pipeline,
@@ -35,7 +35,7 @@ STEP = 900
 
 def _bar_after(prev: models.Candle, o, h, lo, c) -> models.Candle:
     return models.Candle(
-        exchange="okx",
+        exchange="feed",
         symbol="BTC-USDT",
         timeframe="5m",
         open_time=prev.open_time + STEP,
@@ -88,8 +88,8 @@ class TestExitControllerLive:
             lambda trades: lessons.extend(trades) or 1,
         )
         store = StrategyStatsStore(tmp_path / "stats.json")
-        okx = OkxStub(gen_candles())
-        eng = make_engine(tmp_path, okx, make_pipeline(tmp_path, store), lessons)
+        feed = FeedStub(gen_candles())
+        eng = make_engine(tmp_path, feed, make_pipeline(tmp_path, store), lessons)
         return eng, lessons
 
     def test_breakeven_plan_protects_trade(self, tmp_path, monkeypatch):
@@ -107,7 +107,7 @@ class TestExitControllerLive:
 
         # Рост на 0.9R (ниже TP в 1R scalp) -> BREAKEVEN активируется,
         # стоп = entry.
-        candles = eng.okx.candles
+        candles = eng.exchange.candles
         rally = _bar_after(
             candles[-1], float(candles[-1].close),
             entry + 0.9 * risk,
@@ -115,7 +115,7 @@ class TestExitControllerLive:
             entry + 0.85 * risk,
         )
         candles = [*candles, rally]
-        eng.okx.candles = candles
+        eng.exchange.candles = candles
         closed = asyncio.run(eng.process_symbol("BTC-USDT"))
         assert closed == []  # стоп в entry ещё не пробит
         assert float(eng.broker.positions[0].stop_loss) == pytest.approx(entry, abs=1e-9)
@@ -127,7 +127,7 @@ class TestExitControllerLive:
             entry - 0.05,
             entry - 0.04,
         )
-        eng.okx.candles = [*candles, down]
+        eng.exchange.candles = [*candles, down]
         closed = asyncio.run(eng.process_symbol("BTC-USDT"))
         assert len(closed) == 1
         trade = closed[0]
@@ -146,14 +146,14 @@ class TestExitControllerLive:
         entry = float(pos.entry_price)
         risk = float(pos.risk_distance)
 
-        candles = eng.okx.candles
+        candles = eng.exchange.candles
         rally = _bar_after(
             candles[-1], float(candles[-1].close),
             entry + 0.9 * risk,
             float(candles[-1].close) + 0.01,  # low выше entry
             entry + 0.85 * risk,
         )
-        eng.okx.candles = [*candles, rally]
+        eng.exchange.candles = [*candles, rally]
         asyncio.run(eng.process_symbol("BTC-USDT"))
         # Дефолт: стоп НЕ двигается (нет ACTIVE-гипотезы).
         assert float(eng.broker.positions[0].stop_loss) == pytest.approx(
@@ -161,12 +161,12 @@ class TestExitControllerLive:
         )
 
         down = _bar_after(
-            eng.okx.candles[-1], float(eng.okx.candles[-1].close),
-            float(eng.okx.candles[-1].close) + 0.01,
+            eng.exchange.candles[-1], float(eng.exchange.candles[-1].close),
+            float(eng.exchange.candles[-1].close) + 0.01,
             entry - 1.1 * risk,
             entry - 1.0 * risk,
         )
-        eng.okx.candles = [*eng.okx.candles, down]
+        eng.exchange.candles = [*eng.exchange.candles, down]
         closed = asyncio.run(eng.process_symbol("BTC-USDT"))
         assert len(closed) == 1
         assert closed[0].exit_reason == "stop_loss"
@@ -183,10 +183,10 @@ class TestExitControllerLive:
         # 3 плоских бара внутри стопа/тейка.
         closed = []
         for _ in range(3):
-            last = eng.okx.candles[-1]
+            last = eng.exchange.candles[-1]
             o = float(last.close)
             flat = _bar_after(last, o, o + 0.01, o - 0.01, o)
-            eng.okx.candles = [*eng.okx.candles, flat]
+            eng.exchange.candles = [*eng.exchange.candles, flat]
             closed = asyncio.run(eng.process_symbol("BTC-USDT"))
         assert len(closed) == 1
         assert closed[0].exit_reason == "time_stop"

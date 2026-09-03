@@ -18,7 +18,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from astra_bot.adapters.okx import OKXClient
+from astra_bot.adapters.bingx import BingXClient
 from astra_bot.core.instruments import TRADING_UNIVERSE
 from astra_bot.core.logger import setup_logging
 from astra_bot.core.training_state import get_training_state
@@ -26,15 +26,14 @@ from astra_bot.ml.historical_training import fetch_historical_candles
 from astra_bot.ml.multi_timeframe import run_multi_timeframe
 from astra_bot.ml.weekly_learner import train_weekly
 
-# 10 ликвидных пар к USDT на OKX.
+# 10 ликвидных пар к USDT (BingX spot).
 SYMBOLS = TRADING_UNIVERSE
 
 
 async def amain(args: argparse.Namespace) -> int:
     async def provider(tf: str):
-        client = OKXClient({
-            "api_key": "", "api_secret": "",
-            "sandbox": False, "enabled": True, "rate_limit_qps": 5,
+        client = BingXClient({
+            "enabled": True, "rate_limit_qps": 5,
         })
         await client.initialize()
         history = {}

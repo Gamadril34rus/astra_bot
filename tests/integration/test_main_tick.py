@@ -1,7 +1,7 @@
 """Integration: main.py _tick — оркестратор paper-пути (Этап 1).
 
 Проверяем реальный поток: AstraBot._tick → TradingEngine.step →
-pipeline → risk → PaperBroker. Без сети: OKX-стуб, как в
+pipeline → risk → PaperBroker. Без сети: биржевой стуб, как в
 test_meta_strategy_execution.
 """
 
@@ -15,7 +15,7 @@ from astra_bot.core.config import load_settings
 from astra_bot.core.market_safety import SafetyVerdict
 from astra_bot.main import AstraBot
 from tests.integration.test_meta_strategy_execution import (
-    OkxStub,
+    FeedStub,
     gen_candles,
 )
 
@@ -28,7 +28,7 @@ def _stub_safety(eng) -> None:
 STEP = 900
 
 
-def make_bot(tmp_path, okx, monkeypatch) -> AstraBot:
+def make_bot(tmp_path, feed, monkeypatch) -> AstraBot:
     """AstraBot с modern paper-путём, state изолирован в tmp."""
     monkeypatch.setenv("ASTRA_STATE_DIR", str(tmp_path / "state"))
     cfg = tmp_path / "settings.yaml"
@@ -44,7 +44,7 @@ def make_bot(tmp_path, okx, monkeypatch) -> AstraBot:
     )
     load_settings(str(cfg))
     bot = AstraBot(config_path=str(cfg))
-    bot._exchange_client = okx
+    bot._exchange_client = feed
     bot._init_trading_engine()
     _stub_safety(bot._trading_engine)
     return bot
@@ -57,7 +57,7 @@ class TestTickOrchestration:
             "astra_bot.decision.trading_engine.append_lessons",
             lambda trades: lessons.extend(trades) or 1,
         )
-        bot = make_bot(tmp_path, OkxStub(gen_candles()), monkeypatch)
+        bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
         assert bot._trading_engine is not None
         eng = bot._trading_engine
 
@@ -128,7 +128,7 @@ class TestTickOrchestration:
 
     def test_total_tick_error_propagates_to_run_loop(self, tmp_path, monkeypatch):
         """Ошибку всего тика _run ловит и не роняет бота."""
-        bot = make_bot(tmp_path, OkxStub(gen_candles()), monkeypatch)
+        bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
 
         async def boom():
             raise RuntimeError("total failure")
@@ -142,7 +142,7 @@ class TestTickOrchestration:
     ):
         from astra_bot.paperengine.paper_engine import PaperTradingEngine
 
-        bot = make_bot(tmp_path, OkxStub(gen_candles()), monkeypatch)
+        bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
         bot._paper_engine = PaperTradingEngine(initial_capital=Decimal("1000"))
         bot._exchange_websocket = None
 

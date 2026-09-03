@@ -15,15 +15,16 @@ check_env() {
     
     if [ -z "$var_value" ] || [ "$var_value" = "YOUR_"* ]; then
         echo "⚠️  WARNING: $var_name не настроен!"
-        if [ "$var_name" = "OKX_API_KEY" ] || [ "$var_name" = "OKX_API_SECRET" ]; then
-            echo "   Для работы с биржей это обязательно!"
+        if [ "$var_name" = "BINGX_API_KEY" ] || [ "$var_name" = "BINGX_API_SECRET" ]; then
+            echo "   Ключи BingX опциональны: рыночные данные публичны,"
+            echo "   ключи нужны только для баланса спот-счёта."
         fi
     fi
 }
 
 echo ""
 echo "Проверка конфигурации..."
-check_env "OKX_API_KEY"
+check_env "BINGX_API_KEY"
 check_env "TELEGRAM_BOT_TOKEN"
 
 # Инициализация базы данных
@@ -37,36 +38,34 @@ fi
 
 # Проверка связи с биржей
 echo ""
-echo "Проверка связи с OKX..."
+echo "Проверка связи с BingX..."
 python -c "
 import asyncio
 import sys
 sys.path.insert(0, '/app')
-from astra_bot.adapters.okx import OKXClient
+from astra_bot.adapters.bingx import BingXClient
 
 async def test():
     config = {
-        'api_key': '${OKX_API_KEY}',
-        'api_secret': '${OKX_API_SECRET}',
-        'passphrase': '${OKX_PASSPHRASE}',
-        'sandbox': ${PAPER_TRADING:-true},
+        'api_key': '${BINGX_API_KEY}',
+        'api_secret': '${BINGX_API_SECRET}',
         'enabled': True,
     }
-    client = OKXClient(config)
+    client = BingXClient(config)
     try:
         await client.initialize()
         result = await client.test_connection()
         if result:
-            print('  ✅ OKX соединение успешно')
+            print('  ✅ BingX соединение успешно')
         else:
-            print('  ⚠️  OKX соединение не удалось')
+            print('  ⚠️  BingX соединение не удалось')
     except Exception as e:
-        print(f'  ❌ OKX ошибка: {e}')
+        print(f'  ❌ BingX ошибка: {e}')
     finally:
         await client.close()
 
 asyncio.run(test())
-" 2>&1 || echo "  ⚠️  Не удалось проверить OKX (это нормально для продакшена)"
+" 2>&1 || echo "  ⚠️  Не удалось проверить BingX (это нормально для продакшена)"
 
 # Запуск приложения
 echo ""

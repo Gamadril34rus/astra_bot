@@ -53,7 +53,7 @@ async def run_multi_timeframe(
 
     ``history_provider(symbol, timeframe, lookback_days)`` должен
     возвращать список свечей. Это позволяет запускать обучение как
-    на реальных данных OKX, так и на синтетике.
+    на реальных данных биржи (BingX), так и на синтетике.
     """
     from decimal import Decimal
 

@@ -11,7 +11,7 @@ from pathlib import Path
 
 from tests.integration.test_main_tick import make_bot
 from tests.integration.test_meta_strategy_execution import (
-    OkxStub,
+    FeedStub,
     gen_candles,
     stop_hit_bar,
 )
@@ -41,12 +41,12 @@ def _scenario(tmp_path: Path, monkeypatch) -> list[dict]:
     monkeypatch.setattr(
         "astra_bot.decision.trading_engine.append_lessons", lambda trades: 0
     )
-    bot = make_bot(tmp_path, OkxStub(gen_candles(230)), monkeypatch)
+    bot = make_bot(tmp_path, FeedStub(gen_candles(230)), monkeypatch)
     eng = bot._trading_engine
     asyncio.run(bot._tick())
     assert len(eng.broker.positions) == 1, "сценарий должен открыть позицию"
     pos = eng.broker.positions[0]
-    eng.okx.candles = [*eng.okx.candles, stop_hit_bar(eng.okx.candles[-1], pos.stop_loss)]
+    eng.exchange.candles = [*eng.exchange.candles, stop_hit_bar(eng.exchange.candles[-1], pos.stop_loss)]
     bot._last_tick_at = 0.0
     asyncio.run(bot._tick())
     return _norm_trades(eng.broker.trades_path)
@@ -72,11 +72,11 @@ def test_replay_state_bundle_equivalent(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "astra_bot.decision.trading_engine.append_lessons", lambda trades: 0
     )
-    bot1 = make_bot(tmp_path / "r1", OkxStub(gen_candles(230)), monkeypatch)
+    bot1 = make_bot(tmp_path / "r1", FeedStub(gen_candles(230)), monkeypatch)
     asyncio.run(bot1._tick())
     b1 = json.loads(bot1._trading_engine.state_store.path.read_text())
 
-    bot2 = make_bot(tmp_path / "r2", OkxStub(gen_candles(230)), monkeypatch)
+    bot2 = make_bot(tmp_path / "r2", FeedStub(gen_candles(230)), monkeypatch)
     asyncio.run(bot2._tick())
     b2 = json.loads(bot2._trading_engine.state_store.path.read_text())
 
