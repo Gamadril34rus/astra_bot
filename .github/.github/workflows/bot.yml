@@ -52,19 +52,18 @@ jobs:
 
       - name: Write .env
         env:
-          OKX_API_KEY: ${{ secrets.OKX_API_KEY }}
-          OKX_API_SECRET: ${{ secrets.OKX_API_SECRET }}
-          OKX_API_PASSPHRASE: ${{ secrets.OKX_API_PASSPHRASE }}
+          # BingX — активная биржа (ретир OKX → BingX). Ключи опциональны:
+          # рыночные данные публичны, приватные нужны для баланса спот-счёта.
+          BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
+          BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
         run: |
           {
             echo "ENVIRONMENT=paper"
             echo "PAPER_TRADING=true"
-            echo "OKX_DEMO=1"
-            echo "OKX_API_KEY=$OKX_API_KEY"
-            echo "OKX_API_SECRET=$OKX_API_SECRET"
-            echo "OKX_API_PASSPHRASE=$OKX_API_PASSPHRASE"
+            echo "BINGX_API_KEY=$BINGX_API_KEY"
+            echo "BINGX_API_SECRET=$BINGX_API_SECRET"
             echo "TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN"
             echo "TELEGRAM_ADMIN_ID=$TELEGRAM_ADMIN_ID"
             echo "TELEGRAM_USER_ID=$TELEGRAM_ADMIN_ID"

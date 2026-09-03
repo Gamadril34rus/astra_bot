@@ -35,7 +35,7 @@ Walk-forward / out-of-sample validation
     ↓
 Virtual self-play
     ↓
-OKX Demo Trading
+BingX spot data + paper trading
 ```
 
 ASTRA должна учиться не только на вопросе «какая сделка выиграла», а на вопросе **«какие наблюдаемые условия связаны с последующим движением рынка и когда эта связь перестаёт работать»**.
@@ -98,7 +98,7 @@ ASTRA также должна хранить отрицательные резу
 
 ## 🌍 Историческое обучение
 
-Целевой universe содержит около **35 ликвидных USDT-пар**. Перед торговым циклом список сверяется с актуальными SPOT-инструментами OKX.
+Целевой universe содержит около **35 ликвидных USDT-пар**. Перед торговым циклом список сверяется с актуальными SPOT-инструментами BingX.
 
 Исторический learner использует максимально доступную историю конкретного инструмента в пределах заданного safety limit. Для нового токена история может быть меньше пяти лет, для старого больше. Несуществующие данные не выдумываются.
 
@@ -127,8 +127,8 @@ Research выполняется **до self-play**. Виртуальные сд�
 | Параметр | Политика |
 |---|---:|
 | Реальные деньги | **Отключены** |
-| Режим | **OKX Demo / paper** |
-| Доля выделенного капитала | **50% Demo equity** |
+| Режим | **BingX spot (данные) / paper** |
+| Доля выделенного капитала | **50% спот-портфеля BingX** |
 | Резерв | **50%** |
 | Максимум позиций | 8 |
 | Риск на сделку | 0,4% выделенного капитала |
@@ -144,7 +144,7 @@ GitHub Actions используется как временная инфраст
 
 Реальный поток одного тика (`AstraBot._tick` → `TradingEngine.step`):
 
-1. рыночные данные по universe (REST OKX, `fetch_context`);
+1. рыночные данные по universe (REST BingX, `fetch_context`);
 2. `DecisionPipeline.decide()` — async, стратегии await'ятся напрямую
    (без `asyncio.run`/потоковых хак-обвязок), режим рынка, EV-скоринг,
    meta-стратегия, NO_TRADE-коды;
@@ -227,7 +227,7 @@ ASTRA BOT — 29.08.2026 09:00 МСК
 ```text
 astra_bot/
 ├── astra_bot/
-│   ├── adapters/              # OKX / WebSocket / market data
+│   ├── adapters/              # BingX / WebSocket / market data
 │   ├── backtester/            # бэктестинг
 │   ├── core/                  # state / config / risk / readiness
 │   ├── data/                  # данные
@@ -259,7 +259,7 @@ astra_bot/
 | Multicurrency MTF audit | `scripts/audit_multicurrency.py` |
 | Strategy lab & audit | `scripts/strategy_lab.py` |
 | Research engine | `astra_bot/ml/market_research.py` |
-| Проверка OKX private API | `scripts/test_okx.py` |
+| Проверка BingX private API | `scripts/test_bingx.py` |
 | Утренний отчёт | `scripts/morning_report.py` |
 | Decision pipeline | `astra_bot/decision/pipeline.py` |
 | Market understanding | `astra_bot/ml/market_understanding.py` |
@@ -282,7 +282,7 @@ astra_bot/
 
 Credentials хранятся только в GitHub Secrets/runtime environment и не должны попадать в исходники, README, артефакты или логи.
 
-Рекомендуемые права OKX:
+Рекомендуемые права API-ключей BingX (ключи опциональны для paper-контура; без них работает публичный рынок):
 
 ```text
 Read       ✅
@@ -293,7 +293,7 @@ Withdraw   ❌ НИКОГДА
 ## 🧪 Проверки
 
 ```bash
-python scripts/test_okx.py
+python scripts/test_bingx.py
 python -m pytest tests/unit
 python -m pytest tests/integration
 python scripts/preflight.py

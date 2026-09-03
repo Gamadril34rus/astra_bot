@@ -15,11 +15,9 @@ services:
         fromDatabase:
           name: astra-db
           property: connectionString
-      - key: OKX_API_KEY
+      - key: BINGX_API_KEY
         sync: false
-      - key: OKX_API_SECRET
-        sync: false
-      - key: OKX_PASSPHRASE
+      - key: BINGX_API_SECRET
         sync: false
       - key: TELEGRAM_BOT_TOKEN
         sync: false
