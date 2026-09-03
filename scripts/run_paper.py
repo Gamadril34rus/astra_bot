@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Запуск live paper-trading на OKX demo-счёте.
+Запуск live paper-trading на данных BingX spot.
 
 Этот скрипт:
 1. Загружает .env;
-2. Подключается к OKX;
+2. Подключается к BingX (публичные рыночные данные + опц. ключи);
 3. Собирает рыночные данные по BTC/ETH/SOL;
 4. Прогоняет DecisionPipeline;
 5. Исполняет сигналы через PaperBroker (виртуальный счёт);
@@ -36,8 +36,8 @@ try:
 except ImportError:
     pass
 
-from astra_bot.adapters.okx import OKXClient
-from astra_bot.core.instruments import TRADING_UNIVERSE, to_okx
+from astra_bot.adapters.bingx import BingXClient
+from astra_bot.core.instruments import TRADING_UNIVERSE, to_bingx
 from astra_bot.core.logger import setup_logging
 from astra_bot.decision.trading_engine import (
     TradingEngine,
@@ -47,8 +47,8 @@ from astra_bot.strategies import PullbackStrategy
 
 logger = logging.getLogger("paper_runner")
 
-# 10 ликвидных пар к USDT в OKX-формате.
-DEFAULT_SYMBOLS = [to_okx(s) for s in TRADING_UNIVERSE]
+# 10 ликвидных пар к USDT в BingX-формате.
+DEFAULT_SYMBOLS = [to_bingx(s) for s in TRADING_UNIVERSE]
 
 
 def parse_args() -> argparse.Namespace:
@@ -67,50 +67,40 @@ def parse_args() -> argparse.Namespace:
 async def amain(args: argparse.Namespace) -> int:
     setup_logging()
 
-    api_key = os.environ.get("OKX_API_KEY", "")
-    api_secret = os.environ.get("OKX_API_SECRET", "")
-    passphrase = os.environ.get(
-        "OKX_API_PASSPHRASE",
-        os.environ.get("OKX_PASSPHRASE", ""),
-    )
-    if not all([api_key, api_secret, passphrase]):
-        logger.error(
-            "OKX_API_KEY / OKX_API_SECRET / OKX_API_PASSPHRASE не заданы. "
-            "Создайте .env из .env.example."
-        )
-        return 2
-
-    # OKX_DEMO=1 (по умолчанию) — ключи от demo-trading; для реального
-    # счёта выставить OKX_DEMO=0 и заменить ключи.
-    demo = os.environ.get("OKX_DEMO", "1").lower() not in {"0", "false", "no"}
-    okx = OKXClient(
+    # BingX: ключи опциональны (нужны только для баланса спот-счёта).
+    # Демо/песочницы spot у BingX нет; бумажные сделки исполняет
+    # PaperBroker, на биржу ордера не уходят.
+    api_key = os.environ.get("BINGX_API_KEY", "")
+    api_secret = os.environ.get("BINGX_API_SECRET", "")
+    bingx = BingXClient(
         {
             "api_key": api_key,
             "api_secret": api_secret,
-            "passphrase": passphrase,
-            "sandbox": demo,
             "enabled": True,
-            "rate_limit_qps": 4,
+            "rate_limit_qps": 5,
         }
     )
-    await okx.initialize()
+    await bingx.initialize()
 
     # Проверка аккаунта.
-    try:
-        bals = await okx.get_account_balance()
-        usdt = bals.get("USDT")
-        if usdt:
-            logger.info(
-                "OKX demo account connected. USDT: free=%s total=%s",
-                usdt.free,
-                usdt.total,
-            )
-        else:
-            logger.warning("Баланс USDT не найден — проверьте demo-счёт.")
-    except Exception as exc:
-        logger.error("Не удалось получить баланс OKX: %s", exc)
-        await okx.close()
-        return 3
+    if api_key and api_secret:
+        try:
+            bals = await bingx.get_account_balance()
+            usdt = bals.get("USDT")
+            if usdt:
+                logger.info(
+                    "BingX spot account connected. USDT: free=%s total=%s",
+                    usdt.free,
+                    usdt.total,
+                )
+            else:
+                logger.warning("Баланс USDT не найден — проверьте счёт BingX.")
+        except Exception as exc:
+            logger.error("Не удалось получить баланс BingX: %s", exc)
+            await bingx.close()
+            return 3
+    else:
+        logger.info("BINGX_API_KEY не задан — работаю на публичных данных BingX")
 
     config = TradingEngineConfig(
         symbols=tuple(args.symbols),
@@ -143,7 +133,7 @@ async def amain(args: argparse.Namespace) -> int:
             return asyncio.ensure_future(_send())
 
     engine = TradingEngine(
-        okx=okx,
+        exchange=bingx,
         pipeline=None,  # TradingEngine соберёт Pipeline из стратегий
         config=config,
         notifier=notifier,
@@ -189,7 +179,7 @@ async def amain(args: argparse.Namespace) -> int:
         engine.stop()
         await task
 
-    await okx.close()
+    await bingx.close()
     return 0
 
 

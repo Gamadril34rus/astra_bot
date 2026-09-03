@@ -18,6 +18,7 @@ class ExchangeType(Enum):
     """Типы бирж"""
     OKX = "okx"
     BYBIT = "bybit"
+    BINGX = "bingx"
     BINANCE = "binance"
     MEXC = "mexc"
 
@@ -638,11 +639,15 @@ class ExchangeFactory:
 # Регистрация адаптеров
 def _register_adapters():
     """Регистрация всех адаптеров"""
+    # OKX оставлен в реестре как legacy-адаптер (ретир OKX → BingX):
+    # активный контур больше не создаёт OKXClient.
+    from .bingx import BingXAdapter
     from .bybit import BybitAdapter
     from .okx import OKXAdapter
 
-    ExchangeFactory.register(ExchangeType.OKX)(OKXAdapter)
+    ExchangeFactory.register(ExchangeType.BINGX)(BingXAdapter)
     ExchangeFactory.register(ExchangeType.BYBIT)(BybitAdapter)
+    ExchangeFactory.register(ExchangeType.OKX)(OKXAdapter)
 
 
 # Автоматическая регистрация при импорте

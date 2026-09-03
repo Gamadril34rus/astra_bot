@@ -4,7 +4,7 @@
 
 Каждое утро в 08:00 МСК скрипт:
 
-1. тянет свежие бары OKX по всем инструментам за прошедшие сутки;
+1. тянет свежие бары BingX по всем инструментам за прошедшие сутки;
 2. прогоняет по ним self-play и дописывает уроки в models/lessons.jsonl;
 3. переобучает LightGBM на накопленном датасете;
 4. в 09:00 шлёт утренний отчёт о виртуальном счёте в Telegram.
@@ -28,7 +28,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from astra_bot.adapters.okx import OKXClient
+from astra_bot.adapters.bingx import BingXClient
 from astra_bot.core.logger import setup_logging
 from astra_bot.ml.self_play import (
     SelfPlayConfig,
@@ -48,7 +48,7 @@ async def daily_cycle() -> None:
     from astra_bot.ml.weekly_learner import train_weekly
 
     logger.info("Запускаю суточный цикл обучения")
-    client = OKXClient({
+    client = BingXClient({
         "api_key": "",
         "api_secret": "",
         "sandbox": False,

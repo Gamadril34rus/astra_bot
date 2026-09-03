@@ -116,7 +116,7 @@ def format_paper_section() -> str:
     s = paper_stats()
     if s["total_trades"] == 0 and s["open_positions"] == 0:
         return (
-            "\n\n💹 *Реальные сделки (демо OKX)*\n"
+            "\n\n💹 *Реальные сделки (paper, данные BingX)*\n"
             "  Пока нет закрытых сделок. Идёт набор позиций."
         )
 
@@ -124,7 +124,7 @@ def format_paper_section() -> str:
         return f"{v:+.2f}"
 
     lines = [
-        "\n\n💹 *Реальные сделки (демо OKX)*",
+        "\n\n💹 *Реальные сделки (paper, данные BingX)*",
         f"  За сутки: {s['day_trades']} сделок "
         f"(✅ {s['day_wins']} / ❌ {s['day_losses']}), "
         f"PnL {sign(s['day_pnl'])} USDT",

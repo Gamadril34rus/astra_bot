@@ -269,7 +269,7 @@ class TestLiveWiring:
             TradingEngineConfig,
         )
         from tests.integration.test_meta_strategy_execution import (
-            OkxStub,
+            FeedStub,
             gen_candles,
             make_pipeline,
         )
@@ -285,7 +285,7 @@ class TestLiveWiring:
             "astra_bot.ml.model_registry.get_registry", lambda: reg
         )
         store = StrategyStatsStore(tmp_path / "stats.json")
-        okx = OkxStub(gen_candles())
+        feed = FeedStub(gen_candles())
         pipeline = make_pipeline(tmp_path, store)
         assert pipeline.model is None
         cfg = TradingEngineConfig(
@@ -310,7 +310,7 @@ class TestLiveWiring:
             fee_pct=Decimal("0"),
             slippage_pct=Decimal("0"),
         )
-        eng = TradingEngine(okx=okx, pipeline=pipeline, config=cfg,
+        eng = TradingEngine(exchange=feed, pipeline=pipeline, config=cfg,
                             broker=broker)
         assert isinstance(eng.pipeline.model, MLModel)
         assert eng.pipeline.model.is_fitted
@@ -322,7 +322,7 @@ class TestLiveWiring:
             TradingEngineConfig,
         )
         from tests.integration.test_meta_strategy_execution import (
-            OkxStub,
+            FeedStub,
             gen_candles,
             make_pipeline,
         )
@@ -334,7 +334,7 @@ class TestLiveWiring:
             "astra_bot.ml.model_registry.get_registry", lambda: reg
         )
         store = StrategyStatsStore(tmp_path / "stats.json")
-        okx = OkxStub(gen_candles())
+        feed = FeedStub(gen_candles())
         pipeline = make_pipeline(tmp_path, store)
         cfg = TradingEngineConfig(
             symbols=("BTC-USDT",),
@@ -358,6 +358,6 @@ class TestLiveWiring:
             fee_pct=Decimal("0"),
             slippage_pct=Decimal("0"),
         )
-        eng = TradingEngine(okx=okx, pipeline=pipeline, config=cfg,
+        eng = TradingEngine(exchange=feed, pipeline=pipeline, config=cfg,
                             broker=broker)
         assert eng.pipeline.model is None

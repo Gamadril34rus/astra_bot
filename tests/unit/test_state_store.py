@@ -10,7 +10,7 @@ import pytest
 from astra_bot.core.state_store import StateStore
 from tests.integration.test_main_tick import make_bot
 from tests.integration.test_meta_strategy_execution import (
-    OkxStub,
+    FeedStub,
     gen_candles,
     stop_hit_bar,
 )
@@ -176,7 +176,7 @@ class TestEngineIntegration:
             "astra_bot.decision.trading_engine.append_lessons",
             lambda trades: lessons.extend(trades) or 1,
         )
-        bot = make_bot(tmp_path, OkxStub(gen_candles()), monkeypatch)
+        bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
         eng = bot._trading_engine
         bundle_path = eng.state_store.path
 
@@ -188,7 +188,7 @@ class TestEngineIntegration:
         pos = eng.broker.positions[0]
 
         # Стоп пробит → сделка закрыта → бандл обновлён.
-        eng.okx.candles = [*eng.okx.candles, stop_hit_bar(eng.okx.candles[-1], pos.stop_loss)]
+        eng.exchange.candles = [*eng.exchange.candles, stop_hit_bar(eng.exchange.candles[-1], pos.stop_loss)]
         bot._last_tick_at = 0.0  # снять троттлинг для следующего тика
         asyncio.run(bot._tick())
         b = json.loads(bundle_path.read_text())
@@ -202,7 +202,7 @@ class TestEngineIntegration:
     def test_restart_restores_from_bundle_when_positions_lost(
         self, tmp_path, monkeypatch
     ):
-        bot = make_bot(tmp_path, OkxStub(gen_candles()), monkeypatch)
+        bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
         eng = bot._trading_engine
         asyncio.run(bot._tick())
         assert len(eng.broker.positions) == 1
@@ -211,7 +211,7 @@ class TestEngineIntegration:
         # «Перезапуск CI-сессии»: broker-файл утерян, бандл на месте.
         eng.broker.state_path.unlink()
         eng2 = type(eng)(
-            okx=eng.okx,
+            exchange=eng.exchange,
             pipeline=eng.pipeline,
             config=eng.config,
             broker=None,
@@ -220,6 +220,6 @@ class TestEngineIntegration:
         assert eng2.broker.positions[0].id == pos_id
 
     def test_bundle_path_inside_state_dir(self, tmp_path, monkeypatch):
-        bot = make_bot(tmp_path, OkxStub(gen_candles()), monkeypatch)
+        bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
         assert bot._trading_engine.state_store.path.name == "state_bundle.json"
         assert "state" in str(bot._trading_engine.state_store.path)

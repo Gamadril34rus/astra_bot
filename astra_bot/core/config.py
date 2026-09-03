@@ -178,7 +178,7 @@ class SystemConfig:
     paper_trading: bool = True
     trading_enabled: bool = False  # Только после подтверждения
 
-    # Universe — 10 ликвидных пар к USDT на OKX.
+    # Universe — 10 ликвидных пар к USDT (BingX spot).
     instruments: list = field(default_factory=lambda: [
         "BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT", "DOGE/USDT",
         "ADA/USDT", "AVAX/USDT", "LINK/USDT", "DOT/USDT", "TRX/USDT",

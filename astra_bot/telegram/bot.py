@@ -8,7 +8,7 @@ ASTRA BOT — Telegram-бот (русскоязычное меню).
   из ``models/training_state.json``, поэтому счёт обучения растёт/падает
   от прогресса, а не всегда 2000 ₽);
 * /стоп      — прекратить обучение (кооперативная остановка цикла);
-* /баланс    — общий капитал, плюсы и минусы (paper-движок и OKX demo);
+* /баланс    — общий капитал, плюсы и минусы (paper-движок и BingX spot);
 * /настройки — время ежедневного отчёта, тихие часы, вкл/выкл алертов;
 * а также /статус /отчёт /позиции /риск /здоровье /счёт /пауза /возобновить
   /помощь.
@@ -364,7 +364,7 @@ class AstraTelegramBot:
             update,
             f"🎓 *Запускаю обучение*\n\n"
             f"Стартовый капитал сессии: {self._fmt_money(start_capital)}\n"
-            f"Режим: {'офлайн ' + str(bars) + ' баров' if offline else 'self-play на истории OKX'}\n"
+            f"Режим: {'офлайн ' + str(bars) + ' баров' if offline else 'self-play на истории BingX'}\n"
             f"Защита: позиция 5%, дневной лимит 3%, макс. просадка 15%.\n\n"
             "После прохода переобучу LightGBM и пришлю отчёт. "
             "Остановить — /стоп.",
@@ -411,31 +411,19 @@ class AstraTelegramBot:
             engine = SelfPlayEngine(
                 SelfPlayConfig(initial_capital=Decimal(str(start_capital)))
             )
-            # По умолчанию тянем реальную историю OKX; если ключей нет
-            # или сеть недоступна — мягкий фолбэк на синтетику, чтобы
-            # команда не падала с ошибкой.
+            # По умолчанию тянем реальную историю BingX (публичные свечи,
+            # ключи не нужны); если сеть недоступна — мягкий фолбэк на
+            # синтетику, чтобы команда не падала с ошибкой.
             client = None
             use_offline = offline
             if not offline:
                 try:
-                    import os as _os
+                    from ..adapters.bingx import BingXClient as _BingX
 
-                    from ..adapters.okx import OKXClient as _OKX
-
-                    if _os.environ.get("OKX_API_KEY"):
-                        client = _OKX({
-                            "api_key": _os.environ["OKX_API_KEY"],
-                            "api_secret": _os.environ["OKX_API_SECRET"],
-                            "passphrase": _os.environ.get(
-                                "OKX_API_PASSPHRASE",
-                                _os.environ.get("OKX_PASSPHRASE", ""),
-                            ),
-                            "sandbox": _os.environ.get("OKX_DEMO", "1").lower()
-                                       not in {"0", "false", "no"},
-                        })
-                        await client.initialize()
+                    client = _BingX({"enabled": True})
+                    await client.initialize()
                 except Exception as exc:
-                    logger.info("OKX недоступен для /train, иду в офлайн: %s", exc)
+                    logger.info("BingX недоступен для /train, иду в офлайн: %s", exc)
                     client = None
                     use_offline = True
             report = await engine.run(
@@ -578,10 +566,10 @@ class AstraTelegramBot:
                 "",
             ]
 
-        # --- OKX demo ---
-        okx_lines = await self._okx_balance_lines()
-        if okx_lines:
-            lines += okx_lines
+        # --- BingX spot (опционально, по ключам) ---
+        bingx_lines = await self._bingx_balance_lines()
+        if bingx_lines:
+            lines += bingx_lines
 
         # --- Риск-лимиты (защита от слива) ---
         lines += [
@@ -594,20 +582,12 @@ class AstraTelegramBot:
 
         await self._reply(update, "\n".join(lines), reply_markup=MAIN_MENU)
 
-    async def _okx_prices(self, assets: list[str]) -> dict[str, float]:
-        """Текущие цены монет в USDT (для оценки портфеля)."""
+    async def _bingx_prices(self, assets: list[str]) -> dict[str, float]:
+        """Текущие цены монет в USDT (для оценки портфеля; BingX public)."""
         prices: dict[str, float] = {}
         try:
-            import os
-
-            from ..adapters.okx import OKXClient
-            client = OKXClient({
-                "api_key": os.environ.get("OKX_API_KEY", ""),
-                "api_secret": os.environ.get("OKX_API_SECRET", ""),
-                "passphrase": os.environ.get("OKX_API_PASSPHRASE", ""),
-                "sandbox": os.environ.get("OKX_DEMO", "1").lower()
-                           not in {"0", "false", "no"},
-            })
+            from ..adapters.bingx import BingXClient
+            client = BingXClient({"enabled": True})
             await client.initialize()
             try:
                 for asset in set(assets):
@@ -625,60 +605,45 @@ class AstraTelegramBot:
             logger.debug("prices fetch failed: %s", exc)
         return prices
 
-    async def _okx_balance_lines(self) -> list[str]:
-        """Получить баланс OKX demo (приватный API). В логи секреты не пишем."""
+    async def _bingx_balance_lines(self) -> list[str]:
+        """Получить баланс BingX spot (приватный API). В логи секреты не пишем."""
         try:
             import os
 
-            from ..adapters.okx import OKXClient
+            from ..adapters.bingx import BingXClient
 
-            key = os.environ.get("OKX_API_KEY", "")
-            secret = os.environ.get("OKX_API_SECRET", "")
-            passphrase = os.environ.get("OKX_API_PASSPHRASE") or os.environ.get(
-                "OKX_PASSPHRASE", ""
-            )
-            if not (key and secret and passphrase):
-                return ["*🏦 OKX demo:* ключи не заданы", ""]
+            key = os.environ.get("BINGX_API_KEY", "")
+            secret = os.environ.get("BINGX_API_SECRET", "")
+            if not (key and secret):
+                return [
+                    "*🏦 BingX spot:* ключи не заданы "
+                    "(BINGX_API_KEY/BINGX_API_SECRET)",
+                    "",
+                ]
 
-            client = OKXClient(
-                {
-                    "api_key": key,
-                    "api_secret": secret,
-                    "passphrase": passphrase,
-                    "sandbox": os.environ.get("OKX_DEMO", "1").lower()
-                               not in {"0", "false", "no"},
-                }
-            )
+            client = BingXClient({"api_key": key, "api_secret": secret})
             await client.initialize()
             try:
                 bals = await client.get_account_balance()
-                funding = await client.get_funding_balance()
             finally:
                 await client.close()
 
+            if not bals:
+                return ["*🏦 BingX spot:* баланс пуст или API недоступен", ""]
+
             out: list[str] = []
             total_usdt = Decimal("0")
-            prices = await self._okx_prices(list(bals.keys()) + list(funding.keys()))
+            prices = await self._bingx_prices(list(bals.keys()))
+            out.append("*🏦 BingX spot (торговый счёт)*")
+            for asset, b in bals.items():
+                out.append(f"  {asset}: {b.free:f} / всего {b.total:f}")
+                if asset == "USDT":
+                    total_usdt += b.total
+                else:
+                    px = prices.get(asset)
+                    if px and b.total:
+                        total_usdt += b.total * Decimal(str(px))
 
-            def _emit(title: str, balances) -> None:
-                nonlocal total_usdt
-                if not balances:
-                    return
-                out.append(title)
-                for asset, b in balances.items():
-                    out.append(f"  {asset}: {b.free:f} / всего {b.total:f}")
-                    if asset == "USDT":
-                        total_usdt += b.total
-                    else:
-                        px = prices.get(asset)
-                        if px and b.total:
-                            total_usdt += b.total * Decimal(str(px))
-
-            _emit("*🏦 OKX demo — торговый счёт*", bals)
-            _emit("*💼 OKX demo — funding-счёт*", funding)
-
-            if not out:
-                return ["*🏦 OKX demo:* баланс пуст или API недоступен", ""]
             # Оценка в рублях (USDT ≈ USD → RUB по курсу ЦБ).
             from ..core.fx import get_usdrub
             rate = get_usdrub()
@@ -691,8 +656,8 @@ class AstraTelegramBot:
             out.append("")
             return out
         except Exception as exc:
-            logger.warning("OKX balance fetch failed: %s", exc)
-            return [f"*🏦 OKX demo:* ошибка получения ({type(exc).__name__})", ""]
+            logger.warning("BingX balance fetch failed: %s", exc)
+            return [f"*🏦 BingX spot:* ошибка получения ({type(exc).__name__})", ""]
 
     # --------------------------------------------------------- /настройки
     async def _cmd_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1137,7 +1102,7 @@ class AstraTelegramBot:
             "/стоп — прекратить обучение\n\n"
             "*Деньги:*\n"
             "/баланс — общий капитал, плюсы, минусы (обучение + бумажный "
-            "счёт + OKX demo)\n"
+            "счёт + BingX spot)\n"
             "/позиции — открытые сделки\n\n"
             "*Оповещения:*\n"
             "/настройки — текущие настройки и кнопки\n"
@@ -1331,7 +1296,7 @@ class AstraTelegramBot:
             await self.send_alert(
                 "🤖 *ASTRA BOT на связи*\n\n"
                 "Меню команд доступно слева от поля ввода. Я буду присылать:\n"
-                "• открытие/закрытие сделок на демо OKX;\n"
+                "• открытие/закрытие сделок в paper-контуре (данные BingX);\n"
                 "• утренний отчёт в 09:00 МСК;\n"
                 "• уведомление, когда буду готов к реальному счёту.\n\n"
                 "Нажмите 💰 Баланс или 📊 Статус для проверки.",

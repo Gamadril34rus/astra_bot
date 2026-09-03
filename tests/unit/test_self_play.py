@@ -26,7 +26,7 @@ def _make_candles(symbol: str, n: int, seed: int = 1) -> list[models.Candle]:
         base *= 1 + random.uniform(-0.005, 0.0055)
         out.append(
             models.Candle(
-                exchange="okx",
+                exchange="bingx",
                 symbol=symbol,
                 timeframe="1h",
                 open_time=start + i * 3_600_000,

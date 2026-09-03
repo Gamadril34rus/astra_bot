@@ -110,7 +110,12 @@ self._equity = self._equity + unrealized   # ❌
 `equity` на каждом тике вычисляется как `realized + unrealized`.
 `start_equity` удалён.
 
-### 3.4. OKX-адаптер
+### 3.4. Биржевой адаптер (OKX → BingX)
+
+> Исторический аудит legacy OKX-адаптера. После ретира OKX → BingX
+> активный адаптер — `astra_bot/adapters/bingx` (спот, публичные данные
+> без ключей, HMAC-подпись без passphrase); описанные грабли учтены при
+> его написании (например, стакан из `data`-словаря, а не списка).
 
 - `OKX_API_SANDBOX = "https://www.okx.com"` и WS sandbox указывал на
   прод-эндпоинт; для демо-счёта OKX требуется отдельный хост
@@ -135,6 +140,7 @@ self._equity = self._equity + unrealized   # ❌
   Render/uwsgi).
 - В `initialize` конфиг биржи брался как `settings.exchanges["okx"].get(...)`,
   хотя это `ExchangeConfig`, а не dict — падал `AttributeError` на старте.
+  Сейчас читается `settings.exchanges["bingx"]` с доступом к атрибутам.
 - Все временные метки переведены на timezone-aware `datetime.now(timezone.utc)`.
 - `PROJECT_ROOT` вычисляется как директория самого файла, а не
   `parent.parent` (который для корневого `main.py` указывал на `/home`).
@@ -211,12 +217,13 @@ self._equity = self._equity + unrealized   # ❌
 6. **ML-модель:** `auto_train`, дрифт-детектор и предиктор описаны, но
    не подключены к прод-конвейеру; требуется хранение артефактов в
    S3/Blob storage и контроль версий.
-7. **Лимиты OKX не реализованы.** `max_orders_per_minute: 30` из
-   конфигурации нигде не применяются, нет rate-limiter-а на стороне
-   клиента.
-8. **Тесты покрывают в основном risk/paper/ML utilities** (119 тестов),
-   но нет контрактных тестов OKXClient/WebSocket на записях фикстур.
-   Рекомендуется добавить VCR/касcеты (`pytest-recording`/`respx`).
+7. **Лимиты API не реализованы** (наследие аудита OKX-клиента):
+   `max_orders_per_minute: 30` из конфигурации нигде не применяются.
+   Активный BingX-клиент имеет встроенный token-bucket rate-limiter.
+8. **Тесты покрывают в основном risk/paper/ML utilities**, контрактные
+   тесты адаптеров работают на FakeSession (см. `test_bingx_client.py`,
+   legacy `test_okx_client.py`). Рекомендуется добавить VCR/кассеты
+   (`pytest-recording`/`respx`) для живых записей ответов биржи.
 9. **Sensitive defaults в `.env.example`** выглядят как правдоподобные
    токены — стоит заменить на `your-...` плейсхолдеры и добавить
    валидацию, что значения в `.env` не совпадают с примером.
@@ -232,20 +239,22 @@ self._equity = self._equity + unrealized   # ❌
 - **Prometheus-мониторинг.** Добавлен модуль `astra_bot/core/metrics.py` с
   централизованным реестром метрик (счётчики/гэджи/гистограммы) и эндпоинт
   `GET /metrics` в веб-приложении. Risk-engine экспортирует equity, drawdown,
-  число позиций, risk-state и решения risk-check; OKX-клиент экспортирует
-  латентность и количество запросов/ошибок по эндпоинтам.
-- **OKX rate-limiter.** В `OKXClient` встроен token-bucket (настраивается
-  через `rate_limit_qps`, по умолчанию 10 req/s), чтобы не упереться в
-  лимиты биржи; запросы к ещё не инициализированному клиенту получают
-  понятный `RuntimeError`.
+  число позиций, risk-state и решения risk-check; клиент биржи (BingX)
+  экспортирует латентность и количество запросов/ошибок по эндпоинтам.
+- **Rate-limiter биржи.** В `BingXClient` встроен token-bucket
+  (настраивается через `rate_limit_qps`, по умолчанию 5 req/s), чтобы не
+  упереться в лимиты BingX (market API: 500 req/10 s на IP); запросы к ещё
+  не инициализированному клиенту получают понятный `RuntimeError`.
+  (В legacy OKXClient был аналогичный механизм с 10 req/s.)
 - **Реальная асинхронная БД.** `DatabaseManager` переведён на SQLAlchemy 2.x
   async + asyncpg с пулом соединений и health-check. При недоступности базы
   менеджер прозрачно работает в no-DB режиме (бот стартует), что удобно
   для локальной разработки и free-tier Render. Поддерживается как
   `DATABASE_URL`, так и отдельные `DB_*` переменные (URL нормализуется в
   `postgresql+asyncpg://`).
-- **Контрактные тесты OKX-клиента** (`test_okx_client.py`): orderbook,
-  ticker, candles, обработка ошибок API и неинициализированной сессии.
+- **Контрактные тесты клиентов.** `test_bingx_client.py` (активный
+  BingX-клиент: orderbook/ticker/candles/instruments/баланс, подпись
+  приватных запросов, обработка ошибок API) и legacy `test_okx_client.py`.
 - **Конфиг/секреты:** добавлены тесты `_expand_env`, поддержка плоской
   `trading`-секции и фильтрация нераскрытых `${...}` плейсхолдеров, чтобы
   бот не пытался логиниться в Telegram с буквальным токеном `"${TELEGRAM_BOT_TOKEN}"`.
@@ -255,9 +264,9 @@ self._equity = self._equity + unrealized   # ❌
 - **HTTP-middleware:** на каждый ответ добавляется `X-Request-Id`
   (пробрасывается входящий или генерируется новый), необработанные
   исключения учитываются в `SYSTEM_ERRORS` и логируются с `exc_info`.
-- **Типизированные исключения:** OKX-клиент теперь выбрасывает
-  `ExchangeError` из `astra_bot.core.exceptions` вместо ванильного
-  `Exception` для API/disabled/no-response ошибок.
+- **Типизированные исключения:** клиенты биржи (BingX и legacy OKX)
+  выбрасывают `ExchangeError` из `astra_bot.core.exceptions` вместо
+  ванильного `Exception` для API/disabled/no-response ошибок.
 - **.env.example** приведён в безопасный вид без правдоподобных токенов.
 - Добавлены тесты метрик, конфигурации и БД. Итого **139 тестов**,
   `ruff check .` — `All checks passed!`.

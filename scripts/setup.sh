@@ -18,7 +18,7 @@ echo
 echo "==> .env"
 if [ ! -f .env ]; then
     cp .env.example .env
-    echo "Создан .env из .env.example. Откройте его и впишите OKX_API_KEY/SECRET/PASSPHRASE."
+    echo "Создан .env из .env.example. Откройте его и впишите BINGX_API_KEY/BINGX_API_SECRET."
 else
     echo ".env уже существует."
 fi
@@ -29,7 +29,7 @@ python -m pytest -q
 
 echo
 echo "==> Готово. Дальше:"
-echo "  1) nano .env                # впишите OKX ключи"
-echo "  2) python scripts/test_okx.py"
+echo "  1) nano .env                # впишите BingX ключи (опционально)"
+echo "  2) python scripts/test_bingx.py"
 echo "  3) python scripts/train_multi_timeframe.py --days 1095"
 echo "  4) python scripts/run_paper.py"

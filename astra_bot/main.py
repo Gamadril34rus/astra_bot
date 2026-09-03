@@ -2,6 +2,9 @@
 """
 ASTRA BOT — Main Entry Point
 Основной модуль системы
+
+Активная биржа: BingX spot (ретир OKX → BingX). Paper-контур использует
+публичные рыночные данные BingX; приватные эндпоинты — по BINGX_API_KEY.
 """
 
 import asyncio
@@ -17,10 +20,10 @@ project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from astra_bot.adapters.okx import OKXClient, OKXOrderManager, OKXWebSocket
+from astra_bot.adapters.bingx import BingXClient, BingXWebSocket
 from astra_bot.core import readiness
 from astra_bot.core.config import get_settings, load_settings
-from astra_bot.core.instruments import to_okx
+from astra_bot.core.instruments import to_bingx
 from astra_bot.core.logger import get_component_logger, setup_logging
 from astra_bot.core.metrics import READINESS_READY, READINESS_SCORE
 from astra_bot.data.database import close_database, init_database
@@ -182,33 +185,28 @@ class AstraBot:
         """Инициализация exchange"""
         settings = get_settings()
 
-        if "okx" in settings.exchanges:
-            okx_config = settings.exchanges["okx"]
+        if "bingx" in settings.exchanges:
+            bingx_config = settings.exchanges["bingx"]
             config_dict = {
-                "api_key": okx_config.api_key,
-                "api_secret": okx_config.api_secret,
-                "passphrase": okx_config.passphrase,
-                "sandbox": okx_config.sandbox,
-                "base_url": okx_config.base_url,
-                "enabled": okx_config.enabled,
-                "contract_type": okx_config.contract_type,
+                "api_key": bingx_config.api_key,
+                "api_secret": bingx_config.api_secret,
+                "base_url": bingx_config.base_url,
+                "enabled": bingx_config.enabled,
+                "contract_type": bingx_config.contract_type,
             }
 
-            # REST клиент
-            self._exchange_client = OKXClient(config_dict)
+            # REST клиент (активная биржа: BingX, ретир OKX)
+            self._exchange_client = BingXClient(config_dict)
             await self._exchange_client.initialize()
 
-            # WebSocket
-            self._exchange_websocket = OKXWebSocket(config_dict)
-
-            # Order manager
-            self._order_manager = OKXOrderManager(self._exchange_client)
+            # WebSocket (публичные рыночные данные)
+            self._exchange_websocket = BingXWebSocket(config_dict)
 
             # Проверка соединения
             if await self._exchange_client.test_connection():
-                logger.info("OKX connection established")
+                logger.info("BingX connection established")
             else:
-                logger.warning("OKX connection test failed")
+                logger.warning("BingX connection test failed")
 
     def _init_strategies(self):
         """Инициализация стратегий"""
@@ -300,12 +298,12 @@ class AstraBot:
             )
             return
         settings = get_settings()
-        symbols = tuple(to_okx(s) for s in settings.instruments)
+        symbols = tuple(to_bingx(s) for s in settings.instruments)
         # Каталог state: по умолчанию models/ (общий с CI-сессиями);
         # ASTRA_STATE_DIR позволяет изолировать локальный run.
         state_dir = os.environ.get("ASTRA_STATE_DIR", "models")
         self._trading_engine = TradingEngine(
-            okx=self._exchange_client,
+            exchange=self._exchange_client,
             config=TradingEngineConfig(
                 symbols=symbols,
                 state_path=f"{state_dir}/paper_positions.json",
@@ -500,7 +498,7 @@ class AstraBot:
                 for name, strategy in self._strategies.items()
             },
             "risk_state": self._risk_engine.risk_state.value if self._risk_engine else None,
-            "exchange": "okx" if self._exchange_client else None,
+            "exchange": "bingx" if self._exchange_client else None,
         }
 
 

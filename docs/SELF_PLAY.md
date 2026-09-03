@@ -63,7 +63,7 @@ python scripts/train_weekly.py --min-samples 200
 # 3. Утренний отчёт:
 python scripts/morning_report.py
 
-# 4. Self-play на реальном годе OKX (публичный API, без ключей):
+# 4. Self-play на реальном годе BingX (публичный API, без ключей):
 python scripts/self_play.py --days 365 --target-trades 3000
 ```
 

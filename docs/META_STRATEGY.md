@@ -6,7 +6,7 @@
 ## Архитектура (реальный поток)
 
 ```text
-OKX candles (5m/15m/4h)
+BingX candles (5m/15m/4h)
     → DecisionPipeline.decide()
         → RegimeEngine.classify()            # режим + confidence
         → PANIC/HIGH_VOL/UNKNOWN → NO_TRADE  # BAD_REGIME / HIGH_VOLATILITY

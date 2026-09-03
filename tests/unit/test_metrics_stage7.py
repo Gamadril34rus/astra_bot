@@ -11,7 +11,7 @@ from astra_bot.ml.hypothesis_engine import (
     new_hypothesis,
 )
 from tests.integration.test_main_tick import make_bot
-from tests.integration.test_meta_strategy_execution import OkxStub, gen_candles
+from tests.integration.test_meta_strategy_execution import FeedStub, gen_candles
 
 
 def _render() -> str:
@@ -20,7 +20,7 @@ def _render() -> str:
 
 class TestDecisionMetrics:
     def test_decisions_and_latency_rendered_after_tick(self, tmp_path, monkeypatch):
-        bot = make_bot(tmp_path, OkxStub(gen_candles()), monkeypatch)
+        bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
         asyncio.run(bot._tick())
         text = _render()
         assert "astra_decisions_total" in text
@@ -31,9 +31,9 @@ class TestDecisionMetrics:
 
     def test_no_trade_reason_code_labelled(self, tmp_path, monkeypatch):
         """NO_TRADE несёт кодированную причину (низкая кардинальность)."""
-        bot = make_bot(tmp_path, OkxStub(gen_candles()), monkeypatch)
+        bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
         # 3 бара — меньше, чем нужно пайплайну → NO_TRADE (insufficient_data).
-        bot._trading_engine.okx.candles = gen_candles(n=3)
+        bot._trading_engine.exchange.candles = gen_candles(n=3)
         bot._last_tick_at = 0.0
         asyncio.run(bot._tick())
         text = _render()
@@ -49,12 +49,12 @@ class TestExitMetrics:
             "astra_bot.decision.trading_engine.append_lessons",
             lambda trades: lessons.extend(trades) or 1,
         )
-        bot = make_bot(tmp_path, OkxStub(gen_candles()), monkeypatch)
+        bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
         eng = bot._trading_engine
         asyncio.run(bot._tick())
         assert len(eng.broker.positions) == 1
         pos = eng.broker.positions[0]
-        eng.okx.candles = [*eng.okx.candles, stop_hit_bar(eng.okx.candles[-1], pos.stop_loss)]
+        eng.exchange.candles = [*eng.exchange.candles, stop_hit_bar(eng.exchange.candles[-1], pos.stop_loss)]
         bot._last_tick_at = 0.0
         asyncio.run(bot._tick())
         text = _render()
@@ -85,7 +85,7 @@ class TestHypothesisMetrics:
 
 class TestReadinessMetrics:
     def test_readiness_gauges_set_on_tick(self, tmp_path, monkeypatch):
-        bot = make_bot(tmp_path, OkxStub(gen_candles()), monkeypatch)
+        bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
         asyncio.run(bot._tick())
         text = _render()
         assert "astra_readiness_score" in text

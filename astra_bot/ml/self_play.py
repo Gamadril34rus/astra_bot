@@ -257,7 +257,7 @@ def _takeaway(lesson: Lesson) -> str:
 class SelfPlayConfig:
     """Параметры self-play."""
 
-    # 10 ликвидных пар к USDT на OKX. Импорт ленивый, чтобы не тянуть
+    # 10 ликвидных пар к USDT (BingX spot). Импорт ленивый, чтобы не тянуть
     # зависимости при сборе документации/тестах.
     symbols: tuple[str, ...] = field(
         default_factory=lambda: __import__(
@@ -486,7 +486,7 @@ class SelfPlayEngine:
                 base *= 1 + random.uniform(-0.005, 0.0055)
                 bars.append(
                     models.Candle(
-                        exchange="okx",
+                        exchange="bingx",
                         symbol=symbol,
                         timeframe=self.config.timeframe,
                         open_time=start + j * 3_600_000,
@@ -657,7 +657,7 @@ class SelfPlayEngine:
                 history = await self.load_history(client)
             else:
                 raise ValueError(
-                    "Нужно передать history, клиент OKX или включить offline_bars"
+                    "Нужно передать history, клиент BingX или включить offline_bars"
                 )
 
         # Выравниваем по временной оси: бар за баром идём по самому

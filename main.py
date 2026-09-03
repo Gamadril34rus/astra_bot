@@ -16,7 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from astra_bot.adapters.okx import OKXClient
+from astra_bot.adapters.bingx import BingXClient
 from astra_bot.core.config import get_settings, load_settings
 from astra_bot.core.logger import get_component_logger, setup_logging
 from astra_bot.core.metrics import SYSTEM_ERRORS, render_metrics
@@ -109,7 +109,7 @@ async def telegram_webhook(request: Request):
     try:
         data = await request.json()
         await _bot_instance._telegram_bot.process_update(data)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.exception("Telegram webhook error: %s", exc)
         return JSONResponse(status_code=500, content={"status": "error"})
     return {"status": "ok"}
@@ -143,7 +143,7 @@ async def metrics():
 
 @app.post("/train")
 async def train(days: int = 365, timeframe: str = "1h", symbol: str = "BTC/USDT"):
-    """Запустить обучение на истории OKX без депозита.
+    """Запустить обучение на истории BingX без депозита.
 
     Эндпоинт предназначен для первичного обучения модели: тянет год
     свечей публичного рынка, строит walk-forward разметку и обучает
@@ -282,18 +282,17 @@ class AstraBot:
             except Exception as e:
                 logger.warning(f"Database not available: {e}")
 
-        # Exchange. ``settings.exchanges[name]`` — это ExchangeConfig, а не
-        # словарь, поэтому обращаемся к атрибутам напрямую.
-        okx_config = settings.exchanges.get("okx") if settings.exchanges else None
-        if okx_config and okx_config.enabled and okx_config.api_key and okx_config.api_secret:
+        # Exchange (BingX — активная биржа; ретир OKX). ``settings.exchanges[name]``
+        # — это ExchangeConfig, а не словарь, поэтому обращаемся к атрибутам.
+        # Рыночные данные BingX публичны: клиент полезен и без ключей.
+        bingx_config = settings.exchanges.get("bingx") if settings.exchanges else None
+        if bingx_config and bingx_config.enabled:
             config_dict = {
-                "api_key": okx_config.api_key,
-                "api_secret": okx_config.api_secret,
-                "passphrase": okx_config.passphrase,
-                "sandbox": okx_config.sandbox,
+                "api_key": bingx_config.api_key,
+                "api_secret": bingx_config.api_secret,
                 "enabled": True,
             }
-            self._exchange_client = OKXClient(config_dict)
+            self._exchange_client = BingXClient(config_dict)
             try:
                 await self._exchange_client.initialize()
             except Exception as e:

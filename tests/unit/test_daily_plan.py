@@ -25,7 +25,7 @@ def history():
             base *= 1 + random.uniform(-0.004, 0.005)
             out.append(
                 models.Candle(
-                    exchange="okx",
+                    exchange="bingx",
                     symbol=symbol,
                     timeframe="1h",
                     open_time=start + j * 3_600_000,

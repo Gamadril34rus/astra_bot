@@ -13,7 +13,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from astra_bot.adapters.okx import OKXClient
+from astra_bot.adapters.bingx import BingXClient
 from astra_bot.core.config import get_settings, load_settings
 from astra_bot.data.database import DatabaseManager
 
@@ -32,38 +32,38 @@ async def check_database(config: dict) -> tuple[bool, str]:
         return False, f"❌ База данных: {e}"
 
 
-async def check_okx_api(api_key: str, api_secret: str, passphrase: str) -> tuple[bool, str]:
-    """Проверить OKX API ключи"""
-    if not api_key or not api_secret:
-        return False, "❌ OKX API ключи не настроены"
+async def check_bingx_api(api_key: str, api_secret: str) -> tuple[bool, str]:
+    """Проверить подключение к BingX.
 
-    config = {
-        "api_key": api_key,
-        "api_secret": api_secret,
-        "passphrase": passphrase,
-        "sandbox": True,  # Всегда проверяем в песочнице
-        "enabled": True,
-    }
+    Рыночные данные BingX публичны — проверка проходит и без ключей;
+    при заданных ключах дополнительно проверяется приватный баланс.
+    """
+    config = {"enabled": True}
+    if api_key and api_secret:
+        config["api_key"] = api_key
+        config["api_secret"] = api_secret
 
     client = None
     try:
-        client = OKXClient(config)
+        client = BingXClient(config)
         await client.initialize()
 
-        # Проверяем соединение
+        # Проверяем соединение (публичный эндпоинт)
         connected = await client.test_connection()
+        if not connected:
+            return False, "❌ BingX API: нет соединения"
 
-        if connected:
-            result = await client.get_instruments()
-            if result:
-                return True, f"✅ OKX API работает ({len(result)} инструментов)"
-            else:
-                return False, "❌ OKX API: не удалось получить инструменты"
-        else:
-            return False, "❌ OKX API: нет соединения"
+        result = await client.get_instruments()
+        if not result:
+            return False, "❌ BingX API: не удалось получить инструменты"
 
+        if api_key and api_secret:
+            bals = await client.get_account_balance()
+            note = f"баланс: {len(bals)} активов" if bals else "баланс пуст"
+            return True, f"✅ BingX API работает ({len(result)} инструментов, {note})"
+        return True, f"✅ BingX API работает ({len(result)} инструментов; ключи не заданы)"
     except Exception as e:
-        return False, f"❌ OKX API: {e}"
+        return False, f"❌ BingX API: {e}"
     finally:
         if client is not None:
             try:
@@ -72,22 +72,18 @@ async def check_okx_api(api_key: str, api_secret: str, passphrase: str) -> tuple
                 pass
 
 
-async def check_api_permissions(api_key: str, api_secret: str, passphrase: str) -> tuple[bool, str]:
-    """Проверить права API ключей"""
-    # В реальной реализации нужно проверить через API
-    # что у ключа нет прав на вывод
+async def check_api_permissions(api_key: str, api_secret: str) -> tuple[bool, str]:
+    """Проверить права API ключей BingX.
 
-    # Пока это упрощённая проверка
+    Полноценную проверку прав BingX REST не отдаёт; ключи должны быть
+    созданы вручную БЕЗ права вывода (withdrawal: NO).
+    """
     if not api_key or not api_secret:
         return False, "❌ API ключи не настроены"
-
-    # Проверяем что ключи не являются тестовыми по формату
-    # (в реальности нужно проверять через API)
-
-    return True, "✅ API ключи проверены (проверьте вручную withdrawal: NO)"
+    return True, "✅ API ключи BingX проверены (проверьте вручную withdrawal: NO)"
 
 
-async def check_min_order_requirements(client: OKXClient, symbols: list) -> tuple[bool, str, dict]:
+async def check_min_order_requirements(client: BingXClient, symbols: list) -> tuple[bool, str, dict]:
     """Проверить минимальные требования ордеров"""
     results = {}
     all_ok = True
@@ -212,54 +208,50 @@ async def main():
     print(f"   {msg}")
     print()
 
-    # Проверка OKX API
-    print("3. Проверка OKX API...")
-    okx_config = settings.exchanges.get("okx")
-    if okx_config and okx_config.enabled:
-        ok, msg = await check_okx_api(
-            okx_config.api_key,
-            okx_config.api_secret,
-            okx_config.passphrase,
+    # Проверка BingX API
+    print("3. Проверка BingX API...")
+    bingx_config = settings.exchanges.get("bingx")
+    if bingx_config and bingx_config.enabled:
+        ok, msg = await check_bingx_api(
+            bingx_config.api_key,
+            bingx_config.api_secret,
         )
     else:
-        ok, msg = False, "⚠️ OKX конфигурация не найдена или отключена"
+        ok, msg = False, "⚠️ BingX конфигурация не найдена или отключена"
 
-    checks["okx"] = ok
+    checks["exchange"] = ok
     print(f"   {msg}")
     print()
 
     # Проверка прав API
     print("4. Проверка прав API ключей...")
-    if okx_config and okx_config.enabled:
+    if bingx_config and bingx_config.enabled and bingx_config.api_key:
         ok, msg = await check_api_permissions(
-            okx_config.api_key,
-            okx_config.api_secret,
-            okx_config.passphrase,
+            bingx_config.api_key,
+            bingx_config.api_secret,
         )
     else:
-        ok, msg = False, "⚠️ Пропускается (API не настроен)"
+        ok, msg = True, "✅ Ключи не заданы — работаю на публичных данных BingX"
+        print("   ⚠️  ВАЖНО: при задании ключей убедитесь, что у них НЕТ прав на вывод!")
 
     checks["permissions"] = ok
     print(f"   {msg}")
-    print("   ⚠️  ВАЖНО: Вручную проверьте что у API ключа НЕТ прав на вывод!")
     print()
 
     # Проверка минимальных ордеров
     print("5. Проверка минимальных требований ордеров...")
-    if checks["okx"] and checks["permissions"]:
-        client = OKXClient(
+    if checks["exchange"] and checks["permissions"] and bingx_config and bingx_config.api_key:
+        client = BingXClient(
             {
-                "api_key": okx_config.api_key,
-                "api_secret": okx_config.api_secret,
-                "passphrase": okx_config.passphrase,
-                "sandbox": True,
+                "api_key": bingx_config.api_key,
+                "api_secret": bingx_config.api_secret,
                 "enabled": True,
             }
         )
         await client.initialize()
 
         ok, msg, results = await check_min_order_requirements(
-            client, ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
+            client, ["BTC-USDT", "ETH-USDT", "SOL-USDT"]
         )
         print(f"   {msg}")
 
@@ -274,8 +266,8 @@ async def main():
         await client.close()
         checks["orders"] = ok
     else:
-        checks["orders"] = False
-        print("   ⚠️ Пропускается (API не настроен или ошибка)")
+        checks["orders"] = True  # Публичные данные ордеров не требуют
+        print("   ⚠️ Пропускается (ключи BingX не заданы — публичный режим)")
     print()
 
     # Проверка риск-конфигурации
@@ -300,7 +292,7 @@ async def main():
 
     # База и Telegram опциональны для standalone Demo worker. Торговые
     # проверки не должны затираться результатом последней (Telegram) проверки.
-    critical = ("okx", "permissions", "orders", "risk")
+    critical = ("exchange", "permissions", "orders", "risk")
     failed = [name for name in critical if not checks.get(name, False)]
     if failed:
         print(f"❌  Критические проверки не пройдены: {', '.join(failed)}")

@@ -35,7 +35,7 @@ def _candles(n: int = 120, last_low: Decimal = Decimal("99.95")) -> list[models.
         low = last_low if i == n - 1 else Decimal(str(p - 0.05))
         out.append(
             models.Candle(
-                exchange="okx",
+                exchange="feed",
                 symbol=SYMBOL,
                 timeframe="5m",
                 open_time=1_700_000_000 + i * 300,
@@ -122,10 +122,10 @@ def engine_factory(tmp_path: Path, monkeypatch):
             fee_pct=Decimal("0"),
             slippage_pct=Decimal("0"),
         )
-        okx = MagicMock()
-        okx.get_candles = _AsyncMockReturn(_candles())
-        okx.get_orderbook = _AsyncMockReturn(None)
-        okx.get_ticker = _AsyncMockReturn(
+        feed = MagicMock()
+        feed.get_candles = _AsyncMockReturn(_candles())
+        feed.get_orderbook = _AsyncMockReturn(None)
+        feed.get_ticker = _AsyncMockReturn(
             {"last": "100", "high_24h": "101", "low_24h": "99"}
         )
         broker = PaperBroker(
@@ -143,7 +143,7 @@ def engine_factory(tmp_path: Path, monkeypatch):
             )
         )
         eng = TradingEngine(
-            okx=okx,
+            exchange=feed,
             pipeline=FakePipeline(),
             config=cfg,
             broker=broker,
@@ -208,7 +208,7 @@ def test_closed_trade_updates_risk_state(engine_factory):
     assert len(eng.risk._open_positions) == 1
 
     # 2-й шаг: бар пробивает стоп (99) — позиция закрывается в убыток.
-    eng.okx.get_candles = _AsyncMockReturn(_candles(last_low=Decimal("98.5")))
+    eng.exchange.get_candles = _AsyncMockReturn(_candles(last_low=Decimal("98.5")))
     closed = asyncio.run(eng.process_symbol(SYMBOL))
 
     assert any(c.exit_reason == "stop_loss" for c in closed)
