@@ -16,18 +16,16 @@ ASTRA BOT - Microstructure & Order Flow Engine
 """
 
 import logging
-from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
-from enum import Enum
-from typing import Any, Optional
 from collections import deque
-
-import numpy as np
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import StrEnum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class FlowDirection(str, Enum):
+class FlowDirection(StrEnum):
     """Направление потока"""
     AGGRESSIVE_BUY = "aggressive_buy"      # Агрессивная покупка (market buy)
     AGGRESSIVE_SELL = "aggressive_sell"    # Агрессивная продажа (market sell)
@@ -36,21 +34,21 @@ class FlowDirection(str, Enum):
     NEUTRAL = "neutral"                   # Нейтральный поток
 
 
-class ImbalanceType(str, Enum):
+class ImbalanceType(StrEnum):
     """Тип дисбаланса"""
     BID_HEAVY = "bid_heavy"    # Больше объёма на покупку
     ASK_HEAVY = "ask_heavy"    # Больше объёма на продажу
     BALANCED = "balanced"      # Сбалансированный
 
 
-class AbsorptionType(str, Enum):
+class AbsorptionType(StrEnum):
     """Тип поглощения"""
     BULLISH_ABSORPTION = "bullish_absorption"  # Поглощение продаж (покупатели сильные)
     BEARISH_ABSORPTION = "bearish_absorption"  # Поглощение покупок (продавцы сильные)
     NEUTRAL_ABSORPTION = "neutral_absorption"  # Нейтральное поглощение
 
 
-class SpoofingPattern(str, Enum):
+class SpoofingPattern(StrEnum):
     """Паттерны спуфинга"""
     BID_WALL = "bid_wall"          # Стенка на покупку
     ASK_WALL = "ask_wall"          # Стенка на продажу
@@ -618,7 +616,7 @@ class MicrostructureFlowEngine:
             # Стенка на покупку
             if snapshots[i].bids and snapshots[i-1].bids:
                 current_bid_vol = snapshots[i].bids[0][1]
-                prev_bid_vol = snapshots[i-1].bids[0][1]
+                snapshots[i-1].bids[0][1]
 
                 # Если объём вырос больше порога
                 if current_bid_vol >= self.thresholds["spoofing_wall_size"] * snapshots[i].total_bid_volume:
@@ -645,7 +643,7 @@ class MicrostructureFlowEngine:
             # Стенка на продажу
             if snapshots[i].asks and snapshots[i-1].asks:
                 current_ask_vol = snapshots[i].asks[0][1]
-                prev_ask_vol = snapshots[i-1].asks[0][1]
+                snapshots[i-1].asks[0][1]
 
                 if current_ask_vol >= self.thresholds["spoofing_wall_size"] * snapshots[i].total_ask_volume:
                     if i + 1 < len(snapshots):

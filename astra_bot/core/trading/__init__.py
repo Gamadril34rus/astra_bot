@@ -6,21 +6,21 @@ ASTRA BOT - Trading Module
 """
 
 from .portfolio_allocator import (
+    AllocationMethod,
+    AllocationResult,
+    OpportunitySignal,
+    PortfolioAnalysis,
     PortfolioOpportunityAllocator,
     get_portfolio_allocator,
     reset_portfolio_allocator,
-    OpportunitySignal,
-    AllocationResult,
-    PortfolioAnalysis,
-    AllocationMethod,
 )
 
 __all__ = [
+    "AllocationMethod",
+    "AllocationResult",
+    "OpportunitySignal",
+    "PortfolioAnalysis",
     "PortfolioOpportunityAllocator",
     "get_portfolio_allocator",
     "reset_portfolio_allocator",
-    "OpportunitySignal",
-    "AllocationResult",
-    "PortfolioAnalysis",
-    "AllocationMethod",
 ]

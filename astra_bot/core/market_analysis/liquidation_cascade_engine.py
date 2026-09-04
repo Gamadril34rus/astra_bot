@@ -11,17 +11,14 @@ OI → price displacement → liquidation spike → volume → recovery/continua
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, timedelta
-from enum import Enum
-from typing import Any, Optional
-from collections import deque
-
-import numpy as np
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-class LiquidationDirection(str, Enum):
+class LiquidationDirection(StrEnum):
     """Направление ликвидаций"""
     LONG_LIQUIDATION = "long_liquidation"    # Ликвидация лонгов
     SHORT_LIQUIDATION = "short_liquidation"  # Ликвидация шортов
@@ -29,7 +26,7 @@ class LiquidationDirection(str, Enum):
     NEUTRAL = "neutral"                    # Нейтрально
 
 
-class CascadePhase(str, Enum):
+class CascadePhase(StrEnum):
     """Фазы каскада"""
     INITIATION = "initiation"          # Инициация
     ACCELERATION = "acceleration"       # Ускорение
@@ -39,7 +36,7 @@ class CascadePhase(str, Enum):
     CONTINUATION = "continuation"      # Продолжение
 
 
-class CascadeType(str, Enum):
+class CascadeType(StrEnum):
     """Типы каскадов"""
     BULLISH_CASCADE = "bullish_cascade"    # Бычий каскад
     BEARISH_CASCADE = "bearish_cascade"    # Медвежий каскад
@@ -390,7 +387,7 @@ class LiquidationCascadeEngine:
             all_times = active_times + completed_times
             if all_times:
                 last_cascade_time = max(all_times)
-                if (datetime.now(timezone.utc) - last_cascade_time).total_seconds() < self.thresholds["cascade_cooldown"]:
+                if (datetime.now(UTC) - last_cascade_time).total_seconds() < self.thresholds["cascade_cooldown"]:
                     return False
 
         # Проверить, есть ли достаточно событий для каскада
@@ -404,7 +401,7 @@ class LiquidationCascadeEngine:
 
     def _create_cascade(self, symbol: str, initial_event: LiquidationEvent):
         """Создать новый каскад"""
-        cascade_id = f"{symbol}_{datetime.now(timezone.utc).isoformat()}"
+        cascade_id = f"{symbol}_{datetime.now(UTC).isoformat()}"
 
         # Собрать последние события
         recent_events = [e for e in self._events[symbol]
@@ -465,9 +462,9 @@ class LiquidationCascadeEngine:
 
         # Объём
         if symbol := cascade.symbol:
-            if symbol in self._volume_history and self._volume_history[symbol]:
+            if self._volume_history.get(symbol):
                 volumes = [v[1] for v in self._volume_history[symbol]
-                          if cascade.start_time <= v[0] <= (cascade.end_time or datetime.now(timezone.utc))]
+                          if cascade.start_time <= v[0] <= (cascade.end_time or datetime.now(UTC))]
                 avg_volume = sum(volumes) / len(volumes) if volumes else 0.0
                 current_volume = volumes[-1] if volumes else 0.0
                 volume_spike = current_volume / avg_volume if avg_volume > 0 else 0.0
@@ -482,7 +479,7 @@ class LiquidationCascadeEngine:
         duration = (cascade.events[-1].timestamp - cascade.events[0].timestamp).total_seconds()
 
         cascade.metrics = CascadeMetrics(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             symbol=cascade.symbol,
             total_liquidation_volume=total_volume,
             total_liquidation_count=total_count,
@@ -513,9 +510,7 @@ class LiquidationCascadeEngine:
         duration = cascade.metrics.duration_seconds
         events_count = cascade.metrics.total_liquidation_count
 
-        if duration < 10:  # Первые 10 секунд
-            current_phase = CascadePhase.INITIATION
-        elif events_count < self.thresholds["cascade_min_events"]:
+        if duration < 10 or events_count < self.thresholds["cascade_min_events"]:  # Первые 10 секунд
             current_phase = CascadePhase.INITIATION
         elif duration < 30 and events_count >= self.thresholds["cascade_min_events"]:
             current_phase = CascadePhase.ACCELERATION
@@ -537,7 +532,7 @@ class LiquidationCascadeEngine:
 
         # Добавить фазу, если изменилась
         if not cascade.phases or cascade.phases[-1][1] != current_phase:
-            cascade.phases.append((datetime.now(timezone.utc), current_phase))
+            cascade.phases.append((datetime.now(UTC), current_phase))
 
         cascade.metrics.current_phase = current_phase
 
@@ -558,9 +553,7 @@ class LiquidationCascadeEngine:
             cascade.cascade_type = CascadeType.NEUTRAL_CASCADE
 
         # Уточнить по смещению цены
-        if cascade.metrics.price_displacement > 0 and cascade.cascade_type == CascadeType.BEARISH_CASCADE:
-            cascade.cascade_type = CascadeType.FALSE_BREAKOUT
-        elif cascade.metrics.price_displacement < 0 and cascade.cascade_type == CascadeType.BULLISH_CASCADE:
+        if (cascade.metrics.price_displacement > 0 and cascade.cascade_type == CascadeType.BEARISH_CASCADE) or (cascade.metrics.price_displacement < 0 and cascade.cascade_type == CascadeType.BULLISH_CASCADE):
             cascade.cascade_type = CascadeType.FALSE_BREAKOUT
 
     def _is_cascade_complete(self, cascade: LiquidationCascade) -> bool:
@@ -577,7 +570,7 @@ class LiquidationCascadeEngine:
         # 2. Активность упала
         if len(cascade.events) >= 10:
             recent_events = cascade.events[-3:]
-            time_since_last = (datetime.now(timezone.utc) - recent_events[-1].timestamp).total_seconds()
+            time_since_last = (datetime.now(UTC) - recent_events[-1].timestamp).total_seconds()
             if time_since_last > 30:  # 30 секунд без новых событий
                 return True
 
@@ -589,16 +582,14 @@ class LiquidationCascadeEngine:
             return
 
         cascade = self._active_cascades.pop(cascade_id)
-        cascade.end_time = datetime.now(timezone.utc)
+        cascade.end_time = datetime.now(UTC)
 
         # Обновить метрики
         self._update_cascade_metrics(cascade)
 
         # Определить финальную фазу
         if cascade.metrics:
-            if cascade.metrics.price_displacement > 0:
-                cascade.phases.append((cascade.end_time, CascadePhase.CONTINUATION))
-            elif cascade.metrics.price_displacement < 0:
+            if cascade.metrics.price_displacement > 0 or cascade.metrics.price_displacement < 0:
                 cascade.phases.append((cascade.end_time, CascadePhase.CONTINUATION))
             else:
                 cascade.phases.append((cascade.end_time, CascadePhase.RECOVERY))

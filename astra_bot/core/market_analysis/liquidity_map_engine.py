@@ -14,12 +14,9 @@ ASTRA BOT - Liquidity Map Engine
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional
-from collections import defaultdict
-
-import numpy as np
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +56,7 @@ class LiquidityLevel:
     zone_type: LiquidityZoneType = LiquidityZoneType.NEUTRAL
 
     # Время создания
-    creation_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    creation_time: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     # Статистика
     touches: int = 0  # Количество касаний
@@ -630,7 +627,7 @@ class LiquidityMapEngine:
         if not levels:
             patterns.append(LiquidityPattern(
                 pattern_type="LIQUIDITY_VOID",
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 symbol=symbol,
                 confidence=0.9,
                 strength=1.0,
@@ -641,7 +638,7 @@ class LiquidityMapEngine:
         if continuation_sweeps:
             patterns.append(LiquidityPattern(
                 pattern_type="SWEEP_CONTINUATION",
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 symbol=symbol,
                 levels=[s.level for s in continuation_sweeps],
                 confidence=0.8,
@@ -653,7 +650,7 @@ class LiquidityMapEngine:
         if reversal_sweeps:
             patterns.append(LiquidityPattern(
                 pattern_type="SWEEP_REVERSAL",
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 symbol=symbol,
                 levels=[s.level for s in reversal_sweeps],
                 confidence=0.8,
@@ -665,7 +662,7 @@ class LiquidityMapEngine:
         if high_above:
             patterns.append(LiquidityPattern(
                 pattern_type="HIGH_LIQUIDITY_ABOVE",
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 symbol=symbol,
                 levels=high_above,
                 confidence=0.7,
@@ -677,7 +674,7 @@ class LiquidityMapEngine:
         if high_below:
             patterns.append(LiquidityPattern(
                 pattern_type="HIGH_LIQUIDITY_BELOW",
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 symbol=symbol,
                 levels=high_below,
                 confidence=0.7,

@@ -14,17 +14,16 @@ ASTRA BOT - Portfolio Opportunity Allocator
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Optional
-from collections import defaultdict
+from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Any
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
-class AllocationMethod(str, Enum):
+class AllocationMethod(StrEnum):
     """Методы распределения"""
     EQUAL = "equal"  # Равное распределение
     RISK_PARITY = "risk_parity"  # Паритет риска
@@ -35,7 +34,7 @@ class AllocationMethod(str, Enum):
     RISK_ADJUSTED = "risk_adjusted"  # Взвешенное по риску
 
 
-class SignalStatus(str, Enum):
+class SignalStatus(StrEnum):
     """Статусы сигналов"""
     SELECTED = "selected"  # Выбран
     REJECTED = "rejected"  # Отклонён
@@ -66,7 +65,7 @@ class OpportunitySignal:
     time_horizon: str = "1h"
 
     # Время создания
-    creation_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    creation_time: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     # Статус
     status: SignalStatus = SignalStatus.PENDING
@@ -358,7 +357,7 @@ class PortfolioOpportunityAllocator:
 
         return AllocationResult(
             portfolio_id=portfolio_id,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             signals=signals,
             selected_signals=selected,
             rejected_signals=rejected,
@@ -418,7 +417,7 @@ class PortfolioOpportunityAllocator:
 
         return AllocationResult(
             portfolio_id=portfolio_id,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             signals=signals,
             selected_signals=selected,
             rejected_signals=rejected,
@@ -494,7 +493,7 @@ class PortfolioOpportunityAllocator:
 
         return AllocationResult(
             portfolio_id=portfolio_id,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             signals=signals,
             selected_signals=selected,
             rejected_signals=rejected,
@@ -582,7 +581,7 @@ class PortfolioOpportunityAllocator:
 
         return AllocationResult(
             portfolio_id=portfolio_id,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             signals=signals,
             selected_signals=selected,
             rejected_signals=rejected,
@@ -673,7 +672,7 @@ class PortfolioOpportunityAllocator:
 
         return PortfolioAnalysis(
             portfolio_id=portfolio_id,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             allocations=allocations,
             cumulative_return=cumulative_return,
             sharpe_ratio=sharpe_ratio,
