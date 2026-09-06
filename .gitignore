@@ -37,16 +37,20 @@ env/
 .DS_Store
 Thumbs.db
 
-# Logs
+# Logs - allow errors.log for diagnostics (Block 1.5)
 logs/
+!logs/.gitkeep
+!logs/errors.log
 *.log
 *.log.*
+!logs/errors.log
 
-# Data — sensitive, don't commit
-data/
+# Data — Block 2.1: Git-based persistence, must be committed!
+# data/ folder is intentionally NOT ignored, only tmp files ignored
+data/*.tmp
+data/*.tmp.*
 backups/
-# P2-2: Runtime state — never commit. Historical files remain in git
-# (cleaning history is too risky), but NEW state changes are forbidden.
+# Runtime state in models/ — historically ignored but force-added via git add -f
 models/*.jsonl
 models/*.json
 models/*.csv
@@ -59,9 +63,9 @@ models/*.bin
 reports/
 
 # Config with secrets — don't commit
-config/settings.yaml           # если содержит реальные ключи
-config/production.yaml         # если содержит реальные ключи
-.env                          # реальные переменные окружения
+config/settings.yaml
+config/production.yaml
+.env
 .env.local
 
 # Render
@@ -73,9 +77,11 @@ config/production.yaml         # если содержит реальные кл
 htmlcov/
 .tox/
 
-# Database local files (если используете SQLite для dev)
+# Database local files for dev (but allow data/trades.db for Block 2.1)
 *.db
 *.sqlite
+!data/trades.db
+!data/*.db
 
 # Temporary files
 tmp/
@@ -90,4 +96,3 @@ temp/
 
 # Microsoft
 Thumbs.db
-.env

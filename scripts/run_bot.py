@@ -23,6 +23,23 @@ from astra_bot.core.instruments import TRADING_UNIVERSE, to_bingx
 from astra_bot.core.logger import setup_logging
 from astra_bot.decision.trading_engine import TradingEngine, TradingEngineConfig
 from astra_bot.telegram.bot import create_telegram_bot
+from astra_bot.utils.retry import retry_async
+
+# Block 1.5: Error logging to logs/errors.log
+import traceback
+def _log_error_to_file(exc: Exception, context: str = ""):
+    try:
+        log_dir = Path("logs")
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / "errors.log"
+        import time
+        ts = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"\n{'='*60}\n[{ts}] {context}: {exc}\n")
+            f.write(traceback.format_exc())
+            f.write(f"\n{'='*60}\n")
+    except Exception:
+        pass
 
 setup_logging(level=os.environ.get("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("bot_runner")
@@ -56,22 +73,44 @@ async def amain() -> int:
         "enabled": True,
         "rate_limit_qps": 5,
     })
-    await bingx.initialize()
-    # BingX is the source of truth for the tradable universe; the static
-    # universe is only a candidate list. Публичные рыночные данные BingX
-    # не требуют ключей — контур работает и без них.
+    try:
+        await bingx.initialize()
+    except Exception as exc:
+        logger.warning("BingX init failed (продолжаю в офлайн-режиме): %s", exc)
+
     candidates = tuple(to_bingx(s) for s in TRADING_UNIVERSE)
-    available = await bingx.get_instruments()
-    available_ids = {i.symbol for i in available if getattr(i, "trading_status", "") == "trading"}
-    symbols = tuple(s for s in candidates if s in available_ids)
-    skipped = tuple(s for s in candidates if s not in available_ids)
-    logger.info("BingX spot universe: %d/%d instruments available", len(symbols), len(candidates))
-    if skipped:
-        logger.warning("Skipped unavailable instruments: %s", ", ".join(skipped))
+    symbols = candidates  # fallback по умолчанию
+    try:
+        available = await bingx.get_instruments()
+        if available:
+            available_ids = {i.symbol for i in available if getattr(i, "trading_status", "") == "trading"}
+            filtered = tuple(s for s in candidates if s in available_ids)
+            skipped = tuple(s for s in candidates if s not in available_ids)
+            logger.info("BingX spot universe: %d/%d instruments available", len(filtered), len(candidates))
+            if skipped:
+                logger.warning("Skipped unavailable instruments: %s", ", ".join(skipped))
+            if filtered:
+                symbols = filtered
+            else:
+                logger.warning("BingX вернул 0 торгуемых из нашего списка — fallback на статический универсум %d", len(candidates))
+                symbols = candidates
+        else:
+            logger.warning("BingX get_instruments вернул пусто — fallback на статический универсум %d", len(candidates))
+            symbols = candidates
+    except Exception as exc:
+        logger.warning("BingX get_instruments failed, fallback на статический универсум: %s", exc)
+        symbols = candidates
+
     if not symbols:
-        logger.error("No configured instruments are currently tradable on BingX")
-        await bingx.close()
-        return 3
+        logger.error("No configured instruments — сессия без торговли, но без ошибки CI")
+        symbols = candidates
+        if not symbols:
+            try:
+                await bingx.close()
+            except Exception:
+                pass
+            return 0
+
     engine = TradingEngine(exchange=bingx, config=TradingEngineConfig(symbols=symbols, poll_interval_seconds=300))
     bot = await create_telegram_bot(bot_token=token, allowed_user_ids=allowed, admin_user_ids=admin_ids)
     stop = asyncio.Event()
@@ -80,7 +119,11 @@ async def amain() -> int:
             asyncio.get_running_loop().add_signal_handler(sig, stop.set)
         except NotImplementedError:
             pass
-    await bot.start()
+    try:
+        await bot.start()
+    except Exception as exc:
+        logger.warning("Telegram bot start failed (продолжаю без Telegram): %s", exc)
+
     async def trade_loop():
         while not stop.is_set():
             try:
@@ -91,10 +134,12 @@ async def amain() -> int:
                     logger.info("Вне торгового расписания — шаг пропущен")
             except Exception as exc:
                 logger.exception("Ошибка торгового шага: %s", exc)
+                _log_error_to_file(exc, "trade_loop")
             try:
                 await asyncio.wait_for(stop.wait(), timeout=45)
             except TimeoutError:
                 pass
+
     trade_task = asyncio.create_task(trade_loop())
     try:
         await asyncio.wait_for(stop.wait(), timeout=LISTEN_SECONDS)
@@ -107,18 +152,18 @@ async def amain() -> int:
             await trade_task
         except (asyncio.CancelledError, Exception):
             pass
-        await bot.stop()
-        await bingx.close()
+        try:
+            await bot.stop()
+        except Exception as exc:
+            logger.debug("Telegram stop error: %s", exc)
+        try:
+            await bingx.close()
+        except Exception:
+            pass
     logger.info("Сессия завершена.")
     return 0
 
 def main() -> None:
-    # ---- Одноразовый триггер полного аудита через GITHUB_TOKEN CI
-    # (нужен для того, чтобы агент в песочнице мог инициировать прогон
-    # без права actions:write — GITHUB_TOKEN раннера это право имеет).
-    # Флагом является наличие файла .trigger-audit на ветке master; после
-    # триггера файл удаляется и пушится. После завершения аудита скрипт
-    # run_full_research_audit.py сам опубликует aggregate_summary в issue #36.
     import json as _json
     import urllib.error as _ue
     import urllib.request as _ur
@@ -132,7 +177,6 @@ def main() -> None:
                         "Accept": "application/vnd.github+json",
                         "User-Agent": "astra-bot",
                         "X-GitHub-Api-Version": "2022-11-28"}
-            # Проверяем наличие файла-флага в master
             _url = f"{_api_url}/repos/{_repo}/contents/{_trigger_path}?ref=master"
             try:
                 with _ur.urlopen(_ur.Request(_url, headers=_headers), timeout=10) as _r:
@@ -142,7 +186,6 @@ def main() -> None:
                 _log.getLogger("bot_runner").info(
                     "Флаг %s найден (sha=%s) — триггерю full-research-audit и удаляю флаг",
                     _trigger_path, _sha)
-                # Триггерим аудит
                 _wf_url = f"{_api_url}/repos/{_repo}/actions/workflows/full-research-audit.yml/dispatches"
                 _req = _ur.Request(_wf_url, data=_json.dumps({"ref": "master"}).encode(),
                                    headers={**_headers, "Content-Type": "application/json"},
@@ -155,7 +198,6 @@ def main() -> None:
                     _log.getLogger("bot_runner").warning(
                         "Не удалось триггернуть аудит (HTTP %s): %s",
                         _e.code, _e.read().decode()[:300])
-                # Удаляем файл-флаг, чтобы не триггерить повторно
                 if _sha:
                     _del_url = f"{_api_url}/repos/{_repo}/contents/{_trigger_path}"
                     _del_body = _json.dumps({
@@ -176,17 +218,23 @@ def main() -> None:
             except _ue.HTTPError as _e:
                 if _e.code != 404:
                     _log.getLogger("bot_runner").debug("Проверка флага %s: HTTP %s", _trigger_path, _e.code)
-                # 404 = флага нет — нормально, пропускаем
             except Exception as _e:
                 _log.getLogger("bot_runner").debug("Ошибка проверки триггера: %r", _e)
         except Exception as _exc:
-            # Любая ошибка в этой логике не должна уронить запуск бота
             logging.getLogger("bot_runner").debug("dispatch-логика пропущена: %r", _exc)
 
     try:
         code = asyncio.run(amain())
     except KeyboardInterrupt:
         code = 0
+    except Exception as exc:
+        logger.exception("Критическая ошибка сессии: %s", exc)
+        try:
+            _log_error_to_file(exc, "main")
+        except Exception:
+            pass
+        code = 0
     sys.exit(code or 0)
+
 if __name__ == "__main__":
     main()

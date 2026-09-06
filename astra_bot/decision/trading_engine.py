@@ -57,29 +57,23 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TradingEngineConfig:
     symbols: tuple[str, ...] = ("BTC-USDT", "ETH-USDT", "SOL-USDT")
-    # 5m — основной для частых входов; 15m для подтверждения тренда;
-    # 4h — для долгосрочного фильтра ts_momentum (флипы по 45-дневному
-    # импульсу). Держим 3 таймфрейма, чтобы шаг по 10 монетам был быстрым.
-    timeframes: tuple[str, ...] = ("5m", "15m", "4h")
+    # Block 4.2: Мультитаймфреймовый анализ — 4 таймфрейма
+    # 5m — микроподтверждение, 15m — точка входа, 1h — направление, 4h — глобальный тренд
+    timeframes: tuple[str, ...] = ("5m", "15m", "1h", "4h")
     # Сколько баров тянуть для каждого таймфрейма.
     bars_per_tf: dict[str, int] = field(
-        default_factory=lambda: {"5m": 250, "15m": 200, "4h": 320}
+        default_factory=lambda: {"5m": 250, "15m": 200, "1h": 200, "4h": 320}
     )
-    # 0.5% риска на сделку. Капитал в управлении — половина демо-портфеля
-    # (~40 000 USDT), поэтому 0.5% = ~200 USDT риска, позиция крупная, но
-    # контролируемая. Это даёт много мелких по риску сделок для обучения.
-    risk_per_trade_pct: Decimal = Decimal("0.005")
-    # Максимум 15% капитала на одну позицию (notional) — защита от раздутия.
-    max_notional_pct: Decimal = Decimal("0.15")
-    # Сколько позиций держим одновременно. На 28 монетах 8 — достаточно для
-    # диверсификации и при этом не перегружает депозит коррелированными
-    # входами в один момент.
-    max_open_positions: int = 8
-    # Лимит однонаправленных позиций (long или short) — чтобы не открыть
-    # сразу 6 лонгов, которые все стопнутся вместе.
-    max_same_direction: int = 4
-    # Максимальная суммарная экспозиция (notional) в % капитала.
-    max_total_exposure_pct: Decimal = Decimal("0.70")
+    # Block 6.1: Максимальный риск на сделку 1% (было 0.5%)
+    risk_per_trade_pct: Decimal = Decimal("0.01")
+    # Block 6.2: Жёсткий максимум 10% баланса на позицию
+    max_notional_pct: Decimal = Decimal("0.10")
+    # Block 6.1: Максимум 3 открытых позиций (было 8) — защита от корреляции
+    max_open_positions: int = 3
+    # Лимит однонаправленных позиций — чтобы не открыть сразу 3 лонга в одну сторону
+    max_same_direction: int = 2
+    # Максимальная суммарная экспозиция 30% (было 70%) — консервативно
+    max_total_exposure_pct: Decimal = Decimal("0.30")
     poll_interval_seconds: int = 60 * 5
     state_path: str = "models/paper_positions.json"
     trades_path: str = "models/paper_trades.jsonl"
@@ -164,11 +158,16 @@ class TradingEngine:
         # дневные/недельные лимиты потерь, просадка, exposure, TRADING HALT.
         # Стратегии и ML не имеют права его обойти. Лимиты согласованы
         # с торговым конфигом, чтобы sizing не конфликтовал с чекером.
+        # Block 6.1: Risk Management per spec — 1% risk, 3% daily loss, 10% max DD, max 3 positions
         self.risk = risk_engine or RiskEngine(
             RiskConfig(
                 risk_per_trade=Decimal(self.config.risk_per_trade_pct),
+                daily_loss_limit=Decimal("0.03"),  # 3% per spec
+                weekly_loss_limit=Decimal("0.06"),
                 max_open_positions=self.config.max_open_positions,
                 max_exposure_pct=Decimal(self.config.max_total_exposure_pct),
+                max_gross_exposure_pct=Decimal(self.config.max_total_exposure_pct),
+                max_net_exposure_pct=Decimal(self.config.max_total_exposure_pct),
             )
         )
         # StateStore (Этап 3): единый атомарный checkpoint состояния.
@@ -367,23 +366,60 @@ class TradingEngine:
             orderbook=orderbook,
         )
 
-    # ----------------------------------------------------------- sizing
+    # ----------------------------------------------------------- sizing (Block 6.2)
     def _position_size(
         self,
         equity: Decimal,
         entry: Decimal,
         stop: Decimal,
+        ml_confidence: float | None = None,
+        atr_pct: float | None = None,
+        strategy: str = "",
     ) -> Decimal:
-        risk_amount = equity * self.config.risk_per_trade_pct
-        stop_distance = abs(entry - stop)
-        if stop_distance <= 0:
-            return Decimal("0")
-        qty = risk_amount / stop_distance
-        # Не допускаем размер больше 30% капитала (notional).
-        max_notional = equity * self.config.max_notional_pct
-        if qty * entry > max_notional:
-            qty = max_notional / entry
-        return qty.quantize(Decimal("0.000001"))
+        # Use new position_sizer with Kelly, ML confidence, volatility adjustments
+        try:
+            from ..engines.position_sizer import calculate_position_size
+            # Try to get strategy stats for Kelly
+            win_rate = 0.55
+            avg_win = 1.5
+            avg_loss = 1.0
+            try:
+                if strategy:
+                    # Get ANY regime stats for this strategy
+                    bucket = self.stats_store.get_any(strategy, "")
+                    if bucket and bucket.sample_size >= 10:
+                        win_rate = bucket.win_rate
+                        avg_win = bucket.avg_win_r or 1.5
+                        avg_loss = abs(bucket.avg_loss_r) or 1.0
+            except Exception:
+                pass
+            qty = calculate_position_size(
+                equity=equity,
+                entry_price=entry,
+                stop_loss=stop,
+                risk_per_trade_pct=self.config.risk_per_trade_pct,
+                win_rate=win_rate,
+                avg_win_r=avg_win,
+                avg_loss_r=avg_loss,
+                ml_confidence=ml_confidence,
+                atr_pct=atr_pct,
+                max_notional_pct=self.config.max_notional_pct,
+            )
+            return qty
+        except Exception as exc:
+            # Fallback to simple calculation
+            try:
+                risk_amount = equity * self.config.risk_per_trade_pct
+                stop_distance = abs(entry - stop)
+                if stop_distance <= 0:
+                    return Decimal("0")
+                qty = risk_amount / stop_distance
+                max_notional = equity * self.config.max_notional_pct
+                if qty * entry > max_notional:
+                    qty = max_notional / entry
+                return qty.quantize(Decimal("0.000001"))
+            except Exception:
+                return Decimal("0")
 
     def _risk_check_and_adjust(
         self,
@@ -612,10 +648,26 @@ class TradingEngine:
             )
             return closed
 
+        # Block 6.2: position sizing with ML confidence and volatility
+        _atr_pct = None
+        try:
+            # ATR from technical diagnostics if available
+            tech = decision.diagnostics.get("technical") or {}
+            _atr_pct = float(tech.get("atr_pct") or tech.get("atr") or 0) or None
+        except Exception:
+            pass
+        _ml_conf = None
+        try:
+            _ml_conf = float(cand.ml_probability) if cand.ml_probability is not None else float(cand.confidence) if cand.confidence else None
+        except Exception:
+            pass
         size = self._position_size(
             self.broker.equity,
             cand.entry_price,
             cand.stop_loss,
+            ml_confidence=_ml_conf,
+            atr_pct=_atr_pct,
+            strategy=cand.strategy,
         )
         if size <= 0:
             logger.info("%s: size=0, пропускаю", symbol)
@@ -820,6 +872,36 @@ class TradingEngine:
             )
         if not trades:
             return
+        # Block 2.1 & 7.1: Save to data/trades.db and data/state.json via StateManager
+        try:
+            from ..data.state_manager import get_state_manager
+            sm = get_state_manager()
+            sm.save_trades(trades)
+            # Update state.json with latest balance and daily PnL
+            try:
+                state = sm.load_state()
+                state["balance"] = float(self.broker.equity)
+                state["realized_pnl"] = float(self.broker.realized_pnl)
+                state["positions"] = [
+                    {"symbol": p.symbol, "direction": p.direction, "entry_price": str(p.entry_price), "quantity": str(p.quantity)}
+                    for p in self.broker.positions
+                ]
+                # Compute daily stats from recent trades
+                from datetime import datetime, timezone, timedelta
+                now = datetime.now(timezone.utc)
+                daily = [t for t in trades if True]  # trades passed are recent closes
+                # For simplicity, daily PnL is sum of today's closes
+                # More accurate daily aggregation is done in morning_report
+                state["daily_pnl"] = float(sum(float(t.get("pnl",0) or 0) for t in trades))
+                state["daily_trades"] = len(trades)
+                state["daily_wins"] = sum(1 for t in trades if float(t.get("pnl",0) or 0) > 0)
+                state["daily_losses"] = sum(1 for t in trades if float(t.get("pnl",0) or 0) < 0)
+                sm.save_state(state)
+            except Exception as e:
+                logger.debug("state_manager save_state failed: %s", e)
+        except Exception as exc:
+            logger.debug("state_manager save_trades failed: %s", exc)
+
         try:
             append_lessons(trades)
         except Exception as exc:
@@ -845,7 +927,10 @@ class TradingEngine:
             except Exception as exc:
                 logger.debug("EXITS_TOTAL: %s", exc)
             try:
-                if d.get("r_multiple") or d.get("regime"):
+                # FIX: раньше условие отбрасывало сделки с r_multiple=0 и regime="" — из-за этого
+                # strategy_stats.json никогда не создавался и база знаний оставалась пустой (n<5).
+                # Теперь пишем всегда, если есть strategy, а режим по умолчанию UNKNOWN.
+                if True:
                     self.stats_store.record(
                         strategy=str(d.get("strategy") or ""),
                         regime=str(d.get("regime") or "UNKNOWN"),

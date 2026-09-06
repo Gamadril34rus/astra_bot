@@ -1,0 +1,31 @@
+{
+  "strategy_weights": {
+    "trend_following": 0.35,
+    "mean_reversion": 0.2,
+    "breakout": 0.25,
+    "momentum": 0.2,
+    "scalp5m": 0.25,
+    "scalp": 0.2,
+    "pullback": 0.2,
+    "ts_momentum": 0.15,
+    "ts_momentum_adx": 0.1
+  },
+  "disabled_strategies": [],
+  "best_hours": [
+    8,
+    9,
+    14,
+    15,
+    16
+  ],
+  "worst_hours": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "best_regime": "TRENDING_UP",
+  "worst_regime": "VOLATILE",
+  "last_adaptation": "2026-09-06T20:22:01.497174+00:00"
+}

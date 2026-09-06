@@ -171,6 +171,23 @@ class PaperBroker:
                     pos.fill_price = pos.entry_price
                 if pos.entry_fee_per_unit:
                     pos.entry_fee_per_unit = Decimal(str(pos.entry_fee_per_unit))
+                # FIX: migrate risk_distance=0 (old files) -> 1% of entry
+                try:
+                    rd = Decimal(str(getattr(pos, 'risk_distance', 0) or 0))
+                    if rd <= 0:
+                        rd = abs(pos.entry_price - pos.stop_loss)
+                        if rd <= 0:
+                            rd = abs(pos.entry_price) * Decimal("0.01")
+                            if rd <= 0:
+                                rd = Decimal("0.001")
+                        pos.risk_distance = rd
+                    else:
+                        pos.risk_distance = rd
+                except Exception:
+                    pos.risk_distance = abs(pos.entry_price - pos.stop_loss) or Decimal("0.01")
+                # FIX: regime fallback
+                if not getattr(pos, 'regime', None):
+                    pos.regime = "UNKNOWN"
             self.realized_pnl = Decimal(str(data.get("realized_pnl", 0)))
             # Восстанавливаем стартовый капитал из состояния, если он там есть.
             if data.get("initial_capital"):
@@ -260,6 +277,13 @@ class PaperBroker:
             else:
                 fill = entry_price * (Decimal("1") - self.slippage_pct)
             fee_per_unit = fill * self.fee_pct
+        # FIX: защита от risk_distance=0 (тогда R-метрики=0 и strategy_stats не растёт)
+        _risk_dist = abs(entry_price - stop_loss)
+        if _risk_dist <= 0:
+            # fallback 1% от цены как минимальный риск
+            _risk_dist = abs(entry_price) * __import__('decimal').Decimal("0.01")
+            if _risk_dist <= 0:
+                _risk_dist = __import__('decimal').Decimal("0.001")
         pos = PaperPosition(
             id=str(uuid.uuid4()),
             symbol=symbol,
@@ -272,8 +296,8 @@ class PaperBroker:
             notes=notes or {},
             fill_price=fill,
             entry_fee_per_unit=fee_per_unit,
-            risk_distance=abs(entry_price - stop_loss),
-            regime=regime,
+            risk_distance=_risk_dist,
+            regime=regime or "UNKNOWN",
             timeframe=timeframe,
             regime_axes=regime_axes,
         )

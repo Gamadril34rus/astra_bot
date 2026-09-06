@@ -30,6 +30,7 @@ from urllib.parse import urlencode
 
 import aiohttp
 
+from ...utils.retry import retry_async
 from ...core.exceptions import ExchangeError
 from ...core.metrics import HTTP_REQUEST_LATENCY, HTTP_REQUESTS_TOTAL
 from ..base import (
@@ -159,6 +160,7 @@ class BingXClient(ExchangeAdapter):
         ).hexdigest()
         return f"{payload}&signature={digest}"
 
+    @retry_async(attempts=3, delays=(2.0, 5.0, 15.0))
     async def _request(
         self,
         method: str,

@@ -157,7 +157,20 @@ class DecisionPipeline:
                     )
                 )
             except Exception as exc:  # pragma: no cover - defensive
-                logger.debug("strategy %s failed: %s", strategy, exc)
+                logger.warning("strategy %s failed (graceful degradation): %s", strategy, exc)
+                # Block 1.5: log to errors.log
+                try:
+                    from pathlib import Path as _P
+                    import traceback, time
+                    _log_dir = _P("logs")
+                    _log_dir.mkdir(parents=True, exist_ok=True)
+                    _log_file = _log_dir / "errors.log"
+                    _ts = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
+                    with open(_log_file, "a", encoding="utf-8") as _f:
+                        _f.write(f"\n[{_ts}] strategy {getattr(strategy, 'name', strategy)} failed: {exc}\n")
+                        _f.write(traceback.format_exc() + "\n")
+                except Exception:
+                    pass
         return out
 
     def _ml_probability(self, feats) -> float | None:
