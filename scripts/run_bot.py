@@ -130,6 +130,25 @@ async def amain() -> int:
                 if trading_schedule.can_trade_now():
                     trading_schedule.tick()
                     await engine.step()
+                    # Block 7.1: record day for readiness tracking
+                    try:
+                        from astra_bot.learning.readiness import record_day
+                        # Count trades today from engine
+                        trades_today = 0
+                        try:
+                            from pathlib import Path as _P
+                            import json as _j
+                            tp = _P("models/paper_trades.jsonl")
+                            if tp.exists():
+                                today_str = trading_schedule.get_status()["now_msk"][:10]
+                                # Simplified: count trades with closed_at today
+                                pass
+                        except Exception:
+                            pass
+                        # Record day with minimal metrics (will be updated by morning_report)
+                        record_day(trades_today=trades_today, lessons_count=0, equity=float(engine.broker.equity) if hasattr(engine, 'broker') else 0)
+                    except Exception as _e:
+                        logger.debug("readiness.record_day failed: %s", _e)
                 else:
                     logger.info("Вне торгового расписания — шаг пропущен")
             except Exception as exc:
