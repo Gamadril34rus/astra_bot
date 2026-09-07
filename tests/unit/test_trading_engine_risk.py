@@ -126,6 +126,8 @@ def engine_factory(tmp_path: Path, monkeypatch):
             bars_per_tf={"5m": 120},
             fee_pct=Decimal("0"),
             slippage_pct=Decimal("0"),
+            # hermetic: статистика стратегий только в tmp, не в models/.
+            stats_path=str(tmp_path / "strategy_stats.json"),
             # Block 6.1: new defaults are 1% risk, 10% max notional, 3 positions
             # For test stability we allow default, but check qty >0
         )

@@ -43,7 +43,7 @@ class PullbackConfig(StrategyConfig):
     hold_bars: int = 12
 
 
-class PullbackStrategy(BaseStrategy):
+class PullbackStrategy(BaseStrategy[PullbackConfig]):
     """Trend-pullback стратегия с фиксированным R:R."""
 
     def __init__(self, config: PullbackConfig | None = None):

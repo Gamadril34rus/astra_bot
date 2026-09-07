@@ -40,7 +40,7 @@ class SelectiveConfig(StrategyConfig):
     holding_bars: int = 24
 
 
-class SelectiveStrategy(BaseStrategy):
+class SelectiveStrategy(BaseStrategy[SelectiveConfig]):
     def __init__(self, config: SelectiveConfig | None = None):
         super().__init__(config or SelectiveConfig())
         self.config: SelectiveConfig

@@ -1,4 +1,3 @@
-# ruff: noqa: UP042
 """Market Regime Engine.
 
 Этап A2 (МТЗ §10–14): поверх единого legacy-enum ``MarketRegime`` строится

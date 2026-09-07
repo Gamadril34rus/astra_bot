@@ -136,7 +136,12 @@ class TradingEngine:
                 min_samples=cfg.min_ev_samples,
             )
             # Pattern strategies (wedges & triangles) — по ТЗ пользователя: основа
+            # V2-стратегии написаны против плоского StrategyContext и возвращают
+            # SignalCandidate; через PipelineStrategyAdapter они работают в
+            # контракте пайплайна (evaluate(symbol, candles, ...) -> Signal).
             try:
+                from ..strategies.base import SignalType
+                from .strategies.adapter import PipelineStrategyAdapter
                 from .strategies.pattern_strategies import (
                     AscendingTriangleStrategy,
                     DescendingTriangleStrategy,
@@ -150,16 +155,17 @@ class TradingEngine:
                     MomentumStrategyV2,
                     TrendFollowingStrategyV2,
                 )
+
                 pattern_strats = [
-                    FallingWedgeStrategy(),
-                    RisingWedgeStrategy(),
-                    AscendingTriangleStrategy(),
-                    DescendingTriangleStrategy(),
-                    SymmetricalTriangleStrategy(),
-                    TrendFollowingStrategyV2(),
-                    MeanReversionStrategyV2(),
-                    BreakoutStrategyV2(),
-                    MomentumStrategyV2(),
+                    PipelineStrategyAdapter(FallingWedgeStrategy(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(RisingWedgeStrategy(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(AscendingTriangleStrategy(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(DescendingTriangleStrategy(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(SymmetricalTriangleStrategy(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(TrendFollowingStrategyV2(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(MeanReversionStrategyV2(), SignalType.MEAN_REVERSION),
+                    PipelineStrategyAdapter(BreakoutStrategyV2(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(MomentumStrategyV2(), SignalType.MOMENTUM),
                 ]
             except Exception as e:
                 import logging
@@ -919,11 +925,7 @@ class TradingEngine:
                     for p in self.broker.positions
                 ]
                 # Compute daily stats from recent trades
-                from datetime import datetime
-                datetime.now(UTC)
-                [t for t in trades if True]  # trades passed are recent closes
-                # For simplicity, daily PnL is sum of today's closes
-                # More accurate daily aggregation is done in morning_report
+                # Итоговая дневная агрегация делается в morning_report.
                 state["daily_pnl"] = float(sum(float(t.get("pnl",0) or 0) for t in trades))
                 state["daily_trades"] = len(trades)
                 state["daily_wins"] = sum(1 for t in trades if float(t.get("pnl",0) or 0) > 0)

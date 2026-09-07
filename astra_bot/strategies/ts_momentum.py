@@ -100,7 +100,7 @@ def _bars_per_day(candles: list[models.Candle]) -> float:
     return 86_400_000.0 / step_ms
 
 
-class TimeSeriesMomentumStrategy(BaseStrategy):
+class TimeSeriesMomentumStrategy(BaseStrategy[TimeSeriesMomentumConfig]):
     """Трендовый фильтр: перевороты по знаку N-дневной доходности."""
 
     def __init__(self, config: TimeSeriesMomentumConfig | None = None):

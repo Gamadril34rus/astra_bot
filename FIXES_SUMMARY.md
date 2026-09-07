@@ -134,3 +134,54 @@
 - `scripts/weekly_report.py` — Block 8
 - `scripts/morning_report.py` — полностью переписан
 - `.github/workflows/*.yml` — обновлены (локально)
+
+---
+
+## Block 9: Стратегия упала — ревизия 2026-09-07 (почему стратегии молчали)
+
+### Найдено и исправлено (критическое)
+- **Режимный гейт всегда возвращал OFF** (`strategies/base.py`):
+  `STRATEGY_REGIME_COMPATIBILITY` ключован членами Enum `MarketRegime`, а
+  поиск шёл строкой (`"BULL_TREND"`). Хэши не совпадают → momentum и
+  mean_reversion не торговали НИ В ОДНОМ режиме. Плюс
+  `get_regime_compatibility` разворачивала Enum обратно в `.value`.
+  Теперь нормализация str↔Enum внутри `check_regime_compatibility`.
+- **Momentum не мог дать сигнал никогда**: брался TP-уровень `tp_levels[0]`
+  (1R по умолчанию) при `min_risk_reward=1.5` — проверка R:R была
+  математически невыполнимой. Теперь берётся первый уровень,
+  удовлетворяющий min_risk_reward.
+- **9 стратегий (5 pattern + 4 volume-filtered) молча не загружались**:
+  импортировали несуществующий `StrategyContext`, ошибка глоталась
+  `except ImportError`/`except Exception` → `pattern_strats = []`.
+  Добавлен `StrategyContext` в `decision/context.py` и
+  `PipelineStrategyAdapter` (`decision/strategies/adapter.py`), связавший
+  контракт V2-стратегий (ctx → SignalCandidate) с контрактом пайплайна
+  (evaluate(symbol, candles, ...) → Signal). Пайплайн теперь 16 стратегий.
+- **Коллизия имён**: V2 mean_reversion/momentum дублировали имена базовых
+  стратегий → EV-статистика смешивалась. Переименованы в
+  `mean_reversion_v2`/`momentum_v2`.
+
+### Найдено и исправлено (надёжность)
+- `events.emit_async(...)` без await в `BaseStrategy.update_performance` —
+  событие STRATEGY_KILLED никогда не доходило; заменено на sync `emit`.
+- Profit Factor считался из net_pnl (фактически wins/losses), серия без
+  убытков держала PF=0 → ложный kill switch. Теперь gross_profit/gross_loss;
+  авто-kill только от 5 сделок (`MIN_TRADES_FOR_KILL_SWITCH`).
+- **Тесты затирали прод**: прогоны pytest писали в committed
+  `data/state.json`, `data/trades.db`, `models/strategy_stats.json`
+  (фейковые сделки!) и `logs/errors.log` (фейковые ошибки биржи).
+  - `StateManager` теперь уважает `ASTRA_STATE_DIR`, синглтон
+    пересоздаётся при смене окружения (+`reset_state_manager()`).
+  - `retry._log_error_to_file` под pytest не пишет в прод-лог
+    (плюс override `ASTRA_ERROR_LOG`).
+  - `tests/conftest.py`: autouse-изоляция ASTRA_STATE_DIR/error-log.
+- `BaseStrategy` стал дженериком (`BaseStrategy[ConfigT]`) — убраны ~60
+  mypy attr-defined в стратегиях; `momentum.py` implicit-Optional.
+- Мёртвый код в `_persist_trades` удалён; маскирующий try/except в
+  pattern_strategies убран (тихая деградация прятала баг); RUF100/B023
+  в lint.
+
+### Проверка
+- 695 тестов зелёные (+19 регрессионных на все фиксы).
+- ruff: 0 ошибок на весь репозиторий.
+- Полный прогон тестов больше не меняет data/, models/, logs/.

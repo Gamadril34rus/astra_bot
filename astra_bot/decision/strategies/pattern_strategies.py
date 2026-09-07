@@ -17,15 +17,9 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from ..context import SignalCandidate, StrategyContext
 
-try:
-    from ...core import models
-    from ..context import SignalCandidate, StrategyContext
-except ImportError:
-    models = None
-    SignalCandidate = None
-    StrategyContext = None
+logger = logging.getLogger(__name__)
 
 
 class PatternType(Enum):

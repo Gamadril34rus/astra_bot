@@ -94,20 +94,22 @@ def main() -> int:
         cand = cand_map[key]
         desired = cand["fn"](df)
 
-        def eval_window(ms_start, ms_end):
+        def eval_window(ms_start, ms_end, *, _desired=desired, _cand=cand):
+            # Локали цикла привязаны значениями по умолчанию (B023):
+            # замыкание не зависит от текущей итерации внешнего for.
             m = (df["open_time"] >= ms_start) & (df["open_time"] < ms_end)
             if m.sum() <= 1:
                 return {"trades": 0, "win_rate": 0.0, "pf": 0.0, "pnl": 0.0, "return_pct": 0.0, "max_dd": 0.0, "expectancy": 0.0}
             res = run_engine(
                 df[m].reset_index(drop=True),
-                desired[m].reset_index(drop=True),
-                cand["stop_mult"],
-                cand["take_mult"],
-                cand["max_hold"],
+                _desired[m].reset_index(drop=True),
+                _cand["stop_mult"],
+                _cand["take_mult"],
+                _cand["max_hold"],
                 capital=args.capital,
                 atr_values=atr_vals[m].reset_index(drop=True),
-                long_only=cand["long_only"],
-                vol_target=cand["vol_target"],
+                long_only=_cand["long_only"],
+                vol_target=_cand["vol_target"],
             )
             pnl = (res.ret_pct / 100.0) * args.capital
             exp = pnl / res.trades if res.trades > 0 else 0.0

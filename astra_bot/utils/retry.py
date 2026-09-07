@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
+import os
 import random
 import time
 import traceback
@@ -67,9 +68,15 @@ except ImportError:
 def _log_error_to_file(exc: Exception, func_name: str) -> None:
     """Log full traceback to logs/errors.log (Block 1.5)."""
     try:
+        # Под pytest лог не пишем вообще: контрактные тесты специально
+        # дёргают ошибочные ответы бирж, и их фейковые traceback'и
+        # загрязняли продакшн-лог, по которому morning_report считает
+        # ошибки. Переопределить путь можно переменной ASTRA_ERROR_LOG.
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            return
         log_dir = Path("logs")
         log_dir.mkdir(parents=True, exist_ok=True)
-        log_file = log_dir / "errors.log"
+        log_file = Path(os.environ.get("ASTRA_ERROR_LOG", str(log_dir / "errors.log")))
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
         with open(log_file, "a", encoding="utf-8") as f:
             f.write(f"\n{'='*60}\n")

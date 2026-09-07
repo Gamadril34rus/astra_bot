@@ -74,7 +74,7 @@ class BookBreakoutConfig(StrategyConfig):
             self.min_bars = need
 
 
-class BookBreakoutStrategy(BaseStrategy):
+class BookBreakoutStrategy(BaseStrategy[BookBreakoutConfig]):
     """Breakout–retest–confirmation по правилам «Простой книги торговли»."""
 
     def __init__(self, config: BookBreakoutConfig | None = None):
