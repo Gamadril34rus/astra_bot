@@ -110,7 +110,7 @@ def engine_factory(tmp_path: Path, monkeypatch):
     # Изолируем state_manager чтобы не писать в реальный data/
     monkeypatch.setattr(
         "astra_bot.data.state_manager.get_state_manager",
-        lambda: MagicMock(save_trades=lambda x: 0, load_state=lambda: {}, save_state=lambda x: None),
+        lambda: MagicMock(save_trades=lambda x: 0, load_state=dict, save_state=lambda x: None),
     )
 
     def make(seed_trades: list[dict] | None = None) -> TradingEngine:
