@@ -8,7 +8,6 @@ import os
 import sys
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
-from decimal import Decimal
 from pathlib import Path
 
 # Подстраховка для запуска `python main.py` из произвольной рабочей директории.
@@ -16,14 +15,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from astra_bot.adapters.bingx import BingXClient
-from astra_bot.core.config import get_settings, load_settings
+from astra_bot.core.config import get_settings
 from astra_bot.core.logger import get_component_logger, setup_logging
 from astra_bot.core.metrics import SYSTEM_ERRORS, render_metrics
-from astra_bot.data.database import close_database, init_database
-from astra_bot.engines.risk_engine import get_risk_engine
-from astra_bot.paperengine.paper_engine import PaperTradingEngine
-from astra_bot.strategies import MeanReversionStrategy, MomentumStrategy
+from astra_bot.main import AstraBot
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 
@@ -50,12 +45,63 @@ async def lifespan(application: FastAPI):
     _bot_instance = AstraBot()
     try:
         await _bot_instance.initialize()
+        # ASTRA_CONTINUOUS=1: непрерывный торговый цикл в фоне (24/7).
+        # По умолчанию выключен — Render/CI дёргают /tick по расписанию.
+        continuous = os.environ.get("ASTRA_CONTINUOUS") == "1"
+        if continuous and _bot_instance._trading_engine is not None:
+            _bot_instance._running = True
+            _bot_instance._background_tasks.add(
+                asyncio.create_task(_bot_instance._run())
+            )
+            logger.warning(
+                "Continuous trading loop STARTED (ASTRA_CONTINUOUS=1): "
+                "тик каждые %s сек",
+                get_settings().market_data.tick_interval_seconds,
+            )
+        await _init_telegram(_bot_instance)
         logger.info("ASTRA BOT ready")
         yield
     finally:
         if _bot_instance is not None:
+            tg_bot = getattr(_bot_instance, "_telegram_bot", None)
+            if tg_bot is not None:
+                try:
+                    await tg_bot.stop()
+                except Exception:
+                    pass
             await _bot_instance.stop()
         logger.info("ASTRA BOT shut down")
+
+
+async def _init_telegram(bot) -> None:
+    """Telegram-бот веб-сервиса (webhook на Render / polling локально).
+
+    Пакетный AstraBot Telegram не поднимает — раньше это делала
+    легаси-копия класса здесь; функциональность сохранена.
+    """
+    settings = get_settings()
+    tg = getattr(settings, "telegram", None)
+    if not tg or not tg.bot_token:
+        return
+    try:
+        from astra_bot.telegram.bot import create_telegram_bot
+
+        bot._telegram_bot = await create_telegram_bot(
+            bot_token=tg.bot_token,
+            allowed_user_ids=list(tg.allowed_user_ids or []),
+            admin_user_ids=list(tg.admin_user_ids or []),
+        )
+        base_url = (
+            os.environ.get("RENDER_EXTERNAL_URL")
+            or os.environ.get("WEBHOOK_BASE_URL")
+            or ""
+        ).rstrip("/")
+        webhook_url = f"{base_url}/telegram/webhook" if base_url else None
+        await bot._telegram_bot.start(webhook_url=webhook_url)
+        logger.info("Telegram bot started (webhook=%s)", bool(webhook_url))
+    except Exception as exc:
+        logger.warning("Telegram bot init failed: %s", exc)
+        bot._telegram_bot = None
 
 
 # FastAPI приложение
@@ -95,20 +141,28 @@ async def tick():
     global _bot_instance
     if _bot_instance is None:
         raise HTTPException(status_code=503, detail="Bot not initialized")
-    result = await _bot_instance.run_one_iteration()
-    if result.get("status") == "error":
-        raise HTTPException(status_code=500, detail=result.get("error"))
-    return result
+    # Реальный торговый шаг: данные → pipeline → risk → PaperBroker.
+    # Внутри троттлинг по tick_interval_seconds (повторный вызов — no-op).
+    try:
+        await _bot_instance._tick()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {
+        "status": "ok",
+        "timestamp": datetime.now(UTC).isoformat(),
+        "engine": _bot_instance._trading_engine is not None,
+    }
 
 
 @app.post("/telegram/webhook")
 async def telegram_webhook(request: Request):
     """Приём обновлений от Telegram в режиме webhook."""
-    if _bot_instance is None or _bot_instance._telegram_bot is None:
+    tg_bot = getattr(_bot_instance, "_telegram_bot", None) if _bot_instance else None
+    if tg_bot is None:
         return JSONResponse(status_code=503, content={"status": "bot not ready"})
     try:
         data = await request.json()
-        await _bot_instance._telegram_bot.process_update(data)
+        await tg_bot.process_update(data)
     except Exception as exc:
         logger.exception("Telegram webhook error: %s", exc)
         return JSONResponse(status_code=500, content={"status": "error"})
@@ -120,7 +174,16 @@ async def status():
     global _bot_instance
     if _bot_instance is None:
         raise HTTPException(status_code=503, detail="Bot not initialized")
-    return _bot_instance.get_status()
+    status = await _bot_instance.get_status()
+    engine = _bot_instance._trading_engine
+    if engine is not None:
+        broker = engine.broker
+        status["equity"] = str(broker.equity)
+        status["realized_pnl"] = str(broker.realized_pnl)
+        status["open_positions"] = len(broker.positions)
+        status["strategies_loaded"] = len(getattr(engine.pipeline, "strategies", []))
+        status["simulated"] = os.environ.get("ASTRA_SIMULATE") == "1"
+    return status
 
 
 @app.middleware("http")
@@ -225,190 +288,6 @@ async def retrain(min_samples: int = 200):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-
-
-class AstraBot:
-
-    def __init__(self):
-        self.config = None
-        self._exchange_client = None
-        self._paper_engine = None
-        self._risk_engine = None
-        self._telegram_bot = None
-        self._running = False
-
-    async def initialize(self):
-        try:
-            settings = get_settings()
-        except RuntimeError:
-            # Настройки ещё не загружены — подхватываем дефолтный конфиг.
-            settings = load_settings()
-        self.config = settings
-
-        # Инициализация Risk Engine
-        try:
-            self._risk_engine = get_risk_engine()
-        except Exception as e:
-            logger.warning(f"Risk engine init failed: {e}")
-
-        # БД. На Render передаётся одна переменная DATABASE_URL; локально —
-        # отдельные DB_HOST/DB_PORT/... через YAML.
-        database_url = os.environ.get("DATABASE_URL")
-        if settings.database or database_url:
-            try:
-                db_config = {
-                    "host": settings.database.host if settings.database else "localhost",
-                    "port": settings.database.port if settings.database else 5432,
-                    "name": settings.database.name if settings.database else "astra_bot",
-                    "user": settings.database.user if settings.database else "",
-                    "password": settings.database.password if settings.database else "",
-                    "pool_size": (
-                        settings.database.pool_size if settings.database else 10
-                    ),
-                }
-                if database_url:
-                    # asyncpg требует схему postgresql+asyncpg://, а на
-                    # Render приходит postgres:// — нормализуем.
-                    if database_url.startswith("postgres://"):
-                        database_url = database_url.replace(
-                            "postgres://", "postgresql+asyncpg://", 1
-                        )
-                    elif database_url.startswith("postgresql://"):
-                        database_url = database_url.replace(
-                            "postgresql://", "postgresql+asyncpg://", 1
-                        )
-                    db_config["database_url"] = database_url
-                await init_database(db_config)
-            except Exception as e:
-                logger.warning(f"Database not available: {e}")
-
-        # Exchange (BingX — активная биржа; ретир OKX). ``settings.exchanges[name]``
-        # — это ExchangeConfig, а не словарь, поэтому обращаемся к атрибутам.
-        # Рыночные данные BingX публичны: клиент полезен и без ключей.
-        bingx_config = settings.exchanges.get("bingx") if settings.exchanges else None
-        if bingx_config and bingx_config.enabled:
-            config_dict = {
-                "api_key": bingx_config.api_key,
-                "api_secret": bingx_config.api_secret,
-                "enabled": True,
-            }
-            self._exchange_client = BingXClient(config_dict)
-            try:
-                await self._exchange_client.initialize()
-            except Exception as e:
-                logger.warning(f"Exchange init failed: {e}")
-
-        # Paper engine
-        self._paper_engine = PaperTradingEngine(
-            initial_capital=Decimal("1000")
-        )
-
-        # Стратегии
-        if settings.strategies.get("momentum", {}).get("enabled", True):
-            self._paper_engine.add_strategy("momentum", MomentumStrategy())
-        if settings.strategies.get("mean_reversion", {}).get("enabled", True):
-            self._paper_engine.add_strategy(
-                "mean_reversion", MeanReversionStrategy()
-            )
-        # Стратегия из «Простой книги торговли»: пробой → ретест →
-        # подтверждающая свеча (анти-FOMO, сетапы 1–7 книги).
-        if settings.strategies.get("book_breakout", {}).get("enabled", False):
-            from astra_bot.strategies.book_breakout import BookBreakoutStrategy
-
-            self._paper_engine.add_strategy(
-                "book_breakout", BookBreakoutStrategy()
-            )
-
-        # Telegram-бот поднимается только если задан токен и хотя бы один
-        # админский ID — иначе приложение спокойно работает без него.
-        await self._init_telegram(settings)
-
-    async def _init_telegram(self, settings) -> None:
-        tg = getattr(settings, "telegram", None)
-        if not tg or not tg.bot_token:
-            return
-        try:
-            from astra_bot.telegram.bot import create_telegram_bot
-
-            self._telegram_bot = await create_telegram_bot(
-                bot_token=tg.bot_token,
-                allowed_user_ids=list(tg.allowed_user_ids or []),
-                admin_user_ids=list(tg.admin_user_ids or []),
-            )
-            # На хостинге (Render) используем webhook: Render задаёт
-            # RENDER_EXTERNAL_URL. Тогда Telegram сам шлёт обновления на
-            # наш HTTP-эндпоинт и сервис просыпается на каждое сообщение.
-            # Локально и в CI работает long-polling.
-            base_url = (
-                os.environ.get("RENDER_EXTERNAL_URL")
-                or os.environ.get("WEBHOOK_BASE_URL")
-                or ""
-            ).rstrip("/")
-            webhook_url = f"{base_url}/telegram/webhook" if base_url else None
-            await self._telegram_bot.start(webhook_url=webhook_url)
-            logger.info("Telegram bot started (webhook=%s)", bool(webhook_url))
-        except Exception as exc:
-            logger.warning("Telegram bot init failed: %s", exc)
-            self._telegram_bot = None
-
-    def get_status(self):
-        return {
-            "running": self._running,
-            "exchange_connected": self._exchange_client is not None,
-            "paper_engine": self._paper_engine is not None,
-            "risk_engine": self._risk_engine is not None,
-            "equity": (
-                str(self._paper_engine.account.equity)
-                if self._paper_engine
-                else "1000"
-            ),
-            "timestamp": datetime.now(UTC).isoformat(),
-        }
-
-    async def run_one_iteration(self):
-        try:
-            current_equity = (
-                self._paper_engine.account.equity
-                if self._paper_engine
-                else Decimal("1000")
-            )
-
-            if self._risk_engine:
-                self._risk_engine.set_capital(current_equity, Decimal("1000"))
-
-            if self._paper_engine:
-                self._paper_engine.account.update_equity(current_equity)
-
-            return {
-                "status": "ok",
-                "timestamp": datetime.now(UTC).isoformat(),
-                "equity": str(current_equity),
-                "iteration": "completed",
-            }
-        except Exception as e:
-            logger.error(f"Iteration error: {e}")
-            return {
-                "status": "error",
-                "error": str(e),
-                "timestamp": datetime.now(UTC).isoformat(),
-            }
-
-    async def start(self):
-        self._running = True
-        while self._running:
-            await self.run_one_iteration()
-            await asyncio.sleep(60)
-
-    async def stop(self):
-        self._running = False
-        if self._telegram_bot is not None:
-            try:
-                await self._telegram_bot.stop()
-            except Exception as exc:
-                logger.warning("Telegram stop failed: %s", exc)
-        if self._exchange_client:
-            await self._exchange_client.close()
-        await close_database()
 
 
 def run_web_mode():

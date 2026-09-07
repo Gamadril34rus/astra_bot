@@ -23,6 +23,10 @@ def _isolate_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """
     state_dir = tmp_path / "astra-state"
     monkeypatch.setenv("ASTRA_STATE_DIR", str(state_dir))
+    # Симулятор и непрерывный цикл — только там, где тест включил их
+    # явно (os.environ.setdefault в тест-файлах протекает между ними).
+    monkeypatch.delenv("ASTRA_SIMULATE", raising=False)
+    monkeypatch.delenv("ASTRA_CONTINUOUS", raising=False)
     from astra_bot.data import state_manager
 
     state_manager.reset_state_manager()

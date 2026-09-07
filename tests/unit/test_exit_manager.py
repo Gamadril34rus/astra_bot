@@ -54,8 +54,14 @@ def _with_spike(candles: list[models.Candle], rng: float = 4.0) -> list[models.C
     return [*candles, spike]
 
 
-def _crash(n: int = 30, price: float = 100.0, drop: float = 0.08) -> list[models.Candle]:
-    """30 «4h»-свечей: плато, последний бар −8% (BTC-обвал)."""
+def _crash(n: int = 50, price: float = 100.0, drop: float = 0.15) -> list[models.Candle]:
+    """50 «4h»-свечей: плато, последний бар −15% (настоящий обвал).
+
+    Раньше паникой считалось −8% за 5 дней — это обычная коррекция,
+    и бот «в панике» простаивал половину времени. Порог теперь 12%
+    за 7 дней (42 бара 4h), поэтому сценарий теста усилен.
+    """
+    assert n >= 50, "окно паники 42 бара 4h — серия должна его покрывать"
     out = _candles(n - 1, price=price, rng=0.5, timeframe="4h")
     last = out[-1]
     mid = float(last.close)

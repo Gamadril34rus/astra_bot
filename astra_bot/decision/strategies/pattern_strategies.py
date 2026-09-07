@@ -36,6 +36,7 @@ class TrendLine:
     slope: float
     intercept: float
     r2: float  # качество фита
+    rmse: float = 0.0  # СКО остатков (для плоских линий R² вырождается)
 
 
 @dataclass
@@ -69,7 +70,13 @@ def _linear_regression(x: list[float], y: list[float]) -> TrendLine:
         ss_tot = sum((yi - y_mean) ** 2 for yi in y)
         ss_res = sum((yi - (slope * xi + intercept)) ** 2 for xi, yi in zip(x, y, strict=False))
         r2 = 1 - ss_res / ss_tot if ss_tot > 1e-9 else 0.0
-        return TrendLine(slope=slope, intercept=intercept, r2=max(0.0, min(1.0, r2)))
+        rmse = (ss_res / n) ** 0.5
+        return TrendLine(
+            slope=slope,
+            intercept=intercept,
+            r2=max(0.0, min(1.0, r2)),
+            rmse=rmse,
+        )
     except Exception:
         return TrendLine(slope=0.0, intercept=0.0, r2=0.0)
 
@@ -157,8 +164,15 @@ def detect_pattern(
         "low_swings": len(low_idx),
     }
 
-    # Проверка качества линий
-    if upper_line.r2 < 0.5 or lower_line.r2 < 0.5:
+    # Проверка качества линий.
+    # Для ПОЛОГИХ линий R² вырождается: у идеальной плоской поддержки с
+    # мелким шумом ss_tot→0 и R² падает, хотя линия отличная. Поэтому
+    # линия считается качественной, если R² достаточно (наклонные), ИЛИ
+    # СКО остатков мало относительно цены (плоские).
+    def _line_is_good(line: TrendLine) -> bool:
+        return line.r2 >= 0.5 or line.rmse <= price * 0.003
+
+    if not (_line_is_good(upper_line) and _line_is_good(lower_line)):
         # Слабые линии — не паттерн
         return PatternResult(
             pattern=PatternType.NONE,
@@ -166,7 +180,12 @@ def detect_pattern(
             upper_line=upper_line,
             lower_line=lower_line,
             breakout_direction=None,
-            diagnostics={**diagnostics, "reason": "low R2"},
+            diagnostics={
+                **diagnostics,
+                "reason": "low R2",
+                "upper_rmse": upper_line.rmse,
+                "lower_rmse": lower_line.rmse,
+            },
         )
 
     # Определяем тип паттерна по наклонам
