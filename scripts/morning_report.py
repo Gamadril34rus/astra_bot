@@ -7,7 +7,7 @@ import asyncio
 import json
 import os
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -99,18 +99,18 @@ def _load_trades_last_24h() -> tuple[list[dict], list[dict], list[dict]]:
                     # if ms is seconds (<1e12), convert
                     if ms < 1e12:
                         ms *= 1000
-                    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
+                    return datetime.fromtimestamp(ms / 1000, tz=UTC)
                 else:
                     # ISO
                     dt = datetime.fromisoformat(str(v).replace("Z", "+00:00"))
                     if dt.tzinfo is None:
-                        dt = dt.replace(tzinfo=timezone.utc)
+                        dt = dt.replace(tzinfo=UTC)
                     return dt
             except Exception:
                 continue
         return None
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     last_24h = []
     last_7d = []
     last_30d = []
@@ -219,8 +219,9 @@ def main() -> None:
     except Exception as e:
         print(f"learning_digest failed: {e}")
         digest = "📚 Чему научилась система:\n• Данные обучения недоступны"
-        new_wm = int(datetime.now(timezone.utc).timestamp() * 1000)
-        save_watermark = lambda *a, **k: None
+        new_wm = int(datetime.now(UTC).timestamp() * 1000)
+        def save_watermark(*a, **k):
+            return None
 
     # Positions & equity
     positions, equity, initial_capital = _load_positions()
@@ -242,7 +243,7 @@ def main() -> None:
     errors_count = 0
     if ERRORS_LOG.exists():
         try:
-            errors_count = len([l for l in ERRORS_LOG.read_text(encoding="utf-8").splitlines() if l.strip()])
+            errors_count = len([line for line in ERRORS_LOG.read_text(encoding="utf-8").splitlines() if line.strip()])
         except Exception:
             pass
 
@@ -319,7 +320,7 @@ def main() -> None:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         state = _load_json(STATE_PATH) or {}
         state["last_report_date"] = today_str
-        state["last_report_at"] = datetime.now(timezone.utc).isoformat()
+        state["last_report_at"] = datetime.now(UTC).isoformat()
         state["daily_trades"] = stats_24h["count"]
         state["daily_wins"] = stats_24h["wins"]
         state["daily_losses"] = stats_24h["losses"]

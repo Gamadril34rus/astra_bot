@@ -171,7 +171,7 @@ def build_features(candles: list[Any], orderbook: dict | None = None, ticker: di
             features["stoch_k"] = 0.5
         features["stoch_d"] = _sma([features["stoch_k"]] * 3 + [0.5] * 10, 3)  # Simplified
         # CCI approximation
-        typical = [(h + l + c) / 3 for h, l, c in zip(highs, lows, closes)]
+        typical = [(h + low_v + c) / 3 for h, low_v, c in zip(highs, lows, closes, strict=False)]
         sma_typical = _sma(typical, 20)
         mad = sum(abs(x - sma_typical) for x in typical[-20:]) / 20 if len(typical) >= 20 else 0.01
         features["cci"] = (typical[-1] - sma_typical) / (0.015 * mad) / 100.0 if mad != 0 else 0.0

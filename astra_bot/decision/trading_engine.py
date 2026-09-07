@@ -135,6 +135,37 @@ class TradingEngine:
                 shrinkage_k=cfg.ev_shrinkage_k,
                 min_samples=cfg.min_ev_samples,
             )
+            # Pattern strategies (wedges & triangles) — по ТЗ пользователя: основа
+            try:
+                from .strategies.pattern_strategies import (
+                    AscendingTriangleStrategy,
+                    DescendingTriangleStrategy,
+                    FallingWedgeStrategy,
+                    RisingWedgeStrategy,
+                    SymmetricalTriangleStrategy,
+                )
+                from .strategies.volume_filtered import (
+                    BreakoutStrategyV2,
+                    MeanReversionStrategyV2,
+                    MomentumStrategyV2,
+                    TrendFollowingStrategyV2,
+                )
+                pattern_strats = [
+                    FallingWedgeStrategy(),
+                    RisingWedgeStrategy(),
+                    AscendingTriangleStrategy(),
+                    DescendingTriangleStrategy(),
+                    SymmetricalTriangleStrategy(),
+                    TrendFollowingStrategyV2(),
+                    MeanReversionStrategyV2(),
+                    BreakoutStrategyV2(),
+                    MomentumStrategyV2(),
+                ]
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning("Pattern strategies import failed: %s", e)
+                pattern_strats = []
+
             pipeline = DecisionPipeline(
                 cfg,
                 stats_store=stats_store,
@@ -150,6 +181,7 @@ class TradingEngine:
                             name="ts_momentum_adx", adx_min=20.0
                         )
                     ),
+                    *pattern_strats,
                 ],
             )
         self.pipeline = pipeline
@@ -406,7 +438,7 @@ class TradingEngine:
                 max_notional_pct=self.config.max_notional_pct,
             )
             return qty
-        except Exception as exc:
+        except Exception:
             # Fallback to simple calculation
             try:
                 risk_amount = equity * self.config.risk_per_trade_pct
@@ -887,9 +919,9 @@ class TradingEngine:
                     for p in self.broker.positions
                 ]
                 # Compute daily stats from recent trades
-                from datetime import datetime, timezone, timedelta
-                now = datetime.now(timezone.utc)
-                daily = [t for t in trades if True]  # trades passed are recent closes
+                from datetime import datetime
+                datetime.now(UTC)
+                [t for t in trades if True]  # trades passed are recent closes
                 # For simplicity, daily PnL is sum of today's closes
                 # More accurate daily aggregation is done in morning_report
                 state["daily_pnl"] = float(sum(float(t.get("pnl",0) or 0) for t in trades))
