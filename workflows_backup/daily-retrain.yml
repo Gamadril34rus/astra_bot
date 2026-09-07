@@ -1,0 +1,67 @@
+name: Daily Retrain (ML)
+
+on:
+  schedule:
+    # 02:00 UTC daily — переобучение ML
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: daily-retrain
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Restore state
+        run: |
+          git config user.name "astra-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git pull --rebase origin master || true
+
+      - name: Retrain ML model
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          mkdir -p data logs
+          python scripts/train_weekly.py || python -m scripts.train_weekly || echo "train_weekly failed, trying alternative"
+          python scripts/train_multi_timeframe.py || echo "multi_timeframe train failed"
+        continue-on-error: true
+
+      - name: Save model and state
+        if: always()
+        run: |
+          for f in data/model.joblib data/state.json models/current.pkl models/training_state.json logs/errors.log; do
+            [ -f "$f" ] && git add -f "$f" || true
+          done
+          git diff --cached --quiet || git commit -m "chore(ci): daily retrain $(date -u +%Y-%m-%dT%H:%MZ) [skip ci]"
+          git pull --rebase origin master || true
+          git push --force-with-lease origin master || git push origin master || echo "push failed"
