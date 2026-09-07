@@ -82,6 +82,11 @@ class TradingEngineConfig:
     fee_pct: Decimal = Decimal("0.001")
     slippage_pct: Decimal = Decimal("0.001")
     # Research memory: статистика стратегий по режимам + NO_TRADE-наблюдения.
+    # Плечо: максимум и порог EV (R), начиная с которого движок берёт
+    # плечо. Комиссия за плечо (фандинг) начисляется брокером при
+    # закрытии — в PnL она попадает всегда.
+    leverage_max: int = 2
+    leverage_min_ev_r: float = 0.8
     stats_path: str = "models/strategy_stats.json"
     no_trade_observations_path: str = "models/no_trade_observations.jsonl"
     no_trade_outcomes_path: str = "models/no_trade_outcomes.json"
@@ -721,29 +726,48 @@ class TradingEngine:
 
         cand_features = cand.features or {}
         regime_info = decision.diagnostics.get("regime") or {}
-        pos = self.broker.open_position(
-            symbol=symbol,
-            direction="long" if cand.direction == "long" else "short",
-            entry_price=cand.entry_price,
-            stop_loss=cand.stop_loss,
-            take_profit=cand.take_profit,
-            quantity=size,
-            strategy=cand.strategy,
-            no_take_profit=bool(cand_features.get("no_take_profit")),
-            regime=str(regime_info.get("regime", "")),
-            timeframe=cand.timeframe,
-            # A2 (МТЗ §10): композитный ключ осей Regime 2.0 — прокидывается
-            # до закрытия в статистику бакетов; пусто => legacy-режим.
-            regime_axes=str(regime_info.get("axes_key") or ""),
-            notes={
-                "score": cand.total_score,
-                "ml_probability": cand.ml_probability,
-                "edge_pct": cand.expected_edge_pct,
-                "ev_r": cand_features.get("ev_r"),
-                "ev_confidence": cand_features.get("ev_confidence"),
-                "rr": cand.risk_reward,
-            },
-        )
+        # Плечо: берём максимум только при сильном EV — платить за заём
+        # ради слабого сетапа нельзя. Комиссия за плечо закладывается
+        # брокером в PnL при закрытии (leverage_fee_daily).
+        leverage = 1
+        if self.config.leverage_max > 1:
+            ev_r = float(cand_features.get("ev_r") or 0.0)
+            if ev_r >= self.config.leverage_min_ev_r:
+                leverage = self.config.leverage_max
+        try:
+            pos = self.broker.open_position(
+                symbol=symbol,
+                direction="long" if cand.direction == "long" else "short",
+                entry_price=cand.entry_price,
+                stop_loss=cand.stop_loss,
+                take_profit=cand.take_profit,
+                quantity=size,
+                strategy=cand.strategy,
+                no_take_profit=bool(cand_features.get("no_take_profit")),
+                regime=str(regime_info.get("regime", "")),
+                timeframe=cand.timeframe,
+                # A2 (МТЗ §10): композитный ключ осей Regime 2.0 — прокидывается
+                # до закрытия в статистику бакетов; пусто => legacy-режим.
+                regime_axes=str(regime_info.get("axes_key") or ""),
+                leverage=leverage,
+                notes={
+                    "score": cand.total_score,
+                    "ml_probability": cand.ml_probability,
+                    "edge_pct": cand.expected_edge_pct,
+                    "ev_r": cand_features.get("ev_r"),
+                    "ev_confidence": cand_features.get("ev_confidence"),
+                    "rr": cand.risk_reward,
+                    "leverage": leverage,
+                },
+            )
+        except ValueError as exc:
+            # Маржа/ликвидация не позволили плечо — сделка отменяется
+            # целиком (fail-closed), а не «как-нибудь без плеча».
+            logger.warning(
+                "%s: сделка отменена брокером (%s) — плечо %s",
+                symbol, exc, leverage,
+            )
+            return
         # Книга позиций Risk Engine живая внутри сессии: экспозиция и
         # лимит числа позиций считаются по актуальному набору.
         # Meta (Этап 5) — для gross/net/групповых portfolio-лимитов.

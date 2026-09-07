@@ -319,6 +319,16 @@ class AstraBot:
         # Каталог state: по умолчанию models/ (общий с CI-сессиями);
         # ASTRA_STATE_DIR позволяет изолировать локальный run.
         state_dir = os.environ.get("ASTRA_STATE_DIR", "models")
+        # Плечо настраивается окружением (ASTRA_LEVERAGE_MAX,
+        # ASTRA_LEVERAGE_MIN_EV_R); плата за плечо — в брокере.
+        try:
+            leverage_max = max(1, int(os.environ.get("ASTRA_LEVERAGE_MAX", "2")))
+        except ValueError:
+            leverage_max = 2
+        try:
+            leverage_min_ev = float(os.environ.get("ASTRA_LEVERAGE_MIN_EV_R", "0.8"))
+        except ValueError:
+            leverage_min_ev = 0.8
         self._trading_engine = TradingEngine(
             exchange=self._exchange_client,
             config=TradingEngineConfig(
@@ -329,6 +339,8 @@ class AstraBot:
                 no_trade_observations_path=f"{state_dir}/no_trade_observations.jsonl",
                 no_trade_outcomes_path=f"{state_dir}/no_trade_outcomes.json",
                 hypotheses_path=f"{state_dir}/research/hypotheses.json",
+                leverage_max=leverage_max,
+                leverage_min_ev_r=leverage_min_ev,
             ),
         )
         logger.info("TradingEngine (modern paper path) initialized: %s", symbols)
