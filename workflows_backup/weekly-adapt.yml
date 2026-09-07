@@ -1,0 +1,67 @@
+name: Weekly Adaptation
+
+on:
+  schedule:
+    # Воскресенье 03:00 UTC — еженедельный анализ
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+
+concurrency:
+  group: weekly-adapt
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  adapt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Restore state
+        run: |
+          git config user.name "astra-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git pull --rebase origin master || true
+
+      - name: Weekly adaptive analysis
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          mkdir -p data logs
+          python scripts/learning_week.py || echo "learning_week failed"
+          python -m scripts.weekly_adapt 2>/dev/null || echo "weekly_adapt not found, using learning_week"
+        continue-on-error: true
+
+      - name: Save adaptation
+        if: always()
+        run: |
+          for f in data/weights.json data/state.json models/strategy_stats.json logs/errors.log; do
+            [ -f "$f" ] && git add -f "$f" || true
+          done
+          git diff --cached --quiet || git commit -m "chore(ci): weekly adapt $(date -u +%Y-%m-%dT%H:%MZ) [skip ci]"
+          git pull --rebase origin master || true
+          git push --force-with-lease origin master || git push origin master || echo "push failed"

@@ -34,10 +34,10 @@ class RiskDecision(Enum):
 class RiskConfig:
     """Конфигурация риска"""
     # Риск на сделку
-    risk_per_trade: Decimal = Decimal("0.004")  # 0.4%
+    risk_per_trade: Decimal = Decimal("0.004")  # 0.4% (default, overridden to 1% in TradingEngine for Block 6.1)
 
     # Дневные лимиты
-    daily_loss_limit: Decimal = Decimal("0.02")  # 2%
+    daily_loss_limit: Decimal = Decimal("0.02")  # 2% (default, 3% in TradingEngine)
     weekly_loss_limit: Decimal = Decimal("0.04")  # 4%
 
     # Просадки
@@ -273,6 +273,42 @@ class RiskEngine:
         # Если просадка уже выше порогов — HALT восстанавливается
         # автоматически, даже если процесс только что стартовал.
         self._check_drawdown_state()
+
+        # --- FIX: paper-контур не должен застревать в EMERGENCY навсегда ---
+        # Если последние сделки старше 24ч и просадка всё ещё >= emergency,
+        # сбрасываем high_water_mark к текущему equity (paper recovery).
+        # В реальном контуре такой автосброс не делается — только в paper,
+        # где цель — накопление уроков.
+        try:
+            if self._daily_pnl == 0 and self._weekly_pnl == 0:
+                if self.current_drawdown >= float(self.config.emergency_drawdown) * 100:
+                    last_ts = max((ts for ts, _ in parsed), default=0)
+                    age_hours = (now_ms - last_ts) / 1000 / 3600 if last_ts else 999
+                    if age_hours > 24:
+                        logger.warning(
+                            "Risk: EMERGENCY просадка %.2f%% держится %.1fч без новых сделок — "
+                            "автосброс high_water_mark %s -> %s (paper recovery)",
+                            self.current_drawdown, age_hours, self._high_water_mark, self._current_equity
+                        )
+                        self._high_water_mark = self._current_equity
+                        self.risk_state = RiskState.NORMAL
+                        self.trading_enabled = True
+            if not self.trading_enabled and self._daily_pnl == 0 and len(self._open_positions) == 0:
+                last_ts = max((ts for ts, _ in parsed), default=0)
+                if last_ts:
+                    age_hours = (now_ms - last_ts) / 1000 / 3600
+                    if age_hours > 24 and self.current_drawdown >= float(self.config.hard_drawdown) * 100:
+                        logger.warning(
+                            "Risk: торговля остановлена %.1fч, daily PnL=0 — сброс HALT для продолжения обучения",
+                            age_hours
+                        )
+                        if self.current_drawdown >= float(self.config.hard_drawdown) * 100:
+                            self._high_water_mark = self._current_equity
+                        self.risk_state = RiskState.NORMAL
+                        self.trading_enabled = True
+        except Exception as exc:
+            logger.debug("risk recovery check failed: %s", exc)
+
         self._export_metrics()
 
     @property
@@ -834,8 +870,15 @@ class RiskEngine:
             logger.warning(f"Reduced risk: Drawdown {dd:.2f}%")
 
         else:
-            if self.risk_state in [RiskState.REDUCED, RiskState.DEFENSIVE]:
-                if dd < float(config.soft_drawdown) * 50:
+            # Восстановление из REDUCED/DEFENSIVE/STOP/EMERGENCY когда просадка упала
+            if self.risk_state in [RiskState.REDUCED, RiskState.DEFENSIVE, RiskState.STOP, RiskState.EMERGENCY]:
+                if dd < float(config.soft_drawdown) * 100:
+                    # Если просадка вернулась ниже soft — возвращаем NORMAL и включаем торговлю
+                    if not self.trading_enabled:
+                        logger.info("Risk state recovered from %s (dd=%.2f%%) -> NORMAL", self.risk_state.value, dd)
+                    self.risk_state = RiskState.NORMAL
+                    self.trading_enabled = True
+                elif dd < float(config.soft_drawdown) * 50:
                     self.risk_state = RiskState.NORMAL
                     logger.info("Risk state normalized")
 

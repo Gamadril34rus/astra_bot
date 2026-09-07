@@ -247,7 +247,7 @@ def _candle_features(open_: np.ndarray, high: np.ndarray, low: np.ndarray, close
 
     # Three-bar patterns.
     if len(close) >= 3:
-        oo, hh, ll, cc = map(float, (open_[-3], high[-3], low[-3], close[-3]))
+        oo, _hh, _ll, cc = map(float, (open_[-3], high[-3], low[-3], close[-3]))
         mid1 = (oo + cc) / 2.0
         out["morning_star"] = float(cc < oo and close[-2] > open_[-2] and c > mid1)
         out["evening_star"] = float(cc > oo and close[-2] < open_[-2] and c < mid1)

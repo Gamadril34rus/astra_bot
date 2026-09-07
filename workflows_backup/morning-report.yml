@@ -1,0 +1,68 @@
+name: ASTRA Morning Report
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [morning_report, external_trigger]
+  schedule:
+    # 06:00 UTC = 09:00 Europe/Moscow — fallback, Block 3.3
+    - cron: "0 6 * * *"
+
+concurrency:
+  group: astra-morning-report
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Restore state
+        run: |
+          git config user.name "astra-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git pull --rebase origin master || true
+
+      - name: Send report
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
+        run: python -m scripts.morning_report
+        continue-on-error: true
+
+      - name: Save report state (prevent duplicate)
+        if: always()
+        run: |
+          for f in data/state.json models/demo_state.json models/telegram_offset.json; do
+            [ -f "$f" ] && git add -f "$f" || true
+          done
+          git diff --cached --quiet || git commit -m "chore(ci): morning report $(date -u +%Y-%m-%dT%H:%MZ) [skip ci]"
+          git pull --rebase origin master || true
+          git push --force-with-lease origin master || git push origin master || echo "push failed"

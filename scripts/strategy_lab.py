@@ -304,7 +304,7 @@ def donchian_long_signal(df: pd.DataFrame, entry_n: int, exit_n: int, adx_min: f
 
 
 def bb_fade_long_signal(df: pd.DataFrame, trend_ema: int, rsi_entry: float, rsi_exit: float):
-    upper, mid, lower = bollinger(df["close"], 20, 2.0)
+    _upper, mid, lower = bollinger(df["close"], 20, 2.0)
     c = df["close"]
     r2 = rsi(c, 2)
     up = c > ema(c, trend_ema)
@@ -412,7 +412,7 @@ def academy_hybrid_mtf_signal(df: pd.DataFrame):
     Параметры N/ATR/RR выбраны так, чтобы правило давало схожую частоту сигналов
     на всех трёх ТФ (1h/4h/1d) без хардкода под конкретный масштаб.
     """
-    from research_free_strategies import atr as _atr_fn  # noqa: WPS433
+    from research_free_strategies import atr as _atr_fn
 
     c = df["close"]
     h = df["high"]
@@ -439,7 +439,7 @@ def academy_hybrid_mtf_signal(df: pd.DataFrame):
     vol_sma = v.rolling(vol_window, min_periods=1).mean()
     vol_ok = v > vol_sma
 
-    atr_s = _atr_fn(df, atr_period)
+    _atr_fn(df, atr_period)
 
     # Sweep лоев (LONG): текущий low < recent_low, close > recent_low, объём выше SMA
     sell_sweep = (lo < recent_low) & (c > recent_low) & vol_ok & up_trend
@@ -718,7 +718,7 @@ def main() -> int:
         finals = np.array(finals)
         dds = np.array(dds)
         p5f, p50f, p95f = np.percentile(finals, [5, 50, 95])
-        p5d, p50d, p95d = np.percentile(dds, [5, 50, 95])
+        _p5d, p50d, p95d = np.percentile(dds, [5, 50, 95])
         p_neg = float((finals < port_cap).mean() * 100)
         lines.append(
             f"- Итоговая стоимость через 2 года: P5 **{p5f:,.0f}** / медиана **{p50f:,.0f}** / P95 **{p95f:,.0f}** USDT "
@@ -925,7 +925,7 @@ def main() -> int:
             # История: TSM45 L/S на всей доступной истории символа.
             cand_full = next(c for c in CANDIDATES if c["key"] == "tsm45_ls")
             desired_full = cand_full["fn"](dfx)
-            mh = pd.Series(True, index=dfx.index)
+            pd.Series(True, index=dfx.index)
             rh = run_engine(
                 dfx.reset_index(drop=True), desired_full.reset_index(drop=True),
                 cand_full["stop_mult"], cand_full["take_mult"], cand_full["max_hold"],
