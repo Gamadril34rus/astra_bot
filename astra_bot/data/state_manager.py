@@ -17,7 +17,7 @@ import json
 import logging
 import sqlite3
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -108,7 +108,7 @@ class StateManager:
                 "worst_hours": [0, 1, 2, 3, 4],
                 "best_regime": "TRENDING_UP",
                 "worst_regime": "VOLATILE",
-                "last_adaptation": datetime.now(timezone.utc).isoformat(),
+                "last_adaptation": datetime.now(UTC).isoformat(),
             }
             try:
                 self.weights_file.write_text(
@@ -138,13 +138,13 @@ class StateManager:
             "daily_wins": 0,
             "daily_losses": 0,
             "last_report_date": None,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(UTC).isoformat(),
         }
 
     def save_state(self, state: dict[str, Any]) -> None:
         """Save state.json atomically."""
         try:
-            state["updated_at"] = datetime.now(timezone.utc).isoformat()
+            state["updated_at"] = datetime.now(UTC).isoformat()
             tmp = self.state_file.with_suffix(".tmp")
             tmp.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
             tmp.replace(self.state_file)
@@ -188,7 +188,7 @@ class StateManager:
                     str(trade.get("timeframe", "")),
                     str(trade.get("exit_reason", "")),
                     json.dumps(trade.get("features") or trade.get("all_features") or {}, ensure_ascii=False),
-                    datetime.now(timezone.utc).isoformat(),
+                    datetime.now(UTC).isoformat(),
                 ),
             )
             conn.commit()
@@ -223,7 +223,7 @@ class StateManager:
             conn.close()
             # Filter by hours if timestamp available
             result = []
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             for r in rows:
                 try:
                     d = dict(r)
@@ -254,7 +254,7 @@ class StateManager:
 
     def save_weights(self, weights: dict[str, Any]) -> None:
         try:
-            weights["last_adaptation"] = datetime.now(timezone.utc).isoformat()
+            weights["last_adaptation"] = datetime.now(UTC).isoformat()
             tmp = self.weights_file.with_suffix(".tmp")
             tmp.write_text(json.dumps(weights, ensure_ascii=False, indent=2), encoding="utf-8")
             tmp.replace(self.weights_file)
@@ -270,7 +270,7 @@ class StateManager:
         - git push --force-with-lease fallback to push
         """
         try:
-            msg = message or f"chore(ci): bot state {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%MZ')} [skip ci]"
+            msg = message or f"chore(ci): bot state {datetime.now(UTC).strftime('%Y-%m-%dT%H:%MZ')} [skip ci]"
             subprocess.run(["git", "config", "user.name", "astra-bot"], check=False)
             subprocess.run(["git", "config", "user.email", "bot@users.noreply.github.com"], check=False)
 

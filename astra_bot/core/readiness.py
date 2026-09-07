@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import json
 import logging
 import os
@@ -110,7 +111,7 @@ def evaluate(state: ReadinessState | None = None) -> dict:
 
     # Daily equity-return Sharpe, not raw PnL. Raw PnL has units and is not comparable across days.
     equity = [float(d.get("equity_end", 0.0)) for d in days if float(d.get("equity_end", 0.0)) > 0]
-    returns = [(b / a) - 1.0 for a, b in zip(equity, equity[1:]) if a > 0]
+    returns = [(b / a) - 1.0 for a, b in itertools.pairwise(equity) if a > 0]
     if len(returns) >= 2:
         mean = sum(returns) / len(returns)
         var = sum((r - mean) ** 2 for r in returns) / (len(returns) - 1)

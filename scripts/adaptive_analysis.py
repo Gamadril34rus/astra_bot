@@ -14,7 +14,7 @@ import logging
 import sqlite3
 import sys
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 def _parse_trades(days: int = 21) -> list[dict[str, Any]]:
     """Parse trades for last N days."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
     cutoff_ms = int(cutoff.timestamp() * 1000)
     trades: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -201,7 +201,7 @@ def adapt_weights() -> dict[str, Any]:
     result = {
         "strategy_weights": new_weights,
         "disabled_strategies": sorted(list(disabled)),
-        "last_adaptation": datetime.now(timezone.utc).isoformat(),
+        "last_adaptation": datetime.now(UTC).isoformat(),
         "stats_21d": stats,
         "total_trades_21d": len(trades),
     }

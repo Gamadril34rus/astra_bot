@@ -18,8 +18,9 @@ import logging
 import random
 import time
 import traceback
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, TypeVar
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -35,25 +36,27 @@ RETRYABLE_EXCEPTIONS = (
 try:
     import aiohttp
 
-    RETRYABLE_EXCEPTIONS = RETRYABLE_EXCEPTIONS + (aiohttp.ClientError, aiohttp.ClientConnectorError)
+    RETRYABLE_EXCEPTIONS = (*RETRYABLE_EXCEPTIONS, aiohttp.ClientError, aiohttp.ClientConnectorError)
 except ImportError:
     pass
 
 try:
     import httpx
 
-    RETRYABLE_EXCEPTIONS = RETRYABLE_EXCEPTIONS + (httpx.HTTPError, httpx.TimeoutException)
+    RETRYABLE_EXCEPTIONS = (*RETRYABLE_EXCEPTIONS, httpx.HTTPError, httpx.TimeoutException)
 except ImportError:
     pass
 
 # Try to import tenacity if available, but we implement own logic as fallback
 try:
     from tenacity import (
-        retry as tenacity_retry,
+        before_sleep_log,
+        retry_if_exception_type,
         stop_after_attempt,
         wait_exponential,
-        retry_if_exception_type,
-        before_sleep_log,
+    )
+    from tenacity import (
+        retry as tenacity_retry,
     )
 
     HAS_TENACITY = True

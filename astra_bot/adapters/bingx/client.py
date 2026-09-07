@@ -30,9 +30,9 @@ from urllib.parse import urlencode
 
 import aiohttp
 
-from ...utils.retry import retry_async
 from ...core.exceptions import ExchangeError
 from ...core.metrics import HTTP_REQUEST_LATENCY, HTTP_REQUESTS_TOTAL
+from ...utils.retry import retry_async
 from ..base import (
     AccountBalance,
     Candle,

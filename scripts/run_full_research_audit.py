@@ -686,10 +686,10 @@ def _publish_summary_to_issue(out_dir: Path, md: list[str]) -> None:
     молча выходит. Это нужно, чтобы забирать результаты из песочницы
     без доступа к blob-хранилищу артефактов.
     """
-    import os
-    import urllib.request
-    import urllib.error
     import json
+    import os
+    import urllib.error
+    import urllib.request
 
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     repo = os.environ.get("GITHUB_REPOSITORY") or os.environ.get("GH_REPO")

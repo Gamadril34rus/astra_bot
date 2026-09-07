@@ -13,9 +13,7 @@ from __future__ import annotations
 
 import logging
 from decimal import Decimal
-from typing import Any
 
-from ...core import models
 from ..context import SignalCandidate, StrategyContext
 
 logger = logging.getLogger(__name__)

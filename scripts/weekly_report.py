@@ -16,7 +16,7 @@ import logging
 import sqlite3
 import sys
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -96,7 +96,7 @@ def _parse_trades() -> list[dict[str, Any]]:
 
 
 def _weekly_stats(trades: list[dict[str, Any]], days: int = 7) -> dict[str, Any]:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cutoff = now - timedelta(days=days)
     cutoff_ms = int(cutoff.timestamp() * 1000)
 
@@ -142,7 +142,7 @@ def _weekly_stats(trades: list[dict[str, Any]], days: int = 7) -> dict[str, Any]
             ts = int(t.get("closed_at") or 0)
             if ts < 10000000000:
                 ts = ts * 1000
-            dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+            dt = datetime.fromtimestamp(ts / 1000, tz=UTC)
             by_hour[dt.hour]["count"] += 1
             by_hour[dt.hour]["pnl"] += float(t.get("pnl") or 0)
         except Exception:

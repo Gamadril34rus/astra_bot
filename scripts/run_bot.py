@@ -17,16 +17,17 @@ try:
     load_dotenv(PROJECT_ROOT / ".env")
 except ImportError:
     pass
+# Block 1.5: Error logging to logs/errors.log
+import traceback
+
 from astra_bot.adapters.bingx import BingXClient
 from astra_bot.core import trading_schedule
 from astra_bot.core.instruments import TRADING_UNIVERSE, to_bingx
 from astra_bot.core.logger import setup_logging
 from astra_bot.decision.trading_engine import TradingEngine, TradingEngineConfig
 from astra_bot.telegram.bot import create_telegram_bot
-from astra_bot.utils.retry import retry_async
 
-# Block 1.5: Error logging to logs/errors.log
-import traceback
+
 def _log_error_to_file(exc: Exception, context: str = ""):
     try:
         log_dir = Path("logs")
@@ -137,12 +138,10 @@ async def amain() -> int:
                         trades_today = 0
                         try:
                             from pathlib import Path as _P
-                            import json as _j
                             tp = _P("models/paper_trades.jsonl")
                             if tp.exists():
-                                today_str = trading_schedule.get_status()["now_msk"][:10]
+                                trading_schedule.get_status()["now_msk"][:10]
                                 # Simplified: count trades with closed_at today
-                                pass
                         except Exception:
                             pass
                         # Record day with minimal metrics (will be updated by morning_report)
