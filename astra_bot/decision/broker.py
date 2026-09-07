@@ -334,9 +334,9 @@ class PaperBroker:
         pos.initial_quantity = qty
         self.positions.append(pos)
         logger.info(
-            "OPEN %s %s qty=%s entry=%s stop=%s tp1=%s",
+            "OPEN %s %s qty=%s entry=%s stop=%s tp1=%s lev=%s margin=%s",
             direction, symbol, quantity, entry_price, stop_loss,
-            tps[0] if tps else "-",
+            tps[0] if tps else "-", pos.leverage, pos.margin_used,
         )
         self.save()
         return pos

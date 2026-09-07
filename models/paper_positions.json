@@ -1,16 +1,16 @@
 {
   "positions": [
     {
-      "id": "0aa0211a-21d2-4d39-9937-5dd48679337a",
-      "symbol": "BCH-USDT",
+      "id": "51dea8ce-0ed7-4403-8f6b-e0292d916cae",
+      "symbol": "BTC-USDT",
       "direction": "long",
-      "entry_price": "258.65",
-      "quantity": "13.956345",
-      "stop_loss": "255.54620",
+      "entry_price": "68236.65602142",
+      "quantity": "0.007327",
+      "stop_loss": "66871.9229009916",
       "take_profits": [
-        "261.753800",
-        "264.236840",
-        "266.409500"
+        "69601.38914184840",
+        "70693.17563819112",
+        "71648.48882249100"
       ],
       "tp_filled": [
         false,
@@ -22,30 +22,81 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "13.956345",
+      "initial_quantity": "0.007327",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "261.39",
-      "lowest_price": "261.26",
-      "strategy": "pullback",
-      "opened_at": 1788795965343,
+      "highest_price": "68804.65789115",
+      "lowest_price": "68029.22645581",
+      "strategy": "momentum",
+      "opened_at": 1788824623475,
       "notes": {
-        "score": 50.0,
+        "score": 68.0,
         "ml_probability": null,
-        "edge_pct": 27.6902,
-        "ev_r": 0.276901639496671,
+        "edge_pct": 115.0,
+        "ev_r": 1.15,
         "ev_confidence": 0.0,
-        "rr": 0.75
+        "rr": 2.0,
+        "leverage": 2
       },
-      "fill_price": "258.90865",
-      "entry_fee_per_unit": "0.25890865",
-      "risk_distance": "3.10380",
+      "fill_price": "68304.89267744142",
+      "entry_fee_per_unit": "68.30489267744142",
+      "risk_distance": "1364.7331204284",
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
-      "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
-      "bars_held": 1
+      "regime_axes": "T:RANGE/V:LOW/L:DEEP",
+      "bars_held": 1,
+      "leverage": "2",
+      "margin_used": "249.98498933447217"
+    },
+    {
+      "id": "c038b6cd-2c7b-4ef4-8b4a-00525161d207",
+      "symbol": "ETH-USDT",
+      "direction": "long",
+      "entry_price": "3428.7632251",
+      "quantity": "0.145825",
+      "stop_loss": "3360.187960598",
+      "take_profits": [
+        "3497.3384896020",
+        "3552.1987012036",
+        "3600.2013863550"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "0.145825",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "3442.61602807",
+      "lowest_price": "3408.44731048",
+      "strategy": "momentum",
+      "opened_at": 1788824623540,
+      "notes": {
+        "score": 68.0,
+        "ml_probability": null,
+        "edge_pct": 115.0,
+        "ev_r": 1.1499999999999955,
+        "ev_confidence": 0.0,
+        "rr": 2.0,
+        "leverage": 2
+      },
+      "fill_price": "3432.1919883251",
+      "entry_fee_per_unit": "3.4321919883251",
+      "risk_distance": "68.575264502",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "1h",
+      "regime_axes": "T:RANGE/V:LOW/L:DEEP",
+      "bars_held": 1,
+      "leverage": "2",
+      "margin_used": "249.99969865010375"
     }
   ],
-  "realized_pnl": "-4124.11470800939111715836",
-  "initial_capital": "40222.20"
+  "realized_pnl": "0",
+  "initial_capital": "5000.00"
 }

@@ -1,0 +1,53 @@
+{
+  "positions": [
+    {
+      "id": "0aa0211a-21d2-4d39-9937-5dd48679337a",
+      "symbol": "BCH-USDT",
+      "direction": "long",
+      "entry_price": "258.65",
+      "quantity": "13.956345",
+      "stop_loss": "255.54620",
+      "take_profits": [
+        "261.753800",
+        "264.236840",
+        "266.409500"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "13.956345",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "261.39",
+      "lowest_price": "261.26",
+      "strategy": "pullback",
+      "opened_at": 1788795965343,
+      "notes": {
+        "score": 50.0,
+        "ml_probability": null,
+        "edge_pct": 27.6902,
+        "ev_r": 0.276901639496671,
+        "ev_confidence": 0.0,
+        "rr": 0.75
+      },
+      "fill_price": "258.90865",
+      "entry_fee_per_unit": "0.25890865",
+      "risk_distance": "3.10380",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "1h",
+      "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
+      "bars_held": 1,
+      "leverage": "1",
+      "margin_used": "0"
+    }
+  ],
+  "realized_pnl": "-4124.11470800939111715836",
+  "initial_capital": "40222.20"
+}
