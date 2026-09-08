@@ -1,60 +1,12 @@
 {
   "positions": [
     {
-      "id": "08acc852-722a-4446-9eea-d55cd3e6affc",
-      "symbol": "NEAR-USDT",
-      "direction": "long",
-      "entry_price": "2.363",
-      "quantity": "1519.614439",
-      "stop_loss": "2.3529999999999998",
-      "take_profits": [
-        "2.3913560",
-        "2.4140408",
-        "2.4338900"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "1519.614439",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "2.377",
-      "lowest_price": "2.339",
-      "strategy": "pullback",
-      "opened_at": 1788889093427,
-      "notes": {
-        "score": 45.0,
-        "ml_probability": null,
-        "edge_pct": 25.0893,
-        "ev_r": 0.2508932875487067,
-        "ev_confidence": 0.03225806451612903,
-        "rr": 0.7500000000000001,
-        "leverage": 1
-      },
-      "fill_price": "2.365363",
-      "entry_fee_per_unit": "0.0011826815",
-      "risk_distance": "0.028356",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "1h",
-      "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
-      "bars_held": 28,
-      "leverage": "1",
-      "margin_used": "3590.848919357"
-    },
-    {
       "id": "ae2c4532-f824-42ee-aa3b-9a1858391c94",
       "symbol": "LTC-USDT",
       "direction": "short",
       "entry_price": "54.22",
       "quantity": "66.294546",
-      "stop_loss": "54.464285714285715",
+      "stop_loss": "54.09571428571428",
       "take_profits": [
         "53.6473399999999950",
         "53.1892119999999910",
@@ -74,7 +26,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "54.48",
-      "lowest_price": "54.20",
+      "lowest_price": "53.79",
       "strategy": "momentum",
       "opened_at": 1788890653483,
       "notes": {
@@ -92,7 +44,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 16,
+      "bars_held": 18,
       "leverage": "1",
       "margin_used": "3594.49028412"
     },
@@ -102,7 +54,7 @@
       "direction": "short",
       "entry_price": "2482.56",
       "quantity": "1.447289",
-      "stop_loss": "2512.9976800000004",
+      "stop_loss": "2487.702857142857",
       "take_profits": [
         "2452.12231999999960",
         "2427.77217599999928",
@@ -121,8 +73,8 @@
       "initial_quantity": "1.447289",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "2486.19",
+      "lowest_price": "2476.64",
       "strategy": "momentum",
       "opened_at": 1788893349080,
       "notes": {
@@ -140,11 +92,59 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 0,
+      "bars_held": 2,
       "leverage": "3",
       "margin_used": "1197.66059328"
+    },
+    {
+      "id": "5b0c0af1-3070-484e-a964-4be800488f41",
+      "symbol": "APT-USDT",
+      "direction": "long",
+      "entry_price": "0.6518",
+      "quantity": "5497.545094",
+      "stop_loss": "0.6465857142857143",
+      "take_profits": [
+        "0.65962160",
+        "0.66587888",
+        "0.67135400"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "5497.545094",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "0.6527",
+      "lowest_price": "0.6473",
+      "strategy": "pullback",
+      "opened_at": 1788893516213,
+      "notes": {
+        "score": 51.0,
+        "ml_probability": null,
+        "edge_pct": 26.324,
+        "ev_r": 0.26323986511548925,
+        "ev_confidence": 0.03225806451612903,
+        "rr": 0.75,
+        "leverage": 1
+      },
+      "fill_price": "0.6524518",
+      "entry_fee_per_unit": "0.00032622590",
+      "risk_distance": "0.0078216",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "1h",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
+      "bars_held": 1,
+      "leverage": "1",
+      "margin_used": "3583.2998922692"
     }
   ],
-  "realized_pnl": "-169.0479226343575420606926919",
+  "realized_pnl": "-196.2968115799162199403481216",
   "initial_capital": "36098.87"
 }
