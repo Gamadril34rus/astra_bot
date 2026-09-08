@@ -6,7 +6,7 @@
       "direction": "long",
       "entry_price": "2.363",
       "quantity": "1519.614439",
-      "stop_loss": "2.3518571428571424",
+      "stop_loss": "2.3524285714285713",
       "take_profits": [
         "2.3913560",
         "2.4140408",
@@ -44,7 +44,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
-      "bars_held": 24,
+      "bars_held": 26,
       "leverage": "1",
       "margin_used": "3590.848919357"
     },
@@ -54,7 +54,7 @@
       "direction": "short",
       "entry_price": "54.22",
       "quantity": "66.294546",
-      "stop_loss": "54.48142857142857",
+      "stop_loss": "54.47857142857143",
       "take_profits": [
         "53.6473399999999950",
         "53.1892119999999910",
@@ -92,21 +92,21 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 12,
+      "bars_held": 14,
       "leverage": "1",
       "margin_used": "3594.49028412"
     },
     {
-      "id": "8d52f21e-50a6-4518-86fe-dcb52278d1f9",
+      "id": "0ba89f98-4970-4bf6-9693-04d7c79af910",
       "symbol": "ETH-USDT",
       "direction": "long",
-      "entry_price": "2494.73",
-      "quantity": "1.441550",
-      "stop_loss": "2495.567142857143",
+      "entry_price": "2495.64",
+      "quantity": "1.440619",
+      "stop_loss": "2445.7272",
       "take_profits": [
-        "2544.62460",
-        "2584.54028",
-        "2619.46650"
+        "2545.55280",
+        "2585.48304",
+        "2620.42200"
       ],
       "tp_filled": [
         false,
@@ -118,15 +118,15 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "1.441550",
+      "initial_quantity": "1.440619",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "2503.92",
-      "lowest_price": "2494.85",
+      "highest_price": null,
+      "lowest_price": null,
       "strategy": "momentum",
-      "opened_at": 1788890888808,
+      "opened_at": 1788892696979,
       "notes": {
-        "score": 50.0,
+        "score": 63.0,
         "ml_probability": null,
         "edge_pct": 95.229,
         "ev_r": 0.9522904862490739,
@@ -134,17 +134,17 @@
         "rr": 2.0,
         "leverage": 2
       },
-      "fill_price": "2497.22473",
-      "entry_fee_per_unit": "1.248612365",
-      "risk_distance": "49.8946",
+      "fill_price": "2498.13564",
+      "entry_fee_per_unit": "1.249067820",
+      "risk_distance": "49.9128",
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 11,
+      "bars_held": 0,
       "leverage": "2",
-      "margin_used": "1798.13901575"
+      "margin_used": "1797.63320058"
     }
   ],
-  "realized_pnl": "-136.0917830256932951753575686",
+  "realized_pnl": "-146.2079748195377029680867436",
   "initial_capital": "36098.87"
 }
