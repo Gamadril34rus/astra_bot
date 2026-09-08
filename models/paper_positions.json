@@ -1,54 +1,6 @@
 {
   "positions": [
     {
-      "id": "ae2c4532-f824-42ee-aa3b-9a1858391c94",
-      "symbol": "LTC-USDT",
-      "direction": "short",
-      "entry_price": "54.22",
-      "quantity": "66.294546",
-      "stop_loss": "54.09571428571428",
-      "take_profits": [
-        "53.6473399999999950",
-        "53.1892119999999910",
-        "52.7883499999999875"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "66.294546",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "54.48",
-      "lowest_price": "53.79",
-      "strategy": "momentum",
-      "opened_at": 1788890653483,
-      "notes": {
-        "score": 73.0,
-        "ml_probability": null,
-        "edge_pct": 32.729,
-        "ev_r": 0.3272904862490711,
-        "ev_confidence": 0.16666666666666666,
-        "rr": 3.7872385010302394,
-        "leverage": 1
-      },
-      "fill_price": "54.16578",
-      "entry_fee_per_unit": "0.027082890",
-      "risk_distance": "0.572660000000005",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "1h",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 29,
-      "leverage": "1",
-      "margin_used": "3594.49028412"
-    },
-    {
       "id": "5b0c0af1-3070-484e-a964-4be800488f41",
       "symbol": "APT-USDT",
       "direction": "long",
@@ -92,7 +44,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 12,
+      "bars_held": 14,
       "leverage": "1",
       "margin_used": "3583.2998922692"
     },
@@ -140,11 +92,59 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 9,
+      "bars_held": 11,
       "leverage": "1",
       "margin_used": "3587.579083872"
+    },
+    {
+      "id": "b7bd650f-606c-428a-a68c-04d6458b927f",
+      "symbol": "LTC-USDT",
+      "direction": "short",
+      "entry_price": "54.13",
+      "quantity": "66.291195",
+      "stop_loss": "54.682390000000005",
+      "take_profits": [
+        "53.5776099999999950",
+        "53.1356979999999910",
+        "52.7490249999999875"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "66.291195",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "momentum",
+      "opened_at": 1788895715651,
+      "notes": {
+        "score": 68.0,
+        "ml_probability": null,
+        "edge_pct": 27.9881,
+        "ev_r": 0.27988101471554816,
+        "ev_confidence": 0.23076923076923078,
+        "rr": 3.919694418798277,
+        "leverage": 1
+      },
+      "fill_price": "54.07587",
+      "entry_fee_per_unit": "0.027037935",
+      "risk_distance": "0.552390000000005",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "1h",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
+      "bars_held": 0,
+      "leverage": "1",
+      "margin_used": "3588.34238535"
     }
   ],
-  "realized_pnl": "-214.3057892134432528745399581",
+  "realized_pnl": "-215.4459596255975399801344365",
   "initial_capital": "36098.87"
 }
