@@ -11,7 +11,6 @@ ASTRA BOT — Candidate Filters (Block 4).
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 from typing import Any
@@ -51,19 +50,18 @@ async def _get_btc_dominance() -> tuple[float | None, float | None]:
 
     if now - last_ts >= 3600 or curr_val is None:
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    "https://api.coingecko.com/api/v3/global",
-                    timeout=aiohttp.ClientTimeout(total=10),
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        val = data.get("data", {}).get("market_cap_percentage", {}).get("btc")
-                        if val is not None:
-                            curr_val = float(val)
-                            history.append((now, curr_val))
-                            _btcd_cache["timestamp"] = now
-                            _btcd_cache["history"] = history
+            async with aiohttp.ClientSession() as session, session.get(
+                "https://api.coingecko.com/api/v3/global",
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    val = data.get("data", {}).get("market_cap_percentage", {}).get("btc")
+                    if val is not None:
+                        curr_val = float(val)
+                        history.append((now, curr_val))
+                        _btcd_cache["timestamp"] = now
+                        _btcd_cache["history"] = history
         except Exception as exc:
             logger.debug("CoinGecko fetch failed: %s", exc)
 
