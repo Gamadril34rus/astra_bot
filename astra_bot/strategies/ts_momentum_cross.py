@@ -24,7 +24,7 @@ class TSMomentumCrossConfig(StrategyConfig):
     roc_period: int = 14
     adx_min: float = 20.0
     stop_pct: float = 0.015
-    rr: float = 1.2
+    rr: float = 1.5
 
 
 class TSMomentumCrossStrategy(BaseStrategy[TSMomentumCrossConfig]):

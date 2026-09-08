@@ -23,7 +23,7 @@ class LiquiditySweepConfig(StrategyConfig):
     sweep_tolerance: float = 0.003
     volume_multiplier: float = 1.5
     stop_buffer_pct: float = 0.002
-    min_rr: float = 1.2
+    min_rr: float = 1.5
 
 
 class LiquiditySweepStrategy(BaseStrategy[LiquiditySweepConfig]):
@@ -87,7 +87,7 @@ class LiquiditySweepStrategy(BaseStrategy[LiquiditySweepConfig]):
 
             risk = abs(price - stop_price)
             reward = abs(target_price - price)
-            if risk <= 0 or (reward / risk) < c.min_rr:
+            if risk <= 0 or round(reward / risk, 4) < c.min_rr:
                 return None
 
             vol_ratio = c_vol / avg_vol

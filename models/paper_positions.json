@@ -1,16 +1,16 @@
 {
   "positions": [
     {
-      "id": "5b0c0af1-3070-484e-a964-4be800488f41",
-      "symbol": "APT-USDT",
+      "id": "d1d8f4f3-eac5-49bb-a230-e2844fc48131",
+      "symbol": "INJ-USDT",
       "direction": "long",
-      "entry_price": "0.6518",
-      "quantity": "5497.545094",
-      "stop_loss": "0.6511571428571429",
+      "entry_price": "6.435",
+      "quantity": "556.125338",
+      "stop_loss": "6.411428571428571",
       "take_profits": [
-        "0.65962160",
-        "0.66587888",
-        "0.67135400"
+        "6.563700",
+        "6.666660",
+        "6.756750"
       ],
       "tp_filled": [
         false,
@@ -22,43 +22,43 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "5497.545094",
+      "initial_quantity": "556.125338",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.6580",
-      "lowest_price": "0.6473",
-      "strategy": "pullback",
-      "opened_at": 1788893516213,
+      "highest_price": "6.476",
+      "lowest_price": "6.402",
+      "strategy": "momentum",
+      "opened_at": 1788897739097,
       "notes": {
-        "score": 51.0,
+        "score": 52.0,
         "ml_probability": null,
-        "edge_pct": 26.324,
-        "ev_r": 0.26323986511548925,
+        "edge_pct": 109.5845,
+        "ev_r": 1.0958445452838983,
         "ev_confidence": 0.03225806451612903,
-        "rr": 0.75,
-        "leverage": 1
+        "rr": 1.9999999999999922,
+        "leverage": 2
       },
-      "fill_price": "0.6524518",
-      "entry_fee_per_unit": "0.00032622590",
-      "risk_distance": "0.0078216",
+      "fill_price": "6.441435",
+      "entry_fee_per_unit": "0.0032207175",
+      "risk_distance": "0.12870",
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 22,
-      "leverage": "1",
-      "margin_used": "3583.2998922692"
+      "regime_axes": "T:RANGE/V:LOW/L:DEEP",
+      "bars_held": 13,
+      "leverage": "2",
+      "margin_used": "1789.333275015"
     },
     {
-      "id": "b7bd650f-606c-428a-a68c-04d6458b927f",
-      "symbol": "LTC-USDT",
+      "id": "506dba5a-4cf8-4b59-a230-5fb126e1646a",
+      "symbol": "ARB-USDT",
       "direction": "short",
-      "entry_price": "54.13",
-      "quantity": "66.291195",
-      "stop_loss": "54.43571428571428",
+      "entry_price": "0.16833",
+      "quantity": "21278.456070",
+      "stop_loss": "0.16990714285714287",
       "take_profits": [
-        "53.5776099999999950",
-        "53.1356979999999910",
-        "52.7490249999999875"
+        "0.166695010",
+        "0.165387018",
+        "0.164242525"
       ],
       "tp_filled": [
         false,
@@ -70,81 +70,81 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "66.291195",
+      "initial_quantity": "21278.456070",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "54.32",
-      "lowest_price": "54.11",
+      "highest_price": "0.16984",
+      "lowest_price": "0.16800",
       "strategy": "momentum",
-      "opened_at": 1788895715651,
+      "opened_at": 1788898104541,
       "notes": {
-        "score": 68.0,
+        "score": 61.0,
         "ml_probability": null,
-        "edge_pct": 27.9881,
-        "ev_r": 0.27988101471554816,
-        "ev_confidence": 0.23076923076923078,
-        "rr": 3.919694418798277,
+        "edge_pct": 51.5199,
+        "ev_r": 0.515199383993571,
+        "ev_confidence": 0.03225806451612903,
+        "rr": 4.1181903253230905,
         "leverage": 1
       },
-      "fill_price": "54.07587",
-      "entry_fee_per_unit": "0.027037935",
-      "risk_distance": "0.552390000000005",
+      "fill_price": "0.16816167",
+      "entry_fee_per_unit": "0.000084080835",
+      "risk_distance": "0.00163499",
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
+      "regime_axes": "T:RANGE/V:LOW/L:DEEP",
+      "bars_held": 10,
+      "leverage": "1",
+      "margin_used": "3581.80251026310"
+    },
+    {
+      "id": "5b3030e8-35b5-4ff1-b8ef-3e38e3a24ff2",
+      "symbol": "TIA-USDT",
+      "direction": "long",
+      "entry_price": "0.4111",
+      "quantity": "8710.401649",
+      "stop_loss": "0.40881428571428574",
+      "take_profits": [
+        "0.4324028540211520",
+        "0.4494451372380736",
+        "0.4643571350528800"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "8710.401649",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "0.4126",
+      "lowest_price": "0.4094",
+      "strategy": "falling_wedge",
+      "opened_at": 1788898342487,
+      "notes": {
+        "score": 41.0,
+        "ml_probability": null,
+        "edge_pct": 108.6168,
+        "ev_r": 1.0861677542986306,
+        "ev_confidence": 0.03225806451612903,
+        "rr": 2.083333333333333,
+        "leverage": 2
+      },
+      "fill_price": "0.4115111",
+      "entry_fee_per_unit": "0.00020575555",
+      "risk_distance": "0.021302854021152",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "1h",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
       "bars_held": 8,
-      "leverage": "1",
-      "margin_used": "3588.34238535"
-    },
-    {
-      "id": "c17724e0-db65-442f-8f71-b03979fb9147",
-      "symbol": "HBAR-USDT",
-      "direction": "short",
-      "entry_price": "0.07937",
-      "quantity": "45176.972160",
-      "stop_loss": "0.07951",
-      "take_profits": [
-        "0.078561890",
-        "0.077915402",
-        "0.077349725"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "45176.972160",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "0.07940",
-      "lowest_price": "0.07910",
-      "strategy": "momentum",
-      "opened_at": 1788896349587,
-      "notes": {
-        "score": 68.0,
-        "ml_probability": null,
-        "edge_pct": 25.1169,
-        "ev_r": 0.25116890511111173,
-        "ev_confidence": 0.2682926829268293,
-        "rr": 3.928673076685105,
-        "leverage": 1
-      },
-      "fill_price": "0.07929063",
-      "entry_fee_per_unit": "0.000039645315",
-      "risk_distance": "0.00080811",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "1h",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 4,
-      "leverage": "1",
-      "margin_used": "3585.69628033920"
+      "leverage": "2",
+      "margin_used": "1790.42305895195"
     }
   ],
-  "realized_pnl": "-241.0748067786278157830248755",
+  "realized_pnl": "-290.4088191689070204349123875",
   "initial_capital": "36098.87"
 }

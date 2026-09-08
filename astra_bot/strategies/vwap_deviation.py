@@ -23,7 +23,7 @@ class VWAPDeviationConfig(StrategyConfig):
     sigma_entry: float = 2.0
     sigma_exit: float = 0.5
     stop_buffer_pct: float = 0.002
-    min_rr: float = 1.2
+    min_rr: float = 1.5
 
 
 class VWAPDeviationStrategy(BaseStrategy[VWAPDeviationConfig]):
@@ -120,7 +120,7 @@ class VWAPDeviationStrategy(BaseStrategy[VWAPDeviationConfig]):
 
             risk = abs(price - stop_price)
             reward = abs(target_price - price)
-            if risk <= 0 or (reward / risk) < c.min_rr:
+            if risk <= 0 or round(reward / risk, 4) < c.min_rr:
                 return None
 
             confidence = min(0.85, max(0.5, 0.5 + 0.1 * abs(price - vwap) / std_dev))

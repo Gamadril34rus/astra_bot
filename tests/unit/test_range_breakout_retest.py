@@ -25,7 +25,7 @@ def make_candle(open_p, high_p, low_p, close_p, volume=100.0, timestamp_ms=0):
 
 @pytest.mark.asyncio
 async def test_range_breakout_retest_long():
-    strategy = RangeBreakoutRetestStrategy(RangeBreakoutRetestConfig(range_min_bars=15, adx_threshold=30.0))
+    strategy = RangeBreakoutRetestStrategy(RangeBreakoutRetestConfig(range_min_bars=15, adx_threshold=30.0, min_rr=1.5))
     candles = []
     base_ts = 1000000
 
@@ -34,9 +34,9 @@ async def test_range_breakout_retest_long():
 
     candles.append(make_candle(101.0, 104.5, 101.0, 104.0, timestamp_ms=base_ts + 40 * 3600000))
 
-    candles.append(make_candle(104.0, 104.5, 102.0, 103.5, timestamp_ms=base_ts + 41 * 3600000))
+    candles.append(make_candle(104.0, 106.0, 102.1, 106.0, timestamp_ms=base_ts + 41 * 3600000))
 
-    signal = await strategy.evaluate("BTC-USDT", candles, current_price=103.5)
+    signal = await strategy.evaluate("BTC-USDT", candles, current_price=106.0)
     assert signal is not None
     assert signal.direction == TradeDirection.LONG
-    assert float(signal.entry_price) == 103.5
+    assert float(signal.entry_price) == 106.0

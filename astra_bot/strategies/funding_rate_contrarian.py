@@ -53,7 +53,7 @@ class FundingRateContrarianConfig(StrategyConfig):
     rsi_overbought: float = 65.0
     rsi_oversold: float = 35.0
     stop_pct: float = 0.01
-    min_rr: float = 1.2
+    min_rr: float = 1.5
 
 
 class FundingRateContrarianStrategy(BaseStrategy[FundingRateContrarianConfig]):

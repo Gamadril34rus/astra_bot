@@ -27,7 +27,7 @@ class ZScoreMeanReversionConfig(StrategyConfig):
     exit_z: float = 0.3
     adx_threshold: float = 25.0
     stop_pct: float = 0.01
-    min_rr: float = 1.2
+    min_rr: float = 1.5
 
 
 class ZScoreMeanReversionStrategy(BaseStrategy[ZScoreMeanReversionConfig]):
@@ -89,7 +89,7 @@ class ZScoreMeanReversionStrategy(BaseStrategy[ZScoreMeanReversionConfig]):
 
             risk = abs(price - stop_price)
             reward = abs(target_price - price)
-            if risk <= 0 or (reward / risk) < c.min_rr:
+            if risk <= 0 or round(reward / risk, 4) < c.min_rr:
                 return None
 
             confidence = min(0.85, max(0.5, 0.5 + 0.1 * (abs(z_score) - c.entry_z)))

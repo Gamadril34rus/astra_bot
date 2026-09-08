@@ -53,7 +53,7 @@ class OpenInterestDivergenceConfig(StrategyConfig):
     oi_window: int = 10
     price_change_min: float = 0.01
     stop_pct: float = 0.01
-    min_rr: float = 1.2
+    min_rr: float = 1.5
 
 
 class OpenInterestDivergenceStrategy(BaseStrategy[OpenInterestDivergenceConfig]):

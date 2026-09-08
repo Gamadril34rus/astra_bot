@@ -21,7 +21,7 @@ class VolumeDeltaConfig(StrategyConfig):
     delta_window: int = 10
     divergence_threshold: float = 0.3
     stop_pct: float = 0.01
-    min_rr: float = 1.2
+    min_rr: float = 1.5
 
 
 class VolumeDeltaStrategy(BaseStrategy[VolumeDeltaConfig]):

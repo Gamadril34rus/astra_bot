@@ -23,7 +23,7 @@ class OrderBlockConfig(StrategyConfig):
     impulse_min_pct: float = 0.015
     max_age_bars: int = 50
     stop_buffer_pct: float = 0.002
-    min_rr: float = 1.2
+    min_rr: float = 1.5
 
 
 class OrderBlockStrategy(BaseStrategy[OrderBlockConfig]):
@@ -111,7 +111,7 @@ class OrderBlockStrategy(BaseStrategy[OrderBlockConfig]):
 
             risk = abs(price - stop_price)
             reward = abs(target_price - price)
-            if risk <= 0 or (reward / risk) < c.min_rr:
+            if risk <= 0 or round(reward / risk, 4) < c.min_rr:
                 return None
 
             confidence = min(0.85, max(0.5, 0.5 + 10.0 * (impulse_pct - c.impulse_min_pct)))

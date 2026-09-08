@@ -24,7 +24,7 @@ class VolatilityBreakoutConfig(StrategyConfig):
     volume_mult: float = 1.3
     roc_period: int = 14
     stop_buffer_pct: float = 0.002
-    min_rr: float = 1.2
+    min_rr: float = 1.5
 
 
 class VolatilityBreakoutStrategy(BaseStrategy[VolatilityBreakoutConfig]):
@@ -108,7 +108,7 @@ class VolatilityBreakoutStrategy(BaseStrategy[VolatilityBreakoutConfig]):
 
             risk = abs(price - stop_price)
             reward = abs(target_price - price)
-            if risk <= 0 or (reward / risk) < c.min_rr:
+            if risk <= 0 or round(reward / risk, 4) < c.min_rr:
                 return None
 
             vol_ratio = curr_vol / avg_vol
