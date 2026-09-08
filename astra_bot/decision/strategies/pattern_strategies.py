@@ -30,6 +30,8 @@ class PatternType(Enum):
     SYMMETRICAL_TRIANGLE = "SYMMETRICAL_TRIANGLE"  # Оба направления
     ROUNDED_BOTTOM = "ROUNDED_BOTTOM"  # Закругление снизу (чаша) — лонг
     ROUNDED_TOP = "ROUNDED_TOP"  # Закругление сверху (купол) — шорт
+    HEAD_SHOULDERS = "HEAD_SHOULDERS"  # Голова и плечи — шорт
+    INVERTED_HEAD_SHOULDERS = "INVERTED_HEAD_SHOULDERS"  # Обратная ГП — лонг
     NONE = "NONE"
 
 
@@ -172,6 +174,170 @@ def _find_swings(highs: list[float], lows: list[float], window: int = 3) -> tupl
         if lows[i] == min(lows[i - window : i + window + 1]):
             low_idx.append(i)
     return high_idx, low_idx
+
+
+def _collapse_plateaus(indices: list[int], gap: int = 3) -> list[int]:
+    """Схлопнуть серии соседних свинг-индексов (плоские вершины/днища).
+
+    _find_swings на плоском экстремуме возвращает КАЖДЫЙ бар серии
+    (индексы равных значений); для структуры ГП нужен один индекс —
+    середина серии.
+    """
+    if not indices:
+        return []
+    out: list[int] = []
+    run: list[int] = [indices[0]]
+    for i in indices[1:]:
+        if i - run[-1] <= gap:
+            run.append(i)
+        else:
+            out.append(run[len(run) // 2])
+            run = [i]
+    out.append(run[len(run) // 2])
+    return out
+
+
+def detect_head_shoulders(
+    highs: list[float],
+    lows: list[float],
+    closes: list[float],
+) -> PatternResult:
+    """Голова и плечи (и обратная) — разворотные паттерны.
+
+    Классическая структура (ГП, медвежья):
+      - три свинг-хая: левое плечо (LS), ГОЛОВА (максимум), правое плечо (RS);
+      - плеча примерно симметричны (разница <= 40% высоты головы);
+      - линия шеи (neckline) через ТЕНИ-лоу двух впадин между пиками;
+      - сигнал: пробой шеи вниз (тень — ранний, close — подтверждённый).
+
+    Обратная ГП (бычья) — зеркально: три свинг-лоя, голова — минимум,
+    шея через хаи впадин, пробой вверх -> лонг.
+
+    Касания шеи считаются по ТЕНЯМ: 2 касания конструктивные (впадины),
+    каждое дополнительное усиливает уверенность.
+    """
+    n = len(highs)
+    if n < 30:
+        return PatternResult(PatternType.NONE, 0.0, None, None, None,
+                             {"reason": "not enough data"})
+    high_idx = _collapse_plateaus(_find_swings(highs, lows, window=3)[0])
+    low_idx = _collapse_plateaus(_find_swings(highs, lows, window=3)[1])
+    price = closes[-1]
+
+    def _neck_touches(neck, swing_indices, use_lows: bool) -> int:
+        # Касания шеи по теням (допуск 0.3% цены).
+        tol = price * 0.003
+        touches = 0
+        for i in swing_indices:
+            wick = lows[i] if use_lows else highs[i]
+            if abs(wick - neck.value_at(float(i))) <= tol:
+                touches += 1
+        return touches
+
+    best: dict[str, object] = {}
+
+    def _emit(inverted: bool, a: int, b: int, c: int, t1: int, t2: int) -> None:
+        # a/b/c — свинги плечо-голова-плечо; t1/t2 — впадины между ними.
+        if not (a < t1 < b < t2 < c):
+            return
+        if inverted:
+            ls, head, rs = lows[a], lows[b], lows[c]
+            if not (head < ls and head < rs):
+                return
+            prominence = min(ls, rs) - head
+            t_vals = [highs[t1], highs[t2]]
+        else:
+            ls, head, rs = highs[a], highs[b], highs[c]
+            if not (head > ls and head > rs):
+                return
+            prominence = head - max(ls, rs)
+            t_vals = [lows[t1], lows[t2]]
+        if prominence <= price * 0.004:
+            return  # голова не выражена
+        shoulder_diff = abs(ls - rs)
+        if shoulder_diff > 0.4 * prominence + price * 0.003:
+            return  # плеча не симметричны
+        neck = _fit_line([float(t1), float(t2)], t_vals)
+        neck_now = neck.value_at(float(n - 1))
+        rel_idx = [i for i in (low_idx if not inverted else high_idx)
+                   if a - 5 <= i <= n]
+        touches = _neck_touches(neck, rel_idx, use_lows=not inverted)
+        conf = 0.45
+        conf += 0.15 * min(1.0, prominence / (price * 0.02))
+        conf += 0.10 * (1.0 - min(1.0, shoulder_diff / (0.4 * prominence)))
+        if touches >= 2:
+            conf += 0.10
+        if inverted:
+            wick_break = lows[-1] > neck_now
+            close_break = price > neck_now
+            breakout = (
+                "up" if close_break else ("early_up" if wick_break else None)
+            )
+        else:
+            wick_break = lows[-1] < neck_now
+            close_break = price < neck_now
+            breakout = (
+                "down" if close_break else ("early_down" if wick_break else None)
+            )
+        if breakout is None:
+            conf -= 0.05
+        elif str(breakout).startswith("early"):
+            conf += 0.10
+        else:
+            conf += 0.20
+        conf = max(0.0, min(0.95, conf))
+        if c < n - 40:
+            return  # правое плечо устарело — паттерн неактуален
+        peaks_line = _fit_line([float(a), float(b), float(c)],
+                               [ls, head, rs])
+        ptype = (PatternType.INVERTED_HEAD_SHOULDERS if inverted
+                 else PatternType.HEAD_SHOULDERS)
+        res = PatternResult(
+            pattern=ptype,
+            confidence=conf,
+            upper_line=None if inverted else peaks_line,
+            lower_line=neck if not inverted else peaks_line,
+            breakout_direction="up" if inverted else "down",
+            diagnostics={
+                "type": ("inverted_head_shoulders" if inverted
+                         else "head_shoulders"),
+                "signal": ("long_on_neckline_break_up" if inverted
+                           else "short_on_neckline_break_down"),
+                "head": head,
+                "left_shoulder": ls,
+                "right_shoulder": rs,
+                "neckline_at_now": neck_now,
+                "neckline_touches": touches,
+                "breakout": breakout,
+                "price": price,
+            },
+        )
+        if not best or res.confidence > best["res"].confidence:
+            best["res"] = res
+
+    # Кандидаты: последние 3 свинг-хая (ГП) и последние 3 свинг-лоя
+    # (обратная ГП); также предыдущая тройка — паттерн мог завершиться
+    # пару баров назад.
+    for swing_idx, other_idx, inverted in (
+        (high_idx, low_idx, False),
+        (low_idx, high_idx, True),
+    ):
+        for offset in (3, 4):
+            if len(swing_idx) < offset:
+                continue
+            a = swing_idx[-offset]
+            b = swing_idx[-offset + 1]
+            c = swing_idx[-offset + 2]
+            between = [i for i in other_idx if a < i < c]
+            if len(between) < 2:
+                continue
+            _emit(inverted=inverted, a=a, b=b, c=c,
+                  t1=between[0], t2=between[-1])
+
+    if best:
+        return best["res"]  # type: ignore[return-value]
+    return PatternResult(PatternType.NONE, 0.0, None, None, None,
+                         {"reason": "no head-shoulders structure"})
 
 
 def detect_pattern(
@@ -767,3 +933,80 @@ ALL_PATTERN_STRATEGIES = [
     DescendingTriangleStrategy,
     SymmetricalTriangleStrategy,
 ]
+
+class HeadShouldersStrategy(BasePatternStrategy):
+    """Голова и плечи — разворотный паттерн.
+
+    ГП (медвежья): шорт на пробое ШЕИ вниз; стоп за правое плечо
+    (половина пути к голове), тейк — классическая проекция «высота
+    головы от шеи». Обратная ГП (бычья): лонг на пробое шеи вверх,
+    зеркально. Касания шеи — по теням (см. detect_head_shoulders).
+    """
+
+    name = "head_shoulders"
+
+    async def evaluate(self, ctx: StrategyContext):
+        candles = ctx.candles
+        if len(candles) < 40:
+            return None
+
+        highs = [float(c.high) for c in candles]
+        lows = [float(c.low) for c in candles]
+        closes = [float(c.close) for c in candles]
+
+        result = detect_head_shoulders(highs, lows, closes)
+        if result.pattern == PatternType.HEAD_SHOULDERS:
+            direction = "short"
+        elif result.pattern == PatternType.INVERTED_HEAD_SHOULDERS:
+            direction = "long"
+        else:
+            return None
+
+        if result.confidence < 0.5:
+            return None
+        breakout = result.diagnostics.get("breakout")
+        # Для торговли нужен пробой шеи: подтверждённый, либо ранний
+        # (тень) при высокой уверенности.
+        if breakout is None:
+            return None
+        if str(breakout).startswith("early") and result.confidence < 0.65:
+            return None
+        if not self._check_volume(candles):
+            return None
+
+        price = closes[-1]
+        neck = float(result.diagnostics.get("neckline_at_now", price))
+        head = float(result.diagnostics.get("head", price))
+        rs = float(result.diagnostics.get("right_shoulder", price))
+        if direction == "short":
+            # Стоп над правым плечом (половина пути к голове).
+            sl = rs + 0.5 * max(head - rs, price * 0.005)
+            # Проекция: высота головы от шеи.
+            measured = max(head - neck, price * 0.01)
+            tp = price - measured
+            risk = sl - price
+        else:
+            sl = rs - 0.5 * max(rs - head, price * 0.005)
+            measured = max(neck - head, price * 0.01)
+            tp = price + measured
+            risk = price - sl
+        if risk <= 0:
+            risk = price * 0.01
+
+        return SignalCandidate(
+            symbol=ctx.symbol,
+            direction=direction,
+            entry_price=Decimal(str(price)),
+            stop_loss=Decimal(str(sl)),
+            take_profit=Decimal(str(tp)),
+            timeframe=ctx.timeframe,
+            strategy=self.name,
+            confidence=result.confidence,
+            features={
+                "pattern": result.pattern.value,
+                "breakout": breakout,
+                "neckline": neck,
+                "head": head,
+                "neckline_touches": result.diagnostics.get("neckline_touches", 0),
+            },
+        )

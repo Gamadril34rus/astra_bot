@@ -319,12 +319,13 @@ class AstraBot:
         # Каталог state: по умолчанию models/ (общий с CI-сессиями);
         # ASTRA_STATE_DIR позволяет изолировать локальный run.
         state_dir = os.environ.get("ASTRA_STATE_DIR", "models")
-        # Плечо настраивается окружением (ASTRA_LEVERAGE_MAX,
-        # ASTRA_LEVERAGE_MIN_EV_R); плата за плечо — в брокере.
+        # Плечо настраивается окружением (ASTRA_LEVERAGE_MAX — потолок;
+        # фактический уровень задаёт лестница уверенности в движке,
+        # 100x только при conf>=0.95 и EV>=3R).
         try:
-            leverage_max = max(1, int(os.environ.get("ASTRA_LEVERAGE_MAX", "2")))
+            leverage_max = max(1, int(os.environ.get("ASTRA_LEVERAGE_MAX", "100")))
         except ValueError:
-            leverage_max = 2
+            leverage_max = 100
         try:
             leverage_min_ev = float(os.environ.get("ASTRA_LEVERAGE_MIN_EV_R", "0.8"))
         except ValueError:

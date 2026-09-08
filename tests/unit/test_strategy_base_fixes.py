@@ -210,13 +210,14 @@ class TestPipelineStrategyNames:
         assert len(names) == len(set(names)), f"коллизия имён: {sorted(names)}"
 
     def test_pattern_strategies_loaded(self):
-        """9 pattern/V2-стратегий должны присутствовать в пайплайне."""
+        """10 pattern/V2-стратегий должны присутствовать в пайплайне
+        (5 паттернных — клинья/треугольники/голова-плечи + 4 V2 + тренд)."""
         from astra_bot.decision.strategies.adapter import PipelineStrategyAdapter
         from astra_bot.decision.trading_engine import TradingEngine, TradingEngineConfig
 
         eng = TradingEngine(TradingEngineConfig(symbols=("BTC-USDT",)))
         adapted = [x.name for x in eng.pipeline.strategies if isinstance(x, PipelineStrategyAdapter)]
-        assert len(adapted) == 9
+        assert len(adapted) == 10
         assert "falling_wedge" in adapted and "trend_following" in adapted
 
 

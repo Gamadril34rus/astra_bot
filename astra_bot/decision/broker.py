@@ -536,6 +536,20 @@ class PaperBroker:
                 f"insufficient margin: need={need} used={used} equity={self.equity}"
             )
 
+    def liquidation_price(
+        self, entry_price: Decimal, direction: str, lev: Decimal
+    ) -> Decimal | None:
+        """Оценка цены ликвидации: long entry*(1-1/lev+mm), short зеркально.
+
+        None — заёмная часть вырождена (lev=1 или mm >= 1/lev).
+        """
+        borrow = Decimal("1") / lev - self.maintenance_margin_pct
+        if borrow <= 0:
+            return None
+        if direction in ("long", "buy"):
+            return entry_price * (Decimal("1") - borrow)
+        return entry_price * (Decimal("1") + borrow)
+
     def _check_liquidation(
         self,
         entry_price: Decimal,
@@ -548,21 +562,18 @@ class PaperBroker:
         Оценка цены ликвидации (маржинальная модель, maintenance mm):
         long  liq = entry * (1 - 1/lev + mm);  short liq = entry * (1 + 1/lev - mm).
         """
-        mm = self.maintenance_margin_pct
-        borrow = Decimal("1") / lev - mm
-        if borrow <= 0:
+        liq = self.liquidation_price(entry_price, direction, lev)
+        if liq is None:
             return
         if direction in ("long", "buy"):
-            liq = entry_price * (Decimal("1") - borrow)
             if stop_loss <= liq:
                 raise ValueError(
-                    f"stop {stop_loss} не переживёт ликвидацию {liq} приплече {lev} — уменьшите плечо"
+                    f"stop {stop_loss} не переживёт ликвидацию {liq} при плече {lev} — уменьшите плечо"
                 )
         else:
-            liq = entry_price * (Decimal("1") + borrow)
             if stop_loss >= liq:
                 raise ValueError(
-                    f"stop {stop_loss} не переживёт ликвидацию {liq} приплече {lev} — уменьшите плечо"
+                    f"stop {stop_loss} не переживёт ликвидацию {liq} при плече {lev} — уменьшите плечо"
                 )
 
     def leverage_fee(
