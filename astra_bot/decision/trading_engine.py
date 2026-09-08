@@ -247,6 +247,32 @@ class TradingEngine:
                 )
                 pattern_strats = []
 
+            from ..strategies.fair_value_gap import FairValueGapStrategy
+            from ..strategies.funding_rate_contrarian import FundingRateContrarianStrategy
+            from ..strategies.liquidity_sweep import LiquiditySweepStrategy
+            from ..strategies.open_interest_divergence import OpenInterestDivergenceStrategy
+            from ..strategies.order_block import OrderBlockStrategy
+            from ..strategies.range_breakout_retest import RangeBreakoutRetestStrategy
+            from ..strategies.ts_momentum_cross import TSMomentumCrossStrategy
+            from ..strategies.volatility_breakout import VolatilityBreakoutStrategy
+            from ..strategies.volume_delta import VolumeDeltaStrategy
+            from ..strategies.vwap_deviation import VWAPDeviationStrategy
+            from ..strategies.zscore_mean_reversion import ZScoreMeanReversionStrategy
+
+            new_strategies = [
+                LiquiditySweepStrategy(),
+                FairValueGapStrategy(),
+                OrderBlockStrategy(),
+                RangeBreakoutRetestStrategy(),
+                ZScoreMeanReversionStrategy(),
+                VolatilityBreakoutStrategy(),
+                TSMomentumCrossStrategy(),
+                FundingRateContrarianStrategy(),
+                VolumeDeltaStrategy(),
+                VWAPDeviationStrategy(),
+                OpenInterestDivergenceStrategy(),
+            ]
+
             pipeline = DecisionPipeline(
                 cfg,
                 stats_store=stats_store,
@@ -263,18 +289,19 @@ class TradingEngine:
                         )
                     ),
                     *pattern_strats,
+                    *new_strategies,
                 ],
             )
             # Громкая проверка загрузки (урок блока 9: стратегии молча
-            # не грузились месяцами). Ядро — 7 штук, всего с паттернами — 17.
+            # не грузились месяцами). 7 ядро + 10 паттернов + 11 новых = 28.
             _names = [getattr(s, "name", type(s).__name__) for s in pipeline.strategies]
-            if len(pipeline.strategies) < 7:
+            if len(pipeline.strategies) < 18:
                 logger.error(
-                    "Загружено стратегий %d/17 — ядро неполное: %s",
+                    "Загружено стратегий %d/28 — состав неполный (7 ядро + 10 паттернов + 11 новых): %s",
                     len(pipeline.strategies), _names,
                 )
             else:
-                logger.info("Загружено стратегий %d/17", len(pipeline.strategies))
+                logger.info("Загружено стратегий %d/28 (7 ядро + 10 паттернов + 11 новых)", len(pipeline.strategies))
         self.pipeline = pipeline
         self.broker = broker or self._make_broker()
         # Risk Engine — независимый слой защиты (master prompt §11):
