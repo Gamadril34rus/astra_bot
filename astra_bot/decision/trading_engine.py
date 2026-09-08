@@ -242,7 +242,9 @@ class TradingEngine:
                 ]
             except Exception as e:
                 import logging
-                logging.getLogger(__name__).warning("Pattern strategies import failed: %s", e)
+                logging.getLogger(__name__).error(
+                    "Pattern strategies import failed — 10 стратегий НЕ загружены: %s", e
+                )
                 pattern_strats = []
 
             pipeline = DecisionPipeline(
@@ -263,6 +265,16 @@ class TradingEngine:
                     *pattern_strats,
                 ],
             )
+            # Громкая проверка загрузки (урок блока 9: стратегии молча
+            # не грузились месяцами). Ядро — 7 штук, всего с паттернами — 17.
+            _names = [getattr(s, "name", type(s).__name__) for s in pipeline.strategies]
+            if len(pipeline.strategies) < 7:
+                logger.error(
+                    "Загружено стратегий %d/17 — ядро неполное: %s",
+                    len(pipeline.strategies), _names,
+                )
+            else:
+                logger.info("Загружено стратегий %d/17", len(pipeline.strategies))
         self.pipeline = pipeline
         self.broker = broker or self._make_broker()
         # Risk Engine — независимый слой защиты (master prompt §11):

@@ -113,7 +113,19 @@ async def amain() -> int:
                 pass
             return 0
 
-    engine = TradingEngine(exchange=bingx, config=TradingEngineConfig(symbols=symbols, poll_interval_seconds=300))
+    # Временное ограничение плеча эпохи-2 (первые ~2 недели после сброса
+    # 08.09.2026): чистые данные для калибровки EV/confidence важнее
+    # разброса от плеча. Поднять: ASTRA_LEVERAGE_MAX=100.
+    try:
+        _lev_max = max(1, int(os.environ.get("ASTRA_LEVERAGE_MAX", "3")))
+    except ValueError:
+        _lev_max = 3
+    logger.info("Paper контур: потолок плеча %dx (эпоха-2)", _lev_max)
+
+    engine = TradingEngine(
+        exchange=bingx,
+        config=TradingEngineConfig(symbols=symbols, poll_interval_seconds=300, leverage_max=_lev_max),
+    )
     bot = await create_telegram_bot(bot_token=token, allowed_user_ids=allowed, admin_user_ids=admin_ids)
     stop = asyncio.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
