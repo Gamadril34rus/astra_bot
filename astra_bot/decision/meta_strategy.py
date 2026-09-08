@@ -1,4 +1,3 @@
-# ruff: noqa: UP042
 """Meta-Strategy: выбор стратегии по статистически подтверждённому EV.
 
 Master prompt §8 / TZ §5: выбор не по ``total_score``, а по Expected Value

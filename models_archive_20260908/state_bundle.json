@@ -1,0 +1,142 @@
+{
+ "schema_version": 1,
+ "saved_at": "2026-09-07T23:43:38.238911+00:00",
+ "paper": {
+  "broker_state": {
+   "positions": [
+    {
+     "id": "0aa0211a-21d2-4d39-9937-5dd48679337a",
+     "symbol": "BCH-USDT",
+     "direction": "long",
+     "entry_price": "258.65",
+     "quantity": "13.956345",
+     "stop_loss": "255.54620",
+     "take_profits": [
+      "261.753800",
+      "264.236840",
+      "266.409500"
+     ],
+     "tp_filled": [
+      false,
+      false,
+      false
+     ],
+     "tp_fractions": [
+      0.5,
+      0.3,
+      0.2
+     ],
+     "initial_quantity": "13.956345",
+     "trailing_activated": false,
+     "trailing_distance": null,
+     "highest_price": "261.39",
+     "lowest_price": "261.26",
+     "strategy": "pullback",
+     "opened_at": 1788795965343,
+     "notes": {
+      "score": 50.0,
+      "ml_probability": null,
+      "edge_pct": 27.6902,
+      "ev_r": 0.276901639496671,
+      "ev_confidence": 0.0,
+      "rr": 0.75
+     },
+     "fill_price": "258.90865",
+     "entry_fee_per_unit": "0.25890865",
+     "risk_distance": "3.10380",
+     "regime": "LOW_VOLATILITY",
+     "timeframe": "1h",
+     "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
+     "bars_held": 1,
+     "leverage": "1",
+     "margin_used": "0"
+    }
+   ],
+   "realized_pnl": "-4124.11470800939111715836",
+   "initial_capital": "40222.20"
+  },
+  "equity": "36098.08529199060888284164",
+  "open_positions": 1
+ },
+ "risk": {
+  "risk_state": "EMERGENCY",
+  "trading_enabled": false,
+  "daily_pnl": "-38.08692998734438",
+  "weekly_pnl": "-38.08692998734438",
+  "high_water_mark": "40222.20",
+  "current_equity": "36098.08529199060888284164",
+  "open_positions": 1
+ },
+ "readiness": {
+  "ready": false,
+  "score": 20,
+  "threshold": 90,
+  "trading_days": 1,
+  "total_trades": 1,
+  "win_rate": 0.0,
+  "profit_factor": 0.0,
+  "max_drawdown_pct": 0.0,
+  "profitable_day_pct": 0.0,
+  "longest_loss_streak": 1,
+  "sharpe": 0.0,
+  "total_pnl": -38.09,
+  "checks": [
+   {
+    "name": "30+ дней на демо",
+    "passed": false,
+    "weight": 15
+   },
+   {
+    "name": "200+ сделок",
+    "passed": false,
+    "weight": 15
+   },
+   {
+    "name": "Win-rate ≥ 55% (сейчас 0%)",
+    "passed": false,
+    "weight": 15
+   },
+   {
+    "name": "Profit Factor ≥ 1.3 (сейчас 0.00)",
+    "passed": false,
+    "weight": 15
+   },
+   {
+    "name": "Просадка ≤ 8% (сейчас 0.0%)",
+    "passed": true,
+    "weight": 15
+   },
+   {
+    "name": "Дней в плюсе ≥ 55% (сейчас 0%)",
+    "passed": false,
+    "weight": 10
+   },
+   {
+    "name": "Серия убыточных дней < 6 (сейчас 1)",
+    "passed": true,
+    "weight": 5
+   },
+   {
+    "name": "Sharpe ≥ 1.0 (сейчас 0.00)",
+    "passed": false,
+    "weight": 5
+   },
+   {
+    "name": "Итоговый PnL > 0 (сейчас -38.09 USDT)",
+    "passed": false,
+    "weight": 5
+   }
+  ],
+  "notified": false
+ },
+ "champions": {
+  "active_hypotheses": 0
+ },
+ "memory": {
+  "no_trade_observations.jsonl": 863,
+  "live_lessons.jsonl": 378,
+  "lessons.jsonl": 819,
+  "paper_trades.jsonl": 366,
+  "strategy_stats.json": 762
+ }
+}

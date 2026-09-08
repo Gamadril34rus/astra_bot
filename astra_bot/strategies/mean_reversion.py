@@ -53,7 +53,7 @@ class MeanReversionConfig(StrategyConfig):
     tp_zscore: float = 0.5  # Выход при z-score < 0.5
 
 
-class MeanReversionStrategy(BaseStrategy):
+class MeanReversionStrategy(BaseStrategy[MeanReversionConfig]):
     """
     Mean Reversion стратегия.
 
@@ -65,7 +65,7 @@ class MeanReversionStrategy(BaseStrategy):
     Отключается при тренде.
     """
 
-    def __init__(self, config: MeanReversionConfig = None):
+    def __init__(self, config: MeanReversionConfig | None = None):
         if config is None:
             config = MeanReversionConfig()
         super().__init__(config)

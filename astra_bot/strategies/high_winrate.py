@@ -54,7 +54,7 @@ class HighWinrateConfig(StrategyConfig):
     holding_bars: int = 24
 
 
-class HighWinrateStrategy(BaseStrategy):
+class HighWinrateStrategy(BaseStrategy[HighWinrateConfig]):
     """High-winrate отбойный шорт/лонг с очень жёсткими фильтрами."""
 
     def __init__(self, config: HighWinrateConfig | None = None):

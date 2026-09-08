@@ -17,15 +17,9 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from ..context import SignalCandidate, StrategyContext
 
-try:
-    from ...core import models
-    from ..context import SignalCandidate, StrategyContext
-except ImportError:
-    models = None
-    SignalCandidate = None
-    StrategyContext = None
+logger = logging.getLogger(__name__)
 
 
 class PatternType(Enum):
@@ -34,7 +28,17 @@ class PatternType(Enum):
     ASCENDING_TRIANGLE = "ASCENDING_TRIANGLE"  # Бычий, лонг
     DESCENDING_TRIANGLE = "DESCENDING_TRIANGLE"  # Медвежий, шорт
     SYMMETRICAL_TRIANGLE = "SYMMETRICAL_TRIANGLE"  # Оба направления
+    ROUNDED_BOTTOM = "ROUNDED_BOTTOM"  # Закругление снизу (чаша) — лонг
+    ROUNDED_TOP = "ROUNDED_TOP"  # Закругление сверху (купол) — шорт
+    HEAD_SHOULDERS = "HEAD_SHOULDERS"  # Голова и плечи — шорт
+    INVERTED_HEAD_SHOULDERS = "INVERTED_HEAD_SHOULDERS"  # Обратная ГП — лонг
     NONE = "NONE"
+
+
+# Минимальное число касаний границы (по ТЕНЯМ) для подтверждения линии.
+# Правило «3 касания снизу + 3 сверху»: граница проверена рынком, и
+# пробой после этого — не случайность.
+MIN_TOUCHES_PER_LINE = 3
 
 
 @dataclass
@@ -42,6 +46,26 @@ class TrendLine:
     slope: float
     intercept: float
     r2: float  # качество фита
+    rmse: float = 0.0  # СКО остатков (для плоских линий R² вырождается)
+    # Квадратичное расширение y = a*x^2 + b*x + c для ЗАКРУГЛЁННЫХ
+    # границ (клинья с закруглением). None — прямая линия.
+    quad: tuple[float, float, float] | None = None
+    # Кривизна 2a: >0 — чаша (выпукла вниз), <0 — купол (выпукла вверх).
+    curvature: float = 0.0
+
+    def value_at(self, x: float) -> float:
+        """Значение линии в точке x (учитывает закругление)."""
+        if self.quad is not None:
+            a, b, c = self.quad
+            return a * x * x + b * x + c
+        return self.slope * x + self.intercept
+
+    def slope_at(self, x: float) -> float:
+        """Локальный наклон в точке x (для кривой — производная)."""
+        if self.quad is not None:
+            a, b, _ = self.quad
+            return 2.0 * a * x + b
+        return self.slope
 
 
 @dataclass
@@ -52,6 +76,58 @@ class PatternResult:
     lower_line: TrendLine | None
     breakout_direction: str | None  # "up", "down", None
     diagnostics: dict[str, Any]
+
+
+def _fit_line(x: list[float], y: list[float]) -> TrendLine:
+    """Линейная регрессия; при явной кривизне — квадратичная.
+
+    Закруглённые клинья/чаши парабола описывает существенно лучше
+    прямой: если квадратичный fit даёт R² заметно выше линейного —
+    берём его (линия «с закруглением»).
+    """
+    line = _linear_regression(x, y)
+    if len(x) >= 4:
+        quad = _quadratic_regression(x, y)
+        if quad is not None and quad.r2 >= line.r2 + 0.05:
+            return quad
+    return line
+
+
+def _quadratic_regression(x: list[float], y: list[float]) -> TrendLine | None:
+    """МНК-фит y = a*x² + b*x + c через numpy.polyfit.
+
+    Внимание к численной устойчивости: нормальные уравнения «в лоб»
+    плохо обусловлены при x ~ 100+ (s4 ~ 1e8), polyfit масштабирует
+    базис внутри и даёт стабильный результат.
+    """
+    n = len(x)
+    if n < 4:
+        return None
+    try:
+        import numpy as np
+
+        coefs = np.polyfit(np.asarray(x, dtype=float), np.asarray(y, dtype=float), 2)
+        a, b, c = (float(v) for v in coefs)
+        if not all(abs(v) < 1e12 for v in (a, b, c)):
+            return None
+
+        def q(xi: float) -> float:
+            return a * xi * xi + b * xi + c
+
+        y_mean = sum(y) / n
+        ss_tot = sum((yi - y_mean) ** 2 for yi in y)
+        ss_res = sum((yi - q(xi)) ** 2 for xi, yi in zip(x, y, strict=False))
+        r2 = 1 - ss_res / ss_tot if ss_tot > 1e-9 else 0.0
+        return TrendLine(
+            slope=b,
+            intercept=c,
+            r2=max(0.0, min(1.0, r2)),
+            rmse=(ss_res / n) ** 0.5,
+            quad=(a, b, c),
+            curvature=2.0 * a,
+        )
+    except Exception:
+        return None
 
 
 def _linear_regression(x: list[float], y: list[float]) -> TrendLine:
@@ -75,7 +151,13 @@ def _linear_regression(x: list[float], y: list[float]) -> TrendLine:
         ss_tot = sum((yi - y_mean) ** 2 for yi in y)
         ss_res = sum((yi - (slope * xi + intercept)) ** 2 for xi, yi in zip(x, y, strict=False))
         r2 = 1 - ss_res / ss_tot if ss_tot > 1e-9 else 0.0
-        return TrendLine(slope=slope, intercept=intercept, r2=max(0.0, min(1.0, r2)))
+        rmse = (ss_res / n) ** 0.5
+        return TrendLine(
+            slope=slope,
+            intercept=intercept,
+            r2=max(0.0, min(1.0, r2)),
+            rmse=rmse,
+        )
     except Exception:
         return TrendLine(slope=0.0, intercept=0.0, r2=0.0)
 
@@ -92,6 +174,170 @@ def _find_swings(highs: list[float], lows: list[float], window: int = 3) -> tupl
         if lows[i] == min(lows[i - window : i + window + 1]):
             low_idx.append(i)
     return high_idx, low_idx
+
+
+def _collapse_plateaus(indices: list[int], gap: int = 3) -> list[int]:
+    """Схлопнуть серии соседних свинг-индексов (плоские вершины/днища).
+
+    _find_swings на плоском экстремуме возвращает КАЖДЫЙ бар серии
+    (индексы равных значений); для структуры ГП нужен один индекс —
+    середина серии.
+    """
+    if not indices:
+        return []
+    out: list[int] = []
+    run: list[int] = [indices[0]]
+    for i in indices[1:]:
+        if i - run[-1] <= gap:
+            run.append(i)
+        else:
+            out.append(run[len(run) // 2])
+            run = [i]
+    out.append(run[len(run) // 2])
+    return out
+
+
+def detect_head_shoulders(
+    highs: list[float],
+    lows: list[float],
+    closes: list[float],
+) -> PatternResult:
+    """Голова и плечи (и обратная) — разворотные паттерны.
+
+    Классическая структура (ГП, медвежья):
+      - три свинг-хая: левое плечо (LS), ГОЛОВА (максимум), правое плечо (RS);
+      - плеча примерно симметричны (разница <= 40% высоты головы);
+      - линия шеи (neckline) через ТЕНИ-лоу двух впадин между пиками;
+      - сигнал: пробой шеи вниз (тень — ранний, close — подтверждённый).
+
+    Обратная ГП (бычья) — зеркально: три свинг-лоя, голова — минимум,
+    шея через хаи впадин, пробой вверх -> лонг.
+
+    Касания шеи считаются по ТЕНЯМ: 2 касания конструктивные (впадины),
+    каждое дополнительное усиливает уверенность.
+    """
+    n = len(highs)
+    if n < 30:
+        return PatternResult(PatternType.NONE, 0.0, None, None, None,
+                             {"reason": "not enough data"})
+    high_idx = _collapse_plateaus(_find_swings(highs, lows, window=3)[0])
+    low_idx = _collapse_plateaus(_find_swings(highs, lows, window=3)[1])
+    price = closes[-1]
+
+    def _neck_touches(neck, swing_indices, use_lows: bool) -> int:
+        # Касания шеи по теням (допуск 0.3% цены).
+        tol = price * 0.003
+        touches = 0
+        for i in swing_indices:
+            wick = lows[i] if use_lows else highs[i]
+            if abs(wick - neck.value_at(float(i))) <= tol:
+                touches += 1
+        return touches
+
+    best: dict[str, object] = {}
+
+    def _emit(inverted: bool, a: int, b: int, c: int, t1: int, t2: int) -> None:
+        # a/b/c — свинги плечо-голова-плечо; t1/t2 — впадины между ними.
+        if not (a < t1 < b < t2 < c):
+            return
+        if inverted:
+            ls, head, rs = lows[a], lows[b], lows[c]
+            if not (head < ls and head < rs):
+                return
+            prominence = min(ls, rs) - head
+            t_vals = [highs[t1], highs[t2]]
+        else:
+            ls, head, rs = highs[a], highs[b], highs[c]
+            if not (head > ls and head > rs):
+                return
+            prominence = head - max(ls, rs)
+            t_vals = [lows[t1], lows[t2]]
+        if prominence <= price * 0.004:
+            return  # голова не выражена
+        shoulder_diff = abs(ls - rs)
+        if shoulder_diff > 0.4 * prominence + price * 0.003:
+            return  # плеча не симметричны
+        neck = _fit_line([float(t1), float(t2)], t_vals)
+        neck_now = neck.value_at(float(n - 1))
+        rel_idx = [i for i in (low_idx if not inverted else high_idx)
+                   if a - 5 <= i <= n]
+        touches = _neck_touches(neck, rel_idx, use_lows=not inverted)
+        conf = 0.45
+        conf += 0.15 * min(1.0, prominence / (price * 0.02))
+        conf += 0.10 * (1.0 - min(1.0, shoulder_diff / (0.4 * prominence)))
+        if touches >= 2:
+            conf += 0.10
+        if inverted:
+            wick_break = lows[-1] > neck_now
+            close_break = price > neck_now
+            breakout = (
+                "up" if close_break else ("early_up" if wick_break else None)
+            )
+        else:
+            wick_break = lows[-1] < neck_now
+            close_break = price < neck_now
+            breakout = (
+                "down" if close_break else ("early_down" if wick_break else None)
+            )
+        if breakout is None:
+            conf -= 0.05
+        elif str(breakout).startswith("early"):
+            conf += 0.10
+        else:
+            conf += 0.20
+        conf = max(0.0, min(0.95, conf))
+        if c < n - 40:
+            return  # правое плечо устарело — паттерн неактуален
+        peaks_line = _fit_line([float(a), float(b), float(c)],
+                               [ls, head, rs])
+        ptype = (PatternType.INVERTED_HEAD_SHOULDERS if inverted
+                 else PatternType.HEAD_SHOULDERS)
+        res = PatternResult(
+            pattern=ptype,
+            confidence=conf,
+            upper_line=None if inverted else peaks_line,
+            lower_line=neck if not inverted else peaks_line,
+            breakout_direction="up" if inverted else "down",
+            diagnostics={
+                "type": ("inverted_head_shoulders" if inverted
+                         else "head_shoulders"),
+                "signal": ("long_on_neckline_break_up" if inverted
+                           else "short_on_neckline_break_down"),
+                "head": head,
+                "left_shoulder": ls,
+                "right_shoulder": rs,
+                "neckline_at_now": neck_now,
+                "neckline_touches": touches,
+                "breakout": breakout,
+                "price": price,
+            },
+        )
+        if not best or res.confidence > best["res"].confidence:
+            best["res"] = res
+
+    # Кандидаты: последние 3 свинг-хая (ГП) и последние 3 свинг-лоя
+    # (обратная ГП); также предыдущая тройка — паттерн мог завершиться
+    # пару баров назад.
+    for swing_idx, other_idx, inverted in (
+        (high_idx, low_idx, False),
+        (low_idx, high_idx, True),
+    ):
+        for offset in (3, 4):
+            if len(swing_idx) < offset:
+                continue
+            a = swing_idx[-offset]
+            b = swing_idx[-offset + 1]
+            c = swing_idx[-offset + 2]
+            between = [i for i in other_idx if a < i < c]
+            if len(between) < 2:
+                continue
+            _emit(inverted=inverted, a=a, b=b, c=c,
+                  t1=between[0], t2=between[-1])
+
+    if best:
+        return best["res"]  # type: ignore[return-value]
+    return PatternResult(PatternType.NONE, 0.0, None, None, None,
+                         {"reason": "no head-shoulders structure"})
 
 
 def detect_pattern(
@@ -142,18 +388,37 @@ def detect_pattern(
     recent_high_vals = [highs[i] for i in recent_high_idx]
     recent_low_vals = [lows[i] for i in recent_low_idx]
 
-    upper_line = _linear_regression([float(i) for i in recent_high_idx], recent_high_vals)
-    lower_line = _linear_regression([float(i) for i in recent_low_idx], recent_low_vals)
+    upper_line = _fit_line([float(i) for i in recent_high_idx], recent_high_vals)
+    lower_line = _fit_line([float(i) for i in recent_low_idx], recent_low_vals)
 
     # Текущая цена
     price = closes[-1]
-    upper_at_now = upper_line.slope * (len(highs) - 1) + upper_line.intercept
-    lower_at_now = lower_line.slope * (len(lows) - 1) + lower_line.intercept
+    last_idx = float(len(highs) - 1)
+    upper_at_now = upper_line.value_at(last_idx)
+    lower_at_now = lower_line.value_at(last_idx)
+
+    # Касания границы ТЕНЯМИ: свинг — касание, если экстремум лёг в
+    # пределах допуска от линии. Допуск — от СКО остатков линии
+    # (адаптивен к масштабу), минимум 0.3% цены.
+    def _count_touches(line: TrendLine, idxs: list[int], values: list[float]) -> int:
+        tol = max(line.rmse * 1.5, price * 0.003)
+        touches = 0
+        for i, v in zip(idxs, values, strict=False):
+            if abs(v - line.value_at(float(i))) <= tol:
+                touches += 1
+        return touches
+
+    upper_touches = _count_touches(upper_line, high_idx, [highs[i] for i in high_idx])
+    lower_touches = _count_touches(lower_line, low_idx, [lows[i] for i in low_idx])
+    # Правило «3 сверху + 3 снизу»: граница проверена рынком.
+    touches_confirmed = (
+        upper_touches >= MIN_TOUCHES_PER_LINE and lower_touches >= MIN_TOUCHES_PER_LINE
+    )
 
     # Диагностика
     diagnostics = {
-        "upper_slope": upper_line.slope,
-        "lower_slope": lower_line.slope,
+        "upper_slope": upper_line.slope_at(last_idx),
+        "lower_slope": lower_line.slope_at(last_idx),
         "upper_r2": upper_line.r2,
         "lower_r2": lower_line.r2,
         "upper_at_now": upper_at_now,
@@ -161,10 +426,22 @@ def detect_pattern(
         "price": price,
         "high_swings": len(high_idx),
         "low_swings": len(low_idx),
+        "upper_touches": upper_touches,
+        "lower_touches": lower_touches,
+        "touches_confirmed": touches_confirmed,
+        "upper_rounded": upper_line.quad is not None,
+        "lower_rounded": lower_line.quad is not None,
     }
 
-    # Проверка качества линий
-    if upper_line.r2 < 0.5 or lower_line.r2 < 0.5:
+    # Проверка качества линий.
+    # Для ПОЛОГИХ линий R² вырождается: у идеальной плоской поддержки с
+    # мелким шумом ss_tot→0 и R² падает, хотя линия отличная. Поэтому
+    # линия считается качественной, если R² достаточно (наклонные), ИЛИ
+    # СКО остатков мало относительно цены (плоские).
+    def _line_is_good(line: TrendLine) -> bool:
+        return line.r2 >= 0.5 or line.rmse <= price * 0.003
+
+    if not (_line_is_good(upper_line) and _line_is_good(lower_line)):
         # Слабые линии — не паттерн
         return PatternResult(
             pattern=PatternType.NONE,
@@ -172,114 +449,153 @@ def detect_pattern(
             upper_line=upper_line,
             lower_line=lower_line,
             breakout_direction=None,
-            diagnostics={**diagnostics, "reason": "low R2"},
+            diagnostics={
+                **diagnostics,
+                "reason": "low R2",
+                "upper_rmse": upper_line.rmse,
+                "lower_rmse": lower_line.rmse,
+            },
         )
 
-    # Определяем тип паттерна по наклонам
-    # Пороги для "плоской" линии: |slope| < 0.1 * ATR или < 0.0005 * price
+    # Определяем тип паттерна. Для кривых линий (закругления) важен
+    # ЛОКАЛЬНЫЙ наклон на правом крае, а не средний slope регрессии.
     flat_threshold = price * 0.0005  # 0.05% на бар
 
-    upper_flat = abs(upper_line.slope) < flat_threshold
-    lower_flat = abs(lower_line.slope) < flat_threshold
+    up_slope = upper_line.slope_at(last_idx)
+    lo_slope = lower_line.slope_at(last_idx)
+    up_curv = upper_line.curvature
+    lo_curv = lower_line.curvature
+
+    upper_flat = abs(up_slope) < flat_threshold
+    lower_flat = abs(lo_slope) < flat_threshold
 
     pattern = PatternType.NONE
     confidence = 0.0
     breakout_dir = None
 
-    # Восходящий треугольник: верхняя плоская, нижняя вверх
-    if upper_flat and lower_line.slope > flat_threshold:
-        pattern = PatternType.ASCENDING_TRIANGLE
-        # Сходятся ли? Верхняя плоская, нижняя вверх → сходятся
-        confidence = min(upper_line.r2, lower_line.r2) * 0.8 + 0.2
-        # Пробой вверх?
-        if price > upper_at_now * 1.001:
+    # Пробой границы отталкиваемся от ТЕНЕЙ: хай/лоу последнего бара за
+    # линией — пробой тенью (потенциал), close за линией — подтверждён.
+    upper_wick = highs[-1] > upper_at_now * 1.001 or price > upper_at_now * 1.001
+    lower_wick = lows[-1] < lower_at_now * 0.999 or price < lower_at_now * 0.999
+    body_up = price > upper_at_now * 1.001
+    body_down = price < lower_at_now * 0.999
+
+    # Закругление снизу (чаша): нижняя граница — парабола-чаша, на
+    # правом крае разворачивается вверх → лонг.
+    if lo_curv > 0 and upper_flat and lo_slope > flat_threshold * 0.5:
+        pattern = PatternType.ROUNDED_BOTTOM
+        confidence = min(0.9, lower_line.r2 * 0.7 + 0.2)
+        if body_up or upper_wick:
             breakout_dir = "up"
-            confidence = min(0.95, confidence + 0.2)
+            confidence = min(0.95, confidence + 0.15)
+        diagnostics["type"] = "rounded_bottom"
+        diagnostics["signal"] = "long_on_breakout_up"
+
+    # Закругление сверху (купол): верхняя — парабола-купол, на правом
+    # крае вниз → шорт.
+    elif up_curv < 0 and lower_flat and up_slope < -flat_threshold * 0.5:
+        pattern = PatternType.ROUNDED_TOP
+        confidence = min(0.9, upper_line.r2 * 0.7 + 0.2)
+        if body_down or lower_wick:
+            breakout_dir = "down"
+            confidence = min(0.95, confidence + 0.15)
+        diagnostics["type"] = "rounded_top"
+        diagnostics["signal"] = "short_on_breakdown_down"
+
+    # Восходящий треугольник: верхняя плоская, нижняя вверх
+    elif upper_flat and lo_slope > flat_threshold:
+        pattern = PatternType.ASCENDING_TRIANGLE
+        confidence = min(upper_line.r2, lower_line.r2) * 0.8 + 0.2
+        if upper_wick:
+            breakout_dir = "up"
+            confidence = min(0.95, confidence + (0.2 if body_up else 0.1))
         diagnostics["type"] = "ascending_triangle"
 
     # Нисходящий треугольник: нижняя плоская, верхняя вниз
-    elif lower_flat and upper_line.slope < -flat_threshold:
+    elif lower_flat and up_slope < -flat_threshold:
         pattern = PatternType.DESCENDING_TRIANGLE
         confidence = min(upper_line.r2, lower_line.r2) * 0.8 + 0.2
-        if price < lower_at_now * 0.999:
+        if lower_wick:
             breakout_dir = "down"
-            confidence = min(0.95, confidence + 0.2)
+            confidence = min(0.95, confidence + (0.2 if body_down else 0.1))
         diagnostics["type"] = "descending_triangle"
 
     # Симметричный треугольник: верхняя вниз, нижняя вверх, сходятся
-    elif upper_line.slope < -flat_threshold and lower_line.slope > flat_threshold:
-        # Проверяем схождение: расстояние между линиями уменьшается
-        upper_start = upper_line.slope * recent_high_idx[0] + upper_line.intercept
-        lower_start = lower_line.slope * recent_low_idx[0] + lower_line.intercept
-        upper_end = upper_line.slope * recent_high_idx[-1] + upper_line.intercept
-        lower_end = lower_line.slope * recent_low_idx[-1] + lower_line.intercept
+    elif up_slope < -flat_threshold and lo_slope > flat_threshold:
+        upper_start = upper_line.value_at(float(recent_high_idx[0]))
+        lower_start = lower_line.value_at(float(recent_low_idx[0]))
+        upper_end = upper_line.value_at(float(recent_high_idx[-1]))
+        lower_end = lower_line.value_at(float(recent_low_idx[-1]))
         start_dist = upper_start - lower_start
         end_dist = upper_end - lower_end
         if start_dist > 0 and end_dist > 0 and end_dist < start_dist * 0.8:
             pattern = PatternType.SYMMETRICAL_TRIANGLE
             confidence = min(upper_line.r2, lower_line.r2) * 0.7 + 0.15
-            # Пробой в любую сторону
-            if price > upper_at_now * 1.001:
+            if upper_wick:
                 breakout_dir = "up"
                 confidence += 0.15
-            elif price < lower_at_now * 0.999:
+            elif lower_wick:
                 breakout_dir = "down"
                 confidence += 0.15
             diagnostics["type"] = "symmetrical_triangle"
             diagnostics["convergence"] = (start_dist - end_dist) / start_dist
 
-    # Падающий клин: обе вниз, сходятся (верхняя более крутая вниз чем нижняя)
-    # Логика: slope_up < 0, slope_low < 0, slope_up < slope_low (более отрицательный), и сходятся
-    elif upper_line.slope < -flat_threshold and lower_line.slope < -flat_threshold:
-        if upper_line.slope < lower_line.slope:
-            # Верхняя падает быстрее → сходятся вниз
+    # Падающий клин: обе вниз, сходятся (верхняя круче вниз, чем нижняя)
+    elif up_slope < -flat_threshold and lo_slope < -flat_threshold:
+        if up_slope < lo_slope:
             pattern = PatternType.FALLING_WEDGE
             confidence = min(upper_line.r2, lower_line.r2) * 0.75 + 0.15
-            # Пробой вверх — бычий
-            if price > upper_at_now * 1.001:
+            if upper_wick:
                 breakout_dir = "up"
-                confidence = min(0.95, confidence + 0.2)
+                confidence = min(0.95, confidence + (0.2 if body_up else 0.1))
             diagnostics["type"] = "falling_wedge"
-            # Дополнительно: клин вниз — лонг (по ТЗ)
             diagnostics["signal"] = "long_on_breakout_up"
 
-    # Восходящий клин: обе вверх, сходятся (нижняя более крутая вверх)
-    elif upper_line.slope > flat_threshold and lower_line.slope > flat_threshold:
-        if lower_line.slope > upper_line.slope:
+    # Восходящий клин: обе вверх, сходятся (нижняя круче вверх)
+    elif up_slope > flat_threshold and lo_slope > flat_threshold:
+        if lo_slope > up_slope:
             pattern = PatternType.RISING_WEDGE
             confidence = min(upper_line.r2, lower_line.r2) * 0.75 + 0.15
-            if price < lower_at_now * 0.999:
+            if lower_wick:
                 breakout_dir = "down"
-                confidence = min(0.95, confidence + 0.2)
+                confidence = min(0.95, confidence + (0.2 if body_down else 0.1))
             diagnostics["type"] = "rising_wedge"
             diagnostics["signal"] = "short_on_breakdown_down"
 
     # Если не определили, но есть схождение — возможно клин
     if pattern == PatternType.NONE:
-        # Проверяем общее схождение
         try:
-            upper_start = upper_line.slope * recent_high_idx[0] + upper_line.intercept
-            lower_start = lower_line.slope * recent_low_idx[0] + lower_line.intercept
-            upper_end = upper_line.slope * recent_high_idx[-1] + upper_line.intercept
-            lower_end = lower_line.slope * recent_low_idx[-1] + lower_line.intercept
+            upper_start = upper_line.value_at(float(recent_high_idx[0]))
+            lower_start = lower_line.value_at(float(recent_low_idx[0]))
+            upper_end = upper_line.value_at(float(recent_high_idx[-1]))
+            lower_end = lower_line.value_at(float(recent_low_idx[-1]))
             if upper_start > lower_start and upper_end > lower_end:
                 start_dist = upper_start - lower_start
                 end_dist = upper_end - lower_end
                 if end_dist < start_dist * 0.7 and end_dist > 0:
-                    # Сходящийся канал — определяем по общему наклону
-                    avg_slope = (upper_line.slope + lower_line.slope) / 2
+                    avg_slope = (up_slope + lo_slope) / 2
                     if avg_slope < -flat_threshold:
                         pattern = PatternType.FALLING_WEDGE
                         confidence = 0.6
-                        if price > upper_at_now:
+                        if upper_wick:
                             breakout_dir = "up"
                     elif avg_slope > flat_threshold:
                         pattern = PatternType.RISING_WEDGE
                         confidence = 0.6
-                        if price < lower_at_now:
+                        if lower_wick:
                             breakout_dir = "down"
         except Exception:
             pass
+
+    # Правило «3 касания сверху + 3 снизу»: граница выверена рынком —
+    # уверенность выше и пробой близко. Без подтверждения — штраф.
+    if pattern != PatternType.NONE:
+        if touches_confirmed:
+            confidence = min(0.95, confidence + 0.1)
+            diagnostics["touches_bonus"] = 0.1
+        else:
+            confidence = max(0.0, confidence - 0.05)
+            diagnostics["touches_bonus"] = -0.05
 
     return PatternResult(
         pattern=pattern,
@@ -321,10 +637,14 @@ class FallingWedgeStrategy(BasePatternStrategy):
     """
     Падающий клин — бычий паттерн, лонг на пробое вверх.
 
-    По ТЗ: клин вниз = лонг
+    По ТЗ: клин вниз = лонг. Закругление снизу (чаша) — бычье
+    закругление клина, тоже лонг.
     """
 
     name = "falling_wedge"
+
+    # Бычьи фигуры, обрабатываемые стратегией (клин и его закругление).
+    BULLISH_PATTERNS = frozenset({PatternType.FALLING_WEDGE, PatternType.ROUNDED_BOTTOM})
 
     async def evaluate(self, ctx: StrategyContext):
         candles = ctx.candles
@@ -337,7 +657,7 @@ class FallingWedgeStrategy(BasePatternStrategy):
 
         result = detect_pattern(highs, lows, closes)
 
-        if result.pattern != PatternType.FALLING_WEDGE:
+        if result.pattern not in self.BULLISH_PATTERNS:
             return None
 
         if result.confidence < 0.5:
@@ -389,6 +709,9 @@ class RisingWedgeStrategy(BasePatternStrategy):
 
     name = "rising_wedge"
 
+    # Медвежьи фигуры (клин и его закругление-купол).
+    BEARISH_PATTERNS = frozenset({PatternType.RISING_WEDGE, PatternType.ROUNDED_TOP})
+
     async def evaluate(self, ctx: StrategyContext):
         candles = ctx.candles
         if len(candles) < 50:
@@ -400,7 +723,7 @@ class RisingWedgeStrategy(BasePatternStrategy):
 
         result = detect_pattern(highs, lows, closes)
 
-        if result.pattern != PatternType.RISING_WEDGE:
+        if result.pattern not in self.BEARISH_PATTERNS:
             return None
 
         if result.confidence < 0.5:
@@ -610,3 +933,80 @@ ALL_PATTERN_STRATEGIES = [
     DescendingTriangleStrategy,
     SymmetricalTriangleStrategy,
 ]
+
+class HeadShouldersStrategy(BasePatternStrategy):
+    """Голова и плечи — разворотный паттерн.
+
+    ГП (медвежья): шорт на пробое ШЕИ вниз; стоп за правое плечо
+    (половина пути к голове), тейк — классическая проекция «высота
+    головы от шеи». Обратная ГП (бычья): лонг на пробое шеи вверх,
+    зеркально. Касания шеи — по теням (см. detect_head_shoulders).
+    """
+
+    name = "head_shoulders"
+
+    async def evaluate(self, ctx: StrategyContext):
+        candles = ctx.candles
+        if len(candles) < 40:
+            return None
+
+        highs = [float(c.high) for c in candles]
+        lows = [float(c.low) for c in candles]
+        closes = [float(c.close) for c in candles]
+
+        result = detect_head_shoulders(highs, lows, closes)
+        if result.pattern == PatternType.HEAD_SHOULDERS:
+            direction = "short"
+        elif result.pattern == PatternType.INVERTED_HEAD_SHOULDERS:
+            direction = "long"
+        else:
+            return None
+
+        if result.confidence < 0.5:
+            return None
+        breakout = result.diagnostics.get("breakout")
+        # Для торговли нужен пробой шеи: подтверждённый, либо ранний
+        # (тень) при высокой уверенности.
+        if breakout is None:
+            return None
+        if str(breakout).startswith("early") and result.confidence < 0.65:
+            return None
+        if not self._check_volume(candles):
+            return None
+
+        price = closes[-1]
+        neck = float(result.diagnostics.get("neckline_at_now", price))
+        head = float(result.diagnostics.get("head", price))
+        rs = float(result.diagnostics.get("right_shoulder", price))
+        if direction == "short":
+            # Стоп над правым плечом (половина пути к голове).
+            sl = rs + 0.5 * max(head - rs, price * 0.005)
+            # Проекция: высота головы от шеи.
+            measured = max(head - neck, price * 0.01)
+            tp = price - measured
+            risk = sl - price
+        else:
+            sl = rs - 0.5 * max(rs - head, price * 0.005)
+            measured = max(neck - head, price * 0.01)
+            tp = price + measured
+            risk = price - sl
+        if risk <= 0:
+            risk = price * 0.01
+
+        return SignalCandidate(
+            symbol=ctx.symbol,
+            direction=direction,
+            entry_price=Decimal(str(price)),
+            stop_loss=Decimal(str(sl)),
+            take_profit=Decimal(str(tp)),
+            timeframe=ctx.timeframe,
+            strategy=self.name,
+            confidence=result.confidence,
+            features={
+                "pattern": result.pattern.value,
+                "breakout": breakout,
+                "neckline": neck,
+                "head": head,
+                "neckline_touches": result.diagnostics.get("neckline_touches", 0),
+            },
+        )

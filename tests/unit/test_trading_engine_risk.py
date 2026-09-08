@@ -126,6 +126,12 @@ def engine_factory(tmp_path: Path, monkeypatch):
             bars_per_tf={"5m": 120},
             fee_pct=Decimal("0"),
             slippage_pct=Decimal("0"),
+            # Фокус теста — risk-состояние при полном -1R стопе; умные
+            # выходы (BE/MAE_CUT) здесь мешают допущением теста.
+            smart_exit_default=False,
+            structural_stop=False,
+            # hermetic: статистика стратегий только в tmp, не в models/.
+            stats_path=str(tmp_path / "strategy_stats.json"),
             # Block 6.1: new defaults are 1% risk, 10% max notional, 3 positions
             # For test stability we allow default, but check qty >0
         )

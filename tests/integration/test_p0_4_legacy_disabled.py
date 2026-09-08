@@ -59,10 +59,19 @@ class TestSizingInvariant:
         )
 
     def test_historical_trades_violate_sizing(self):
-        """365 исторических сделок содержат нарушения sizing-инварианта."""
-        trades_path = Path("models/paper_trades.jsonl")
-        if not trades_path.exists():
-            pytest.skip("No paper_trades.jsonl available")
+        """Исторические сделки содержат нарушения sizing-инварианта.
+
+        Доказательство необходимости инварианта — ЛЕГАСИ-прогон (архив
+        models_archive_*/paper_trades.jsonl): живой models/paper_trades
+        теперь пишется исправным сайзингом и нарушений не содержит.
+        """
+        candidates = sorted(
+            Path(".").glob("models_archive_*/paper_trades.jsonl"), reverse=True
+        )
+        candidates.append(Path("models/paper_trades.jsonl"))
+        trades_path = next((c for c in candidates if c.exists()), None)
+        if trades_path is None:
+            pytest.skip("No archived paper_trades.jsonl available")
 
         equity = Decimal("2000")  # initial_capital
         max_position_fraction = Decimal("0.10")

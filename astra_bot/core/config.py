@@ -318,6 +318,9 @@ class SystemConfig:
                 poll_interval_ms=md_data.get("poll_interval_ms", 1000),
                 websocket_reconnect_delay=md_data.get("websocket_reconnect_delay", 5),
                 stale_data_timeout_seconds=md_data.get("stale_data_timeout_seconds", 5),
+                # Раньше ключ молча игнорировался — период тика всегда
+                # оставался дефолтным независимо от YAML.
+                tick_interval_seconds=int(md_data.get("tick_interval_seconds", 60)),
                 candle_timeframes=md_data.get("candle_timeframes",
                     ["1m", "5m", "15m", "1h", "4h", "1d"]),
                 max_candles_cache=md_data.get("max_candles_cache", 10000),

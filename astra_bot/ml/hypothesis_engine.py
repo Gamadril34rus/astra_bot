@@ -37,7 +37,6 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-# ruff: noqa: UP042
 
 class HypothesisStatus(str, Enum):
     DISCOVERED = "DISCOVERED"

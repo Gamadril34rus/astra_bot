@@ -33,6 +33,7 @@ import logging
 import os
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -274,4 +275,7 @@ def broker_state_dict(pos: Any) -> dict[str, Any]:
     d["risk_distance"] = str(pos.risk_distance)
     d["regime"] = pos.regime
     d["timeframe"] = pos.timeframe
+    # Плечо (Decimal) — иначе бандл не сериализуется.
+    d["leverage"] = str(getattr(pos, "leverage", Decimal("1")))
+    d["margin_used"] = str(getattr(pos, "margin_used", Decimal("0")))
     return d

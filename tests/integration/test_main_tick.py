@@ -65,7 +65,20 @@ class TestTickOrchestration:
         asyncio.run(bot._tick())
         assert len(eng.broker.positions) == 1
         pos = eng.broker.positions[0]
-        assert pos.strategy == "scalp"
+        # Раньше здесь жёстко ожидался "scalp": это выполнялось только
+        # потому, что momentum был сломан (режимный гейт всегда OFF и
+        # невыполнимая проверка R:R). Теперь meta-выбор легитимно может
+        # выбрать momentum — инвариант в том, что позиция открыта одной
+        # из живых стратегий пайплайна.
+        assert pos.strategy in {
+            "scalp5m",
+            "scalp",
+            "pullback",
+            "momentum",
+            "mean_reversion",
+            "ts_momentum",
+            "ts_momentum_adx",
+        }
         # Риск-слой учёл позицию (независимый контур).
         assert len(eng.risk._open_positions) == 1
 

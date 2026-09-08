@@ -19,6 +19,7 @@ except ImportError:
     pass
 # Block 1.5: Error logging to logs/errors.log
 import traceback
+from datetime import UTC
 
 from astra_bot.adapters.bingx import BingXClient
 from astra_bot.core import trading_schedule
@@ -131,21 +132,54 @@ async def amain() -> int:
                 if trading_schedule.can_trade_now():
                     trading_schedule.tick()
                     await engine.step()
-                    # Block 7.1: record day for readiness tracking
+                    # Block 7.1: record day for readiness tracking.
+                    # Раньше: несуществующий модуль astra_bot.learning и
+                    # неверная сигнатура (trades_today/lessons_count) —
+                    # вызов падал с TypeError и глотался debug-логом,
+                    # счётчик опыта не рос никогда.
                     try:
-                        from astra_bot.learning.readiness import record_day
-                        # Count trades today from engine
-                        trades_today = 0
-                        try:
-                            from pathlib import Path as _P
-                            tp = _P("models/paper_trades.jsonl")
-                            if tp.exists():
-                                trading_schedule.get_status()["now_msk"][:10]
-                                # Simplified: count trades with closed_at today
-                        except Exception:
-                            pass
-                        # Record day with minimal metrics (will be updated by morning_report)
-                        record_day(trades_today=trades_today, lessons_count=0, equity=float(engine.broker.equity) if hasattr(engine, 'broker') else 0)
+                        import json as _json
+                        from datetime import datetime as _dt
+                        from pathlib import Path as _P
+
+                        from astra_bot.core.readiness import record_day
+
+                        today = _dt.now(UTC).date().isoformat()
+                        trades_today = wins_today = 0
+                        pnl_today = 0.0
+                        tp = _P(getattr(engine.config, "trades_path", "models/paper_trades.jsonl"))
+                        if tp.exists():
+                            for _line in tp.read_text(encoding="utf-8").splitlines():
+                                _line = _line.strip()
+                                if not _line:
+                                    continue
+                                try:
+                                    _t = _json.loads(_line)
+                                except Exception:
+                                    continue
+                                _closed = _t.get("closed_at") or 0
+                                try:
+                                    if isinstance(_closed, (int, float)) and _closed > 0:
+                                        _day = _dt.fromtimestamp(_closed / 1000, tz=UTC).date().isoformat()
+                                    elif isinstance(_closed, str) and _closed[:10]:
+                                        _day = _closed[:10]
+                                    else:
+                                        continue
+                                except Exception:
+                                    continue
+                                if _day != today:
+                                    continue
+                                trades_today += 1
+                                _p = float(_t.get("pnl") or 0.0)
+                                pnl_today += _p
+                                if _p > 0:
+                                    wins_today += 1
+                        record_day(
+                            trades=trades_today,
+                            wins=wins_today,
+                            pnl=pnl_today,
+                            equity_end=float(engine.broker.equity) if hasattr(engine, "broker") else 0.0,
+                        )
                     except Exception as _e:
                         logger.debug("readiness.record_day failed: %s", _e)
                 else:

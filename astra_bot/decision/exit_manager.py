@@ -38,8 +38,11 @@ class ExitManagerConfig:
     vol_expansion_ratio: float = 2.0  # TR_bара >= 2.0 × медиана TR → выход
     vol_lookback: int = 60  # мин. баров, чтобы считать серию ATR
     vol_window: int = 20  # окно медианы ATR
-    btc_panic_drop_pct: float = 5.0  # BTC close ниже max(highs) на 5%
-    btc_panic_bars: int = 30  # баров 4h для референса
+    # Раньше 5% за 30 баров (5 дней): обычная коррекция крипторынка
+    # держала бот в «панике» постоянно и входы были запрещены. 12% за
+    # 7 дней — это уже настоящий обвал, а не рыночный шум.
+    btc_panic_drop_pct: float = 12.0  # BTC close ниже max(highs) на 12%
+    btc_panic_bars: int = 42  # баров 4h для референса (= 7 дней)
 
 
 def _true_range(o: float, h: float, lo: float, pc: float) -> float:

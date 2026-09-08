@@ -54,6 +54,63 @@ def _spawn_background(coro) -> None:
 logger = logging.getLogger(__name__)
 
 
+# Лестница плеча по УВЕРЕННОСТИ: (мин. confidence, мин. EV_R, плечо).
+# Пользователь: «если бот уверен, что цена пойдёт по сценарию, точно —
+# плечо не ограничивается 2, а доходит до 100. Но только после ПОЛНОЙ
+# уверенности». Первая ступень, дающая плечо, — базовые 2x по EV
+# (см. leverage_for); лестница повышает только при высокой уверенности.
+LEVERAGE_LADDER: tuple[tuple[float, float, int], ...] = (
+    (0.95, 3.0, 100),   # «прям точно»: почти железная уверенность + сильный EV
+    (0.90, 2.5, 50),
+    (0.85, 2.0, 20),
+    (0.80, 1.6, 10),
+    (0.70, 1.3, 5),
+    (0.55, 1.1, 3),
+)
+
+
+def leverage_for(
+    confidence: float,
+    ev_r: float,
+    entry_price: float,
+    stop_loss: float,
+    max_leverage: int,
+    min_ev_r: float,
+    maintenance_margin_pct: float = 0.005,
+) -> int:
+    """Плечо сделки: база 2x по EV, выше — только по уверенности.
+
+    Два обязательных ограничителя:
+      - потолок ASTRA_LEVERAGE_MAX (config.leverage_max);
+      - СТОП ДОЛЖЕН УМЕРЕТЬ РАНЬШЕ ЛИКВИДАЦИИ: lev < 1/(d + mm), где
+        d — дистанция стопа в долях цены. 100x с широким стопом —
+        гарантированная ликвидация, поэтому плечо срезается до
+        допустимого (а не отменяется сделка).
+
+    PnL по стопу от плеча не зависит (объём считается по риску) —
+    плечо меняет маржу, фандинг и близость ликвидации, не риск.
+    """
+    if max_leverage <= 1:
+        return 1
+    if ev_r < min_ev_r:
+        return 1
+    lev = 2  # база: сильный EV уже даёт 2x (прежнее поведение)
+    for min_conf, min_ev, rung in LEVERAGE_LADDER:
+        if confidence >= min_conf and ev_r >= min_ev:
+            lev = max(lev, min(rung, max_leverage))
+            break
+    lev = min(lev, max_leverage)
+    entry = float(entry_price)
+    stop = float(stop_loss)
+    if entry > 0:
+        d = abs(entry - stop) / entry
+        if d > 0:
+            feasible = int(1.0 / (d + maintenance_margin_pct)) - 1
+            if lev > feasible:
+                lev = max(1, feasible)
+    return max(1, lev)
+
+
 @dataclass
 class TradingEngineConfig:
     symbols: tuple[str, ...] = ("BTC-USDT", "ETH-USDT", "SOL-USDT")
@@ -82,6 +139,19 @@ class TradingEngineConfig:
     fee_pct: Decimal = Decimal("0.001")
     slippage_pct: Decimal = Decimal("0.001")
     # Research memory: статистика стратегий по режимам + NO_TRADE-наблюдения.
+    # Плечо: максимум и порог EV (R), начиная с которого движок берёт
+    # плечо. Комиссия за плечо (фандинг) начисляется брокером при
+    # закрытии — в PnL она попадает всегда.
+    # Умные выходы по умолчанию (BE-нетто/трейлинг/MAE_CUT/REGIME_EXIT),
+    # пока Hypothesis Engine не продвинул собственный план (TZ §16/§17).
+    smart_exit_default: bool = True
+    # Структурный стоп: перед сайзингом выносим стоп за свинг по теням.
+    structural_stop: bool = True
+    # Потолок плеча. Реальный уровень задаёт лестница уверенности
+    # (LEVERAGE_LADDER): обычный сетап с сильным EV — 2x, «полная
+    # уверенность» (conf >= 0.95 и EV >= 3R) — до 100x.
+    leverage_max: int = 100
+    leverage_min_ev_r: float = 0.8
     stats_path: str = "models/strategy_stats.json"
     no_trade_observations_path: str = "models/no_trade_observations.jsonl"
     no_trade_outcomes_path: str = "models/no_trade_outcomes.json"
@@ -136,11 +206,17 @@ class TradingEngine:
                 min_samples=cfg.min_ev_samples,
             )
             # Pattern strategies (wedges & triangles) — по ТЗ пользователя: основа
+            # V2-стратегии написаны против плоского StrategyContext и возвращают
+            # SignalCandidate; через PipelineStrategyAdapter они работают в
+            # контракте пайплайна (evaluate(symbol, candles, ...) -> Signal).
             try:
+                from ..strategies.base import SignalType
+                from .strategies.adapter import PipelineStrategyAdapter
                 from .strategies.pattern_strategies import (
                     AscendingTriangleStrategy,
                     DescendingTriangleStrategy,
                     FallingWedgeStrategy,
+                    HeadShouldersStrategy,
                     RisingWedgeStrategy,
                     SymmetricalTriangleStrategy,
                 )
@@ -150,16 +226,18 @@ class TradingEngine:
                     MomentumStrategyV2,
                     TrendFollowingStrategyV2,
                 )
+
                 pattern_strats = [
-                    FallingWedgeStrategy(),
-                    RisingWedgeStrategy(),
-                    AscendingTriangleStrategy(),
-                    DescendingTriangleStrategy(),
-                    SymmetricalTriangleStrategy(),
-                    TrendFollowingStrategyV2(),
-                    MeanReversionStrategyV2(),
-                    BreakoutStrategyV2(),
-                    MomentumStrategyV2(),
+                    PipelineStrategyAdapter(FallingWedgeStrategy(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(RisingWedgeStrategy(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(AscendingTriangleStrategy(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(DescendingTriangleStrategy(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(SymmetricalTriangleStrategy(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(HeadShouldersStrategy(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(TrendFollowingStrategyV2(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(MeanReversionStrategyV2(), SignalType.MEAN_REVERSION),
+                    PipelineStrategyAdapter(BreakoutStrategyV2(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(MomentumStrategyV2(), SignalType.MOMENTUM),
                 ]
             except Exception as e:
                 import logging
@@ -251,7 +329,9 @@ class TradingEngine:
         # Hypothesis Engine допустил вариант до ACTIVE.
         from .exit_controller import ExitController
 
-        self.exit_controller = ExitController(self.hypotheses)
+        self.exit_controller = ExitController(
+            self.hypotheses, smart_default=self.config.smart_exit_default
+        )
         # Model Registry (TZ §18): живому пайплайну отдаём только
         # ACTIVE (production) модель; без неё пайплайн работает как
         # раньше (ml_probability = None). Сбой загрузки не роняет бота.
@@ -281,6 +361,8 @@ class TradingEngine:
             trades_path=Path(self.config.trades_path),
             fee_pct=self.config.fee_pct,
             slippage_pct=self.config.slippage_pct,
+            # Потолок плеча движка (иначе брокер зажмёт своим дефолтом 2).
+            max_leverage=Decimal(self.config.leverage_max),
         )
         if initial_capital is not None:
             kwargs["initial_capital"] = initial_capital
@@ -680,6 +762,26 @@ class TradingEngine:
             )
             return closed
 
+        # Структурный стоп (по теням): если стоп стратегии стоит внутри
+        # зоны шума — выносим за ближайший свинг-экстремум с буфером.
+        # ВАЖНО: до сайзинга, чтобы объём считался уже по новому R и
+        # риск на сделку не вырос.
+        if self.config.structural_stop and primary:
+            try:
+                from .exit_controller import structural_stop
+
+                new_stop = structural_stop(
+                    cand.entry_price, cand.stop_loss, wanted_dir, list(primary)
+                )
+                if new_stop != cand.stop_loss:
+                    logger.info(
+                        "STRUCT-STOP %s %s: %s -> %s (за свинг по теням)",
+                        symbol, wanted_dir, cand.stop_loss, new_stop,
+                    )
+                    cand.stop_loss = new_stop
+            except Exception as exc:
+                logger.debug("structural_stop: %s", exc)
+
         # Block 6.2: position sizing with ML confidence and volatility
         _atr_pct = None
         try:
@@ -715,29 +817,62 @@ class TradingEngine:
 
         cand_features = cand.features or {}
         regime_info = decision.diagnostics.get("regime") or {}
-        pos = self.broker.open_position(
-            symbol=symbol,
-            direction="long" if cand.direction == "long" else "short",
-            entry_price=cand.entry_price,
-            stop_loss=cand.stop_loss,
-            take_profit=cand.take_profit,
-            quantity=size,
-            strategy=cand.strategy,
-            no_take_profit=bool(cand_features.get("no_take_profit")),
-            regime=str(regime_info.get("regime", "")),
-            timeframe=cand.timeframe,
-            # A2 (МТЗ §10): композитный ключ осей Regime 2.0 — прокидывается
-            # до закрытия в статистику бакетов; пусто => legacy-режим.
-            regime_axes=str(regime_info.get("axes_key") or ""),
-            notes={
-                "score": cand.total_score,
-                "ml_probability": cand.ml_probability,
-                "edge_pct": cand.expected_edge_pct,
-                "ev_r": cand_features.get("ev_r"),
-                "ev_confidence": cand_features.get("ev_confidence"),
-                "rr": cand.risk_reward,
-            },
-        )
+        # Плечо: берём максимум только при сильном EV — платить за заём
+        # ради слабого сетапа нельзя. Комиссия за плечо закладывается
+        # брокером в PnL при закрытии (leverage_fee_daily).
+        leverage = 1
+        if self.config.leverage_max > 1:
+            ev_r = float(cand_features.get("ev_r") or 0.0)
+            leverage = leverage_for(
+                confidence=float(cand.confidence or 0.0),
+                ev_r=ev_r,
+                entry_price=float(cand.entry_price),
+                stop_loss=float(cand.stop_loss),
+                max_leverage=self.config.leverage_max,
+                min_ev_r=float(self.config.leverage_min_ev_r),
+                maintenance_margin_pct=float(
+                    getattr(self.broker, "maintenance_margin_pct", 0.005)
+                ),
+            )
+            if leverage > 2:
+                logger.info(
+                    "LEV-LADDER %s: conf=%.2f ev=%.2fR -> плечо %dx",
+                    symbol, float(cand.confidence or 0.0), ev_r, leverage,
+                )
+        try:
+            pos = self.broker.open_position(
+                symbol=symbol,
+                direction="long" if cand.direction == "long" else "short",
+                entry_price=cand.entry_price,
+                stop_loss=cand.stop_loss,
+                take_profit=cand.take_profit,
+                quantity=size,
+                strategy=cand.strategy,
+                no_take_profit=bool(cand_features.get("no_take_profit")),
+                regime=str(regime_info.get("regime", "")),
+                timeframe=cand.timeframe,
+                # A2 (МТЗ §10): композитный ключ осей Regime 2.0 — прокидывается
+                # до закрытия в статистику бакетов; пусто => legacy-режим.
+                regime_axes=str(regime_info.get("axes_key") or ""),
+                leverage=leverage,
+                notes={
+                    "score": cand.total_score,
+                    "ml_probability": cand.ml_probability,
+                    "edge_pct": cand.expected_edge_pct,
+                    "ev_r": cand_features.get("ev_r"),
+                    "ev_confidence": cand_features.get("ev_confidence"),
+                    "rr": cand.risk_reward,
+                    "leverage": leverage,
+                },
+            )
+        except ValueError as exc:
+            # Маржа/ликвидация не позволили плечо — сделка отменяется
+            # целиком (fail-closed), а не «как-нибудь без плеча».
+            logger.warning(
+                "%s: сделка отменена брокером (%s) — плечо %s",
+                symbol, exc, leverage,
+            )
+            return
         # Книга позиций Risk Engine живая внутри сессии: экспозиция и
         # лимит числа позиций считаются по актуальному набору.
         # Meta (Этап 5) — для gross/net/групповых portfolio-лимитов.
@@ -919,11 +1054,7 @@ class TradingEngine:
                     for p in self.broker.positions
                 ]
                 # Compute daily stats from recent trades
-                from datetime import datetime
-                datetime.now(UTC)
-                [t for t in trades if True]  # trades passed are recent closes
-                # For simplicity, daily PnL is sum of today's closes
-                # More accurate daily aggregation is done in morning_report
+                # Итоговая дневная агрегация делается в morning_report.
                 state["daily_pnl"] = float(sum(float(t.get("pnl",0) or 0) for t in trades))
                 state["daily_trades"] = len(trades)
                 state["daily_wins"] = sum(1 for t in trades if float(t.get("pnl",0) or 0) > 0)

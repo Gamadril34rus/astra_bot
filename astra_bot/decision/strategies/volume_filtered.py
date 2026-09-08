@@ -126,7 +126,7 @@ class TrendFollowingStrategyV2:
 class MeanReversionStrategyV2:
     """Mean Reversion — Block 4.3 with volume filter."""
 
-    name = "mean_reversion"
+    name = "mean_reversion_v2"
 
     def __init__(self, volume_threshold: float = 1.0):
         self.volume_threshold = volume_threshold
@@ -240,7 +240,7 @@ class BreakoutStrategyV2:
 class MomentumStrategyV2:
     """Momentum — Block 4.3 with volume filter."""
 
-    name = "momentum"
+    name = "momentum_v2"
 
     def __init__(self, volume_threshold: float = 1.2):
         self.volume_threshold = volume_threshold

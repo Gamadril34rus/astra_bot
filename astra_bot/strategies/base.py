@@ -9,12 +9,15 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any
+from typing import Any, Generic, TypeVar
 from uuid import UUID, uuid4
 
 from ..core import events, models
 
 logger = logging.getLogger(__name__)
+
+# Тип конфига конкретной стратегии (строгая типизация self.config в подклассах).
+ConfigT = TypeVar("ConfigT", bound="StrategyConfig")
 
 
 class SignalType(Enum):
@@ -45,6 +48,9 @@ class StrategyConfig:
     losses: int = 0
     net_pnl: float = 0.0
     profit_factor: float = 0.0
+    # Валовые суммы для корректного Profit Factor (gross win / gross loss).
+    gross_profit: float = 0.0
+    gross_loss: float = 0.0
 
     @property
     def is_healthy(self) -> bool:
@@ -55,17 +61,22 @@ class StrategyConfig:
         self.total_trades += 1
         if won:
             self.wins += 1
+            self.gross_profit += max(pnl, 0.0)
             self.net_pnl += pnl
         else:
             self.losses += 1
+            self.gross_loss += abs(pnl)
             self.net_pnl -= abs(pnl)
 
-        # Простой расчёт profit factor
-        if self.losses > 0 and self.wins > 0:
-            avg_win = self.net_pnl / self.wins
-            avg_loss = abs(self.net_pnl) / self.losses
-            if avg_loss > 0:
-                self.profit_factor = avg_win / avg_loss
+        # Profit Factor = валовая прибыль / валовый убыток.
+        # Раньше считался из net_pnl — на самом деле это давало отношение
+        # количества сделок, а серия без убытков оставляла PF=0.0 и
+        # ложно активировала kill switch.
+        if self.gross_loss > 0:
+            self.profit_factor = self.gross_profit / self.gross_loss
+        elif self.gross_profit > 0:
+            # Убытков нет: PF бесконечен, ограничиваем конечным значением.
+            self.profit_factor = 99.0
 
 
 @dataclass
@@ -118,7 +129,7 @@ class Signal:
         }
 
 
-class BaseStrategy(ABC):
+class BaseStrategy(ABC, Generic[ConfigT]):
     """
     Базовый класс для всех торговых стратегий.
 
@@ -129,8 +140,12 @@ class BaseStrategy(ABC):
     4. Проверять совместимость с режимом рынка
     """
 
-    def __init__(self, config: StrategyConfig):
-        self.config = config
+    # Минимальная выборка сделок, на которой разрешено авто-убийство
+    # стратегии по Profit Factor (раньше хватало одной сделки).
+    MIN_TRADES_FOR_KILL_SWITCH: int = 5
+
+    def __init__(self, config: ConfigT) -> None:
+        self.config: ConfigT = config
         self.name = config.name
         self.enabled = config.enabled
         self.weight = config.weight
@@ -195,7 +210,7 @@ class BaseStrategy(ABC):
 
     def check_regime_compatibility(
         self,
-        regime: str,
+        regime: str | Enum,
     ) -> str:
         """
         Проверить совместимость со режимом рынка.
@@ -205,10 +220,19 @@ class BaseStrategy(ABC):
             "REDUCED" — можно с ограничениями
             "OFF" — нельзя торговать
         """
-        from ..engines.regime_detector import STRATEGY_REGIME_COMPATIBILITY
+        from ..engines.regime_detector import STRATEGY_REGIME_COMPATIBILITY, MarketRegime
 
+        # Внутренние ключи словаря — члены Enum MarketRegime, поэтому искать
+        # по строке нельзя (хэш строки не совпадает с хэшем члена Enum и
+        # проверка всегда возвращала "OFF", убивая стратегию в любом режиме).
+        regime_enum = regime if isinstance(regime, MarketRegime) else None
+        if regime_enum is None:
+            try:
+                regime_enum = MarketRegime(str(regime))
+            except ValueError:
+                return "OFF"
         return STRATEGY_REGIME_COMPATIBILITY.get(self.name, {}).get(
-            regime, "OFF"
+            regime_enum, "OFF"
         )
 
     def update_performance(self, won: bool, pnl: float):
@@ -222,8 +246,14 @@ class BaseStrategy(ABC):
             self._consecutive_wins += 1
             self._consecutive_losses = 0
 
-        # Автоматический kill switch при ухудшении
-        if self.performance.profit_factor < self.config.decay_threshold:
+        # Автоматический kill switch при ухудшении.
+        # Решение принимаем только на минимальной выборке: на 1-2 сделках
+        # PF статистически ничтожен, и раньше стратегия убивалась после
+        # первой же сделки в любом режиме рынка.
+        if (
+            self.performance.total_trades >= self.MIN_TRADES_FOR_KILL_SWITCH
+            and self.performance.profit_factor < self.config.decay_threshold
+        ):
             if not self.config.kill_switch:
                 logger.warning(
                     f"Strategy {self.name} kill switch activated: "
@@ -232,7 +262,11 @@ class BaseStrategy(ABC):
                 self.config.kill_switch = True
                 self.performance.kill_switch = True
 
-                events.emit_async(events.EventType.STRATEGY_KILLED, {
+                # update_performance — sync-метод; emit_async без await
+                # создавал корутину, которая никогда не исполнялась
+                # (событие STRATEGY_KILLED молча терялось). Публикуем
+                # синхронно, как это делает risk_engine для своих событий.
+                events.emit(events.EventType.STRATEGY_KILLED, {
                     "strategy": self.name,
                     "profit_factor": self.performance.profit_factor,
                     "reason": "Decay detected",
@@ -251,13 +285,10 @@ class BaseStrategy(ABC):
         regime: str,
     ) -> str:
         """Получить уровень совместимости со режимом"""
-        from ..engines.regime_detector import MarketRegime
-
-        try:
-            regime_enum = MarketRegime(regime)
-            return self.check_regime_compatibility(regime_enum.value)
-        except ValueError:
-            return "OFF"
+        # Нормализация str -> MarketRegime теперь внутри
+        # check_regime_compatibility (раньше .value разворачивал Enum
+        # обратно в строку и ломал поиск по словарю).
+        return self.check_regime_compatibility(regime)
 
     def to_dict(self) -> dict:
         """Сериализовать состояние"""
