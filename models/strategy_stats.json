@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-08T16:53:09.655466+00:00",
+  "updated": "2026-09-08T17:11:45.760238+00:00",
   "buckets": {
     "scalp5m|UNKNOWN|": {
       "sample_size": 1,
@@ -192,6 +192,42 @@
       "sum_mae_r": 0.3206008976825135,
       "sum_fees": 3.595504610782633,
       "last_updated": "2026-09-08T16:53:09.655430+00:00"
+    },
+    "falling_wedge|T:STRONG/V:LOW/L:STRESSED|1h": {
+      "sample_size": 1,
+      "wins": 1,
+      "losses": 0,
+      "sum_r": 0.07907340700870054,
+      "wins_sum_r": 0.07907340700870054,
+      "losses_sum_r": 0.0,
+      "sum_mfe_r": 0.2321607280020956,
+      "sum_mae_r": -0.005399086697723154,
+      "sum_fees": 1.5634908597281254,
+      "last_updated": "2026-09-08T17:11:45.760171+00:00"
+    },
+    "falling_wedge|STRONG_BULL_TREND|1h": {
+      "sample_size": 1,
+      "wins": 1,
+      "losses": 0,
+      "sum_r": 0.07907340700870054,
+      "wins_sum_r": 0.07907340700870054,
+      "losses_sum_r": 0.0,
+      "sum_mfe_r": 0.2321607280020956,
+      "sum_mae_r": -0.005399086697723154,
+      "sum_fees": 1.5634908597281254,
+      "last_updated": "2026-09-08T17:11:45.760184+00:00"
+    },
+    "falling_wedge|ANY|1h": {
+      "sample_size": 1,
+      "wins": 1,
+      "losses": 0,
+      "sum_r": 0.07907340700870054,
+      "wins_sum_r": 0.07907340700870054,
+      "losses_sum_r": 0.0,
+      "sum_mfe_r": 0.2321607280020956,
+      "sum_mae_r": -0.005399086697723154,
+      "sum_fees": 1.5634908597281254,
+      "last_updated": "2026-09-08T17:11:45.760190+00:00"
     }
   }
 }
