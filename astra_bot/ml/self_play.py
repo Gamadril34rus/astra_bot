@@ -257,7 +257,7 @@ def _takeaway(lesson: Lesson) -> str:
 class SelfPlayConfig:
     """Параметры self-play."""
 
-    # 10 ликвидных пар к USDT (BingX spot). Импорт ленивый, чтобы не тянуть
+    # 10 ликвидных пар к USDT (BingX USDT-M perps). Импорт ленивый, чтобы не тянуть
     # зависимости при сборе документации/тестах.
     symbols: tuple[str, ...] = field(
         default_factory=lambda: __import__(

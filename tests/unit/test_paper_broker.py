@@ -137,9 +137,11 @@ def test_open_position_without_take_profits(broker):
 def test_fees_and_slippage_reduce_pnl(cost_broker):
     """Вход 100 со slippage 0.1% → fill 100.1; стоп 99, exit fill 98.901.
 
-    gross = 98.901 - 100.1 = -1.199
-    fees  = 100.1*0.001 (вход) + 98.901*0.001 (выход) = 0.199001
-    pnl   = -1.199 - 0.199001 = -1.398001
+    gross   = 98.901 - 100.1 = -1.199
+    fees    = 100.1*0.001 (вход) + 98.901*0.001 (выход) = 0.199001
+    funding = 100.1 * 0.0001 * (60/480) = 0.00125125 (1 бар × 60 мин,
+              дефолтная ставка 0.01% за 8ч; timeframe не задан → 60 мин)
+    pnl     = -1.199 - 0.199001 - 0.00125125 = -1.39925225
     """
     cost_broker.open_position(
         symbol="BTC-USDT",
@@ -152,8 +154,9 @@ def test_fees_and_slippage_reduce_pnl(cost_broker):
     closed = cost_broker.on_bar(_bar("BTC-USDT", 100, 100, 98.5, 99))
     assert len(closed) == 1
     assert closed[0].exit_reason == "stop_loss"
-    assert closed[0].pnl == pytest.approx(-1.398001, abs=1e-9)
+    assert closed[0].pnl == pytest.approx(-1.39925225, abs=1e-9)
     assert closed[0].fees == pytest.approx(0.199001, abs=1e-9)
+    assert closed[0].funding == pytest.approx(0.00125125, abs=1e-9)
 
 
 def test_fee_only_no_slippage(tmp_path):
@@ -175,8 +178,10 @@ def test_fee_only_no_slippage(tmp_path):
     closed = broker.on_bar(_bar("BTC-USDT", 100, 100, 98.5, 99))
     assert len(closed) == 1
     # gross = 99 - 100 = -1; fees = 100*0.001 (вход) + 99*0.001 (выход) = 0.199
-    assert closed[0].pnl == pytest.approx(-1.199, abs=1e-9)
+    # funding = 100 * 0.0001 * (60/480) = 0.00125 → pnl = -1.20025
+    assert closed[0].pnl == pytest.approx(-1.20025, abs=1e-9)
     assert closed[0].fees == pytest.approx(0.199, abs=1e-9)
+    assert closed[0].funding == pytest.approx(0.00125, abs=1e-9)
 
 
 def test_slippage_on_short(cost_broker):
@@ -195,7 +200,10 @@ def test_slippage_on_short(cost_broker):
     # fill = 100*0.999 = 99.9; exit_fill = 101*1.001 = 101.101
     # gross = 99.9 - 101.101 = -1.201
     # fees = 99.9*0.001 + 101.101*0.001 = 0.201001
-    assert closed[0].pnl == pytest.approx(-1.402001, abs=1e-9)
+    # funding(short) = -(99.9 * 0.0001 * (60/480)) = -0.00124875 (получили)
+    # pnl = -1.201 - 0.201001 + 0.00124875 = -1.40075225
+    assert closed[0].pnl == pytest.approx(-1.40075225, abs=1e-9)
+    assert closed[0].funding == pytest.approx(-0.00124875, abs=1e-9)
 
 
 def test_partial_tps_share_entry_fee_proportionally(cost_broker):

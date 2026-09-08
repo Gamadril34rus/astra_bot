@@ -8,7 +8,7 @@ ASTRA BOT — Telegram-бот (русскоязычное меню).
   из ``models/training_state.json``, поэтому счёт обучения растёт/падает
   от прогресса, а не всегда 2000 ₽);
 * /стоп      — прекратить обучение (кооперативная остановка цикла);
-* /баланс    — общий капитал, плюсы и минусы (paper-движок и BingX spot);
+* /баланс    — общий капитал, плюсы и минусы (paper-движок и BingX фьючерсы);
 * /настройки — время ежедневного отчёта, тихие часы, вкл/выкл алертов;
 * а также /статус /отчёт /позиции /риск /здоровье /счёт /пауза /возобновить
   /помощь.
@@ -566,7 +566,7 @@ class AstraTelegramBot:
                 "",
             ]
 
-        # --- BingX spot (опционально, по ключам) ---
+        # --- BingX фьючерсы (опционально, по ключам) ---
         bingx_lines = await self._bingx_balance_lines()
         if bingx_lines:
             lines += bingx_lines
@@ -606,7 +606,7 @@ class AstraTelegramBot:
         return prices
 
     async def _bingx_balance_lines(self) -> list[str]:
-        """Получить баланс BingX spot (приватный API). В логи секреты не пишем."""
+        """Получить баланс BingX фьючерсы (приватный API). В логи секреты не пишем."""
         try:
             import os
 
@@ -616,7 +616,7 @@ class AstraTelegramBot:
             secret = os.environ.get("BINGX_API_SECRET", "")
             if not (key and secret):
                 return [
-                    "*🏦 BingX spot:* ключи не заданы "
+                    "*🏦 BingX фьючерсы:* ключи не заданы "
                     "(BINGX_API_KEY/BINGX_API_SECRET)",
                     "",
                 ]
@@ -629,12 +629,12 @@ class AstraTelegramBot:
                 await client.close()
 
             if not bals:
-                return ["*🏦 BingX spot:* баланс пуст или API недоступен", ""]
+                return ["*🏦 BingX фьючерсы:* баланс пуст или API недоступен", ""]
 
             out: list[str] = []
             total_usdt = Decimal("0")
             prices = await self._bingx_prices(list(bals.keys()))
-            out.append("*🏦 BingX spot (торговый счёт)*")
+            out.append("*🏦 BingX фьючерсы (торговый счёт)*")
             for asset, b in bals.items():
                 out.append(f"  {asset}: {b.free:f} / всего {b.total:f}")
                 if asset == "USDT":
@@ -657,7 +657,7 @@ class AstraTelegramBot:
             return out
         except Exception as exc:
             logger.warning("BingX balance fetch failed: %s", exc)
-            return [f"*🏦 BingX spot:* ошибка получения ({type(exc).__name__})", ""]
+            return [f"*🏦 BingX фьючерсы:* ошибка получения ({type(exc).__name__})", ""]
 
     # --------------------------------------------------------- /настройки
     async def _cmd_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1102,7 +1102,7 @@ class AstraTelegramBot:
             "/стоп — прекратить обучение\n\n"
             "*Деньги:*\n"
             "/баланс — общий капитал, плюсы, минусы (обучение + бумажный "
-            "счёт + BingX spot)\n"
+            "счёт + BingX фьючерсы)\n"
             "/позиции — открытые сделки\n\n"
             "*Оповещения:*\n"
             "/настройки — текущие настройки и кнопки\n"

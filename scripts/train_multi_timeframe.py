@@ -26,7 +26,7 @@ from astra_bot.ml.historical_training import fetch_historical_candles
 from astra_bot.ml.multi_timeframe import run_multi_timeframe
 from astra_bot.ml.weekly_learner import train_weekly
 
-# 10 ликвидных пар к USDT (BingX spot).
+# 10 ликвидных пар к USDT (BingX USDT-M perps).
 SYMBOLS = TRADING_UNIVERSE
 
 

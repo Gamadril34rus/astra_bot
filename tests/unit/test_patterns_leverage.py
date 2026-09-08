@@ -258,13 +258,14 @@ class TestLeverageMargin:
         assert pos.leverage == 10
 
 
-class TestLeverageFee:
-    def test_funding_fee_accurued_on_close(self, tmp_path):
-        """Комиссия за плечо за 24ч попадает в fees и уменьшает PnL.
+class TestFundingPayment:
+    def test_funding_accrued_on_close(self, tmp_path):
+        """Фандинг перпов за время удержания попадает в сделку и уменьшает PnL.
 
-        0.04%/день на заёмную часть (100 * 0.5 = 50 заёмных) → 0.02.
+        Ставка 0.01% за 8ч на нотионал: 24 бара × 1h = 3 интервала →
+        100.1 * 0.0001 * 3 = 0.03003.
         """
-        b = _mk_broker(tmp_path, leverage_fee_daily=Decimal("0.0004"))
+        b = _mk_broker(tmp_path, funding_rate=Decimal("0.0001"))
         pos = b.open_position(
             symbol="BTC-USDT", direction="long",
             entry_price=Decimal("100"), stop_loss=Decimal("97"),
@@ -276,17 +277,34 @@ class TestLeverageFee:
         pos.bars_held = 24
         trade = b.close_position(pos.id, Decimal("101"), "TP")
         assert trade is not None
-        # Плата за плечо = 50 * 0.0004 * 24/24 = 0.02
-        expected_lev_fee = Decimal("50") * Decimal("0.0004")
-        assert trade.fees > float(expected_lev_fee) * 0.9  # + комиссии сделки
-        # PnL нетто: gross = (101*0.999 - 100.1)*1 ≈ 0.799; минус все комиссии
+        # Фандинг = 100.1 * 0.0001 * 3 = 0.03003 (отдельно от комиссий).
+        assert trade.funding == pytest.approx(0.03003, abs=1e-9)
+        assert trade.fees > 0  # комиссии сделки — отдельно
+        # PnL нетто: gross = (101*0.999 - 100.1)*1 ≈ 0.799; минус издержки
+        assert trade.pnl == pytest.approx(0.799 - trade.fees - 0.03003, abs=1e-9)
         assert trade.pnl < 0.799  # издержки вычтены
 
-    def test_fee_deterministic_across_replays(self, tmp_path):
-        """Плата за плечо одинакова в двух идентичных прогонах (реплей)."""
-        fees = []
+    def test_short_receives_funding(self, tmp_path):
+        """При положительной ставке шорт ПОЛУЧАЕТ фандинг (отрицательный)."""
+        b = _mk_broker(tmp_path, funding_rate=Decimal("0.0001"))
+        pos = b.open_position(
+            symbol="BTC-USDT", direction="short",
+            entry_price=Decimal("100"), stop_loss=Decimal("103"),
+            take_profit=Decimal("94"), quantity=Decimal("1"),
+            leverage=2,
+        )
+        pos.timeframe = "1h"
+        pos.bars_held = 8  # 1 интервал фандинга
+        trade = b.close_position(pos.id, Decimal("99"), "TP")
+        assert trade is not None
+        # fill(short) = 99.9; funding = -(99.9 * 0.0001 * 1) = -0.00999
+        assert trade.funding == pytest.approx(-0.00999, abs=1e-9)
+
+    def test_funding_deterministic_across_replays(self, tmp_path):
+        """Фандинг одинаков в двух идентичных прогонах (реплей)."""
+        fundings = []
         for i in range(2):
-            b = _mk_broker(tmp_path / f"run{i}", leverage_fee_daily=Decimal("0.0004"))
+            b = _mk_broker(tmp_path / f"run{i}", funding_rate=Decimal("0.0001"))
             pos = b.open_position(
                 symbol="BTC", direction="long", entry_price=Decimal("100"),
                 stop_loss=Decimal("97"), take_profit=Decimal("106"),
@@ -295,8 +313,8 @@ class TestLeverageFee:
             pos.timeframe = "1h"
             pos.bars_held = 10
             fill = pos.fill_price or pos.entry_price
-            fees.append(b.leverage_fee(pos, Decimal("1"), fill))
-        assert fees[0] == fees[1] > 0
+            fundings.append(b.funding_payment(pos, Decimal("1"), fill))
+        assert fundings[0] == fundings[1] > 0
 
     def test_trade_never_forgets_commission(self, tmp_path):
         """Сделка «в ноль» обязана быть убыточной NET: комиссия есть всегда."""

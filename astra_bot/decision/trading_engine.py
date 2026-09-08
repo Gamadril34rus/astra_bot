@@ -33,6 +33,7 @@ from ..core.metrics import (
     EXITS_TOTAL,
     TICK_LATENCY,
 )
+from ..engines.cost_model import BINGX_PERPS_TAKER_FEE, bingx_perps_cost_model
 from ..engines.risk_engine import RiskConfig, RiskEngine
 from ..ml.live_lessons import append_lessons
 from .broker import PaperBroker
@@ -135,12 +136,12 @@ class TradingEngineConfig:
     state_path: str = "models/paper_positions.json"
     trades_path: str = "models/paper_trades.jsonl"
     # Реальные издержки paper-счёта (тейкер-комиссия / slippage на сторону).
-    # База 0.1%/0.1% совпадает с baseline в run_full_research_audit.py.
-    fee_pct: Decimal = Decimal("0.001")
+    # База — тариф перпов BingX USDT-M: тейкер 0.05%, slippage 0.1%.
+    fee_pct: Decimal = Decimal("0.0005")
     slippage_pct: Decimal = Decimal("0.001")
     # Research memory: статистика стратегий по режимам + NO_TRADE-наблюдения.
     # Плечо: максимум и порог EV (R), начиная с которого движок берёт
-    # плечо. Комиссия за плечо (фандинг) начисляется брокером при
+    # плечо. Фандинг перпов начисляется брокером при
     # закрытии — в PnL она попадает всегда.
     # Умные выходы по умолчанию (BE-нетто/трейлинг/MAE_CUT/REGIME_EXIT),
     # пока Hypothesis Engine не продвинул собственный план (TZ §16/§17).
@@ -356,11 +357,26 @@ class TradingEngine:
 
     def _make_broker(self, initial_capital: Decimal | None = None) -> PaperBroker:
         """Брокер с реальными издержками (fee/slippage) по торговому конфигу."""
+        if (
+            self.config.fee_pct == BINGX_PERPS_TAKER_FEE
+            and self.config.slippage_pct == Decimal("0.001")
+        ):
+            # Дефолт — биржевой пресет перпов (taker 0.05% / maker 0.02%).
+            cost_kwargs: dict[str, Any] = {
+                "cost_model": bingx_perps_cost_model(
+                    slippage_pct=self.config.slippage_pct
+                )
+            }
+        else:
+            # Кастомные издержки (тесты/эксперименты) — плоская модель.
+            cost_kwargs = {
+                "fee_pct": self.config.fee_pct,
+                "slippage_pct": self.config.slippage_pct,
+            }
         kwargs: dict[str, Any] = dict(
             state_path=Path(self.config.state_path),
             trades_path=Path(self.config.trades_path),
-            fee_pct=self.config.fee_pct,
-            slippage_pct=self.config.slippage_pct,
+            **cost_kwargs,
             # Потолок плеча движка (иначе брокер зажмёт своим дефолтом 2).
             max_leverage=Decimal(self.config.leverage_max),
         )
@@ -369,12 +385,12 @@ class TradingEngine:
         return PaperBroker(**kwargs)
 
     async def sync_capital(self) -> Decimal:
-        """Синхронизировать торговый капитал со спот-балансом BingX.
+        """Синхронизировать торговый капитал с фьючерсным счётом BingX.
 
         Если заданы BINGX_API_KEY/BINGX_API_SECRET, в управление берётся
-        ПОЛОВИНА оценки всего спот-портфеля в USDT (активы по текущим
-        ценам), как просил владелец. Это масштаб «сколько реально есть»,
-        а не зашитые 2000. Без ключей остаёмся на дефолтном капитале.
+        ПОЛОВИНА оценки фьючерсного (USDT-M) счёта в USDT, как просил
+        владелец. Это масштаб «сколько реально есть», а не зашитые 2000.
+        Без ключей остаёмся на дефолтном капитале.
         """
         if self._capital_synced:
             return self.broker.initial_capital
@@ -397,12 +413,12 @@ class TradingEngine:
             cap = (total_usdt / Decimal("2")).quantize(Decimal("0.01"))
             if self.broker.positions:
                 logger.info(
-                    "Спот-портфель=%.2f USDT, половина=%.2f, но есть позиции — "
+                    "Фьючерсный счёт=%.2f USDT, половина=%.2f, но есть позиции — "
                     "продолжаю с %s", total_usdt, cap, self.broker.initial_capital,
                 )
             else:
                 logger.info(
-                    "Спот-портфель BingX=%.2f USDT; в управлении половина=%.2f USDT",
+                    "Фьючерсный счёт BingX=%.2f USDT; в управлении половина=%.2f USDT",
                     total_usdt, cap,
                 )
                 self.broker = self._make_broker(cap)
@@ -577,6 +593,39 @@ class TradingEngine:
         logger.warning("RISK: не уложился в лимиты для %s, вход пропущен", symbol)
         return None
 
+    async def _sync_perps_state(self, symbol: str, fallback_price: Any) -> None:
+        """Подтянуть в брокер живые mark price и ставку фандинга.
+
+        Биржа отдаёт оба значения одним запросом (premiumIndex). Если
+        адаптер их не умеет (мок/legacy) — mark = цена последнего бара,
+        фандинг остаётся дефолтным у брокера. Ошибки не валят тик.
+        """
+        broker = self.broker
+        if not hasattr(broker, "update_mark_price"):
+            return
+        try:
+            getter = getattr(self.exchange, "get_mark_and_funding", None)
+            mark = rate = None
+            if getter is not None:
+                mark, rate = await getter(symbol)
+            if mark is None:
+                mark_getter = getattr(self.exchange, "get_mark_price", None)
+                if mark_getter is not None:
+                    mark = await mark_getter(symbol)
+            if mark is None:
+                mark = fallback_price
+            broker.update_mark_price(symbol, Decimal(str(mark)))
+            if rate is None:
+                rate_getter = getattr(self.exchange, "get_funding_rate", None)
+                if rate_getter is not None:
+                    info = await rate_getter(symbol)
+                    if isinstance(info, dict):
+                        rate = info.get("rate")
+            if rate is not None:
+                broker.set_funding_rate(symbol, Decimal(str(rate)))
+        except Exception as exc:
+            logger.debug("perps sync %s: %s", symbol, exc)
+
     # ----------------------------------------------------------- main loop
     async def process_symbol(self, symbol: str) -> list[Any]:
         # Риск-состояние (лимиты, HALT) живое между CI-сессиями:
@@ -631,6 +680,15 @@ class TradingEngine:
             logger.debug("exit_controller: %s", exc)
 
         closed = forced + self.broker.check_exits(last_bar)
+
+        # Перпы: живые mark/фандинг в брокер + ликвидации по mark price.
+        # Стопы/тейки уже проверены выше — они срабатывают раньше ликвидации.
+        try:
+            await self._sync_perps_state(symbol, last_bar.close)
+            liq_closed = self.broker.check_liquidations(symbol)
+            closed = closed + liq_closed
+        except Exception as exc:
+            logger.debug("liquidation check %s: %s", symbol, exc)
 
         # Exit Manager (Этап 4): обязательные safety-выходы поверх
         # контроллера — MAX_HOLD / VOL_EXPANSION (не зависят от гипотезы
@@ -817,9 +875,9 @@ class TradingEngine:
 
         cand_features = cand.features or {}
         regime_info = decision.diagnostics.get("regime") or {}
-        # Плечо: берём максимум только при сильном EV — платить за заём
-        # ради слабого сетапа нельзя. Комиссия за плечо закладывается
-        # брокером в PnL при закрытии (leverage_fee_daily).
+        # Плечо: берём максимум только при сильном EV — платить фандинг
+        # и рисковать ликвидацией ради слабого сетапа нельзя. Фандинг
+        # закладывается брокером в PnL при закрытии.
         leverage = 1
         if self.config.leverage_max > 1:
             ev_r = float(cand_features.get("ev_r") or 0.0)

@@ -3,8 +3,9 @@
 ASTRA BOT — Main Entry Point
 Основной модуль системы
 
-Активная биржа: BingX spot (ретир OKX → BingX). Paper-контур использует
-публичные рыночные данные BingX; приватные эндпоинты — по BINGX_API_KEY.
+Активная биржа: BingX USDT-M perps (ретир OKX → BingX; бот торгует
+ТОЛЬКО бессрочными фьючерсами). Paper-контур использует публичные
+swap-данные BingX; приватные эндпоинты — по BINGX_API_KEY.
 """
 
 import asyncio

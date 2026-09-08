@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Запуск live paper-trading на данных BingX spot.
+Запуск live paper-trading на данных BingX USDT-M perps.
 
 Этот скрипт:
 1. Загружает .env;
-2. Подключается к BingX (публичные рыночные данные + опц. ключи);
+2. Подключается к BingX (публичные swap-данные + опц. ключи);
 3. Собирает рыночные данные по BTC/ETH/SOL;
 4. Прогоняет DecisionPipeline;
 5. Исполняет сигналы через PaperBroker (виртуальный счёт);
@@ -67,9 +67,9 @@ def parse_args() -> argparse.Namespace:
 async def amain(args: argparse.Namespace) -> int:
     setup_logging()
 
-    # BingX: ключи опциональны (нужны только для баланса спот-счёта).
-    # Демо/песочницы spot у BingX нет; бумажные сделки исполняет
-    # PaperBroker, на биржу ордера не уходят.
+    # BingX: ключи опциональны (нужны только для баланса фьючерсного
+    # счёта). Бумажные сделки исполняет PaperBroker (эмуляция перпов),
+    # на биржу ордера не уходят.
     api_key = os.environ.get("BINGX_API_KEY", "")
     api_secret = os.environ.get("BINGX_API_SECRET", "")
     bingx = BingXClient(
@@ -89,7 +89,7 @@ async def amain(args: argparse.Namespace) -> int:
             usdt = bals.get("USDT")
             if usdt:
                 logger.info(
-                    "BingX spot account connected. USDT: free=%s total=%s",
+                    "BingX futures account connected. USDT: free=%s total=%s",
                     usdt.free,
                     usdt.total,
                 )

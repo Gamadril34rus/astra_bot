@@ -88,7 +88,7 @@ async def amain() -> int:
             available_ids = {i.symbol for i in available if getattr(i, "trading_status", "") == "trading"}
             filtered = tuple(s for s in candidates if s in available_ids)
             skipped = tuple(s for s in candidates if s not in available_ids)
-            logger.info("BingX spot universe: %d/%d instruments available", len(filtered), len(candidates))
+            logger.info("BingX perps universe: %d/%d instruments available", len(filtered), len(candidates))
             if skipped:
                 logger.warning("Skipped unavailable instruments: %s", ", ".join(skipped))
             if filtered:

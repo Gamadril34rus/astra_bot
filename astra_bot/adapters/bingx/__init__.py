@@ -1,9 +1,10 @@
 """
-ASTRA BOT — BingX Exchange Adapter
+ASTRA BOT — BingX Exchange Adapter (USDT-M perpetual futures).
 
-Активный адаптер биржи (решение: ретир OKX → BingX). Работает со
-спот-счётом BingX: публичные рыночные данные без ключей, приватные
+Активный адаптер биржи (решение: ретир OKX → BingX; бот торгует ТОЛЬКО
+бессрочными фьючерсами). Публичные swap-данные без ключей, приватные
 эндпоинты — по BINGX_API_KEY/BINGX_API_SECRET (без passphrase).
+Live-ордера отключены: сделки исполняет PaperBroker.
 """
 
 from .client import BingXClient
