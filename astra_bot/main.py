@@ -329,6 +329,10 @@ class AstraBot:
             leverage_min_ev = float(os.environ.get("ASTRA_LEVERAGE_MIN_EV_R", "0.8"))
         except ValueError:
             leverage_min_ev = 0.8
+        # Умные выходы и структурный стоп включены по умолчанию;
+        # ASTRA_SMART_EXIT=0 / ASTRA_STRUCTURAL_STOP=0 отключают.
+        smart_exit = os.environ.get("ASTRA_SMART_EXIT", "1") != "0"
+        structural_stop = os.environ.get("ASTRA_STRUCTURAL_STOP", "1") != "0"
         self._trading_engine = TradingEngine(
             exchange=self._exchange_client,
             config=TradingEngineConfig(
@@ -341,6 +345,8 @@ class AstraBot:
                 hypotheses_path=f"{state_dir}/research/hypotheses.json",
                 leverage_max=leverage_max,
                 leverage_min_ev_r=leverage_min_ev,
+                smart_exit_default=smart_exit,
+                structural_stop=structural_stop,
             ),
         )
         logger.info("TradingEngine (modern paper path) initialized: %s", symbols)

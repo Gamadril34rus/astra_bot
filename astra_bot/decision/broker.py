@@ -417,10 +417,16 @@ class PaperBroker:
                 closed.append(trade)
                 # Уменьшаем оставшийся объём.
                 pos.quantity -= part_qty
-                # После первого тейка включаем трейлинг и двигаем стоп в БУ.
+                # После первого тейка включаем трейлинг и двигаем стоп в
+                # НЕТТО-безубыток (вход + комиссии + плата за плечо):
+                # сырой вход с комиссиями — это маленький гарантированный минус.
                 if i == 0:
                     pos.trailing_activated = True
-                    pos.stop_loss = pos.entry_price
+                    be = self.net_breakeven_price(pos)
+                    if pos.direction == "long":
+                        pos.stop_loss = max(pos.stop_loss, be)
+                    else:
+                        pos.stop_loss = min(pos.stop_loss, be)
                 # После второго — тянем стоп вслед за ценой.
                 if i == 1 and pos.direction == "long" and pos.highest_price:
                     pos.stop_loss = max(
@@ -578,6 +584,35 @@ class PaperBroker:
         minutes = _TIMEFRAME_MINUTES.get(getattr(pos, "timeframe", "") or "", 60)
         hours = Decimal(pos.bars_held) * Decimal(minutes) / Decimal("60")
         return borrowed * self.leverage_fee_daily * hours / Decimal("24")
+
+    def net_breakeven_price(self, pos: PaperPosition) -> Decimal:
+        """Цена выхода, при которой NET PnL оставшегося объёма = 0.
+
+        Учитывает: эффективный вход (slippage), тейкер-комиссию ОБОИХ
+        сторон, slippage выхода и накопленную плату за плечо. Обычный
+        «безубыток в точку входа» с комиссиями — это маленький минус;
+        эта цена гарантирует честный ноль (и слегка плюс).
+        """
+        fill = pos.fill_price if pos.fill_price is not None else pos.entry_price
+        if self.cost_model is not None:
+            f = self.cost_model.taker_fee_rate
+            se = self.cost_model.slippage_pct
+        else:
+            f = self.fee_pct
+            se = self.slippage_pct
+        lev = pos.leverage if pos.leverage > 0 else Decimal("1")
+        minutes = _TIMEFRAME_MINUTES.get(getattr(pos, "timeframe", "") or "", 60)
+        hours = Decimal(pos.bars_held) * Decimal(minutes) / Decimal("60")
+        borrow = (
+            fill * (Decimal("1") - Decimal("1") / lev)
+            * self.leverage_fee_daily * hours / Decimal("24")
+        )
+        one = Decimal("1")
+        if pos.direction == "short":
+            # fill(1-f) - borrow = X(1+se)(1+f)
+            return (fill * (one - f) - borrow) / ((one + se) * (one + f))
+        # long: X(1-se)(1-f) = fill(1+f) + borrow
+        return (fill * (one + f) + borrow) / ((one - se) * (one - f))
 
     def _pnl_with_fees(
         self, pos: PaperPosition, qty: Decimal, exit_price: Decimal

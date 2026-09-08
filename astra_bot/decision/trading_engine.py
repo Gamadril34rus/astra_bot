@@ -85,6 +85,11 @@ class TradingEngineConfig:
     # Плечо: максимум и порог EV (R), начиная с которого движок берёт
     # плечо. Комиссия за плечо (фандинг) начисляется брокером при
     # закрытии — в PnL она попадает всегда.
+    # Умные выходы по умолчанию (BE-нетто/трейлинг/MAE_CUT/REGIME_EXIT),
+    # пока Hypothesis Engine не продвинул собственный план (TZ §16/§17).
+    smart_exit_default: bool = True
+    # Структурный стоп: перед сайзингом выносим стоп за свинг по теням.
+    structural_stop: bool = True
     leverage_max: int = 2
     leverage_min_ev_r: float = 0.8
     stats_path: str = "models/strategy_stats.json"
@@ -262,7 +267,9 @@ class TradingEngine:
         # Hypothesis Engine допустил вариант до ACTIVE.
         from .exit_controller import ExitController
 
-        self.exit_controller = ExitController(self.hypotheses)
+        self.exit_controller = ExitController(
+            self.hypotheses, smart_default=self.config.smart_exit_default
+        )
         # Model Registry (TZ §18): живому пайплайну отдаём только
         # ACTIVE (production) модель; без неё пайплайн работает как
         # раньше (ml_probability = None). Сбой загрузки не роняет бота.
@@ -690,6 +697,26 @@ class TradingEngine:
                 symbol, wanted_dir, same_dir,
             )
             return closed
+
+        # Структурный стоп (по теням): если стоп стратегии стоит внутри
+        # зоны шума — выносим за ближайший свинг-экстремум с буфером.
+        # ВАЖНО: до сайзинга, чтобы объём считался уже по новому R и
+        # риск на сделку не вырос.
+        if self.config.structural_stop and primary:
+            try:
+                from .exit_controller import structural_stop
+
+                new_stop = structural_stop(
+                    cand.entry_price, cand.stop_loss, wanted_dir, list(primary)
+                )
+                if new_stop != cand.stop_loss:
+                    logger.info(
+                        "STRUCT-STOP %s %s: %s -> %s (за свинг по теням)",
+                        symbol, wanted_dir, cand.stop_loss, new_stop,
+                    )
+                    cand.stop_loss = new_stop
+            except Exception as exc:
+                logger.debug("structural_stop: %s", exc)
 
         # Block 6.2: position sizing with ML confidence and volatility
         _atr_pct = None
