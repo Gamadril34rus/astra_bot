@@ -33,7 +33,7 @@ class Scalp5mConfig(StrategyConfig):
     hold_bars: int = 8
 
 
-class Scalp5mStrategy(BaseStrategy):
+class Scalp5mStrategy(BaseStrategy[Scalp5mConfig]):
     """Частые трендовые входы на 5m."""
 
     def __init__(self, config: Scalp5mConfig | None = None):

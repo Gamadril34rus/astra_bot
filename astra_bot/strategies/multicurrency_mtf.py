@@ -84,7 +84,7 @@ class MulticurrencyMTFConfig(StrategyConfig):
     min_rr_ratio: float = 2.0
 
 
-class MulticurrencyMTFStrategy(BaseStrategy):
+class MulticurrencyMTFStrategy(BaseStrategy[MulticurrencyMTFConfig]):
     """Мультивалютная MTF стратегия."""
 
     def __init__(self, config: MulticurrencyMTFConfig | None = None):

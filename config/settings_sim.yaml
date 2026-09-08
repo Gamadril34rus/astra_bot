@@ -1,0 +1,38 @@
+# ASTRA BOT — конфиг для непрерывного симулируемого прогона.
+# Используется с ASTRA_SIMULATE=1 (синтетический рынок без сети/ключей)
+# и ASTRA_CONTINUOUS=1 (фоновый торговый цикл 24/7 в веб-сервисе).
+# Отличия от settings.yaml: чаще тик, чтобы опыт копился быстрее.
+
+system:
+  name: "ASTRA BOT"
+  version: "0.1.0"
+  environment: "paper"  # только paper: симулятор не про реальные деньги
+  paper_trading: true
+  trading_enabled: false
+
+market_data:
+  poll_interval_ms: 1000
+  websocket_reconnect_delay: 5
+  stale_data_timeout_seconds: 5
+  tick_interval_seconds: 20
+  candle_timeframes:
+    - "5m"
+    - "15m"
+    - "1h"
+    - "4h"
+  max_candles_cache: 10000
+  orderbook_depth: 20
+
+trading:
+  instruments:
+    - "BTC/USDT"
+    - "ETH/USDT"
+    - "SOL/USDT"
+
+  strategies:
+    momentum:
+      enabled: true
+      weight: 1.0
+    mean_reversion:
+      enabled: true
+      weight: 1.0

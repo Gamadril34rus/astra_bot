@@ -51,7 +51,7 @@ class GridConfig(StrategyConfig):
     volatility_lookback: int = 20
 
 
-class AdaptiveGridStrategy(BaseStrategy):
+class AdaptiveGridStrategy(BaseStrategy[GridConfig]):
     """
     Адаптивная сетевая стратегия.
 
@@ -64,7 +64,7 @@ class AdaptiveGridStrategy(BaseStrategy):
     - Сетка адаптируется к волатильности
     """
 
-    def __init__(self, config: GridConfig = None):
+    def __init__(self, config: GridConfig | None = None):
         if config is None:
             config = GridConfig()
         super().__init__(config)

@@ -120,6 +120,10 @@ def make_engine(tmp_path, feed, pipeline, lessons_collector):
         no_trade_outcomes_path=str(tmp_path / "outcomes.json"),
         # Hermetic: гипотезы — в tmp, не в repo-state.
         hypotheses_path=str(tmp_path / "hypotheses.json"),
+        # Тесты фиксируют легаси-поток выхода (-1R stop_loss) и активные
+        # гипотезы; умный дефолт проверяется отдельно (smart tests).
+        smart_exit_default=False,
+        structural_stop=False,
     )
     broker = PaperBroker(
         state_path=__import__("pathlib").Path(cfg.state_path),

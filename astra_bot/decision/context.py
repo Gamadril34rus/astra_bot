@@ -28,6 +28,25 @@ class MarketContext:
 
 
 @dataclass
+class StrategyContext:
+    """Плоский контекст одного таймфрейма для pattern/V2-стратегий.
+
+    Отличается от :class:`MarketContext` тем, что ``candles`` — это
+    список свечей конкретного таймфрейма (а не словарь по ТФ), плюс
+    явные ``timeframe``/``current_price``. Именно этот контекст ожидают
+    стратегии из ``decision/strategies/`` (pattern_strategies,
+    volume_filtered).
+    """
+
+    symbol: str
+    timeframe: str = "5m"
+    candles: list[models.Candle] = field(default_factory=list)
+    orderbook: models.OrderBook | None = None
+    current_price: Decimal | None = None
+    market_regime: str = "UNKNOWN"
+
+
+@dataclass
 class SignalCandidate:
     """Сигнал от одной из стратегий. До финального решения."""
 

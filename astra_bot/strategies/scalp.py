@@ -34,7 +34,7 @@ class ScalpConfig(StrategyConfig):
     hold_bars: int = 6            # ~1.5ч на 15m
 
 
-class ScalpStrategy(BaseStrategy):
+class ScalpStrategy(BaseStrategy[ScalpConfig]):
     """Частые трендовые сделки на откате к скользящей."""
 
     def __init__(self, config: ScalpConfig | None = None):

@@ -50,7 +50,7 @@ class AcademyHybridMTFConfig(StrategyConfig):
     min_rr_ratio: float = 2.0
 
 
-class AcademyHybridMTFStrategy(BaseStrategy):
+class AcademyHybridMTFStrategy(BaseStrategy[AcademyHybridMTFConfig]):
     """Гибридная MTF-стратегия по материалам академических курсов."""
 
     def __init__(self, config: AcademyHybridMTFConfig | None = None):

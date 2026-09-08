@@ -33,6 +33,19 @@ from tests.integration.test_meta_strategy_execution import (
 STEP = 900
 
 
+def _read_trades(eng) -> list[dict]:
+    """Закрытые сделки брокера (jsonl)."""
+    import json as _json
+
+    out = []
+    with open(eng.broker.trades_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                out.append(_json.loads(line))
+    return out
+
+
 def _bar_after(prev: models.Candle, o, h, lo, c) -> models.Candle:
     return models.Candle(
         exchange="feed",
@@ -171,6 +184,59 @@ class TestExitControllerLive:
         assert len(closed) == 1
         assert closed[0].exit_reason == "stop_loss"
         assert closed[0].r_multiple == pytest.approx(-1.0, abs=0.02)
+
+    def test_smart_default_moves_stop_without_hypothesis(self, tmp_path, monkeypatch):
+        """Новый дефолт: без ACTIVE-гипотезы работает умный набор —
+        после ралли +0.9R стоп подтягивается в НЕТТО-безубыток (выше
+        входа), и последующий обвал закрывает сделку ~в ноль, а не в -1R.
+        """
+        eng, _ = self._setup(tmp_path, monkeypatch)
+        # make_engine отключает умные выходы (легаси-тесты); включаем —
+        # это поведение живого движка по умолчанию.
+        eng.exit_controller.smart_default = True
+        assert eng.hypotheses.for_strategy("scalp") == []
+
+        asyncio.run(eng.process_symbol("BTC-USDT"))
+        pos = eng.broker.positions[0]
+        entry = float(pos.entry_price)
+        risk = float(pos.risk_distance)
+
+        candles = eng.exchange.candles
+        rally = _bar_after(
+            candles[-1], float(candles[-1].close),
+            entry + 0.9 * risk,
+            float(candles[-1].close) + 0.01,  # low выше entry
+            entry + 0.85 * risk,
+        )
+        eng.exchange.candles = [*candles, rally]
+        asyncio.run(eng.process_symbol("BTC-USDT"))
+        # Умный дефолт на ралли +0.9R: стоп подтянут (нетто-БУ/трейлинг),
+        # а на узком fixture-ATR трейлинг может выбить стоп ПРЯМО в баре
+        # ралли — тоже валидная «отторговка» с прибылью.
+        if eng.broker.positions:
+            pos = eng.broker.positions[0]
+            # Стоп НЕ остался на -1R: он в нетто-безубытке или выше.
+            assert float(pos.stop_loss) > entry - 0.01 * risk
+            assert float(pos.stop_loss) != pytest.approx(entry - risk, abs=1e-9)
+
+            down = _bar_after(
+                eng.exchange.candles[-1], float(eng.exchange.candles[-1].close),
+                float(eng.exchange.candles[-1].close) + 0.01,
+                float(pos.stop_loss) - 0.1 * risk,
+                float(pos.stop_loss) - 0.05 * risk,
+            )
+            eng.exchange.candles = [*eng.exchange.candles, down]
+            closed = asyncio.run(eng.process_symbol("BTC-USDT"))
+            assert len(closed) == 1
+            assert closed[0].exit_reason == "stop_loss"
+            # «Отторговался»: выход в районе нетто-нуля вместо -1R.
+            assert closed[0].r_multiple > -0.3, closed[0].r_multiple
+        else:
+            trades = [
+                t for t in _read_trades(eng) if t["exit_reason"] == "stop_loss"
+            ]
+            assert trades, "ожидаем закрытие по подтянутому стопу"
+            assert trades[-1]["r_multiple"] > 0.3, trades[-1]["r_multiple"]
 
     def test_time_stop_forced_close(self, tmp_path, monkeypatch):
         eng, _ = self._setup(tmp_path, monkeypatch)

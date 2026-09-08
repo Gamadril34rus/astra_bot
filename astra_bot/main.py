@@ -116,6 +116,9 @@ class AstraBot:
         # — единственный исполнитель решений в _tick.
         self._trading_engine = None
         self._last_tick_at = 0.0
+        # День (UTC) последней записи опыта в readiness — «набор опыта»
+        # должен идти при непрерывной работе, а не только в CI-сессиях.
+        self._last_readiness_day: str | None = None
 
         self._strategies = {}
         self._running = False
@@ -184,6 +187,20 @@ class AstraBot:
     async def _init_exchange(self):
         """Инициализация exchange"""
         settings = get_settings()
+
+        # Симулятор рынка: непрерывная работа и накопление опыта без
+        # сети и API-ключей (ASTRA_SIMULATE=1). Только paper-контур.
+        if os.environ.get("ASTRA_SIMULATE") == "1":
+            from .adapters.simulated import SimulatedExchange
+
+            self._exchange_client = SimulatedExchange()
+            await self._exchange_client.initialize()
+            logger.warning(
+                "SIMULATED market data включён (ASTRA_SIMULATE=1): "
+                "синтетический рынок bull/range/bear/wedges/triangles. "
+                "Реальная биржа НЕ используется."
+            )
+            return
 
         if "bingx" in settings.exchanges:
             bingx_config = settings.exchanges["bingx"]
@@ -302,6 +319,21 @@ class AstraBot:
         # Каталог state: по умолчанию models/ (общий с CI-сессиями);
         # ASTRA_STATE_DIR позволяет изолировать локальный run.
         state_dir = os.environ.get("ASTRA_STATE_DIR", "models")
+        # Плечо настраивается окружением (ASTRA_LEVERAGE_MAX — потолок;
+        # фактический уровень задаёт лестница уверенности в движке,
+        # 100x только при conf>=0.95 и EV>=3R).
+        try:
+            leverage_max = max(1, int(os.environ.get("ASTRA_LEVERAGE_MAX", "100")))
+        except ValueError:
+            leverage_max = 100
+        try:
+            leverage_min_ev = float(os.environ.get("ASTRA_LEVERAGE_MIN_EV_R", "0.8"))
+        except ValueError:
+            leverage_min_ev = 0.8
+        # Умные выходы и структурный стоп включены по умолчанию;
+        # ASTRA_SMART_EXIT=0 / ASTRA_STRUCTURAL_STOP=0 отключают.
+        smart_exit = os.environ.get("ASTRA_SMART_EXIT", "1") != "0"
+        structural_stop = os.environ.get("ASTRA_STRUCTURAL_STOP", "1") != "0"
         self._trading_engine = TradingEngine(
             exchange=self._exchange_client,
             config=TradingEngineConfig(
@@ -312,6 +344,10 @@ class AstraBot:
                 no_trade_observations_path=f"{state_dir}/no_trade_observations.jsonl",
                 no_trade_outcomes_path=f"{state_dir}/no_trade_outcomes.json",
                 hypotheses_path=f"{state_dir}/research/hypotheses.json",
+                leverage_max=leverage_max,
+                leverage_min_ev_r=leverage_min_ev,
+                smart_exit_default=smart_exit,
+                structural_stop=structural_stop,
             ),
         )
         logger.info("TradingEngine (modern paper path) initialized: %s", symbols)
@@ -365,6 +401,7 @@ class AstraBot:
 
     async def _run(self):
         """Основной цикл"""
+        cancelled = False
         while self._running:
             try:
                 # Получение рыночных данных
@@ -374,12 +411,77 @@ class AstraBot:
                 await asyncio.sleep(1)
 
             except asyncio.CancelledError:
+                # Нас отменяют из stop(): сами stop() снова звать нельзя —
+                # раньше это давало бесконечную рекурсию cancel->stop->cancel.
+                cancelled = True
                 break
             except Exception as e:
                 logger.error(f"Error in main loop: {e}", exc_info=True)
                 await asyncio.sleep(5)
 
-        await self.stop()
+        if not cancelled:
+            await self.stop()
+
+    def _record_daily_readiness(self) -> None:
+        """Раз в UTC-сутки фиксировать торговый день в readiness.
+
+        Раньше record_day вызывался только в CI-сессии run_bot (и с
+        неверной сигнатурой), поэтому при непрерывной работе счётчик
+        опыта навсегда застревал на старте. Считаем сделки из
+        paper_trades.jsonl — того же файла, что и morning_report.
+        """
+        from datetime import UTC, datetime
+
+        today = datetime.now(UTC).date().isoformat()
+        if self._last_readiness_day == today:
+            return
+        self._last_readiness_day = today
+        try:
+            trades = wins = 0
+            pnl = 0.0
+            trades_path = None
+            if self._trading_engine is not None:
+                trades_path = Path(self._trading_engine.config.trades_path)
+            if trades_path and trades_path.exists():
+                for line in trades_path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        import json as _json
+
+                        t = _json.loads(line)
+                    except Exception:
+                        continue
+                    closed = t.get("closed_at") or 0
+                    # ms или ISO — приводим к дате UTC
+                    try:
+                        if isinstance(closed, (int, float)) and closed > 0:
+                            day = datetime.fromtimestamp(closed / 1000, tz=UTC).date().isoformat()
+                        elif isinstance(closed, str) and closed[:10]:
+                            day = closed[:10]
+                        else:
+                            continue
+                    except Exception:
+                        continue
+                    if day != today:
+                        continue
+                    trades += 1
+                    trade_pnl = float(t.get("pnl") or 0.0)
+                    pnl += trade_pnl
+                    if trade_pnl > 0:
+                        wins += 1
+            equity = 0.0
+            if self._trading_engine is not None:
+                equity = float(getattr(self._trading_engine.broker, "equity", 0.0) or 0.0)
+            if trades or pnl:
+                readiness.record_day(trades=trades, wins=wins, pnl=pnl, equity_end=equity)
+                logger.info(
+                    "Readiness day recorded: %s trades=%d wins=%d pnl=%.2f equity=%.2f",
+                    today, trades, wins, pnl, equity,
+                )
+        except Exception as exc:
+            logger.debug("readiness record_day failed: %s", exc)
 
     async def _tick(self):
         """Один тик системы.
@@ -432,6 +534,8 @@ class AstraBot:
         await self._trading_engine.step()
         # Периодический checkpoint (Этап 3): атомарный state-бандл.
         self._save_state()
+        # Ежедневная фиксация опыта (readiness day) при непрерывной работе.
+        self._record_daily_readiness()
         logger.debug("Tick done in %.1fs", time.monotonic() - started)
 
     def _save_state(self) -> None:
@@ -462,6 +566,9 @@ class AstraBot:
 
     async def stop(self):
         """Остановка системы"""
+        if getattr(self, "_stopping", False):
+            return  # реентерабельность: stop уже выполняется
+        self._stopping = True
         logger.info("ASTRA BOT Stopping...")
         self._running = False
 
@@ -486,6 +593,7 @@ class AstraBot:
 
         await close_database()
 
+        self._stopping = False
         logger.info("ASTRA BOT Stopped")
 
     async def get_status(self) -> dict:

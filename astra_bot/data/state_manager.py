@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 import subprocess
 from datetime import UTC, datetime
@@ -31,11 +32,22 @@ DEFAULT_MODEL_FILE = DEFAULT_DATA_DIR / "model.joblib"
 DEFAULT_FEATURES_CACHE = DEFAULT_DATA_DIR / "features_cache.pkl"
 
 
+def _default_data_dir() -> Path:
+    """Каталог данных с учётом ASTRA_STATE_DIR.
+
+    Переменная уже поддерживается точкой входа (main.py) для изоляции
+    локальных запусков; StateManager обязан интерпретировать её так же,
+    иначе тесты и sandbox-запуски затирают продакшн-файлы data/.
+    """
+    env_dir = os.environ.get("ASTRA_STATE_DIR")
+    return Path(env_dir) if env_dir else DEFAULT_DATA_DIR
+
+
 class StateManager:
     """Git-based persistence manager."""
 
-    def __init__(self, data_dir: Path = DEFAULT_DATA_DIR):
-        self.data_dir = Path(data_dir)
+    def __init__(self, data_dir: Path | None = None):
+        self.data_dir = Path(data_dir) if data_dir is not None else _default_data_dir()
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.state_file = self.data_dir / "state.json"
         self.trades_db = self.data_dir / "trades.db"
@@ -316,6 +328,19 @@ _state_manager: StateManager | None = None
 
 def get_state_manager() -> StateManager:
     global _state_manager
+    env_dir = os.environ.get("ASTRA_STATE_DIR")
+    # Синглтон обязан следить за ASTRA_STATE_DIR: в тестах окружение
+    # переключается на tmp-каталог между тестами, и закэшированный
+    # менеджер со старым путём протёк бы между кейсами.
+    if _state_manager is not None and env_dir:
+        if str(_state_manager.data_dir) != env_dir:
+            _state_manager = None
     if _state_manager is None:
         _state_manager = StateManager()
     return _state_manager
+
+
+def reset_state_manager() -> None:
+    """Сбросить синглтон (для тестов и смены окружения)."""
+    global _state_manager
+    _state_manager = None

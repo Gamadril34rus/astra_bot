@@ -55,7 +55,7 @@ class MomentumConfig(StrategyConfig):
     lookback_period: int = 200
 
 
-class MomentumStrategy(BaseStrategy):
+class MomentumStrategy(BaseStrategy[MomentumConfig]):
     """
     Momentum / Trend Following стратегия.
 
@@ -67,7 +67,7 @@ class MomentumStrategy(BaseStrategy):
     - Совместимость с режимом рынка
     """
 
-    def __init__(self, config: MomentumConfig = None):
+    def __init__(self, config: MomentumConfig | None = None):
         if config is None:
             config = MomentumConfig()
         super().__init__(config)
@@ -171,8 +171,15 @@ class MomentumStrategy(BaseStrategy):
         if not tp_levels:
             return None
 
-        # Выбор основного TP
-        take_profit = Decimal(str(tp_levels[0]["price"]))
+        # Выбор основного TP: первый уровень, удовлетворяющий min_risk_reward.
+        # Раньше всегда брали tp_levels[0] (1R по умолчанию) при
+        # min_risk_reward=1.5 — проверка R:R была невыполнимой и стратегия
+        # не могла выдать сигнал НИКОГДА, даже в идеальном тренде.
+        take_profit = Decimal(str(tp_levels[-1]["price"]))
+        for level in tp_levels:
+            if level["r_multiple"] >= self.config.min_risk_reward:
+                take_profit = Decimal(str(level["price"]))
+                break
 
         # Расчёт R:R
         risk = abs(float(entry_price - stop_loss))

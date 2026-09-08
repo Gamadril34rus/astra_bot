@@ -16,6 +16,7 @@ Market safety — общая «проверка перед входом» для
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -92,7 +93,13 @@ class MarketSafety:
         reasons: list[str] = []
 
         # 1) Расписание и бюджет часов.
-        scheduled = trading_schedule.can_trade_now(now)
+        # В simulate-режиме расписание не применяется: синтетический
+        # рынок не имеет «тонких часов», а цель прогона — непрерывный
+        # набор опыта. На реальной бирже расписание действует как раньше.
+        if os.environ.get("ASTRA_SIMULATE") == "1":
+            scheduled = True
+        else:
+            scheduled = trading_schedule.can_trade_now(now)
         if not scheduled:
             reasons.append("вне расписания или исчерпан бюджет часов")
 

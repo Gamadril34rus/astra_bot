@@ -233,7 +233,9 @@ class MarketRegimeDetector:
                 f"Regime changed for {symbol}: "
                 f"{previous.value} -> {regime.value}"
             )
-            events.emit_async(
+            # detect() — sync-контекст: незавёрнутый emit_async создавал
+            # корутину, которая никогда не исполнялась.
+            events.emit(
                 events.EventType.REGIME_CHANGE,
                 {
                     "symbol": symbol,
@@ -287,12 +289,17 @@ class MarketRegimeDetector:
                 indicators.ema_trend_score = max(-1.0,
                     (indicators.ema_20 - indicators.ema_50) / indicators.ema_50)
 
-        # EMA 50 vs 200
+        # EMA 50 vs 200: кламп ±0.3 только при РЕАЛЬНОМ разделении
+        # (раньше любой, даже копеечный кросс форсил |score| >= 0.3 при
+        # trend_threshold=0.1 — признак тренда был всегда, и RANGE
+        # (проторговка) не назначался практически никогда).
         if indicators.ema_50 and indicators.ema_200:
-            if indicators.ema_50 > indicators.ema_200:
-                indicators.ema_trend_score = max(indicators.ema_trend_score, 0.3)
-            else:
-                indicators.ema_trend_score = min(indicators.ema_trend_score, -0.3)
+            ema_sep = abs(indicators.ema_50 - indicators.ema_200) / indicators.ema_200
+            if ema_sep > 0.002:  # разделение > 0.2%
+                if indicators.ema_50 > indicators.ema_200:
+                    indicators.ema_trend_score = max(indicators.ema_trend_score, 0.3)
+                else:
+                    indicators.ema_trend_score = min(indicators.ema_trend_score, -0.3)
 
         # ATR и волатильность
         if len(highs) >= 15:
@@ -327,8 +334,20 @@ class MarketRegimeDetector:
         # Price changes
         if len(closes) >= 24:  # 24 часа для 1h timeframe
             indicators.price_change_24h = ((closes[-1] - closes[-24]) / closes[-24]) * 100
-        if len(closes) >= 1:
-            indicators.price_change_1h = ((closes[-1] - closes[-0]) / closes[-0]) * 100 if closes[-0] > 0 else 0
+        if len(closes) >= 2:
+            # Раньше было closes[-0] — это closes[0], т.е. изменение
+            # считалось от ПЕРВОЙ свечи истории, а не от предыдущей.
+            indicators.price_change_1h = (
+                (closes[-1] - closes[-2]) / closes[-2] * 100 if closes[-2] > 0 else 0
+            )
+
+        # ADX (сила тренда по Уайлдеру). Раньше adx_trend_strength
+        # никогда не вычислялся (всегда 0.0) и сильный тренд был
+        # недостижим — режимы BULL_TREND/BEAR_TREND не назначались.
+        if len(highs) >= 30 and len(lows) >= 30 and len(closes) >= 30:
+            indicators.adx_trend_strength = self._calculate_adx(
+                highs[-60:], lows[-60:], closes[-60:], period=14
+            )
 
         # High-Low range
         if len(highs) >= 1 and len(lows) >= 1 and closes[-1] > 0:
@@ -339,6 +358,61 @@ class MarketRegimeDetector:
             indicators.ob_imbalance = float(orderbook.get_imbalance())
 
         return indicators
+
+    @staticmethod
+    def _calculate_adx(
+        highs: list[float],
+        lows: list[float],
+        closes: list[float],
+        period: int = 14,
+    ) -> float:
+        """ADX по Уайлдеру: сила тренда 0..100 без направления."""
+        n = len(closes)
+        if n < period * 2 + 1:
+            return 0.0
+
+        trs: list[float] = []
+        plus_dms: list[float] = []
+        minus_dms: list[float] = []
+        for i in range(1, n):
+            tr = max(
+                highs[i] - lows[i],
+                abs(highs[i] - closes[i - 1]),
+                abs(lows[i] - closes[i - 1]),
+            )
+            up_move = highs[i] - highs[i - 1]
+            down_move = lows[i - 1] - lows[i]
+            plus_dm = up_move if up_move > down_move and up_move > 0 else 0.0
+            minus_dm = down_move if down_move > up_move and down_move > 0 else 0.0
+            trs.append(tr)
+            plus_dms.append(plus_dm)
+            minus_dms.append(minus_dm)
+
+        def _wilder_smooth(values: list[float]) -> list[float]:
+            out = [sum(values[:period])]
+            for v in values[period:]:
+                out.append(out[-1] - out[-1] / period + v)
+            return out
+
+        tr_s = _wilder_smooth(trs)
+        plus_s = _wilder_smooth(plus_dms)
+        minus_s = _wilder_smooth(minus_dms)
+
+        dxs: list[float] = []
+        for tr, pdi_num, mdi_num in zip(tr_s, plus_s, minus_s, strict=False):
+            if tr <= 0:
+                continue
+            pdi = 100.0 * pdi_num / tr
+            mdi = 100.0 * mdi_num / tr
+            denom = pdi + mdi
+            if denom > 0:
+                dxs.append(100.0 * abs(pdi - mdi) / denom)
+        if len(dxs) < period:
+            return 0.0
+        adx = sum(dxs[:period]) / period
+        for v in dxs[period:]:
+            adx = (adx * (period - 1) + v) / period
+        return max(0.0, min(100.0, adx))
 
     def _classify_regime(
         self,
@@ -352,15 +426,7 @@ class MarketRegimeDetector:
         if self._is_panic(indicators, candles):
             return MarketRegime.PANIC
 
-        # Высокая волатильность
-        if indicators.atr_percent > self.atr_volatility_high:
-            return MarketRegime.HIGH_VOLATILITY
-
-        # Низкая волатильность
-        if indicators.atr_percent < self.atr_volatility_low:
-            return MarketRegime.LOW_VOLATILITY
-
-        # Определение тренда
+        # Определение тренда (структура EMA)
         is_bullish = (
             indicators.ema_trend_score > self.trend_threshold
             and indicators.ema_50 is not None
@@ -378,11 +444,20 @@ class MarketRegimeDetector:
         # Проверка силы тренда через ADX
         strong_trend = indicators.adx_trend_strength > self.adx_trend_threshold if indicators.adx_trend_strength else False
 
+        # Экстремальная волатильность важнее слабого тренда (но не
+        # сильного направленного движения): в шторм торговать тренд
+        # опасно, а спокойный рынок НИЖЕ тренда — раньше гейт
+        # atr_percent < low возвращал LOW_VOLATILITY до трендовых
+        # проверок, и бычьи/медвежьи рынки навсегда помечались как
+        # «низковолатильные», режимы тренда не назначались никогда.
+        if indicators.atr_percent > self.atr_volatility_high and not strong_trend:
+            return MarketRegime.HIGH_VOLATILITY
+
         # Разрыв диапазона (breakout)
         if self._is_breakout(indicators, candles):
             return MarketRegime.BREAKOUT
 
-        # Явный тренд
+        # Явный тренд (ADX подтверждает)
         if is_bullish and strong_trend:
             return MarketRegime.BULL_TREND
 
@@ -399,6 +474,10 @@ class MarketRegimeDetector:
 
         if is_bearish:
             return MarketRegime.BEAR_TREND
+
+        # Спокойный рынок без тренда: низкая волатильность
+        if indicators.atr_percent < self.atr_volatility_low:
+            return MarketRegime.LOW_VOLATILITY
 
         return MarketRegime.UNKNOWN
 
