@@ -6,7 +6,7 @@
       "direction": "long",
       "entry_price": "2.363",
       "quantity": "1519.614439",
-      "stop_loss": "2.3524285714285713",
+      "stop_loss": "2.3529999999999998",
       "take_profits": [
         "2.3913560",
         "2.4140408",
@@ -44,7 +44,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
-      "bars_held": 26,
+      "bars_held": 27,
       "leverage": "1",
       "margin_used": "3590.848919357"
     },
@@ -54,7 +54,7 @@
       "direction": "short",
       "entry_price": "54.22",
       "quantity": "66.294546",
-      "stop_loss": "54.47857142857143",
+      "stop_loss": "54.46714285714286",
       "take_profits": [
         "53.6473399999999950",
         "53.1892119999999910",
@@ -74,7 +74,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "54.48",
-      "lowest_price": "54.21",
+      "lowest_price": "54.20",
       "strategy": "momentum",
       "opened_at": 1788890653483,
       "notes": {
@@ -92,7 +92,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 14,
+      "bars_held": 15,
       "leverage": "1",
       "margin_used": "3594.49028412"
     },
@@ -102,7 +102,7 @@
       "direction": "long",
       "entry_price": "2495.64",
       "quantity": "1.440619",
-      "stop_loss": "2445.7272",
+      "stop_loss": "2485.8914285714286",
       "take_profits": [
         "2545.55280",
         "2585.48304",
@@ -121,8 +121,8 @@
       "initial_quantity": "1.440619",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "2494.95",
+      "lowest_price": "2493.34",
       "strategy": "momentum",
       "opened_at": 1788892696979,
       "notes": {
@@ -140,7 +140,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 0,
+      "bars_held": 2,
       "leverage": "2",
       "margin_used": "1797.63320058"
     }
