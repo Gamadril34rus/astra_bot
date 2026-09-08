@@ -376,6 +376,13 @@ class DecisionPipeline:
             candidate.features["component_scores"] = scores.as_dict()
             diag_by_cand[id(candidate)] = (regime, technical, structure, book, ev, liq)
 
+        # 8.1.5 Candidate Filters Hook (btc_dominance, btc_correlation, basket_momentum).
+        try:
+            from .candidate_filters import apply_candidate_filters
+            candidates = await apply_candidate_filters(candidates)
+        except Exception as exc:
+            logger.debug("Candidate filters execution failed: %s", exc)
+
         # 8.2 Meta-Strategy: выбор по shrunken EV в текущем режиме (TZ §5).
         # total_score — лишь диагностика; не он определяет выбор.
         # A2 (МТЗ §10): приоритет у композитного ключа осей Regime 2.0,
