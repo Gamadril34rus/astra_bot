@@ -104,8 +104,9 @@ async def btc_dominance_filter(candidates: list[SignalCandidate]) -> list[Signal
             return candidates
 
         for cand in candidates:
+            cand_dir = str(cand.direction).lower()
             if "BTC" not in cand.symbol.upper():
-                if cand.direction == "long":
+                if cand_dir == "long":
                     if change_4h > 0.5:
                         cand.confidence = max(0.1, cand.confidence - 0.10)
                     elif change_4h < -0.1:
@@ -127,7 +128,8 @@ async def btc_correlation_filter(candidates: list[SignalCandidate]) -> list[Sign
 
         filtered: list[SignalCandidate] = []
         for cand in candidates:
-            if "BTC" in cand.symbol.upper() or cand.direction != "long":
+            cand_dir = str(cand.direction).lower()
+            if "BTC" in cand.symbol.upper() or cand_dir != "long":
                 filtered.append(cand)
                 continue
 
@@ -171,13 +173,14 @@ async def basket_momentum_filter(candidates: list[SignalCandidate]) -> list[Sign
             _basket_cache.update({"timestamp": now, "pos_count": pos, "neg_count": neg})
 
         for cand in candidates:
+            cand_dir = str(cand.direction).lower()
             if pos_count >= 4:
-                if cand.direction == "long":
+                if cand_dir == "long":
                     cand.confidence = min(0.95, cand.confidence + 0.05)
             elif neg_count >= 4:
-                if cand.direction == "short":
+                if cand_dir == "short":
                     cand.confidence = min(0.95, cand.confidence + 0.05)
-                elif cand.direction == "long":
+                elif cand_dir == "long":
                     cand.confidence = max(0.1, cand.confidence - 0.05)
     except Exception as exc:
         logger.debug("basket_momentum_filter error: %s", exc)

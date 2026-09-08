@@ -56,7 +56,7 @@ class OrderBlockStrategy(BaseStrategy[OrderBlockConfig]):
             bullish_ob = None
             bearish_ob = None
 
-            start_idx = max(0, len(history) - c.max_age_bars)
+            start_idx = max(1, len(history) - c.max_age_bars)
             for i in range(len(history) - c.impulse_bars, start_idx - 1, -1):
                 impulse_candles = history[i : i + c.impulse_bars]
                 ob_candle = history[i - 1]
