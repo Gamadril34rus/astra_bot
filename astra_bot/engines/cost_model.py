@@ -229,6 +229,29 @@ class CostModel:
 DEFAULT_COST_MODEL = CostModel()
 
 
+# --- BingX USDT-M Perpetual preset ---
+# Тариф бессрочных фьючерсов BingX (Perpetual Futures | Fee Schedule):
+# тейкер 0.05%, мейкер 0.02%. Paper-контур всегда считает себя тейкером
+# (исполнение по рынку), поэтому дефолт PaperBroker — этот пресет.
+BINGX_PERPS_TAKER_FEE = Decimal("0.0005")
+BINGX_PERPS_MAKER_FEE = Decimal("0.0002")
+
+
+def bingx_perps_cost_model(
+    slippage_pct: Decimal = Decimal("0.001"),
+) -> CostModel:
+    """CostModel под бессрочные фьючерсы BingX USDT-M.
+
+    Комиссии — биржевые (taker 0.05% / maker 0.02%), slippage —
+    консервативная модельная оценка, одинаковая на вход и выход.
+    """
+    return CostModel(
+        taker_fee_rate=BINGX_PERPS_TAKER_FEE,
+        maker_fee_rate=BINGX_PERPS_MAKER_FEE,
+        slippage_pct=slippage_pct,
+    )
+
+
 # --- Convenience: create CostModel from a flat fee_pct + slippage_pct ---
 def cost_model_from_flat(
     fee_pct: Decimal = Decimal("0.001"),

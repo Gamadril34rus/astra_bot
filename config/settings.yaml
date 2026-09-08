@@ -145,7 +145,7 @@ exchanges:
     enabled: true
     api_key: "${BINGX_API_KEY}"      # Установите переменную окружения
     api_secret: "${BINGX_API_SECRET}" # Установите переменную окружения
-    contract_type: "spot"
+    contract_type: "linear"  # USDT-M perps — бот торгует только бессрочными фьючерсами
     base_url: "https://open-api.bingx.com"
 
   # OKX — legacy (ретир OKX → BingX). Оставлен только как справочная

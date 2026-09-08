@@ -1,21 +1,26 @@
 """
-ASTRA BOT — BingX REST API Client (spot).
+ASTRA BOT — BingX REST API Client (USDT-M perpetual futures).
 
-Заменяет OKX-адаптер в активном контуре (решение: ретир OKX → BingX).
+Активная биржа контура (решение: ретир OKX → BingX; бот торгует ТОЛЬКО
+бессрочными фьючерсами). Рыночные данные — публичные swap-эндпоинты
+(https://open-api BingX open-api.bingx.com):
 
-Особенности BingX spot API (https://open-api.bingx.com):
-  * Символы в формате ``BTC-USDT`` (дефис).
-  * Публичные market-эндпоинты не требуют ключей — бот может работать
-    как чистый paper-контур (свечи/стакан/тикеры) без API-ключей.
-  * Приватные эндпоинты (баланс, ордера) подписываются HMAC-SHA256:
+  * Символы в формате ``BTC-USDT`` (дефис), как в споте.
+  * Свечи — ``/openApi/swap/v3/quote/klines``; котировки/стакан/сделки/
+    mark price/фандинг/OI — ``/openApi/swap/v2/quote/*``.
+  * Публичные market-эндпоинты не требуют ключей — paper-контур
+    работает без API-ключей.
+  * Приватные эндпоинты подписываются HMAC-SHA256:
         signature = HMAC_SHA256(secret, urlencode(keysort(params + timestamp)))
     и передаются в query как ``&signature=...``, ключ — в заголовке
     ``X-BX-APIKEY``. Passphrase у BingX нет.
   * Ответ: ``{"code": 0, "msg": "", "data": ...}`` (code — число).
-  * Демо/песочница для spot отсутствует (testnet BingX — только swap),
-    поэтому приватный доступ — только к реальному спот-счёту с ключами
-    БЕЗ права вывода. Бумажные сделки исполняются PaperBroker'ом, на
-    биржу ордера не уходят.
+  * Live-ордера НЕ реализованы сознательно: paper-контур исполняет
+    сделки через PaperBroker, на биржу ордера не уходят. Для будущих
+    live-тестов у BingX есть VST-демо именно под swap.
+
+Комиссии эмуляции — биржевые (Perpetual Futures Fee Schedule):
+тейкер 0.05%, мейкер 0.02%; фандинг — 3 раза в сутки.
 """
 
 import asyncio
@@ -23,7 +28,6 @@ import hashlib
 import hmac
 import logging
 import time
-from datetime import datetime
 from decimal import Decimal
 from typing import Any
 from urllib.parse import urlencode
@@ -49,41 +53,53 @@ from ..base import (
 
 logger = logging.getLogger(__name__)
 
-# BingX API endpoints (spot)
+# BingX API endpoints (USDT-M perpetual futures / swap)
 BINGX_API_BASE = "https://open-api.bingx.com"
-BINGX_SPOT_PREFIX = "/openApi/spot/v1"
+BINGX_SWAP_V2_PREFIX = "/openApi/swap/v2"
+BINGX_SWAP_V3_PREFIX = "/openApi/swap/v3"
 
 BINGX_ENDPOINTS = {
-    "spot": {
-        "server_time": f"{BINGX_SPOT_PREFIX}/server/time",
-        "instruments": f"{BINGX_SPOT_PREFIX}/common/symbols",
-        "candles": f"{BINGX_SPOT_PREFIX}/market/kline",
-        "ticker_24hr": f"{BINGX_SPOT_PREFIX}/ticker/24hr",
-        "orderbook": f"{BINGX_SPOT_PREFIX}/market/depth",
-        "trades": f"{BINGX_SPOT_PREFIX}/market/trades",
-        "account": f"{BINGX_SPOT_PREFIX}/account/balance",
-        "place_order": f"{BINGX_SPOT_PREFIX}/trade/order",
-        "cancel_order": f"{BINGX_SPOT_PREFIX}/trade/cancel",
-        "get_order": f"{BINGX_SPOT_PREFIX}/trade/query",
-        "open_orders": f"{BINGX_SPOT_PREFIX}/trade/openOrders",
-        "order_history": f"{BINGX_SPOT_PREFIX}/trade/historyOrders",
+    "swap": {
+        "server_time": f"{BINGX_SWAP_V2_PREFIX}/quote/server/time",
+        "instruments": f"{BINGX_SWAP_V2_PREFIX}/quote/contracts",
+        "candles": f"{BINGX_SWAP_V3_PREFIX}/quote/klines",
+        "ticker_24hr": f"{BINGX_SWAP_V2_PREFIX}/quote/ticker",
+        "orderbook": f"{BINGX_SWAP_V2_PREFIX}/quote/depth",
+        "trades": f"{BINGX_SWAP_V2_PREFIX}/quote/trades",
+        "price": f"{BINGX_SWAP_V2_PREFIX}/quote/price",
+        "book_ticker": f"{BINGX_SWAP_V2_PREFIX}/quote/bookTicker",
+        # Mark price + текущий фандинг одним запросом.
+        "premium_index": f"{BINGX_SWAP_V2_PREFIX}/quote/premiumIndex",
+        # История ставок фандинга.
+        "funding_rate": f"{BINGX_SWAP_V2_PREFIX}/quote/fundingRate",
+        # Открытый интерес.
+        "open_interest": f"{BINGX_SWAP_V2_PREFIX}/quote/openInterest",
+        # Баланс фьючерсного счёта (приватный, только чтение/инфо).
+        "account": f"{BINGX_SWAP_V2_PREFIX}/user/balance",
     }
 }
 
-# Свои интервалы BingX (lowercase). Ключ — любой регистр.
+# Интервалы свечей BingX swap. Ключ — любой регистр.
 _BINGX_TIMEFRAMES = {
     "1m": "1m", "3m": "3m", "5m": "5m", "15m": "15m", "30m": "30m",
-    "1h": "1h", "2h": "2h", "4h": "4h", "6h": "6h", "8h": "8h", "12h": "12h",
-    "1d": "1d", "3d": "3d", "1w": "1w", "1M": "1M",
+    "1h": "1h", "2h": "2h", "4h": "4h", "6h": "6h", "12h": "12h",
+    "1d": "1d", "1w": "1w", "1M": "1M",
 }
 
-# Спот-ордера BingX: статусы открытого ордера
-_OPEN_STATUSES = {"new", "pending", "partially_filled"}
+# Лимит глубины стакана swap (биржа принимает 5/10/20/50/100).
+_MAX_DEPTH = 100
+# Безопасный лимит страницы свечей v3.
+_MAX_KLINES = 500
+
+_LIVE_DISABLED_MSG = (
+    "Live-торговля отключена: paper-контур исполняет сделки через "
+    "PaperBroker (BingX USDT-M perps), ордера на биржу не уходят."
+)
 
 
 class BingXClient(ExchangeAdapter):
     """
-    BingX Exchange REST API Client (spot).
+    BingX Exchange REST API Client (USDT-M perpetual futures).
 
     Реализует интерфейс ExchangeAdapter + методы, которые вызывают
     TradingEngine / telegram-бот / скрипты. Данные сортируются по времени
@@ -102,7 +118,8 @@ class BingXClient(ExchangeAdapter):
         self.sandbox = config.get("sandbox", False)
         self.base_url = config.get("base_url", BINGX_API_BASE).rstrip("/")
         self.enabled = config.get("enabled", True)
-        self.contract_type = config.get("contract_type", "spot")
+        # Активный контур — только линейные перпетуалы (USDT-M).
+        self.contract_type = config.get("contract_type", "linear")
 
         self._session: aiohttp.ClientSession | None = None
         self._is_connected = False
@@ -170,8 +187,8 @@ class BingXClient(ExchangeAdapter):
     ) -> dict[str, Any]:
         """Отправить запрос к BingX API, вернуть полный JSON-ответ.
 
-        В отличие от OKX-клиента возвращает весь объект (``data`` бывает и
-        списком, и словарём); проверку ``code`` делает здесь же.
+        Возвращает весь объект (``data`` бывает и списком, и словарём);
+        проверку ``code`` делает здесь же.
         """
         if self._session is None:
             raise RuntimeError("BingXClient is not initialized; call initialize() first")
@@ -203,7 +220,7 @@ class BingXClient(ExchangeAdapter):
                     http_status = resp.status
                     data = await resp.json()
             elif method == "POST":
-                # BingX spot v1 принимает параметры в query (form-encoded
+                # BingX принимает параметры в query (form-encoded
                 # body также допустим; следуем схеме подписи по query).
                 async with self._session.post(url, headers=headers) as resp:
                     http_status = resp.status
@@ -255,7 +272,7 @@ class BingXClient(ExchangeAdapter):
         """Инициализация HTTP-сессии."""
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession()
-        logger.info("BingX client initialized (spot), base_url=%s", self.base_url)
+        logger.info("BingX client initialized (USDT-M perps), base_url=%s", self.base_url)
 
     async def close(self):
         """Закрыть HTTP-сессию."""
@@ -288,19 +305,36 @@ class BingXClient(ExchangeAdapter):
             return len(s.split(".", 1)[1].rstrip("0")) or 0
         return default
 
+    @staticmethod
+    def _first_dict(data: Any) -> dict[str, Any]:
+        """Достать первый словарь из ответа (data бывает dict или [dict])."""
+        if isinstance(data, dict):
+            return data
+        if isinstance(data, list):
+            return data[0] if data and isinstance(data[0], dict) else {}
+        return {}
+
     # === Инструменты ===
 
     def _parse_instrument(self, item: dict[str, Any]) -> Instrument:
-        """Разобрать инструмент из ответа /common/symbols."""
+        """Разобрать контракт из ответа /quote/contracts (USDT-M perps)."""
         symbol = item.get("symbol", "")
-        base_asset = item.get("currency") or symbol.split("-")[0]
-        quote_asset = item.get("tradeCurrency") or (symbol.split("-")[1] if "-" in symbol else "")
+        parts = symbol.split("-")
+        base_asset = (
+            item.get("commodityCurrency")
+            or item.get("currency")
+            or (parts[0] if parts else "")
+        )
+        quote_asset = (
+            item.get("tradeCurrency")
+            or (parts[1] if len(parts) > 1 else "")
+        )
         status = item.get("status")
-        api_buy = item.get("apiStateBuy")
-        api_sell = item.get("apiStateSell")
-        # status=1 + разрешены и покупки, и продажи → торгуется.
+        # status=1 → активен; api-флаги, если есть, тоже должны разрешать.
+        api_buy = item.get("apiStateBuy", True)
+        api_sell = item.get("apiStateSell", True)
         active = str(status) == "1" and bool(api_buy) and bool(api_sell)
-        tick = item.get("tickSize") or "0.00000001"
+        tick = item.get("tickSize") or item.get("minTickSize") or "0.00000001"
         step = item.get("stepSize") or "0.00000001"
         try:
             tick_size = Decimal(str(tick))
@@ -313,9 +347,12 @@ class BingXClient(ExchangeAdapter):
         except Exception:
             min_quantity = Decimal("0")
         try:
-            min_notional = Decimal(str(item.get("minNotional") or item.get("minTradeValue") or 0))
+            min_notional = Decimal(
+                str(item.get("minNotional") or item.get("minTradeValue") or 0)
+            )
         except Exception:
             min_notional = Decimal("0")
+        max_leverage = item.get("maxLeverage")
         return Instrument(
             exchange="bingx",
             symbol=symbol,
@@ -328,18 +365,30 @@ class BingXClient(ExchangeAdapter):
             price_precision=self._precision_from_str(item.get("pricePrecision"), 8),
             quantity_precision=self._precision_from_str(item.get("quantityPrecision"), 8),
             trading_status="trading" if active else "halt",
-            fee_rate=Decimal("0.001"),  # BingX spot: 0.1% taker/maker base
-            contract_type="spot",
+            # BingX USDT-M perps: taker 0.05% (paper всегда тейкер).
+            fee_rate=Decimal("0.0005"),
+            contract_type="linear",
+            metadata={"max_leverage": max_leverage} if max_leverage else {},
         )
 
     async def get_instruments(self, symbol: str | None = None) -> list[Instrument]:
-        """Получить метаданные инструментов (публичный эндпоинт)."""
+        """Получить метаданные контрактов (публичный эндпоинт)."""
         try:
-            resp = await self._request("GET", BINGX_ENDPOINTS["spot"]["instruments"])
-            data = resp.get("data") or {}
-            rows = data.get("symbols", []) if isinstance(data, dict) else data
+            resp = await self._request("GET", BINGX_ENDPOINTS["swap"]["instruments"])
+            data = resp.get("data") or []
+            if isinstance(data, dict):
+                for key in ("contracts", "symbols", "list", "data"):
+                    val = data.get(key)
+                    if isinstance(val, list):
+                        data = val
+                        break
+                else:
+                    data = []
+            rows = data if isinstance(data, list) else []
             instruments: list[Instrument] = []
             for item in rows:
+                if not isinstance(item, dict):
+                    continue
                 inst = self._parse_instrument(item)
                 if symbol and inst.symbol != symbol.replace("/", "-"):
                     continue
@@ -370,22 +419,17 @@ class BingXClient(ExchangeAdapter):
         since: int | None = None,
         limit: int = 1000,
     ) -> list[Candle]:
-        """Получить свечи (по возрастанию времени: свежие — в конце).
-
-        BingX spot kline привязана к UTC+8; параметр ``timeZone=0``
-        выравнивает границы свечей по UTC (проверено в ccxt).
-        """
+        """Получить свечи перпетуал-контракта (по возрастанию времени)."""
         bingx_symbol = symbol.replace("/", "-")
         params: dict[str, Any] = {
             "symbol": bingx_symbol,
             "interval": self._convert_timeframe(timeframe),
-            "limit": min(int(limit), 1000),
-            "timeZone": 0,
+            "limit": min(int(limit), _MAX_KLINES),
         }
         if since:
             params["startTime"] = int(since)
         try:
-            resp = await self._request("GET", BINGX_ENDPOINTS["spot"]["candles"], params=params)
+            resp = await self._request("GET", BINGX_ENDPOINTS["swap"]["candles"], params=params)
             data = resp.get("data") or []
             if isinstance(data, dict):
                 data = data.get("klines", data.get("data", [])) or []
@@ -468,12 +512,11 @@ class BingXClient(ExchangeAdapter):
         params: dict[str, Any] = {
             "symbol": bingx_symbol,
             "interval": self._convert_timeframe(timeframe),
-            "limit": min(int(limit), 1000),
-            "timeZone": 0,
+            "limit": min(int(limit), _MAX_KLINES),
         }
         if end_time_ms:
             params["endTime"] = int(end_time_ms)
-        resp = await self._request("GET", BINGX_ENDPOINTS["spot"]["candles"], params=params)
+        resp = await self._request("GET", BINGX_ENDPOINTS["swap"]["candles"], params=params)
         data = resp.get("data") or []
         if isinstance(data, dict):
             data = data.get("klines", data.get("data", [])) or []
@@ -515,19 +558,30 @@ class BingXClient(ExchangeAdapter):
         if since:
             params["startTime"] = int(since)
         try:
-            resp = await self._request("GET", BINGX_ENDPOINTS["spot"]["trades"], params=params)
+            resp = await self._request("GET", BINGX_ENDPOINTS["swap"]["trades"], params=params)
             data = resp.get("data") or []
             trades: list[Trade] = []
             for item in data:
+                if not isinstance(item, dict):
+                    continue
                 try:
-                    is_buyer_maker = bool(item.get("buyerMaker"))
+                    side = str(item.get("side") or "").lower()
+                    if not side:
+                        # buyerMaker=true → сделка инициирована продавцом.
+                        maker = item.get("buyerMaker")
+                        if maker is None:
+                            maker = item.get("isBuyerMaker")
+                        if maker is None:
+                            maker = str(item.get("makerSide") or "").upper() == "SELL"
+                        side = "sell" if maker else "buy"
+                    qty = item.get("qty", item.get("quantity", item.get("volume", "0")))
                     trades.append(Trade(
                         trade_id=str(item.get("id", "")),
                         exchange="bingx",
                         symbol=symbol,
                         price=Decimal(str(item.get("price", "0"))),
-                        quantity=Decimal(str(item.get("qty", "0"))),
-                        side="sell" if is_buyer_maker else "buy",
+                        quantity=Decimal(str(qty)),
+                        side=side,
                         timestamp=int(item.get("time", 0)),
                     ))
                 except Exception:
@@ -542,13 +596,13 @@ class BingXClient(ExchangeAdapter):
         symbol: str,
         depth: int = 20,
     ) -> OrderBook:
-        """Получить стакан заявок (v1: до 20 уровней)."""
+        """Получить стакан заявок (swap: до 100 уровней)."""
         params: dict[str, Any] = {
             "symbol": symbol.replace("/", "-"),
-            "limit": min(max(int(depth), 1), 20),
+            "limit": min(max(int(depth), 1), _MAX_DEPTH),
         }
         try:
-            resp = await self._request("GET", BINGX_ENDPOINTS["spot"]["orderbook"], params=params)
+            resp = await self._request("GET", BINGX_ENDPOINTS["swap"]["orderbook"], params=params)
             data = resp.get("data") or {}
             if isinstance(data, list):
                 data = data[0] if data else {}
@@ -583,14 +637,12 @@ class BingXClient(ExchangeAdapter):
             return OrderBook(symbol=symbol, exchange="bingx", bids=[], asks=[])
 
     async def get_ticker(self, symbol: str) -> dict[str, Any]:
-        """Получить 24h-тикер. Ключи совместимы с OKX-клиентом
+        """Получить 24h-тикер. Ключи совместимы с прежним клиентом
         (``last``, ``bid``, ``ask``, ``high_24h``...), значения — Decimal."""
         params: dict[str, Any] = {"symbol": symbol.replace("/", "-")}
         try:
-            resp = await self._request("GET", BINGX_ENDPOINTS["spot"]["ticker_24hr"], params=params)
-            data = resp.get("data") or {}
-            if isinstance(data, list):
-                data = data[0] if data else {}
+            resp = await self._request("GET", BINGX_ENDPOINTS["swap"]["ticker_24hr"], params=params)
+            data = self._first_dict(resp.get("data") or {})
             if not data:
                 return {}
             return {
@@ -609,11 +661,121 @@ class BingXClient(ExchangeAdapter):
             logger.error("Error getting BingX ticker for %s: %s", symbol, exc)
             return {}
 
+    # === Фьючерсные данные: mark price, фандинг, открытый интерес ===
+
+    async def get_premium_index(self, symbol: str) -> dict[str, Any]:
+        """Mark price + текущий фандинг одним запросом.
+
+        Возвращает ``{"mark_price", "index_price", "funding_rate",
+        "next_funding_time_ms"}`` (Decimal/int) или {} при недоступности.
+        """
+        params: dict[str, Any] = {"symbol": symbol.replace("/", "-")}
+        try:
+            resp = await self._request(
+                "GET", BINGX_ENDPOINTS["swap"]["premium_index"], params=params
+            )
+            data = self._first_dict(resp.get("data") or {})
+            if not data:
+                return {}
+            rate_raw = data.get("lastFundingRate", data.get("fundingRate", "0"))
+            return {
+                "mark_price": Decimal(str(data.get("markPrice", "0"))),
+                "index_price": Decimal(str(data.get("indexPrice", "0"))),
+                "funding_rate": Decimal(str(rate_raw or "0")),
+                "next_funding_time_ms": int(data.get("nextFundingTime") or 0),
+            }
+        except Exception as exc:
+            logger.error("Error getting BingX premium index for %s: %s", symbol, exc)
+            return {}
+
+    async def get_mark_price(self, symbol: str) -> Decimal | None:
+        """Текущая mark price контракта (для ликвидаций). None — недоступна."""
+        info = await self.get_premium_index(symbol)
+        mark = info.get("mark_price")
+        if mark is None or mark <= 0:
+            return None
+        return mark
+
+    async def get_funding_rate(self, symbol: str) -> dict[str, Any]:
+        """Текущая ставка фандинга: ``{"rate", "next_funding_time_ms"}``."""
+        info = await self.get_premium_index(symbol)
+        if not info:
+            return {}
+        return {
+            "rate": info["funding_rate"],
+            "next_funding_time_ms": info["next_funding_time_ms"],
+        }
+
+    async def get_mark_and_funding(
+        self, symbol: str
+    ) -> tuple[Decimal | None, Decimal | None]:
+        """(mark price, funding rate) одним запросом — для тика движка."""
+        info = await self.get_premium_index(symbol)
+        if not info:
+            return None, None
+        mark = info.get("mark_price")
+        return (mark if mark and mark > 0 else None, info.get("funding_rate"))
+
+    async def get_funding_rate_history(
+        self,
+        symbol: str,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """История ставок фандинга: ``[{"rate", "funding_time_ms"}]``."""
+        params: dict[str, Any] = {
+            "symbol": symbol.replace("/", "-"),
+            "limit": min(int(limit), 1000),
+        }
+        try:
+            resp = await self._request(
+                "GET", BINGX_ENDPOINTS["swap"]["funding_rate"], params=params
+            )
+            data = resp.get("data") or []
+            if isinstance(data, dict):
+                data = data.get("fundingRates", data.get("data", [])) or []
+            out: list[dict[str, Any]] = []
+            for item in data:
+                if not isinstance(item, dict):
+                    continue
+                try:
+                    out.append({
+                        "rate": Decimal(str(item.get("fundingRate", "0"))),
+                        "funding_time_ms": int(
+                            item.get("fundingTime", item.get("time", 0)) or 0
+                        ),
+                    })
+                except Exception:
+                    continue
+            out.sort(key=lambda x: x["funding_time_ms"])
+            return out
+        except Exception as exc:
+            logger.error("Error getting BingX funding history for %s: %s", symbol, exc)
+            return []
+
+    async def get_open_interest(self, symbol: str) -> Decimal | None:
+        """Открытый интерес контракта (в базовом активе). None — недоступен."""
+        params: dict[str, Any] = {"symbol": symbol.replace("/", "-")}
+        try:
+            resp = await self._request(
+                "GET", BINGX_ENDPOINTS["swap"]["open_interest"], params=params
+            )
+            data = self._first_dict(resp.get("data") or {})
+            if not data:
+                return None
+            try:
+                return Decimal(str(data.get("openInterest", "0")))
+            except Exception:
+                return None
+        except Exception as exc:
+            logger.error("Error getting BingX open interest for %s: %s", symbol, exc)
+            return None
+
     # === Аккаунт ===
 
     async def get_account_balance(self) -> dict[str, AccountBalance]:
-        """Получить баланс спот-аккаунта (приватный эндпоинт).
+        """Получить баланс фьючерсного (USDT-M) счёта (приватный эндпоинт).
 
+        Используется только для информации (оценка капитала, /баланс).
         Без ключей возвращает пустой словарь (никаких «бумажных» балансов).
         """
         balances: dict[str, AccountBalance] = {}
@@ -621,26 +783,34 @@ class BingXClient(ExchangeAdapter):
             return balances
         try:
             resp = await self._request(
-                "GET", BINGX_ENDPOINTS["spot"]["account"], signed=True
+                "GET", BINGX_ENDPOINTS["swap"]["account"], signed=True
             )
             data = resp.get("data") or {}
-            rows = data.get("balances", []) if isinstance(data, dict) else (data or [])
-            for item in rows:
+            rows: Any = data.get("balance", []) if isinstance(data, dict) else data
+            if isinstance(rows, dict):
+                rows = [rows]
+            for item in rows or []:
+                if not isinstance(item, dict):
+                    continue
                 asset = str(item.get("asset") or "").strip()
                 if not asset:
                     continue
                 try:
-                    free = Decimal(str(item.get("free") or "0"))
-                    locked = Decimal(str(item.get("locked") or "0"))
+                    equity = Decimal(str(item.get("equity", item.get("balance", "0"))))
+                    available = Decimal(str(
+                        item.get("availableMargin", item.get("balance", "0"))
+                    ))
+                    used = Decimal(str(item.get("usedMargin", "0")))
+                    frozen = Decimal(str(item.get("freezedMargin", "0")))
                 except Exception:
                     continue
                 balances[asset] = AccountBalance(
-                    account_id="bingx_spot",
+                    account_id="bingx_swap",
                     exchange="bingx",
                     asset=asset,
-                    free=free,
-                    locked=locked,
-                    total=free + locked,
+                    free=available,
+                    locked=used + frozen,
+                    total=equity,
                 )
             return balances
         except Exception as exc:
@@ -648,7 +818,7 @@ class BingXClient(ExchangeAdapter):
             return balances
 
     async def get_funding_balance(self) -> dict[str, AccountBalance]:
-        """Отдельного funding-аккаунта у BingX spot нет.
+        """Отдельного funding-аккаунта нет.
 
         Метод оставлен для совместимости интерфейса; возвращает {}.
         """
@@ -664,53 +834,7 @@ class BingXClient(ExchangeAdapter):
             }
         return {asset: balance.free for asset, balance in balances.items()}
 
-    # === Ордера (прямой live-режим; paper-контур их не использует) ===
-
-    @staticmethod
-    def _order_status(status: str) -> str:
-        """Нормализовать статус ордера BingX к нижнему регистру."""
-        s = (status or "").lower()
-        aliases = {"pending": "new", "pending_cancel": "canceled"}
-        return aliases.get(s, s)
-
-    def _parse_order(self, item: dict[str, Any], symbol: str) -> Order | None:
-        try:
-            qty = Decimal(str(item.get("origQty") or item.get("quantity") or "0"))
-            filled = Decimal(str(item.get("executedQty") or "0"))
-            price_raw = item.get("price")
-            status = self._order_status(str(item.get("status") or "new"))
-            return Order(
-                id=str(item.get("orderId") or ""),
-                client_order_id=item.get("clientOrderID"),
-                exchange="bingx",
-                symbol=item.get("symbol") or symbol,
-                side=str(item.get("side") or "").lower(),
-                order_type=str(item.get("type") or "limit").lower(),
-                quantity=qty,
-                price=Decimal(str(price_raw)) if price_raw not in (None, "", 0) else None,
-                status=status,
-                filled_quantity=filled,
-                filled_price=Decimal(str(item.get("avgPrice") or "0")) or None,
-                filled_fees=Decimal(str(item.get("fee") or "0")),
-                created_at=datetime.utcnow(),
-            )
-        except Exception as exc:
-            logger.debug("BingX order parse skipped: %s", exc)
-            return None
-
-    @staticmethod
-    def _orders_from_payload(data: Any) -> list[dict]:
-        """Достать список ордеров из ``data`` (разные формы ответов)."""
-        if isinstance(data, list):
-            return data
-        if isinstance(data, dict):
-            for key in ("orders", "order"):
-                val = data.get(key)
-                if isinstance(val, list):
-                    return val
-                if isinstance(val, dict):
-                    return [val]
-        return []
+    # === Ордера/позиции: live отключён (paper-контур через PaperBroker) ===
 
     async def place_order(
         self,
@@ -724,103 +848,24 @@ class BingXClient(ExchangeAdapter):
         client_order_id: str | None = None,
         **kwargs
     ) -> Order:
-        """Разместить спот-ордер (BUY/SELL, LIMIT/MARKET)."""
-        if not self.enabled:
-            raise ExchangeError("Exchange is disabled", exchange="bingx", operation="place_order")
-        errors = self.validate_order(symbol, side, order_type, quantity, price)
-        if errors:
-            raise ValueError(f"Order validation failed: {errors}")
-
-        if stop_price is not None or take_profit_price is not None:
-            raise NotImplementedError(
-                "BingX spot REST v1 не поддерживает SL/TP в одном ордере"
-            )
-
-        params: dict[str, Any] = {
-            "symbol": symbol.replace("/", "-"),
-            "side": "BUY" if str(side).lower() in ("buy", "long") else "SELL",
-            "type": str(order_type).upper(),
-            "quantity": str(quantity),
-        }
-        if price is not None and str(order_type).lower() == "limit":
-            params["price"] = str(price)
-            params["timeInForce"] = "GTC"
-        if client_order_id:
-            params["newClientOrderID"] = client_order_id
-
-        resp = await self._request("POST", BINGX_ENDPOINTS["spot"]["place_order"],
-                                   params=params, signed=True)
-        data = resp.get("data") or {}
-        if isinstance(data, list):
-            data = data[0] if data else {}
-        order = self._parse_order(data, symbol)
-        if order is None:
-            raise ExchangeError("No order data in BingX response",
-                                exchange="bingx", operation="place_order")
-        return order
+        """Разместить ордер — НЕ РЕАЛИЗОВАНО (live отключён)."""
+        raise NotImplementedError(_LIVE_DISABLED_MSG)
 
     async def cancel_order(self, symbol: str, order_id: str) -> bool:
-        """Отменить ордер."""
-        try:
-            params = {"symbol": symbol.replace("/", "-"), "orderId": str(order_id)}
-            resp = await self._request("POST", BINGX_ENDPOINTS["spot"]["cancel_order"],
-                                       params=params, signed=True)
-            data = resp.get("data") or {}
-            if isinstance(data, dict) and data.get("success") is False:
-                return False
-            # Успех = code 0 (проверен в _request).
-            return True
-        except Exception as exc:
-            logger.error("Error canceling BingX order %s: %s", order_id, exc)
-            return False
+        """Отменить ордер — НЕ РЕАЛИЗОВАНО (live отключён)."""
+        raise NotImplementedError(_LIVE_DISABLED_MSG)
 
     async def cancel_all_orders(self, symbol: str) -> int:
-        """Отменить все открытые ордера по символу; вернуть число отмен."""
-        try:
-            open_orders = await self.get_open_orders(symbol)
-            cancelled = 0
-            for order in open_orders:
-                if order.id and await self.cancel_order(symbol, order.id):
-                    cancelled += 1
-            return cancelled
-        except Exception as exc:
-            logger.error("Error canceling all BingX orders for %s: %s", symbol, exc)
-            return 0
+        """Отменить все открытые ордера — НЕ РЕАЛИЗОВАНО (live отключён)."""
+        raise NotImplementedError(_LIVE_DISABLED_MSG)
 
     async def get_order(self, symbol: str, order_id: str) -> Order | None:
-        """Получить ордер по ID."""
-        try:
-            params = {
-                "symbol": symbol.replace("/", "-"),
-                "orderId": str(order_id),
-            }
-            resp = await self._request("GET", BINGX_ENDPOINTS["spot"]["get_order"],
-                                       params=params, signed=True)
-            data = resp.get("data") or {}
-            rows = self._orders_from_payload(data)
-            if not rows:
-                return None
-            return self._parse_order(rows[0], symbol)
-        except Exception as exc:
-            logger.error("Error getting BingX order %s: %s", order_id, exc)
-            return None
+        """Получить ордер по ID — НЕ РЕАЛИЗОВАНО (live отключён)."""
+        raise NotImplementedError(_LIVE_DISABLED_MSG)
 
     async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
-        """Получить открытые ордера."""
-        try:
-            params: dict[str, Any] = {}
-            if symbol:
-                params["symbol"] = symbol.replace("/", "-")
-            resp = await self._request("GET", BINGX_ENDPOINTS["spot"]["open_orders"],
-                                       params=params, signed=True)
-            data = resp.get("data") or {}
-            rows = self._orders_from_payload(data)
-            orders = [o for o in (self._parse_order(r, symbol or "") for r in rows) if o]
-            # BingX отдаёт только открытые; на всякий случай фильтруем.
-            return [o for o in orders if o.status in {"new", "pending", "partially_filled"}]
-        except Exception as exc:
-            logger.error("Error getting BingX open orders: %s", exc)
-            return []
+        """Получить открытые ордера — НЕ РЕАЛИЗОВАНО (live отключён)."""
+        raise NotImplementedError(_LIVE_DISABLED_MSG)
 
     async def get_order_history(
         self,
@@ -828,28 +873,14 @@ class BingXClient(ExchangeAdapter):
         since: int | None = None,
         limit: int = 100,
     ) -> list[Order]:
-        """Получить историю ордеров."""
-        try:
-            params: dict[str, Any] = {
-                "symbol": symbol.replace("/", "-"),
-                "limit": min(int(limit), 100),
-            }
-            if since:
-                params["startTime"] = int(since)
-            resp = await self._request("GET", BINGX_ENDPOINTS["spot"]["order_history"],
-                                       params=params, signed=True)
-            data = resp.get("data") or {}
-            rows = self._orders_from_payload(data)
-            return [o for o in (self._parse_order(r, symbol) for r in rows) if o]
-        except Exception as exc:
-            logger.error("Error getting BingX order history for %s: %s", symbol, exc)
-            return []
+        """Получить историю ордеров — НЕ РЕАЛИЗОВАНО (live отключён)."""
+        raise NotImplementedError(_LIVE_DISABLED_MSG)
 
     # === Позиции ===
 
     async def get_positions(self) -> list[Position]:
-        """В спот-торговле позиции хранятся в балансах — возвращаем []."""
-        return []
+        """Открытые биржевые позиции — НЕ РЕАЛИЗОВАНО (live отключён)."""
+        raise NotImplementedError(_LIVE_DISABLED_MSG)
 
     async def close_position(
         self,
@@ -857,18 +888,8 @@ class BingXClient(ExchangeAdapter):
         quantity: Decimal | None = None,
         price: Decimal | None = None,
     ) -> bool:
-        """Закрыть позицию = продать по рынку."""
-        try:
-            await self.place_order(
-                symbol=symbol,
-                side="sell",
-                order_type="market",
-                quantity=quantity or Decimal("0"),
-            )
-            return True
-        except Exception as exc:
-            logger.error("Error closing BingX position: %s", exc)
-            return False
+        """Закрыть биржевую позицию — НЕ РЕАЛИЗОВАНО (live отключён)."""
+        raise NotImplementedError(_LIVE_DISABLED_MSG)
 
     # === Здоровье ===
 

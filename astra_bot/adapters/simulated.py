@@ -260,6 +260,28 @@ class SimulatedExchange:
             "volume_24h": Decimal(str(round(1000.0 * (1 + _stable_noise(symbol, now // 3600)), 2))),
         }
 
+    # ------------------------------------------------- perps: mark и фандинг
+    # Симулятор эмулирует перпетуал-контур: mark = last, фандинг —
+    # фиксированная ставка за 8ч (как дефолт PaperBroker).
+    async def get_mark_price(self, symbol: str) -> Decimal | None:
+        ticker = await self.get_ticker(symbol)
+        last = ticker.get("last")
+        return last if last and last > 0 else None
+
+    async def get_funding_rate(self, symbol: str) -> dict[str, Any]:
+        return {"rate": Decimal("0.0001"), "next_funding_time_ms": 0}
+
+    async def get_mark_and_funding(
+        self, symbol: str
+    ) -> tuple[Decimal | None, Decimal | None]:
+        ticker = await self.get_ticker(symbol)
+        last = ticker.get("last")
+        mark = last if last and last > 0 else None
+        return mark, Decimal("0.0001")
+
+    async def get_open_interest(self, symbol: str) -> Decimal | None:
+        return None
+
     async def get_orderbook(
         self, symbol: str, depth: int = 20
     ) -> OrderBook:

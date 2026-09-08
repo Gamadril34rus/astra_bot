@@ -21,7 +21,7 @@ MAJOR_SYMBOLS: frozenset[str] = frozenset({
 
 
 def to_bingx(symbol: str) -> str:
-    """Формат символа BingX spot: ``BTC/USDT`` → ``BTC-USDT``."""
+    """Формат символа BingX (spot и USDT-M perps совпадают): ``BTC/USDT`` → ``BTC-USDT``."""
     return symbol.replace("/", "-")
 
 

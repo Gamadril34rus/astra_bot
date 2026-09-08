@@ -1,9 +1,13 @@
 """
-ASTRA BOT — Paper execution engine.
+ASTRA BOT — Paper execution engine (бессрочные фьючерсы, USDT-M).
 
 Принимает финальное решение от ``DecisionPipeline`` и исполняет его
-на виртуальном счёте. Поддерживает:
+на виртуальном счёте. Эмулирует именно перпетуал-фьючерсы:
 
+* комиссии — биржевые (BingX USDT-M: тейкер 0.05%, мейкер 0.02%);
+* фандинг — выплаты между лонгами и шортами по ставке за 8-часовой
+  интервал (положительная ставка: лонг платит, шорт получает);
+* ликвидации — по mark price, изолированная маржа;
 * несколько частичных тейков (TP1 50%, TP2 30%, TP3 20%);
 * ATR/структура-based стоп-лосс;
 * трейлинг-стоп после первого тейка;
@@ -22,11 +26,17 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from ..engines.cost_model import CostModel, cost_model_from_flat
+from ..engines.cost_model import (
+    BINGX_PERPS_TAKER_FEE,
+    CostModel,
+    bingx_perps_cost_model,
+    cost_model_from_flat,
+)
 
 logger = logging.getLogger(__name__)
 
-# Длительность бара в минутах для платы за плечо (детерминизм реплея).
+# Длительность бара в минутах для начисления фандинга (детерминизм
+# реплея: wall-clock не используется, плата одинакова при реплее сессии).
 _TIMEFRAME_MINUTES: dict[str, int] = {
     "1m": 1, "3m": 3, "5m": 5, "15m": 15, "30m": 30,
     "1h": 60, "2h": 120, "4h": 240, "6h": 360, "12h": 720, "1d": 1440,
@@ -74,7 +84,9 @@ class PaperPosition:
     regime_axes: str = ""
     # Сколько баров прожито позицией (для TIME_STOP и ATR_STOP, TZ §16).
     bars_held: int = 0
-    # Плечо и задействованная маржа (плечо 1 = обычный spot без заёма).
+    # Плечо и задействованная изолированная маржа перпетуал-позиции
+    # (margin_used = notional / leverage; плечо 1 = позиция без плеча,
+    # но всё равно фьючерсная: фандинг и комиссии перпов применяются).
     leverage: Decimal = Decimal("1")
     margin_used: Decimal = Decimal("0")
 
@@ -95,6 +107,9 @@ class ClosedTrade:
     closed_at: int
     # Комиссии + slippage-издержки, учтённые в pnl (нетто-результат).
     fees: float = 0.0
+    # Выплаченный фандинг перпов (знак: + заплатили, − получили).
+    # Учтён в pnl отдельно от fees, чтобы было видно структуру издержек.
+    funding: float = 0.0
     # R-метрики (R = первоначальный риск входа-стоп, net-значения).
     r_multiple: float = 0.0
     mfe_r: float = 0.0
@@ -117,7 +132,8 @@ class PaperBroker:
         slippage_pct: Decimal | None = None,
         cost_model: CostModel | None = None,
         max_leverage: Decimal = Decimal("2"),
-        leverage_fee_daily: Decimal = Decimal("0.0004"),  # 0.04%/сутки на заём
+        funding_rate: Decimal = Decimal("0.0001"),
+        funding_interval_hours: Decimal = Decimal("8"),
         maintenance_margin_pct: Decimal = Decimal("0.005"),
     ):
         self.state_path = state_path
@@ -125,20 +141,32 @@ class PaperBroker:
         self.initial_capital = initial_capital
         self.positions: list[PaperPosition] = []
         self.realized_pnl: Decimal = Decimal("0")
-        # Плечо: максимум и плата за заёмную часть (фандинг). Плата
-        # ОБЯЗАТЕЛЬНО включается в PnL при закрытии — «забыть» её нельзя.
+        # Плечо: максимум. Фандинг перпов (ставка за интервал, по
+        # умолчанию 0.01% за 8 часов — типичное значение, когда живая
+        # ставка с биржи недоступна) ОБЯЗАТЕЛЬНО включается в PnL при
+        # закрытии — «забыть» его нельзя.
         self.max_leverage = max(Decimal("1"), max_leverage)
-        self.leverage_fee_daily = max(Decimal("0"), leverage_fee_daily)
+        self.funding_rate = funding_rate
+        self.funding_interval_hours = max(Decimal("1") / Decimal("60"), funding_interval_hours)
         self.maintenance_margin_pct = max(Decimal("0"), maintenance_margin_pct)
+        # Живые значения с биржи (обновляет движок каждый тик):
+        # mark price для ликвидаций, ставка фандинга для начислений.
+        self._mark_prices: dict[str, Decimal] = {}
+        self._funding_rates: dict[str, Decimal] = {}
 
         # Единая модель издержек (TZ P0-1).
         # Если передан cost_model — используем его напрямую.
         # Если переданы fee_pct/slippage_pct — создаём CostModel из них.
-        # Если ничего не передано — дефолт 0.1%/0.1%.
+        # Если ничего не передано — пресет перпов BingX USDT-M
+        # (тейкер 0.05% / мейкер 0.02%) и slippage 0.1%.
         if cost_model is not None:
             self.cost_model = cost_model
+        elif fee_pct is None and slippage_pct is None:
+            self.cost_model = bingx_perps_cost_model()
+            self.fee_pct = BINGX_PERPS_TAKER_FEE
+            self.slippage_pct = Decimal("0.001")
         else:
-            fp = fee_pct if fee_pct is not None else Decimal("0.001")
+            fp = fee_pct if fee_pct is not None else BINGX_PERPS_TAKER_FEE
             sp = slippage_pct if slippage_pct is not None else Decimal("0.001")
             if fp == 0 and sp == 0:
                 # Legacy test mode: нулевые издержки для проверки механики.
@@ -389,7 +417,7 @@ class PaperBroker:
                 pos.tp_filled[i] = True
                 frac = pos.tp_fractions[i]
                 part_qty = pos.initial_quantity * Decimal(str(frac))
-                pnl, fees = self._pnl_with_fees(pos, part_qty, tp)
+                pnl, fees, funding = self._pnl_with_fees(pos, part_qty, tp)
                 r_mult, mfe_r, mae_r = self._r_metrics(pos, part_qty, pnl)
                 self.realized_pnl += pnl
                 trade = ClosedTrade(
@@ -406,6 +434,7 @@ class PaperBroker:
                     opened_at=pos.opened_at,
                     closed_at=int(datetime.now(tz=UTC).timestamp() * 1000),
                     fees=float(fees),
+                    funding=float(funding),
                     r_multiple=r_mult,
                     mfe_r=mfe_r,
                     mae_r=mae_r,
@@ -466,7 +495,7 @@ class PaperBroker:
 
     def _close(self, pos: PaperPosition, price: Decimal, reason: str) -> ClosedTrade:
         qty = pos.quantity
-        pnl, fees = self._pnl_with_fees(pos, qty, price)
+        pnl, fees, funding = self._pnl_with_fees(pos, qty, price)
         r_mult, mfe_r, mae_r = self._r_metrics(pos, qty, pnl)
         self.realized_pnl += pnl
         self.positions.remove(pos)
@@ -484,6 +513,7 @@ class PaperBroker:
             opened_at=pos.opened_at,
             closed_at=int(datetime.now(tz=UTC).timestamp() * 1000),
             fees=float(fees),
+            funding=float(funding),
             r_multiple=r_mult,
             mfe_r=mfe_r,
             mae_r=mae_r,
@@ -526,7 +556,7 @@ class PaperBroker:
             )
         return r, float(mfe), float(mae)
 
-    # ------------------------------------------------------------- leverage
+    # ------------------------------------------------- perps: маржа и фандинг
     def _check_margin(self, entry_price: Decimal, quantity: Decimal, lev: Decimal) -> None:
         """Маржи должно хватать: сумма занятой маржи <= equity."""
         need = entry_price * quantity / lev
@@ -539,9 +569,13 @@ class PaperBroker:
     def liquidation_price(
         self, entry_price: Decimal, direction: str, lev: Decimal
     ) -> Decimal | None:
-        """Оценка цены ликвидации: long entry*(1-1/lev+mm), short зеркально.
+        """Оценка цены ликвидации изолированной перпетуал-позиции.
 
-        None — заёмная часть вырождена (lev=1 или mm >= 1/lev).
+        long  liq = entry * (1 - 1/lev + mm);
+        short liq = entry * (1 + 1/lev - mm).
+        Сравнивать — с MARK price (см. check_liquidations).
+
+        None — ликвидация невозможна (lev=1 или mm >= 1/lev).
         """
         borrow = Decimal("1") / lev - self.maintenance_margin_pct
         if borrow <= 0:
@@ -559,7 +593,7 @@ class PaperBroker:
     ) -> None:
         """Стоп обязан сработать РАНЬШЕ ликвидации.
 
-        Оценка цены ликвидации (маржинальная модель, maintenance mm):
+        Оценка цены ликвидации (изолированная маржа перпов, maintenance mm):
         long  liq = entry * (1 - 1/lev + mm);  short liq = entry * (1 + 1/lev - mm).
         """
         liq = self.liquidation_price(entry_price, direction, lev)
@@ -576,31 +610,108 @@ class PaperBroker:
                     f"stop {stop_loss} не переживёт ликвидацию {liq} при плече {lev} — уменьшите плечо"
                 )
 
-    def leverage_fee(
-        self, pos: PaperPosition, qty: Decimal, fill: Decimal, now_ms: int | None = None
-    ) -> Decimal:
-        """Плата за плечо за время удержания.
+    # ------------------------------------------------- perps: mark и фандинг
+    def update_mark_price(self, symbol: str, mark_price: Decimal) -> None:
+        """Запомнить mark price символа (обновляет движок каждый тик)."""
+        try:
+            self._mark_prices[symbol] = Decimal(str(mark_price))
+        except Exception:
+            logger.debug("Некорректная mark price %s: %r", symbol, mark_price)
 
-        Начисляется на ЗАЁМНУЮ часть объёма: borrowed = fill*qty*(1-1/lev),
-        ставка leverage_fee_daily. Время — детерминированное: бары
-        удержания (bars_held) длительностью timeframe позиции. Wall-clock
-        сознательно не используется: плата должна быть одинаковой при
-        реплее той же сессии. Вызывается при каждом закрытии (в т.ч.
-        частичном) — «забыть» комиссию за плечо невозможно.
+    def set_funding_rate(self, symbol: str, rate: Decimal) -> None:
+        """Запомнить живую ставку фандинга символа (за интервал)."""
+        try:
+            self._funding_rates[symbol] = Decimal(str(rate))
+        except Exception:
+            logger.debug("Некорректная ставка фандинга %s: %r", symbol, rate)
+
+    def _position_funding_rate(self, pos: PaperPosition) -> Decimal:
+        """Ставка фандинга позиции: живая с биржи или дефолтная."""
+        return self._funding_rates.get(pos.symbol, self.funding_rate)
+
+    def _funding_intervals(self, pos: PaperPosition) -> Decimal:
+        """Сколько интервалов фандинга прожила позиция (pro-rata).
+
+        Время — детерминированное: bars_held × длительность timeframe.
+        Реальная биржа списывает фандинг дискретно 3 раза в сутки
+        (00:00/08:00/16:00 UTC+8 по открытым позициям); здесь —
+        пропорциональная аппроксимация, честная в среднем и
+        детерминированная при реплее.
         """
-        lev = pos.leverage if pos.leverage > 0 else Decimal("1")
-        if lev <= Decimal("1") or self.leverage_fee_daily <= 0:
-            return Decimal("0")
-        borrowed = fill * qty * (Decimal("1") - Decimal("1") / lev)
         minutes = _TIMEFRAME_MINUTES.get(getattr(pos, "timeframe", "") or "", 60)
-        hours = Decimal(pos.bars_held) * Decimal(minutes) / Decimal("60")
-        return borrowed * self.leverage_fee_daily * hours / Decimal("24")
+        held_minutes = Decimal(pos.bars_held) * Decimal(minutes)
+        interval_minutes = self.funding_interval_hours * Decimal("60")
+        if held_minutes <= 0 or interval_minutes <= 0:
+            return Decimal("0")
+        return held_minutes / interval_minutes
+
+    def funding_payment(
+        self, pos: PaperPosition, qty: Decimal, fill: Decimal
+    ) -> Decimal:
+        """Фандинг к уплате за закрываемый объём (знак: + платим, − получаем).
+
+        Начисляется на НОТИОНАЛ (фандинг перпов не зависит от плеча):
+        payment = fill * qty * rate * intervals. При положительной ставке
+        лонг платит шорту, при отрицательной — наоборот. Вызывается при
+        каждом закрытии (в т.ч. частичном) — «забыть» фандинг невозможно.
+        В legacy-режиме нулевых издержек (cost_model=None, fee=0) фандинг
+        тоже нулевой — механика тестируется на чистых ценах.
+        """
+        if self.cost_model is None and getattr(self, "fee_pct", Decimal("0")) == 0:
+            return Decimal("0")
+        rate = self._position_funding_rate(pos)
+        if rate == 0 or qty <= 0:
+            return Decimal("0")
+        intervals = self._funding_intervals(pos)
+        if intervals <= 0:
+            return Decimal("0")
+        payment = fill * qty * rate * intervals
+        if pos.direction in ("short", "sell"):
+            return -payment
+        return payment
+
+    def check_liquidations(self, symbol: str | None = None) -> list[ClosedTrade]:
+        """Ликвидировать позиции, чей mark price пробил цену ликвидации.
+
+        Изолированная маржа: каждая позиция живёт/умирает сама по себе.
+        Исполнение — по цене ликвидации (консервативная аппроксимация:
+        реальное исполнение чуть хуже из-за extra-комиссии ликвидации).
+        Без известной mark price символ пропускается (fail-closed: лучше
+        пропустить проверку, чем ликвидировать по неверной цене).
+        """
+        closed: list[ClosedTrade] = []
+        for pos in list(self.positions):
+            if symbol is not None and pos.symbol != symbol:
+                continue
+            lev = pos.leverage if pos.leverage > 0 else Decimal("1")
+            if lev <= Decimal("1"):
+                continue
+            mark = self._mark_prices.get(pos.symbol)
+            if mark is None:
+                continue
+            liq = self.liquidation_price(pos.entry_price, pos.direction, lev)
+            if liq is None:
+                continue
+            liquidated = (
+                (pos.direction in ("long", "buy") and mark <= liq)
+                or (pos.direction in ("short", "sell") and mark >= liq)
+            )
+            if liquidated:
+                logger.warning(
+                    "LIQ %s %s mark=%s пробил liq=%s (entry=%s lev=%s)",
+                    pos.direction, pos.symbol, mark, liq,
+                    pos.entry_price, pos.leverage,
+                )
+                closed.append(self._close(pos, liq, "liquidation"))
+        if closed:
+            self.save()
+        return closed
 
     def net_breakeven_price(self, pos: PaperPosition) -> Decimal:
         """Цена выхода, при которой NET PnL оставшегося объёма = 0.
 
         Учитывает: эффективный вход (slippage), тейкер-комиссию ОБОИХ
-        сторон, slippage выхода и накопленную плату за плечо. Обычный
+        сторон, slippage выхода и накопленный фандинг. Обычный
         «безубыток в точку входа» с комиссиями — это маленький минус;
         эта цена гарантирует честный ноль (и слегка плюс).
         """
@@ -611,28 +722,25 @@ class PaperBroker:
         else:
             f = self.fee_pct
             se = self.slippage_pct
-        lev = pos.leverage if pos.leverage > 0 else Decimal("1")
-        minutes = _TIMEFRAME_MINUTES.get(getattr(pos, "timeframe", "") or "", 60)
-        hours = Decimal(pos.bars_held) * Decimal(minutes) / Decimal("60")
-        borrow = (
-            fill * (Decimal("1") - Decimal("1") / lev)
-            * self.leverage_fee_daily * hours / Decimal("24")
-        )
+        # Фандинг на единицу объёма со знаком (шорт при rate>0 получает —
+        # его безубыток ниже точки входа).
+        fund_unit = self.funding_payment(pos, Decimal("1"), fill)
         one = Decimal("1")
         if pos.direction == "short":
-            # fill(1-f) - borrow = X(1+se)(1+f)
-            return (fill * (one - f) - borrow) / ((one + se) * (one + f))
-        # long: X(1-se)(1-f) = fill(1+f) + borrow
-        return (fill * (one + f) + borrow) / ((one - se) * (one - f))
+            # fill(1-f) - fund = X(1+se)(1+f)
+            return (fill * (one - f) - fund_unit) / ((one + se) * (one + f))
+        # long: X(1-se)(1-f) = fill(1+f) + fund
+        return (fill * (one + f) + fund_unit) / ((one - se) * (one - f))
 
     def _pnl_with_fees(
         self, pos: PaperPosition, qty: Decimal, exit_price: Decimal
-    ) -> tuple[Decimal, Decimal]:
-        """Нетто PnL и издержки закрытия ``qty`` по цене ``exit_price``.
+    ) -> tuple[Decimal, Decimal, Decimal]:
+        """(нетто PnL, комиссии, фандинг) закрытия ``qty`` по ``exit_price``.
 
         Считаем по эффективной цене входа (с slippage), применяем
         slippage на выход и тейкер-комиссию с обеих сторон. Комиссия входа
         делится пропорционально закрытому объёму (для частичных тейков).
+        Фандинг — отдельно со знаком (+ заплатили, − получили).
 
         Использует CostModel если доступен (TZ P0-1), иначе legacy-логику.
         """
@@ -653,11 +761,10 @@ class PaperBroker:
                 exit_fill = exit_price * (Decimal("1") + self.slippage_pct)
                 gross = (fill - exit_fill) * qty
             fees = pos.entry_fee_per_unit * qty + exit_fill * self.fee_pct * qty
-        # Плата за плечо (фандинг) — на заёмную часть, по времени удержания.
-        lev_fee = self.leverage_fee(pos, qty, fill)
-        fees += lev_fee
-        return gross - fees, fees
+        # Фандинг перпов — на нотионал, по времени удержания.
+        funding = self.funding_payment(pos, qty, fill)
+        return gross - fees - funding, fees, funding
 
     def _pnl(self, pos: PaperPosition, qty: Decimal, exit_price: Decimal) -> Decimal:
-        pnl, _ = self._pnl_with_fees(pos, qty, exit_price)
+        pnl, _, _ = self._pnl_with_fees(pos, qty, exit_price)
         return pnl

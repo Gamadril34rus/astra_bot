@@ -224,9 +224,9 @@ class TestBrokerNetBreakeven:
         assert closed2 and closed2[0].exit_reason == "stop_loss"
         assert closed2[0].pnl > -0.05, "выход в нетто-БУ ~ ноль, а не минус"
 
-    def test_leverage_fee_included_in_be(self, tmp_path):
-        """Чем дольше держим, тем выше нетто-БУ (фандинг копится)."""
-        b = _mk_broker(tmp_path, leverage_fee_daily=Decimal("0.0004"))
+    def test_funding_included_in_be(self, tmp_path):
+        """Чем дольше держим, тем выше нетто-БУ (фандинг перпов копится)."""
+        b = _mk_broker(tmp_path, funding_rate=Decimal("0.0001"))
         pos = _open_long(b, lev=2)
         pos.timeframe = "1h"
         be_short = b.net_breakeven_price(pos)

@@ -1,17 +1,22 @@
 """
-ASTRA BOT — BingX WebSocket client (public market data).
+ASTRA BOT — BingX WebSocket client (USDT-M perpetual market data).
 
 Минимальная реализация под интерфейс OKXWebSocket: используется в
 ``main.py`` как фоновая подписка на публичные каналы (kline/ticker).
 Бумажный контур (TradingEngine) работает по REST и WebSocket не требует.
 
-Публичный WS BingX: ``wss://open-api-ws.bingx.com/market``
-Формат подписки: ``{"type": "subscribe", "dataType": "BTC-USDT@kline_1m"}``
+Публичный swap-WS BingX: ``wss://open-api-swap.bingx.com/swap-market``
+Формат подписки: ``{"id": "<uuid>", "reqType": "sub",
+"dataType": "BTC-USDT@kline_1m"}``
+Сообщения приходят в gzip; сервер шлёт текстовый ``Ping`` — отвечаем
+``Pong``.
 """
 
 import asyncio
+import gzip
 import json
 import logging
+import uuid
 from collections.abc import Callable
 from typing import Any
 
@@ -19,19 +24,18 @@ import aiohttp
 
 logger = logging.getLogger(__name__)
 
-BINGX_WS_BASE = "wss://open-api-ws.bingx.com/market"
-# BingX отдаёт клиентам ping-сообщения — отвечаем pong тем же id.
+BINGX_WS_BASE = "wss://open-api-swap.bingx.com/swap-market"
+# Периодический ping, чтобы BingX не разрывал соединение.
 BINGX_WS_PING_INTERVAL = 20
 
 
 class BingXWebSocket:
-    """BingX public market WebSocket (интерфейс совместим с OKXWebSocket)."""
+    """BingX swap public market WebSocket (интерфейс совместим с OKXWebSocket)."""
 
     def __init__(self, config: dict[str, Any]):
         self.config = config
         self.sandbox = config.get("sandbox", False)
         self.base_url = config.get("base_url", "")
-        # У BingX нет отдельного demo-WS для spot; sandbox-хост не используем.
         self.url = BINGX_WS_BASE
 
         self._ws: aiohttp.ClientWebSocketResponse | None = None
@@ -107,11 +111,35 @@ class BingXWebSocket:
             while self._running and self._ws and not self._ws.closed:
                 await asyncio.sleep(BINGX_WS_PING_INTERVAL)
                 try:
-                    await self._ws.send_str(json.dumps({"ping": int(asyncio.get_event_loop().time() * 1000)}))
+                    await self._ws.send_str("Ping")
                 except Exception:
                     break
         except asyncio.CancelledError:
             pass
+
+    @staticmethod
+    def _decode_payload(raw: bytes | str) -> dict[str, Any] | str | None:
+        """Распаковать сообщение swap-WS: gzip-байты или текст.
+
+        Возвращает dict (данные), строку "Ping" (нужен "Pong") или None.
+        """
+        try:
+            if isinstance(raw, (bytes, bytearray)):
+                try:
+                    text = gzip.decompress(bytes(raw)).decode("utf-8")
+                except OSError:
+                    text = bytes(raw).decode("utf-8", errors="ignore")
+            else:
+                text = raw
+            text = text.strip()
+            if text == "Ping":
+                return "Ping"
+            if text == "Pong":
+                return None
+            data = json.loads(text)
+            return data if isinstance(data, dict) else None
+        except Exception:
+            return None
 
     async def _message_handler(self):
         """Обработчик входящих сообщений."""
@@ -119,11 +147,28 @@ class BingXWebSocket:
             try:
                 msg = await self._ws.receive()
                 if msg.type == aiohttp.WSMsgType.TEXT:
-                    data = json.loads(msg.data)
-                    # Ответ на наш ping: {"pong": <ts>} — пропускаем.
-                    if "pong" in data:
+                    decoded = self._decode_payload(msg.data)
+                    if decoded == "Ping":
+                        try:
+                            await self._ws.send_str("Pong")
+                        except Exception:
+                            break
                         continue
-                    await self._handle_message(data)
+                    if isinstance(decoded, dict):
+                        # Ответ на наш ping: {"pong": <ts>} — пропускаем.
+                        if "pong" in decoded:
+                            continue
+                        await self._handle_message(decoded)
+                elif msg.type == aiohttp.WSMsgType.BINARY:
+                    decoded = self._decode_payload(msg.data)
+                    if decoded == "Ping":
+                        try:
+                            await self._ws.send_str("Pong")
+                        except Exception:
+                            break
+                        continue
+                    if isinstance(decoded, dict):
+                        await self._handle_message(decoded)
                 elif msg.type == aiohttp.WSMsgType.ERROR:
                     logger.error("BingX WS error: %s", self._ws.exception())
                     break
@@ -151,30 +196,43 @@ class BingXWebSocket:
 
     # --------------------------------------------------------- подписки
 
-    def _data_type(self, channel: str, symbol: str) -> str:
-        """Сопоставить канал OKX-стиля с dataType BingX."""
+    def _data_type(self, channel: str, symbol: str, **args: Any) -> str:
+        """Сопоставить канал OKX-стиля с dataType swap-WS BingX."""
         sym = symbol.replace("/", "-")
+        interval = str(args.get("interval", "1m"))
         mapping = {
-            "candles": lambda: f"{sym}@kline_1m",
+            "candles": lambda: f"{sym}@kline_{interval}",
             "orderbook": lambda: f"{sym}@depth20",
             "trades": lambda: f"{sym}@trade",
             "ticker": lambda: f"{sym}@ticker",
+            "last_price": lambda: f"{sym}@lastPrice",
         }
         fn = mapping.get(channel)
         if fn is None:
             raise ValueError(f"Unsupported BingX WS channel: {channel}")
         return fn()
 
+    def _sub_message(self, channel: str, symbol: str, **args: Any) -> str:
+        """Сообщение подписки формата swap-WS."""
+        return json.dumps({
+            "id": str(uuid.uuid4()),
+            "reqType": "sub",
+            "dataType": self._data_type(channel, symbol, **args),
+        })
+
     async def subscribe(self, channel: str, symbol: str, **args) -> None:
-        """Подписаться на канал (kline_1m, depth20, trade, ticker)."""
+        """Подписаться на канал (kline, depth20, trade, ticker, lastPrice)."""
         if not self.is_connected:
             logger.warning("Cannot subscribe: BingX WS not connected")
             return
-        data_type = self._data_type(channel, symbol)
         try:
-            await self._ws.send_str(json.dumps({"type": "subscribe", "dataType": data_type}))
-            self._subscriptions[f"{channel}:{symbol}"] = data_type
-            logger.debug("BingX WS subscribed: %s", data_type)
+            await self._ws.send_str(self._sub_message(channel, symbol, **args))
+            self._subscriptions[f"{channel}:{symbol}"] = self._data_type(
+                channel, symbol, **args
+            )
+            logger.debug(
+                "BingX WS subscribed: %s", self._subscriptions[f"{channel}:{symbol}"]
+            )
         except Exception as exc:
             logger.error("BingX WS subscribe error: %s", exc)
 
@@ -184,7 +242,11 @@ class BingXWebSocket:
             return
         try:
             data_type = self._data_type(channel, symbol)
-            await self._ws.send_str(json.dumps({"type": "unsubscribe", "dataType": data_type}))
+            await self._ws.send_str(json.dumps({
+                "id": str(uuid.uuid4()),
+                "reqType": "unsub",
+                "dataType": data_type,
+            }))
             self._subscriptions.pop(f"{channel}:{symbol}", None)
         except Exception as exc:
             logger.error("BingX WS unsubscribe error: %s", exc)

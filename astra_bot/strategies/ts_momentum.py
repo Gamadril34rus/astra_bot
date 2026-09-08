@@ -57,7 +57,7 @@ class TimeSeriesMomentumConfig(StrategyConfig):
     # Мёртвая зона: |доходность| < band → «вне рынка» (flat).
     band: float = 0.02
 
-    # Разрешать шорты. Для spot-режима можно выключить (long-only).
+    # Разрешать шорты (контур перпов; long-only больше не используется).
     allow_short: bool = True
 
     # Фильтр подтверждения тренда: новые режимы (long/short) открываются

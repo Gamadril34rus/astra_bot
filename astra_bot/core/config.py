@@ -95,7 +95,7 @@ class ExchangeConfig:
     sandbox: bool = False
     base_url: str | None = None
     enabled: bool = True
-    contract_type: str = "spot"  # spot, linear, inverse
+    contract_type: str = "linear"  # linear (USDT-M perps), spot, inverse
 
 
 @dataclass
@@ -178,7 +178,7 @@ class SystemConfig:
     paper_trading: bool = True
     trading_enabled: bool = False  # Только после подтверждения
 
-    # Universe — 10 ликвидных пар к USDT (BingX spot).
+    # Universe — 10 ликвидных пар к USDT (BingX USDT-M perps).
     instruments: list = field(default_factory=lambda: [
         "BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT", "DOGE/USDT",
         "ADA/USDT", "AVAX/USDT", "LINK/USDT", "DOT/USDT", "TRX/USDT",
@@ -338,7 +338,7 @@ class SystemConfig:
                     sandbox=ex_data.get("sandbox", False),
                     base_url=ex_data.get("base_url"),
                     enabled=ex_data.get("enabled", True),
-                    contract_type=ex_data.get("contract_type", "spot"),
+                    contract_type=ex_data.get("contract_type", "linear"),
                 )
 
         return config
