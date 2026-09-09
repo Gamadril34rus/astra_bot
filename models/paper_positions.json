@@ -1,5 +1,150 @@
 {
-  "positions": [],
+  "positions": [
+    {
+      "id": "c10a9c48-354c-4dee-8262-5c4bca006e3b",
+      "symbol": "DOT-USDT",
+      "direction": "long",
+      "entry_price": "1.1355",
+      "quantity": "3096.187859",
+      "stop_loss": "1.11279",
+      "take_profits": [
+        "1.158210",
+        "1.176378",
+        "1.192275"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "3096.187859",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "mean_reversion_v2",
+      "opened_at": 1788963745600,
+      "notes": {
+        "score": 22.0,
+        "ml_probability": null,
+        "edge_pct": 18.5073,
+        "ev_r": 0.18507265521796568,
+        "ev_confidence": 0.0,
+        "rr": 1.1417877586966094,
+        "leverage": 1
+      },
+      "fill_price": "1.1366355",
+      "entry_fee_per_unit": "0.00056831775",
+      "risk_distance": "0.02271",
+      "regime": "STRONG_BEAR_TREND",
+      "timeframe": "5m",
+      "regime_axes": "T:STRONG/V:LOW/L:NORMAL",
+      "bars_held": 0,
+      "leverage": "1",
+      "margin_used": "3515.7213138945"
+    },
+    {
+      "id": "884878dd-ca57-49f0-86d7-9e2b0e9546b4",
+      "symbol": "ATOM-USDT",
+      "direction": "long",
+      "entry_price": "1.927",
+      "quantity": "1824.453198",
+      "stop_loss": "1.90773",
+      "take_profits": [
+        "1.946270",
+        "1.961686",
+        "1.975175"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "1824.453198",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "open_interest_divergence",
+      "opened_at": 1788963763727,
+      "notes": {
+        "score": 40.0,
+        "ml_probability": null,
+        "edge_pct": 24.2465,
+        "ev_r": 0.2424653275572903,
+        "ev_confidence": 0.0,
+        "rr": 1.4999999999999896,
+        "leverage": 1
+      },
+      "fill_price": "1.928927",
+      "entry_fee_per_unit": "0.0009644635",
+      "risk_distance": "0.01927",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "5m",
+      "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
+      "bars_held": 0,
+      "leverage": "1",
+      "margin_used": "3515.721312546"
+    },
+    {
+      "id": "cfbddf7c-48f5-4a32-88f6-68ecaf19f52b",
+      "symbol": "OP-USDT",
+      "direction": "short",
+      "entry_price": "0.1034",
+      "quantity": "34001.173244",
+      "stop_loss": "0.10608340000000001",
+      "take_profits": [
+        "0.100716599999999990",
+        "0.098569879999999982",
+        "0.096691499999999975"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "34001.173244",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "triple_top_bottom",
+      "opened_at": 1788963780342,
+      "notes": {
+        "score": 65.0,
+        "ml_probability": null,
+        "edge_pct": 114.4538,
+        "ev_r": 1.1445376679528032,
+        "ev_confidence": 0.0,
+        "rr": 1.599999999999994,
+        "leverage": 3
+      },
+      "fill_price": "0.1032966",
+      "entry_fee_per_unit": "0.00005164830",
+      "risk_distance": "0.00268340000000001",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "5m",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
+      "bars_held": 0,
+      "leverage": "3",
+      "margin_used": "1171.907104476533333333333333"
+    }
+  ],
   "realized_pnl": "-941.6568654332730069806416145",
   "initial_capital": "36098.87"
 }
