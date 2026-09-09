@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-09T10:36:45.688961+00:00",
+  "updated": "2026-09-09T10:53:56.842822+00:00",
   "buckets": {
     "scalp5m|UNKNOWN|": {
       "sample_size": 1,
@@ -218,16 +218,16 @@
       "last_updated": "2026-09-08T17:11:45.760184+00:00"
     },
     "falling_wedge|ANY|1h": {
-      "sample_size": 2,
+      "sample_size": 3,
       "wins": 1,
-      "losses": 1,
-      "sum_r": -0.05209127088881045,
+      "losses": 2,
+      "sum_r": -0.5075063830241252,
       "wins_sum_r": 0.07907340700870054,
-      "losses_sum_r": -0.131164677897511,
-      "sum_mfe_r": 0.30257382844913533,
-      "sum_mae_r": 0.08379084053519384,
-      "sum_fees": 5.137748554259032,
-      "last_updated": "2026-09-09T05:04:11.491264+00:00"
+      "losses_sum_r": -0.5865797900328257,
+      "sum_mfe_r": 0.663279575006972,
+      "sum_mae_r": 0.32082604541605786,
+      "sum_fees": 8.668385323811087,
+      "last_updated": "2026-09-09T10:53:56.842786+00:00"
     },
     "pullback|T:RANGE/V:VERY_LOW/L:DEEP|1h": {
       "sample_size": 3,
@@ -278,16 +278,16 @@
       "last_updated": "2026-09-09T05:04:11.491243+00:00"
     },
     "falling_wedge|LOW_VOLATILITY|1h": {
-      "sample_size": 1,
+      "sample_size": 2,
       "wins": 0,
-      "losses": 1,
-      "sum_r": -0.131164677897511,
+      "losses": 2,
+      "sum_r": -0.5865797900328257,
       "wins_sum_r": 0.0,
-      "losses_sum_r": -0.131164677897511,
-      "sum_mfe_r": 0.07041310044703973,
-      "sum_mae_r": 0.089189927232917,
-      "sum_fees": 3.574257694530906,
-      "last_updated": "2026-09-09T05:04:11.491256+00:00"
+      "losses_sum_r": -0.5865797900328257,
+      "sum_mfe_r": 0.43111884700487635,
+      "sum_mae_r": 0.326225132113781,
+      "sum_fees": 7.10489446408296,
+      "last_updated": "2026-09-09T10:53:56.842778+00:00"
     },
     "vwap_deviation|T:RANGE/V:VERY_LOW/L:DEEP|1h": {
       "sample_size": 1,
@@ -576,6 +576,18 @@
       "sum_mae_r": 0.14625601605414823,
       "sum_fees": 3.544604096007108,
       "last_updated": "2026-09-09T10:36:45.688929+00:00"
+    },
+    "falling_wedge|T:RANGE/V:VERY_LOW/L:DEEP|1h": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -0.4554151121353147,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -0.4554151121353147,
+      "sum_mfe_r": 0.3607057465578366,
+      "sum_mae_r": 0.23703520488086405,
+      "sum_fees": 3.530636769552055,
+      "last_updated": "2026-09-09T10:53:56.842766+00:00"
     }
   }
 }

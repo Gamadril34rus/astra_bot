@@ -1,60 +1,12 @@
 {
   "positions": [
     {
-      "id": "3b47ae3f-4201-4366-952e-13a0f25772d9",
-      "symbol": "SUI-USDT",
-      "direction": "long",
-      "entry_price": "0.8086",
-      "quantity": "4371.063604",
-      "stop_loss": "0.8066714285714286",
-      "take_profits": [
-        "0.81830320",
-        "0.82606576",
-        "0.83285800"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "4371.063604",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "0.8121",
-      "lowest_price": "0.8063",
-      "strategy": "falling_wedge",
-      "opened_at": 1788947314385,
-      "notes": {
-        "score": 34.0,
-        "ml_probability": null,
-        "edge_pct": 170.1414,
-        "ev_r": 1.7014140426484616,
-        "ev_confidence": 0.03225806451612903,
-        "rr": 2.0833333333333335,
-        "leverage": 3
-      },
-      "fill_price": "0.8094086",
-      "entry_fee_per_unit": "0.00040470430",
-      "risk_distance": "0.0097032",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "1h",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 23,
-      "leverage": "3",
-      "margin_used": "1178.147343398133333333333333"
-    },
-    {
       "id": "5e6a7fc2-157d-4687-bcb9-8941998a23d4",
       "symbol": "AVAX-USDT",
       "direction": "long",
       "entry_price": "7.912",
       "quantity": "447.284047",
-      "stop_loss": "7.891285714285714",
+      "stop_loss": "7.8919999999999995",
       "take_profits": [
         "7.9587360",
         "7.9961248",
@@ -92,7 +44,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 17,
+      "bars_held": 19,
       "leverage": "2",
       "margin_used": "1769.455689932"
     },
@@ -102,7 +54,7 @@
       "direction": "short",
       "entry_price": "103.938",
       "quantity": "33.974102",
-      "stop_loss": "104.14157142857142",
+      "stop_loss": "104.0727142857143",
       "take_profits": [
         "103.1064960",
         "102.4412928",
@@ -122,7 +74,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "103.906",
-      "lowest_price": "103.669",
+      "lowest_price": "103.620",
       "strategy": "scalp",
       "opened_at": 1788950281402,
       "notes": {
@@ -140,11 +92,59 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 4,
+      "bars_held": 6,
       "leverage": "1",
       "margin_used": "3531.200213676"
+    },
+    {
+      "id": "17530c2a-b6e3-4b0a-9e5a-796a72579d33",
+      "symbol": "SUI-USDT",
+      "direction": "short",
+      "entry_price": "0.8069",
+      "quantity": "4373.091299",
+      "stop_loss": "0.8171207",
+      "take_profits": [
+        "0.79667930",
+        "0.78850274",
+        "0.78134825"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "4373.091299",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "momentum",
+      "opened_at": 1788951237702,
+      "notes": {
+        "score": 51.0,
+        "ml_probability": null,
+        "edge_pct": 23.046,
+        "ev_r": 0.23046005374562972,
+        "ev_confidence": 0.4827586206896552,
+        "rr": 3.157905035858591,
+        "leverage": 1
+      },
+      "fill_price": "0.8060931",
+      "entry_fee_per_unit": "0.00040304655",
+      "risk_distance": "0.0102207",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "1h",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
+      "bars_held": 0,
+      "leverage": "1",
+      "margin_used": "3528.6473691631"
     }
   ],
-  "realized_pnl": "-750.3577977453709996178803151",
+  "realized_pnl": "-769.6734575075720246603434240",
   "initial_capital": "36098.87"
 }
