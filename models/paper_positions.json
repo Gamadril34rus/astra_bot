@@ -44,57 +44,9 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 25,
+      "bars_held": 27,
       "leverage": "1",
       "margin_used": "3562.652309595"
-    },
-    {
-      "id": "aa3ac95d-bd82-42ff-bdc8-829a0e8980b5",
-      "symbol": "HBAR-USDT",
-      "direction": "short",
-      "entry_price": "0.07905",
-      "quantity": "44959.114354",
-      "stop_loss": "0.07915142857142858",
-      "take_profits": [
-        "0.078087234263095740",
-        "0.077317021673572332",
-        "0.076643085657739350"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "44959.114354",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "0.07910",
-      "lowest_price": "0.07888",
-      "strategy": "rising_wedge",
-      "opened_at": 1788932033128,
-      "notes": {
-        "score": 52.0,
-        "ml_probability": null,
-        "edge_pct": 176.4952,
-        "ev_r": 1.7649522644088804,
-        "ev_confidence": 0.0,
-        "rr": 2.0833333333333384,
-        "leverage": 3
-      },
-      "fill_price": "0.07897095",
-      "entry_fee_per_unit": "0.000039485475",
-      "risk_distance": "0.00096276573690426",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "1h",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
-      "bars_held": 13,
-      "leverage": "3",
-      "margin_used": "1184.67266322790"
     },
     {
       "id": "b1103607-a29f-454f-b014-c35ccc3f17a3",
@@ -102,7 +54,7 @@
       "direction": "long",
       "entry_price": "104.128",
       "quantity": "34.035907",
-      "stop_loss": "102.04544",
+      "stop_loss": "103.89885714285715",
       "take_profits": [
         "106.210560",
         "107.876608",
@@ -121,8 +73,8 @@
       "initial_quantity": "34.035907",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "104.313",
+      "lowest_price": "104.061",
       "strategy": "momentum",
       "opened_at": 1788934099608,
       "notes": {
@@ -140,11 +92,59 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 0,
+      "bars_held": 2,
       "leverage": "1",
       "margin_used": "3544.090924096"
+    },
+    {
+      "id": "77881d6d-4328-46f6-bcbc-b8634b201ea1",
+      "symbol": "AAVE-USDT",
+      "direction": "long",
+      "entry_price": "129.36",
+      "quantity": "27.441574",
+      "stop_loss": "126.7728",
+      "take_profits": [
+        "131.94720",
+        "134.01696",
+        "135.82800"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "27.441574",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "momentum",
+      "opened_at": 1788934434053,
+      "notes": {
+        "score": 45.0,
+        "ml_probability": null,
+        "edge_pct": 66.9191,
+        "ev_r": 0.6691914180188522,
+        "ev_confidence": 0.34782608695652173,
+        "rr": 2.0,
+        "leverage": 1
+      },
+      "fill_price": "129.48936",
+      "entry_fee_per_unit": "0.064744680",
+      "risk_distance": "2.5872",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "1h",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
+      "bars_held": 0,
+      "leverage": "1",
+      "margin_used": "3549.84201264"
     }
   ],
-  "realized_pnl": "-562.9990874887196354036454885",
+  "realized_pnl": "-576.9191738999502057047540745",
   "initial_capital": "36098.87"
 }
