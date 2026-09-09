@@ -1,54 +1,5 @@
 {
-  "positions": [
-    {
-      "id": "4497f2b2-40d2-4a22-b6c3-6c232b1121e5",
-      "symbol": "ATOM-USDT",
-      "direction": "long",
-      "entry_price": "1.897",
-      "quantity": "1846.352662",
-      "stop_loss": "1.8822857142857141",
-      "take_profits": [
-        "1.915970",
-        "1.931146",
-        "1.944425"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "1846.352662",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "1.908",
-      "lowest_price": "1.889",
-      "strategy": "open_interest_divergence",
-      "opened_at": 1788966138016,
-      "notes": {
-        "score": 34.0,
-        "ml_probability": null,
-        "edge_pct": 19.079,
-        "ev_r": 0.19078980439720555,
-        "ev_confidence": 0.09090909090909091,
-        "rr": 1.5,
-        "leverage": 1
-      },
-      "fill_price": "1.898897",
-      "entry_fee_per_unit": "0.0009494485",
-      "risk_distance": "0.01897",
-      "regime": "RANGE",
-      "timeframe": "5m",
-      "regime_axes": "T:TRANSITION/V:LOW/L:NORMAL",
-      "bars_held": 1,
-      "leverage": "1",
-      "margin_used": "3502.530999814"
-    }
-  ],
-  "realized_pnl": "-1111.552926320013588932304944",
+  "positions": [],
+  "realized_pnl": "-1149.189294877204637219201092",
   "initial_capital": "36098.87"
 }
