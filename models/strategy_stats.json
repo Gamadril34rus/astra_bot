@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-09T05:04:11.491303+00:00",
+  "updated": "2026-09-09T05:33:52.923300+00:00",
   "buckets": {
     "scalp5m|UNKNOWN|": {
       "sample_size": 1,
@@ -62,40 +62,40 @@
       "last_updated": "2026-09-09T05:02:17.924590+00:00"
     },
     "momentum|T:RANGE/V:VERY_LOW/L:DEEP|1h": {
-      "sample_size": 14,
+      "sample_size": 15,
       "wins": 2,
-      "losses": 12,
-      "sum_r": -3.1446069738143585,
+      "losses": 13,
+      "sum_r": -3.409100867018173,
       "wins_sum_r": 0.4122845054068993,
-      "losses_sum_r": -3.5568914792212585,
-      "sum_mfe_r": 3.2618402051812776,
-      "sum_mae_r": 2.6882870512067876,
-      "sum_fees": 50.41049681572008,
-      "last_updated": "2026-09-09T05:02:14.878111+00:00"
+      "losses_sum_r": -3.821385372425073,
+      "sum_mfe_r": 3.388949056579475,
+      "sum_mae_r": 2.911690486997559,
+      "sum_fees": 53.96685990900155,
+      "last_updated": "2026-09-09T05:32:19.648875+00:00"
     },
     "momentum|LOW_VOLATILITY|1h": {
-      "sample_size": 21,
+      "sample_size": 22,
       "wins": 2,
-      "losses": 19,
-      "sum_r": -5.776426195848254,
+      "losses": 20,
+      "sum_r": -6.040920089052069,
       "wins_sum_r": 0.4122845054068993,
-      "losses_sum_r": -6.188710701255154,
-      "sum_mfe_r": 5.026475963946382,
-      "sum_mae_r": 4.678315667592612,
-      "sum_fees": 75.61957721194851,
-      "last_updated": "2026-09-09T05:02:14.878125+00:00"
+      "losses_sum_r": -6.453204594458969,
+      "sum_mfe_r": 5.153584815344579,
+      "sum_mae_r": 4.901719103383383,
+      "sum_fees": 79.17594030522997,
+      "last_updated": "2026-09-09T05:32:19.648885+00:00"
     },
     "momentum|ANY|1h": {
-      "sample_size": 21,
+      "sample_size": 22,
       "wins": 2,
-      "losses": 19,
-      "sum_r": -5.776426195848254,
+      "losses": 20,
+      "sum_r": -6.040920089052069,
       "wins_sum_r": 0.4122845054068993,
-      "losses_sum_r": -6.188710701255154,
-      "sum_mfe_r": 5.026475963946382,
-      "sum_mae_r": 4.678315667592612,
-      "sum_fees": 75.61957721194851,
-      "last_updated": "2026-09-09T05:02:14.878132+00:00"
+      "losses_sum_r": -6.453204594458969,
+      "sum_mfe_r": 5.153584815344579,
+      "sum_mae_r": 4.901719103383383,
+      "sum_fees": 79.17594030522997,
+      "last_updated": "2026-09-09T05:32:19.648889+00:00"
     },
     "momentum|T:RANGE/V:LOW/L:DEEP|1h": {
       "sample_size": 3,
@@ -288,6 +288,42 @@
       "sum_mae_r": 0.089189927232917,
       "sum_fees": 3.574257694530906,
       "last_updated": "2026-09-09T05:04:11.491256+00:00"
+    },
+    "vwap_deviation|T:RANGE/V:VERY_LOW/L:DEEP|1h": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -1.5688274949486965e-28,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -1.5688274949486965e-28,
+      "sum_mfe_r": 0.8411411481576869,
+      "sum_mae_r": 0.4439356059721125,
+      "sum_fees": 3.539409899228428,
+      "last_updated": "2026-09-09T05:33:52.923247+00:00"
+    },
+    "vwap_deviation|LOW_VOLATILITY|1h": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -1.5688274949486965e-28,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -1.5688274949486965e-28,
+      "sum_mfe_r": 0.8411411481576869,
+      "sum_mae_r": 0.4439356059721125,
+      "sum_fees": 3.539409899228428,
+      "last_updated": "2026-09-09T05:33:52.923260+00:00"
+    },
+    "vwap_deviation|ANY|1h": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -1.5688274949486965e-28,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -1.5688274949486965e-28,
+      "sum_mfe_r": 0.8411411481576869,
+      "sum_mae_r": 0.4439356059721125,
+      "sum_fees": 3.539409899228428,
+      "last_updated": "2026-09-09T05:33:52.923266+00:00"
     }
   }
 }
