@@ -86,6 +86,7 @@ jobs:
                                       models/telegram_offset.json \
                    models/strategy_stats.json \
                    models/no_trade_observations.jsonl \
+                   models/oi_history.json \
                    models/no_trade_outcomes.json \
                    models/research/hypotheses.json \
                    models/research/observations.jsonl; do
