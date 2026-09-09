@@ -197,10 +197,11 @@ class TradingEngine:
             cfg.max_spread_pct = 0.30
             cfg.slippage_buffer_pct = 0.02
             cfg.min_book_depth = 1_000.0
-            # Meta-Strategy: cold start — EV-гейт по prior (0.0), как и
-            # прежний edge-гейт; по мере накопления статистики по режимам
-            # оценка становится эмпирической автоматически (shrinkage).
-            cfg.min_ev_r = 0.0
+            # Meta-Strategy: EV-гейт 0.05R (аудит эпохи-2: 0.0 пропускал
+            # всё подряд) + быстрый shrinkage k=10, чтобы эмпирика давила
+            # оптимистичный prior уже с ~10 сделок.
+            cfg.min_ev_r = 0.05
+            cfg.ev_shrinkage_k = 10.0
             stats_store = StrategyStatsStore(
                 Path(self.config.stats_path),
                 shrinkage_k=cfg.ev_shrinkage_k,
@@ -319,6 +320,12 @@ class TradingEngine:
             else:
                 logger.info("Загружено стратегий %d/36 (7 ядро + 18 паттернов + 11 новых)", len(pipeline.strategies))
         self.pipeline = pipeline
+        # Аудит эпохи-2 (блок A): пер-стратегийный килл-свитч из статистики
+        # (пересчёт каждую сессию = самовосстановление).
+        try:
+            self.apply_kill_switches_from_stats()
+        except Exception as exc:
+            logger.debug("kill-switch: %s", exc)
         self.broker = broker or self._make_broker()
         # Risk Engine — независимый слой защиты (master prompt §11):
         # дневные/недельные лимиты потерь, просадка, exposure, TRADING HALT.
@@ -606,6 +613,57 @@ class TradingEngine:
             except Exception:
                 return Decimal("0")
 
+    def apply_kill_switches_from_stats(self) -> list[str]:
+        """Пер-стратегийный килл-свитч из статистики (блок A).
+
+        Агрегирует бакеты strategy_stats.json по имени стратегии. Правило:
+        n>=5 и PF=wins/|losses|<1.0 → убрать стратегию из
+        pipeline.strategies + logger.error. Именно убрать из списка: флаг
+        enabled новые стратегии игнорируют. Вызывается из __init__ (раз в
+        сессию) — выправившаяся статистика возвращает стратегию обратно.
+        """
+        disabled: list[str] = []
+        try:
+            path = Path(self.config.stats_path)
+            if not path.exists():
+                return disabled
+            data = json.loads(path.read_text(encoding="utf-8"))
+            buckets = data.get("buckets") or {}
+            agg: dict[str, dict[str, float]] = {}
+            for key, row in buckets.items():
+                if not isinstance(row, dict):
+                    continue
+                name = str(key).split("|")[0].strip()
+                if not name:
+                    continue
+                a = agg.setdefault(name, {"n": 0.0, "w": 0.0, "l": 0.0})
+                a["n"] += float(row.get("sample_size") or 0)
+                a["w"] += float(row.get("wins_sum_r") or 0.0)
+                a["l"] += float(row.get("losses_sum_r") or 0.0)
+            loaded = [
+                getattr(st, "name", type(st).__name__)
+                for st in (self.pipeline.strategies or [])
+            ]
+            for name, a in agg.items():
+                if name not in loaded:
+                    continue  # мёртвые/переименованные имена — молча
+                if a["n"] >= 5 and a["l"] < 0 and (a["w"] / abs(a["l"])) < 1.0:
+                    pf = a["w"] / abs(a["l"])
+                    self.pipeline.strategies = [
+                        st
+                        for st in self.pipeline.strategies
+                        if getattr(st, "name", type(st).__name__) != name
+                    ]
+                    logger.error(
+                        "KILL-SWITCH %s: n=%d PF=%.2f (wins %+.2fR / losses %+.2fR)"
+                        " — убрана до выправления статистики",
+                        name, int(a["n"]), pf, a["w"], a["l"],
+                    )
+                    disabled.append(name)
+        except Exception as exc:
+            logger.debug("kill-switch read failed: %s", exc)
+        return disabled
+
     def _risk_check_and_adjust(
         self,
         symbol: str,
@@ -698,6 +756,30 @@ class TradingEngine:
             logger.debug("perps sync %s: %s", symbol, exc)
 
     # ----------------------------------------------------------- main loop
+    @staticmethod
+    def _scaled_tp_with_stop(
+        entry: Any, old_stop: Any, new_stop: Any, take_profit: Any, direction: str,
+    ) -> Decimal | None:
+        """Блок I: новый TP при расширении стопа (пропорционально R, cap 2.2×).
+
+        Возвращает Decimal нового TP или None (не масштабировать: стоп не
+        расширился, TP отсутствует или стоит не на своей стороне).
+        """
+        try:
+            r0 = abs(float(entry) - float(old_stop))
+            r1 = abs(float(entry) - float(new_stop))
+            e = float(entry)
+            tp = float(take_profit) if take_profit else 0.0
+            tp_ok = (direction == "long" and tp > e) or (
+                direction == "short" and 0 < tp < e
+            )
+            if r0 > 0 and r1 > r0 and tp_ok:
+                scale = min(r1 / r0, 2.2)
+                return Decimal(str(e + (tp - e) * scale))
+        except Exception:
+            pass
+        return None
+
     async def process_symbol(self, symbol: str) -> list[Any]:
         # Риск-состояние (лимиты, HALT) живое между CI-сессиями:
         # восстанавливаем из персиста перед любым решением о входе.
@@ -907,7 +989,21 @@ class TradingEngine:
                         "STRUCT-STOP %s %s: %s -> %s (за свинг по теням)",
                         symbol, wanted_dir, cand.stop_loss, new_stop,
                     )
+                    _old_stop = cand.stop_loss
                     cand.stop_loss = new_stop
+                    # Блок I: стоп расширился — двигаем TP пропорционально,
+                    # иначе фактический RR падает ниже гейта (edge пайплайна
+                    # посчитан ДО расширения).
+                    _tp_scaled = self._scaled_tp_with_stop(
+                        cand.entry_price, _old_stop, new_stop,
+                        cand.take_profit, wanted_dir,
+                    )
+                    if _tp_scaled is not None:
+                        logger.info(
+                            "STRUCT-TP %s %s: %s -> %s (за стопом)",
+                            symbol, wanted_dir, cand.take_profit, _tp_scaled,
+                        )
+                        cand.take_profit = _tp_scaled
             except Exception as exc:
                 logger.debug("structural_stop: %s", exc)
 
@@ -1133,6 +1229,55 @@ class TradingEngine:
         except Exception as exc:
             logger.debug("state bundle save: %s", exc)
 
+    def _aggregate_position_sample(self, pid: str, rows: list[dict]) -> dict:
+        """Один обучающий sample на позицию (блок H).
+
+        Все строки закрытий позиции (включая ранние частичные tp1 — они уже
+        в trades_path, т.к. брокер пишет _log_trade в момент закрытия)
+        сворачиваются: R — взвешенный по объёму, MFE — max, MAE — min,
+        fees — сумма. Нет файла (тесты/моки) — агрегируем переданные строки.
+        """
+        file_rows: list[dict] = []
+        try:
+            tpath = Path(self.broker.trades_path)
+            if tpath.exists():
+                for line in tpath.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        t = json.loads(line)
+                    except Exception:
+                        continue
+                    if str(t.get("id") or "") == pid:
+                        file_rows.append(t)
+        except Exception as exc:
+            logger.debug("position rows read: %s", exc)
+        use = file_rows or rows
+        first = rows[0]
+        tot_q = sum(float(r.get("quantity") or 0.0) for r in use)
+        if tot_q > 0:
+            r_avg = (
+                sum(
+                    float(r.get("r_multiple") or 0.0) * float(r.get("quantity") or 0.0)
+                    for r in use
+                )
+                / tot_q
+            )
+        else:
+            rs = [float(r.get("r_multiple") or 0.0) for r in use]
+            r_avg = sum(rs) / len(rs) if rs else 0.0
+        return {
+            "strategy": first.get("strategy") or "",
+            "regime": first.get("regime") or "UNKNOWN",
+            "timeframe": first.get("timeframe") or "",
+            "regime_axes": first.get("regime_axes") or "",
+            "r_multiple": r_avg,
+            "mfe_r": max([float(r.get("mfe_r") or 0.0) for r in use] or [0.0]),
+            "mae_r": min([float(r.get("mae_r") or 0.0) for r in use] or [0.0]),
+            "fees": sum(float(r.get("fees") or 0.0) for r in use),
+        }
+
     def _record_closed(self, closed: list) -> None:
         """Сохранить закрытые сделки: уроки, Risk Engine, статистика режимов.
 
@@ -1198,6 +1343,13 @@ class TradingEngine:
             append_lessons(trades)
         except Exception as exc:
             logger.warning("Не смог записать уроки: %s", exc)
+        # Блок H: id позиций, оставшихся открытыми (частичные tp1): их
+        # sample для статистики допишем при ПОЛНОМ закрытии, а из учёта
+        # риска не снимаем (остаток всё ещё в рынке!).
+        try:
+            open_ids = {str(getattr(pos, "id", "")) for pos in self.broker.positions}
+        except Exception:
+            open_ids = set()
         for d in trades:
             try:
                 self.risk.record_trade(
@@ -1208,7 +1360,8 @@ class TradingEngine:
                     pnl=Decimal(str(d["pnl"])),
                     won=float(d["pnl"]) > 0,
                 )
-                self.risk.remove_position(d["id"])
+                if str(d.get("id") or "") not in open_ids:
+                    self.risk.remove_position(d["id"])
             except Exception as exc:
                 logger.debug("risk.record_trade: %s", exc)
             # Метрика выходов (Этап 7): причина закрытия — кодированный
@@ -1218,25 +1371,30 @@ class TradingEngine:
                 EXITS_TOTAL.labels(reason=str(d.get("exit_reason") or "unknown")).inc()
             except Exception as exc:
                 logger.debug("EXITS_TOTAL: %s", exc)
+        # Блок H: один sample на ПОЛНОСТЬЮ закрытую позицию (взвешенный
+        # R). Частичные tp1-добивки больше не раздувают n и винрейт.
+        by_id: dict[str, list[dict]] = {}
+        for d in trades:
+            by_id.setdefault(str(d.get("id") or ""), []).append(d)
+        for pid, rows in by_id.items():
+            if not pid or pid in open_ids:
+                continue
+            sample = self._aggregate_position_sample(pid, rows)
             try:
-                # FIX: раньше условие отбрасывало сделки с r_multiple=0 и regime="" — из-за этого
-                # strategy_stats.json никогда не создавался и база знаний оставалась пустой (n<5).
-                # Теперь пишем всегда, если есть strategy, а режим по умолчанию UNKNOWN.
-                if True:
-                    self.stats_store.record(
-                        strategy=str(d.get("strategy") or ""),
-                        regime=str(d.get("regime") or "UNKNOWN"),
-                        timeframe=str(d.get("timeframe") or ""),
-                        r_multiple=float(d.get("r_multiple") or 0.0),
-                        mfe_r=float(d.get("mfe_r") or 0.0),
-                        mae_r=float(d.get("mae_r") or 0.0),
-                        fees=float(d.get("fees") or 0.0),
-                        # A2: двойная запись в бакет осей + legacy (миграция).
-                        regime_axes=str(d.get("regime_axes") or "") or None,
-                    )
-                    # Live-мониторинг гипотез (TZ §31): статистика ухудшилась
-                    # -> DEGRADE. Только по достижившейся live-выборке.
-                    self._check_hypothesis_degradation(d)
+                self.stats_store.record(
+                    strategy=str(sample.get("strategy") or ""),
+                    regime=str(sample.get("regime") or "UNKNOWN"),
+                    timeframe=str(sample.get("timeframe") or ""),
+                    r_multiple=float(sample.get("r_multiple") or 0.0),
+                    mfe_r=float(sample.get("mfe_r") or 0.0),
+                    mae_r=float(sample.get("mae_r") or 0.0),
+                    fees=float(sample.get("fees") or 0.0),
+                    # A2: двойная запись в бакет осей + legacy (миграция).
+                    regime_axes=str(sample.get("regime_axes") or "") or None,
+                )
+                # Live-мониторинг гипотез (TZ §31): статистика ухудшилась
+                # -> DEGRADE. Только по достижившейся live-выборке.
+                self._check_hypothesis_degradation(sample)
             except Exception as exc:
                 logger.debug("stats_store.record: %s", exc)
         # Значимое событие (закрыта сделка → лимиты/PnL изменились) —

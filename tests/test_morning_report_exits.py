@@ -18,7 +18,7 @@ def test_morning_report_exits_section(tmp_path: Path, monkeypatch, capsys):
             f.write(json.dumps(t) + "\n")
 
     monkeypatch.setattr(mr, "TRADES_JSONL", trades_file)
-    monkeypatch.setattr("asyncio.run", lambda coro: None)
+    monkeypatch.setattr("asyncio.run", lambda coro: coro.close())
 
     mr.main()
 

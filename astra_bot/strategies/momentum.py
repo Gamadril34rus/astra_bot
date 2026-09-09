@@ -165,8 +165,8 @@ class MomentumStrategy(BaseStrategy[MomentumConfig]):
 
         # Расчёт цен
         entry_price = Decimal(str(current_price))
-        stop_loss = self.calculate_stop_loss(entry_price, candles, atr)
-        tp_levels = self.calculate_take_profit(entry_price, stop_loss, candles)
+        stop_loss = self.calculate_stop_loss(entry_price, candles, atr, direction)
+        tp_levels = self.calculate_take_profit(entry_price, stop_loss, candles, direction)
 
         if not tp_levels:
             return None
@@ -224,8 +224,10 @@ class MomentumStrategy(BaseStrategy[MomentumConfig]):
         entry_price: Decimal,
         candles: list[models.Candle],
         atr: float | None = None,
+        direction=None,
     ) -> Decimal:
-        """Рассчитать стоп-лосс на основе ATR"""
+        """Рассчитать стоп-лосс на основе ATR (direction-aware, блок E)."""
+        is_short = str(getattr(direction, "value", direction or "")).lower() == "short"
         if atr is None:
             highs = [float(c.high) for c in candles[-self.config.atr_period:]]
             lows = [float(c.low) for c in candles[-self.config.atr_period:]]
@@ -233,11 +235,12 @@ class MomentumStrategy(BaseStrategy[MomentumConfig]):
             atr = calculate_atr(highs, lows, closes, self.config.atr_period)
 
         if atr is None or atr <= 0:
-            # Fallback: фиксированный процент
-            return entry_price * Decimal("0.98")  # 2% стоп
+            # Fallback: фиксированный процент (по направлению!)
+            return entry_price * (Decimal("1.02") if is_short else Decimal("0.98"))
 
         stop_distance = atr * self.config.atr_stop_multiplier
-        # Для LONG стоп ниже входа
+        if is_short:
+            return entry_price + Decimal(str(stop_distance))
         return entry_price - Decimal(str(stop_distance))
 
     def calculate_take_profit(
@@ -245,13 +248,18 @@ class MomentumStrategy(BaseStrategy[MomentumConfig]):
         entry_price: Decimal,
         stop_loss: Decimal,
         candles: list[models.Candle],
+        direction=None,
     ) -> list[dict]:
-        """Рассчитать уровни тейк-профита"""
+        """Рассчитать уровни тейк-профита (direction-aware, блок E)."""
+        is_short = str(getattr(direction, "value", direction or "")).lower() == "short"
         risk = abs(float(entry_price - stop_loss))
 
         levels = []
         for tp_mult in self.config.tp_levels:
-            tp_price = float(entry_price) + risk * tp_mult
+            if is_short:
+                tp_price = float(entry_price) - risk * tp_mult
+            else:
+                tp_price = float(entry_price) + risk * tp_mult
             levels.append({
                 "level": len(levels) + 1,
                 "price": Decimal(str(tp_price)),

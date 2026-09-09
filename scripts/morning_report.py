@@ -156,6 +156,10 @@ async def send_to_telegram(text: str) -> None:
     if not token or not admin_raw:
         return
     bot = Bot(token=token)
+    # Аудит эпохи-2 (блок C): полный провал отправки — громкий exit(1),
+    # иначе CI зелёный, а владелец без отчёта. Частичная отправка — как раньше.
+    sent = 0
+    last_error: Exception | None = None
     for raw_id in admin_raw.split(","):
         raw_id = raw_id.strip()
         if raw_id:
@@ -163,8 +167,13 @@ async def send_to_telegram(text: str) -> None:
                 # Telegram limit 4096 chars, split if needed
                 for chunk in [text[i : i + 4000] for i in range(0, len(text), 4000)]:
                     await bot.send_message(chat_id=int(raw_id), text=chunk)
+                sent += 1
             except Exception as e:
+                last_error = e
                 print(f"Telegram send failed: {e}")
+    if sent == 0:
+        print(f"Telegram send TOTALLY failed (last error: {last_error}), exiting 1")
+        raise SystemExit(1)
 
 
 def main() -> None:

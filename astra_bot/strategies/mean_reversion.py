@@ -161,7 +161,7 @@ class MeanReversionStrategy(BaseStrategy[MeanReversionConfig]):
 
         # Расчёт цен
         entry_price = Decimal(str(current_price))
-        stop_loss = self.calculate_stop_loss(entry_price, candles)
+        stop_loss = self.calculate_stop_loss(entry_price, candles, direction=direction)
         tp_levels = self.calculate_take_profit(entry_price, stop_loss, candles, z_score)
 
         if not tp_levels:
@@ -200,10 +200,13 @@ class MeanReversionStrategy(BaseStrategy[MeanReversionConfig]):
         entry_price: Decimal,
         candles: list[models.Candle],
         atr: float = None,
+        direction=None,
     ) -> Decimal:
-        """Рассчитать стоп-лосс"""
-        # Для mean reversion стоп за пределами BB
-        return entry_price * Decimal("1.02")  # 2% стоп
+        """Рассчитать стоп-лосс (direction-aware, блок E: раньше всегда
+        entry*1.02 — у LONG стоп стоял в сторону прибыли)."""
+        is_short = str(getattr(direction, "value", direction or "")).lower() == "short"
+        # Для mean reversion стоп за пределами BB: 2% против направления.
+        return entry_price * (Decimal("1.02") if is_short else Decimal("0.98"))
 
     def calculate_take_profit(
         self,

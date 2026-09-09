@@ -333,14 +333,14 @@ class RiskEngine:
         """Потери за день в % от начального капитала"""
         if self._initial_capital <= 0:
             return Decimal("0")
-        return abs(self._daily_pnl) / self._initial_capital * Decimal("100")
+        return max(Decimal("0"), -self._daily_pnl) / self._initial_capital * Decimal("100")
 
     @property
     def weekly_loss_pct(self) -> Decimal:
         """Потери за неделю в %"""
         if self._initial_capital <= 0:
             return Decimal("0")
-        return abs(self._weekly_pnl) / self._initial_capital * Decimal("100")
+        return max(Decimal("0"), -self._weekly_pnl) / self._initial_capital * Decimal("100")
 
     def _get_risk_multiplier(self) -> Decimal:
         """Получить множитель риска на основе просадки.
@@ -486,7 +486,9 @@ class RiskEngine:
             )
 
         # 3. Проверка дневных потерь
-        daily_loss = abs(self._daily_pnl)
+        # Аудит эпохи-2 (блок D): abs() считал ПРИБЫЛЬНЫЙ день убытком
+        # и вставал по лимиту. Убыток — только отрицательная часть PnL.
+        daily_loss = max(Decimal("0"), -self._daily_pnl)
         max_daily_loss = self._initial_capital * self.config.daily_loss_limit
 
         if daily_loss >= max_daily_loss:
@@ -501,7 +503,7 @@ class RiskEngine:
             )
 
         # 4. Проверка недельных потерь
-        weekly_loss = abs(self._weekly_pnl)
+        weekly_loss = max(Decimal("0"), -self._weekly_pnl)
         max_weekly_loss = self._initial_capital * self.config.weekly_loss_limit
 
         if weekly_loss >= max_weekly_loss:

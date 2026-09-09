@@ -8,10 +8,12 @@ Open Interest Divergence Strategy.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from dataclasses import dataclass
 from decimal import Decimal
+from pathlib import Path
 
 from ..adapters.bingx.client import BingXClient
 from ..core import models
@@ -22,9 +24,48 @@ logger = logging.getLogger(__name__)
 _lazy_bingx_client: BingXClient | None = None
 _oi_cache: dict[str, list[tuple[float, float]]] = {}  # symbol -> [(timestamp, oi_val)]
 
+# Блок J: OI-история персистится в файл. In-memory кэш с TTL 900с при
+# сессиях по 200с давал каждую сессию 1 точку → oi_change всегда 0 →
+# стратегия не могла сработать никогда. Последние 100 точек на символ.
+_OI_HISTORY_FILE = Path("models/oi_history.json")
+_OI_HISTORY_LOADED = False
+
+
+def _load_oi_history() -> None:
+    """Подтянуть OI-историю из файла (раз за процесс)."""
+    global _OI_HISTORY_LOADED
+    if _OI_HISTORY_LOADED:
+        return
+    _OI_HISTORY_LOADED = True
+    try:
+        if _OI_HISTORY_FILE.exists():
+            data = json.loads(_OI_HISTORY_FILE.read_text(encoding="utf-8"))
+            for sym, pts in (data.get("symbols") or {}).items():
+                clean = [(float(ts), float(v)) for ts, v in pts if v is not None]
+                if clean:
+                    _oi_cache[str(sym)] = clean[-100:]
+    except Exception as exc:
+        logger.debug("oi history load failed: %s", exc)
+
+
+def _save_oi_history() -> None:
+    """Атомарно сохранить OI-историю в файл."""
+    try:
+        _OI_HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "updated": time.time(),
+            "symbols": {sym: hist[-100:] for sym, hist in _oi_cache.items()},
+        }
+        tmp = _OI_HISTORY_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(payload), encoding="utf-8")
+        tmp.replace(_OI_HISTORY_FILE)
+    except Exception as exc:
+        logger.debug("oi history save failed: %s", exc)
+
 
 async def _get_open_interest_val(symbol: str, ttl: int = 900) -> float | None:
     global _lazy_bingx_client
+    _load_oi_history()
     now = time.time()
     history = _oi_cache.get(symbol, [])
     history = [x for x in history if now - x[0] < 86400]
@@ -41,7 +82,8 @@ async def _get_open_interest_val(symbol: str, ttl: int = 900) -> float | None:
         if val is not None:
             float_val = float(val)
             history.append((now, float_val))
-            _oi_cache[symbol] = history
+            _oi_cache[symbol] = history[-100:]
+            _save_oi_history()
             return float_val
     except Exception as exc:
         logger.debug("network/helper error: %s", exc)
