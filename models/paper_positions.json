@@ -1,112 +1,16 @@
 {
   "positions": [
     {
-      "id": "5b3030e8-35b5-4ff1-b8ef-3e38e3a24ff2",
-      "symbol": "TIA-USDT",
-      "direction": "long",
-      "entry_price": "0.4111",
-      "quantity": "8710.401649",
-      "stop_loss": "0.40881428571428574",
-      "take_profits": [
-        "0.4324028540211520",
-        "0.4494451372380736",
-        "0.4643571350528800"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "8710.401649",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "0.4126",
-      "lowest_price": "0.4094",
-      "strategy": "falling_wedge",
-      "opened_at": 1788898342487,
-      "notes": {
-        "score": 41.0,
-        "ml_probability": null,
-        "edge_pct": 108.6168,
-        "ev_r": 1.0861677542986306,
-        "ev_confidence": 0.03225806451612903,
-        "rr": 2.083333333333333,
-        "leverage": 2
-      },
-      "fill_price": "0.4115111",
-      "entry_fee_per_unit": "0.00020575555",
-      "risk_distance": "0.021302854021152",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "1h",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
-      "bars_held": 17,
-      "leverage": "2",
-      "margin_used": "1790.42305895195"
-    },
-    {
-      "id": "2264f95e-bcfe-48b5-9484-1f642a13e292",
-      "symbol": "SUI-USDT",
-      "direction": "short",
-      "entry_price": "0.8121",
-      "quantity": "4395.036611",
-      "stop_loss": "0.8165571428571429",
-      "take_profits": [
-        "0.79976370000000010",
-        "0.78989466000000018",
-        "0.78125925000000025"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "4395.036611",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "0.8123",
-      "lowest_price": "0.8095",
-      "strategy": "momentum",
-      "opened_at": 1788899961157,
-      "notes": {
-        "score": 50.0,
-        "ml_probability": null,
-        "edge_pct": 32.259,
-        "ev_r": 0.32259017441281995,
-        "ev_confidence": 0.3023255813953488,
-        "rr": 2.6332044454172046,
-        "leverage": 1
-      },
-      "fill_price": "0.8112879",
-      "entry_fee_per_unit": "0.00040564395",
-      "risk_distance": "0.0123362999999999",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "1h",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 8,
-      "leverage": "1",
-      "margin_used": "3569.2092317931"
-    },
-    {
-      "id": "d316b16e-7266-4a46-83c9-0341bb07a069",
+      "id": "3c7581e7-3147-4f34-a63b-b16d1a9a57e9",
       "symbol": "INJ-USDT",
-      "direction": "long",
-      "entry_price": "6.425",
-      "quantity": "556.042923",
-      "stop_loss": "6.3834285714285715",
+      "direction": "short",
+      "entry_price": "6.287",
+      "quantity": "566.669685",
+      "stop_loss": "6.325",
       "take_profits": [
-        "6.5021000",
-        "6.5637800",
-        "6.6177500"
+        "6.2141390",
+        "6.1558502",
+        "6.1048475"
       ],
       "tp_filled": [
         false,
@@ -118,33 +22,129 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "556.042923",
+      "initial_quantity": "566.669685",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "6.440",
-      "lowest_price": "6.401",
-      "strategy": "pullback",
-      "opened_at": 1788900428379,
+      "highest_price": "6.299",
+      "lowest_price": "6.268",
+      "strategy": "momentum",
+      "opened_at": 1788930138184,
       "notes": {
         "score": 57.0,
         "ml_probability": null,
-        "edge_pct": 22.8708,
-        "ev_r": 0.22870818780856964,
-        "ev_confidence": 0.0625,
-        "rr": 0.7500000000000001,
+        "edge_pct": 30.3532,
+        "ev_r": 0.30353165968603985,
+        "ev_confidence": 0.3181818181818182,
+        "rr": 3.451503547851388,
         "leverage": 1
       },
-      "fill_price": "6.431425",
-      "entry_fee_per_unit": "0.0032157125",
-      "risk_distance": "0.077100",
+      "fill_price": "6.280713",
+      "entry_fee_per_unit": "0.0031403565",
+      "risk_distance": "0.072861",
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 5,
+      "bars_held": 1,
       "leverage": "1",
-      "margin_used": "3572.575780275"
+      "margin_used": "3562.652309595"
+    },
+    {
+      "id": "3cea4891-822b-4495-972d-29425c442a1c",
+      "symbol": "HBAR-USDT",
+      "direction": "short",
+      "entry_price": "0.07933",
+      "quantity": "44679.925553",
+      "stop_loss": "0.07962714285714285",
+      "take_profits": [
+        "0.078902010000000010",
+        "0.078559618000000018",
+        "0.078260025000000025"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "44679.925553",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "0.07952",
+      "lowest_price": "0.07927",
+      "strategy": "vwap_deviation",
+      "opened_at": 1788930148399,
+      "notes": {
+        "score": 50.0,
+        "ml_probability": null,
+        "edge_pct": 37.6395,
+        "ev_r": 0.37639540787601766,
+        "ev_confidence": 0.0,
+        "rr": 1.2577210245228685,
+        "leverage": 1
+      },
+      "fill_price": "0.07925067",
+      "entry_fee_per_unit": "0.000039625335",
+      "risk_distance": "0.00042798999999999",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "1h",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
+      "bars_held": 1,
+      "leverage": "1",
+      "margin_used": "3544.45849411949"
+    },
+    {
+      "id": "6f306d95-49e8-466a-afb7-e84b8009ba57",
+      "symbol": "AAVE-USDT",
+      "direction": "long",
+      "entry_price": "129.81",
+      "quantity": "27.426381",
+      "stop_loss": "127.2138",
+      "take_profits": [
+        "132.40620",
+        "134.48316",
+        "136.30050"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "27.426381",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "momentum",
+      "opened_at": 1788930259065,
+      "notes": {
+        "score": 65.0,
+        "ml_probability": null,
+        "edge_pct": 81.4895,
+        "ev_r": 0.8148952960496737,
+        "ev_confidence": 0.3181818181818182,
+        "rr": 2.0,
+        "leverage": 2
+      },
+      "fill_price": "129.93981",
+      "entry_fee_per_unit": "0.064969905",
+      "risk_distance": "2.5962",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "1h",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
+      "bars_held": 0,
+      "leverage": "2",
+      "margin_used": "1780.109258805"
     }
   ],
-  "realized_pnl": "-356.7662293938187482920806812",
+  "realized_pnl": "-496.6853751901825285198612699",
   "initial_capital": "36098.87"
 }
