@@ -8,6 +8,7 @@ Open Interest Divergence Strategy.
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
 from decimal import Decimal
@@ -15,6 +16,8 @@ from decimal import Decimal
 from ..adapters.bingx.client import BingXClient
 from ..core import models
 from .base import BaseStrategy, Signal, SignalType, StrategyConfig
+
+logger = logging.getLogger(__name__)
 
 _lazy_bingx_client: BingXClient | None = None
 _oi_cache: dict[str, list[tuple[float, float]]] = {}  # symbol -> [(timestamp, oi_val)]
@@ -40,8 +43,8 @@ async def _get_open_interest_val(symbol: str, ttl: int = 900) -> float | None:
             history.append((now, float_val))
             _oi_cache[symbol] = history
             return float_val
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("network/helper error: %s", exc)
 
     return history[-1][1] if history else None
 
@@ -71,6 +74,10 @@ class OpenInterestDivergenceStrategy(BaseStrategy[OpenInterestDivergenceConfig])
         current_price: float | None = None,
         market_regime: str | None = None,
     ) -> Signal | None:
+        if not self.config.enabled:
+            logger.debug("%s: Strategy disabled", self.name)
+            return None
+
         try:
             c = self.config
             if not candles or len(candles) < c.oi_window + 2:
@@ -133,7 +140,8 @@ class OpenInterestDivergenceStrategy(BaseStrategy[OpenInterestDivergenceConfig])
                 confidence=confidence,
                 market_regime=market_regime or "UNKNOWN",
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning("%s evaluate error: %s", self.name, exc)
             return None
 
     def calculate_stop_loss(self, entry_price: Decimal, candles: list[models.Candle], atr: float | None = None) -> Decimal:

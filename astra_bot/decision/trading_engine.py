@@ -619,6 +619,9 @@ class TradingEngine:
         недельный лимит потерь, лимиты, которые нельзя закрыть уменьшением
         размера). Иначе — исходный или уменьшенный до лимита размер.
         """
+        if not hasattr(self, "_halt_alerts_sent"):
+            self._halt_alerts_sent: set[str] = set()
+
         for _ in range(2):
             verdict = self.risk.check_trade(
                 symbol=symbol,
@@ -637,6 +640,19 @@ class TradingEngine:
                     "RISK: вход %s запрещён (%s): %s",
                     symbol, self.risk.risk_state.value, verdict.reason,
                 )
+                reason_str = str(verdict.reason or "")
+                if "Daily loss limit" in reason_str or "Weekly loss limit" in reason_str:
+                    alert_key = f"loss_limit_{reason_str.split(':')[0]}"
+                    if alert_key not in self._halt_alerts_sent:
+                        self._halt_alerts_sent.add(alert_key)
+                        self._notify(f"⚠️ TRADING HALT: {reason_str}", severity="warning")
+                elif not self.risk.trading_enabled:
+                    state_val = str(self.risk.risk_state.value)
+                    alert_key = f"state_{state_val}"
+                    if alert_key not in self._halt_alerts_sent:
+                        self._halt_alerts_sent.add(alert_key)
+                        sev = "critical" if state_val == "EMERGENCY" else "warning"
+                        self._notify(f"🚨 TRADING HALT ({state_val}): {reason_str}", severity=sev)
                 return None
             size = Decimal(str(adjusted)).quantize(Decimal("0.000001"))
             if size <= 0:

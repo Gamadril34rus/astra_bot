@@ -7,6 +7,7 @@ VWAP Deviation Strategy.
 
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -14,6 +15,8 @@ from decimal import Decimal
 
 from ..core import models
 from .base import BaseStrategy, Signal, SignalType, StrategyConfig
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -41,6 +44,10 @@ class VWAPDeviationStrategy(BaseStrategy[VWAPDeviationConfig]):
         current_price: float | None = None,
         market_regime: str | None = None,
     ) -> Signal | None:
+        if not self.config.enabled:
+            logger.debug("%s: Strategy disabled", self.name)
+            return None
+
         try:
             c = self.config
             if not candles or len(candles) < 5:
@@ -138,7 +145,8 @@ class VWAPDeviationStrategy(BaseStrategy[VWAPDeviationConfig]):
                 confidence=confidence,
                 market_regime=market_regime or "UNKNOWN",
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning("%s evaluate error: %s", self.name, exc)
             return None
 
     def calculate_stop_loss(self, entry_price: Decimal, candles: list[models.Candle], atr: float | None = None) -> Decimal:
