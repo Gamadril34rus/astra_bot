@@ -2,15 +2,18 @@ from decimal import Decimal
 from unittest.mock import MagicMock
 
 from astra_bot.core.state import RiskState
-from astra_bot.decision.trading_engine import TradingEngine
+from astra_bot.decision.trading_engine import TradingEngine, TradingEngineConfig
 
 
-def test_halt_alert_notification_deduplicated():
+def test_halt_alert_notification_deduplicated(tmp_path):
     mock_notifier = MagicMock()
     engine = TradingEngine(
         exchange=MagicMock(),
         pipeline=MagicMock(),
         notifier=mock_notifier,
+        config=TradingEngineConfig(
+            halt_alerts_path=str(tmp_path / "halt_alerts.json")
+        ),
     )
 
     # Force RiskEngine into EMERGENCY state and trading_enabled = False

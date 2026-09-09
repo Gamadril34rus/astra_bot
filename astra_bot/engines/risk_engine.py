@@ -322,6 +322,11 @@ class RiskEngine:
         return self._weekly_pnl
 
     @property
+    def initial_capital(self) -> Decimal:
+        """Стартовый капитал (база для дневных/недельных лимитов)."""
+        return self._initial_capital
+
+    @property
     def current_drawdown(self) -> Decimal:
         """Текущая просадка в %"""
         if self._high_water_mark <= 0:

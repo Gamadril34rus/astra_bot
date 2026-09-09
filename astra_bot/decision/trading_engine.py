@@ -36,6 +36,7 @@ from ..core.metrics import (
 from ..engines.cost_model import BINGX_PERPS_TAKER_FEE, bingx_perps_cost_model
 from ..engines.risk_engine import RiskConfig, RiskEngine
 from ..ml.live_lessons import append_lessons
+from . import halt_alerts
 from .broker import PaperBroker
 from .context import MarketContext
 from .pipeline import Decision, DecisionPipeline
@@ -135,6 +136,10 @@ class TradingEngineConfig:
     poll_interval_seconds: int = 60 * 5
     state_path: str = "models/paper_positions.json"
     trades_path: str = "models/paper_trades.jsonl"
+    # Персистентный dedup HALT-алертов {ключ: дата}. Actions-сессия —
+    # свежий процесс, без файла алерт повторялся бы каждые 5 минут.
+    # Файл должен быть в Save-state (bot.yml, добавляет владелец).
+    halt_alerts_path: str = "models/halt_alerts.json"
     # Реальные издержки paper-счёта (тейкер-комиссия / slippage на сторону).
     # База — тариф перпов BingX USDT-M: тейкер 0.05%, slippage 0.1%.
     fee_pct: Decimal = Decimal("0.0005")
@@ -173,6 +178,10 @@ class TradingEngine:
         self._notifier = notifier
         self.exchange = exchange
         self.config = config or TradingEngineConfig()
+        # HALT-алерты: dedup в пределах сессии (set) + персистентный файл
+        # между сессиями (halt_alerts.py; Actions поднимает процесс раз в 5 мин).
+        self._halt_alerts_sent: set[str] = set()
+        self._halt_alerts_path = Path(self.config.halt_alerts_path)
         if pipeline is None:
             from ..strategies import (
                 MeanReversionStrategy,
@@ -677,9 +686,6 @@ class TradingEngine:
         недельный лимит потерь, лимиты, которые нельзя закрыть уменьшением
         размера). Иначе — исходный или уменьшенный до лимита размер.
         """
-        if not hasattr(self, "_halt_alerts_sent"):
-            self._halt_alerts_sent: set[str] = set()
-
         for _ in range(2):
             verdict = self.risk.check_trade(
                 symbol=symbol,
@@ -699,18 +705,9 @@ class TradingEngine:
                     symbol, self.risk.risk_state.value, verdict.reason,
                 )
                 reason_str = str(verdict.reason or "")
-                if "Daily loss limit" in reason_str or "Weekly loss limit" in reason_str:
-                    alert_key = f"loss_limit_{reason_str.split(':')[0]}"
-                    if alert_key not in self._halt_alerts_sent:
-                        self._halt_alerts_sent.add(alert_key)
-                        self._notify(f"⚠️ TRADING HALT: {reason_str}", severity="warning")
-                elif not self.risk.trading_enabled:
-                    state_val = str(self.risk.risk_state.value)
-                    alert_key = f"state_{state_val}"
-                    if alert_key not in self._halt_alerts_sent:
-                        self._halt_alerts_sent.add(alert_key)
-                        sev = "critical" if state_val == "EMERGENCY" else "warning"
-                        self._notify(f"🚨 TRADING HALT ({state_val}): {reason_str}", severity=sev)
+                dedup_key, message, severity = self._halt_alert_for(reason_str)
+                if dedup_key is not None:
+                    self._dispatch_halt_alert(dedup_key, message, severity)
                 return None
             size = Decimal(str(adjusted)).quantize(Decimal("0.000001"))
             if size <= 0:
@@ -721,6 +718,139 @@ class TradingEngine:
         # Два прохода не помогли (лимиты пересекаются) — не входим.
         logger.warning("RISK: не уложился в лимиты для %s, вход пропущен", symbol)
         return None
+
+
+    # ------------------------------------------------------- HALT-алерты
+    # Причины -> (dedup-ключ, текст по-русски, severity).
+    # Эмодзи в тексте НЕТ: send_alert подставляет своё по severity
+    # (один источник эмодзи — двойного больше нет).
+    _HALT_REASON_RU: dict[str, str] = {
+        "Trading is disabled": "торговля отключена риск-двигателем",
+    }
+
+    def _halt_alert_for(self, reason_str: str) -> tuple[str | None, str, str]:
+        """Построить HALT-алерт из причины Risk Engine.
+
+        Ключи: loss_limit_daily / loss_limit_weekly / state_<state>.
+        (None, "", "") — если причина не относится к HALT-алертам.
+        """
+        if "Daily loss limit" in reason_str or "Weekly loss limit" in reason_str:
+            daily = "Daily loss limit" in reason_str
+            dedup_key = "loss_limit_daily" if daily else "loss_limit_weekly"
+            return dedup_key, self._halt_limit_message(reason_str, daily), "warning"
+        if not self.risk.trading_enabled:
+            state_val = str(self.risk.risk_state.value)
+            reason_ru = self._HALT_REASON_RU.get(reason_str, reason_str)
+            message = (
+                f"Остановка торговли ({state_val}): {reason_ru}.\n"
+                + self._halt_open_positions_line()
+            )
+            severity = "critical" if state_val == "EMERGENCY" else "warning"
+            return f"state_{state_val}", message, severity
+        return None, "", ""
+
+    def _halt_limit_message(self, reason_str: str, daily: bool) -> str:
+        """``... limit reached: X / Y`` -> русский текст с пояснением.
+
+        Лимит считается по скользящему окну (24ч / 7 дней), а не по
+        календарному дню — см. RiskEngine.restore_from_trades.
+        """
+        loss: Decimal | None = None
+        limit: Decimal | None = None
+        try:
+            numbers = reason_str.split(":", 1)[1].strip().split(" / ")
+            loss = Decimal(numbers[0])
+            limit = Decimal(numbers[1])
+        except Exception:
+            pass
+        if daily:
+            title = "Остановка торговли (дневной лимит потерь)."
+            period = "за 24 часа"
+            limit_pct = self.risk.config.daily_loss_limit
+            unblock = "пока 24-часовой убыток не уйдёт ниже лимита"
+        else:
+            title = "Остановка торговли (недельный лимит потерь)."
+            period = "за 7 дней"
+            limit_pct = self.risk.config.weekly_loss_limit
+            unblock = "пока недельный убыток не уйдёт ниже лимита"
+        lines = [title]
+        capital = self.risk.initial_capital
+        if loss is not None and limit is not None:
+            lines.append(
+                f"Убыток {period}: −{loss:.2f} USDT (лимит {limit:.2f}, "
+                f"т.е. {float(limit_pct) * 100:g}% от {capital:.2f})."
+            )
+        else:
+            lines.append(f"Убыток {period}: {reason_str}.")
+        lines.append(f"Новые входы запрещены {unblock}.")
+        lines.append(self._halt_open_positions_line())
+        return "\n".join(lines)
+
+    def _halt_open_positions_line(self) -> str:
+        try:
+            positions = list(self.broker.positions or [])
+        except Exception:
+            positions = []
+        if not positions:
+            return "Открытые позиции: нет"
+        desc = ", ".join(f"{p.symbol} {p.direction}" for p in positions[:10])
+        more = f" (+ещё {len(positions) - 10})" if len(positions) > 10 else ""
+        return f"Открытые позиции: {desc}{more}"
+
+    def _dispatch_halt_alert(self, dedup_key: str, message: str, severity: str) -> None:
+        """Отправить HALT-алерт: раз в сутки на ключ (персистентный dedup).
+
+        In-memory set — дедуп внутри сессии; halt_alerts.json — между
+        сессиями (Actions каждые 5 минут поднимает новый процесс).
+        """
+        if dedup_key in self._halt_alerts_sent:
+            return
+        if halt_alerts.already_sent_today(self._halt_alerts_path, dedup_key):
+            logger.info(
+                "HALT-алерт %s уже отправлен сегодня (UTC) — повтор не шлём",
+                dedup_key,
+            )
+            self._halt_alerts_sent.add(dedup_key)
+            return
+        self._halt_alerts_sent.add(dedup_key)
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # Нет event loop (юнит-тесты): синхронная отправка + отметка.
+            sent = False
+            if self._notifier is not None:
+                try:
+                    res = self._notifier(message, severity)
+                    if asyncio.iscoroutine(res):
+                        asyncio.run(res)
+                    sent = True
+                except Exception as exc:
+                    logger.warning("HALT-алерт (%s) не отправлен: %s", dedup_key, exc)
+            if sent:
+                halt_alerts.mark_sent(self._halt_alerts_path, dedup_key)
+            return
+        # Живой контур: дожидаемся отправки, ТОЛЬКО тогда отмечаем ключ.
+        # Не дождёмся/провалимся — без отметки, следующая сессия повторит.
+        _spawn_background(self._send_halt_alert(message, severity, dedup_key))
+
+    async def _send_halt_alert(self, text: str, severity: str, dedup_key: str) -> None:
+        """Дождаться отправки HALT-алерта и пометить ключ как отправленный."""
+        sent = False
+        if self._notifier is not None:
+            try:
+                res = self._notifier(text, severity)
+                if asyncio.iscoroutine(res):
+                    await asyncio.wait_for(res, timeout=10.0)
+                sent = True
+            except Exception as exc:
+                logger.warning("HALT-алерт (%s) не отправлен: %s", dedup_key, exc)
+        if sent:
+            halt_alerts.mark_sent(self._halt_alerts_path, dedup_key)
+        else:
+            logger.warning(
+                "HALT-алерт (%s) не отправлен — повторим в следующей сессии",
+                dedup_key,
+            )
 
     async def _sync_perps_state(self, symbol: str, fallback_price: Any) -> None:
         """Подтянуть в брокер живые mark price и ставку фандинга.
