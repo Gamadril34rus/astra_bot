@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-09T06:36:44.909383+00:00",
+ "updated": "2026-09-09T06:41:41.967856+00:00",
  "outcomes": {
   "d102e64c37d6aeebfb61": {
    "bar_time": 1788795900000,
@@ -29120,6 +29120,90 @@
     }
    },
    "computed_at": "2026-09-09T06:36:44.908722+00:00"
+  },
+  "b01aa064e0207c410893": {
+   "bar_time": 1788935700000,
+   "symbol": "HBAR-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000126,
+     "max_up": 0.0,
+     "max_down": -0.000126
+    }
+   },
+   "computed_at": "2026-09-09T06:40:09.858410+00:00"
+  },
+  "431bb71497518cc19c5d": {
+   "bar_time": 1788935700000,
+   "symbol": "FET-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.0,
+     "max_up": 0.001116,
+     "max_down": 0.0
+    }
+   },
+   "computed_at": "2026-09-09T06:40:21.438512+00:00"
+  },
+  "4f0712c544ccd0768fce": {
+   "bar_time": 1788935700000,
+   "symbol": "ETC-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.00047,
+     "max_up": 0.00047,
+     "max_down": -0.000352
+    }
+   },
+   "computed_at": "2026-09-09T06:40:26.850286+00:00"
+  },
+  "d2e2cec9444bf294dab5": {
+   "bar_time": 1788935700000,
+   "symbol": "CRO-USDT",
+   "reason_code": "LOW_LIQUIDITY",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000168,
+     "max_up": 0.0,
+     "max_down": -0.00067
+    }
+   },
+   "computed_at": "2026-09-09T06:40:29.656983+00:00"
+  },
+  "739d062dc00227de2e5e": {
+   "bar_time": 1788935700000,
+   "symbol": "XMR-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -6e-05,
+     "max_up": 0.0,
+     "max_down": -6e-05
+    }
+   },
+   "computed_at": "2026-09-09T06:40:34.302584+00:00"
+  },
+  "8f108c16b21319cded40": {
+   "bar_time": 1788935700000,
+   "symbol": "LINK-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000238,
+     "max_up": 0.0,
+     "max_down": -0.000397
+    }
+   },
+   "computed_at": "2026-09-09T06:41:41.967110+00:00"
   }
  }
 }
