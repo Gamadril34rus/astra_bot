@@ -44,7 +44,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 1,
+      "bars_held": 2,
       "leverage": "1",
       "margin_used": "3545.210678296"
     },
@@ -54,7 +54,7 @@
       "direction": "long",
       "entry_price": "2511.01",
       "quantity": "1.413563",
-      "stop_loss": "2484.05697",
+      "stop_loss": "2507.4728571428573",
       "take_profits": [
         "2537.963030",
         "2559.525454",
@@ -73,8 +73,8 @@
       "initial_quantity": "1.413563",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "2515.59",
+      "lowest_price": "2509.72",
       "strategy": "trend_following",
       "opened_at": 1788937685626,
       "notes": {
@@ -92,7 +92,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
-      "bars_held": 0,
+      "bars_held": 2,
       "leverage": "2",
       "margin_used": "1774.735414315"
     },
@@ -102,7 +102,7 @@
       "direction": "long",
       "entry_price": "0.0908",
       "quantity": "39090.347246",
-      "stop_loss": "0.0896776",
+      "stop_loss": "0.09045142857142857",
       "take_profits": [
         "0.09192240",
         "0.09282032",
@@ -121,8 +121,8 @@
       "initial_quantity": "39090.347246",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "0.09078",
+      "lowest_price": "0.09072",
       "strategy": "trend_following",
       "opened_at": 1788937694474,
       "notes": {
@@ -140,7 +140,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 0,
+      "bars_held": 1,
       "leverage": "2",
       "margin_used": "1774.7017649684"
     }
