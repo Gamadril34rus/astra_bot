@@ -9,6 +9,7 @@ Funding Rate Contrarian Strategy.
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
 from decimal import Decimal
@@ -17,6 +18,8 @@ from ..adapters.bingx.client import BingXClient
 from ..core import models
 from ..core.utils import calculate_rsi
 from .base import BaseStrategy, Signal, SignalType, StrategyConfig
+
+logger = logging.getLogger(__name__)
 
 _lazy_bingx_client: BingXClient | None = None
 _funding_cache: dict[str, tuple[float, float]] = {}  # symbol -> (timestamp, rate)
@@ -38,8 +41,8 @@ async def _get_funding_rate(symbol: str, ttl: int = 900) -> float | None:
             rate = float(res["rate"])
             _funding_cache[symbol] = (now, rate)
             return rate
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("network/helper error: %s", exc)
     return None
 
 
@@ -71,6 +74,10 @@ class FundingRateContrarianStrategy(BaseStrategy[FundingRateContrarianConfig]):
         current_price: float | None = None,
         market_regime: str | None = None,
     ) -> Signal | None:
+        if not self.config.enabled:
+            logger.debug("%s: Strategy disabled", self.name)
+            return None
+
         try:
             c = self.config
             if not candles or len(candles) < c.rsi_period + 5:
@@ -119,7 +126,8 @@ class FundingRateContrarianStrategy(BaseStrategy[FundingRateContrarianConfig]):
                 confidence=confidence,
                 market_regime=market_regime or "UNKNOWN",
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning("%s evaluate error: %s", self.name, exc)
             return None
 
     def calculate_stop_loss(self, entry_price: Decimal, candles: list[models.Candle], atr: float | None = None) -> Decimal:

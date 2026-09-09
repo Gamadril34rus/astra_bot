@@ -8,6 +8,7 @@ z = (close - mean) / std, окно window=50.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -16,6 +17,8 @@ import numpy as np
 from ..core import models
 from ..engines.regime_detector import MarketRegimeDetector
 from .base import BaseStrategy, Signal, SignalType, StrategyConfig
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -45,6 +48,10 @@ class ZScoreMeanReversionStrategy(BaseStrategy[ZScoreMeanReversionConfig]):
         current_price: float | None = None,
         market_regime: str | None = None,
     ) -> Signal | None:
+        if not self.config.enabled:
+            logger.debug("%s: Strategy disabled", self.name)
+            return None
+
         try:
             c = self.config
             if not candles or len(candles) < c.window:
@@ -107,7 +114,8 @@ class ZScoreMeanReversionStrategy(BaseStrategy[ZScoreMeanReversionConfig]):
                 confidence=confidence,
                 market_regime=market_regime or "UNKNOWN",
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning("%s evaluate error: %s", self.name, exc)
             return None
 
     def calculate_stop_loss(self, entry_price: Decimal, candles: list[models.Candle], atr: float | None = None) -> Decimal:

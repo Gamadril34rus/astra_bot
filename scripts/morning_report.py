@@ -284,6 +284,46 @@ def main() -> None:
         for k, v in list(strategy_weights.items())[:6]:
             lines.append(f"  • {k}: {v:.2f}")
 
+    # Block N: Exits (MFE / MAE / R-multiple by strategy)
+    mfe_mae_strats: dict[str, dict[str, list[float]]] = {}
+    if TRADES_JSONL.exists():
+        try:
+            for line in TRADES_JSONL.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    t = json.loads(line)
+                    st = t.get("strategy")
+                    if not st:
+                        continue
+                    if st not in mfe_mae_strats:
+                        mfe_mae_strats[st] = {"mfe": [], "mae": [], "r": []}
+                    if "mfe_r" in t and t["mfe_r"] is not None:
+                        mfe_mae_strats[st]["mfe"].append(float(t["mfe_r"]))
+                    if "mae_r" in t and t["mae_r"] is not None:
+                        mfe_mae_strats[st]["mae"].append(float(t["mae_r"]))
+                    if "r_multiple" in t and t["r_multiple"] is not None:
+                        mfe_mae_strats[st]["r"].append(float(t["r_multiple"]))
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+    exit_lines = []
+    for st, data in mfe_mae_strats.items():
+        n = len(data["r"])
+        if n >= 3:
+            avg_mfe = sum(data["mfe"]) / len(data["mfe"]) if data["mfe"] else 0.0
+            avg_mae = sum(data["mae"]) / len(data["mae"]) if data["mae"] else 0.0
+            avg_r = sum(data["r"]) / len(data["r"]) if data["r"] else 0.0
+            exit_lines.append(f"  • {st} (n={n}): MFE={avg_mfe:+.2f}R | MAE={avg_mae:+.2f}R | avgR={avg_r:+.2f}R")
+
+    if exit_lines:
+        lines.append("")
+        lines.append("🚪 Выходы:")
+        lines.extend(exit_lines)
+
     # Health & warnings (Block 8.1)
     lines.append("")
     lines.append(f"🏥 Здоровье: ошибок в логе {errors_count}, ML-модель {'есть' if (DATA_DIR / 'model.joblib').exists() or (MODELS_DIR / 'current.pkl').exists() else 'нет'}")

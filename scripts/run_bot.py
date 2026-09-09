@@ -127,6 +127,17 @@ async def amain() -> int:
         config=TradingEngineConfig(symbols=symbols, poll_interval_seconds=300, leverage_max=_lev_max),
     )
     bot = await create_telegram_bot(bot_token=token, allowed_user_ids=allowed, admin_user_ids=admin_ids)
+
+    async def _tg_notifier(text: str, severity: str = "info") -> None:
+        if bot and hasattr(bot, "send_admin_message"):
+            try:
+                prefix = "🚨 " if severity in ("critical", "error") else ("⚠️ " if severity == "warning" else "ℹ️ ")
+                await bot.send_admin_message(f"{prefix}{text}")
+            except Exception as exc:
+                logger.warning("Notifier send failed: %s", exc)
+
+    engine._notifier = _tg_notifier
+
     stop = asyncio.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
