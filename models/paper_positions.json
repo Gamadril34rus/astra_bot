@@ -6,7 +6,7 @@
       "direction": "short",
       "entry_price": "0.8361",
       "quantity": "4238.090966",
-      "stop_loss": "0.8387285714285715",
+      "stop_loss": "0.8365428571428571",
       "take_profits": [
         "0.82949170",
         "0.82420506",
@@ -26,7 +26,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "0.8376",
-      "lowest_price": "0.8344",
+      "lowest_price": "0.8325",
       "strategy": "momentum",
       "opened_at": 1788943077698,
       "notes": {
@@ -44,7 +44,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 14,
+      "bars_held": 16,
       "leverage": "1",
       "margin_used": "3543.4678566726"
     },
@@ -54,7 +54,7 @@
       "direction": "short",
       "entry_price": "12.434",
       "quantity": "285.178367",
-      "stop_loss": "12.469857142857142",
+      "stop_loss": "12.469",
       "take_profits": [
         "12.309660",
         "12.210188",
@@ -73,7 +73,7 @@
       "initial_quantity": "285.178367",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "12.457",
+      "highest_price": "12.465",
       "lowest_price": "12.431",
       "strategy": "trend_following",
       "opened_at": 1788945097700,
@@ -92,21 +92,21 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
-      "bars_held": 1,
+      "bars_held": 3,
       "leverage": "2",
       "margin_used": "1772.953907639"
     },
     {
-      "id": "f2db724e-4c45-4ce8-a9c8-ec6b50a21c15",
-      "symbol": "TRX-USDT",
+      "id": "5ba87f60-95b4-4f87-ad72-560d80acaa60",
+      "symbol": "DOGE-USDT",
       "direction": "long",
-      "entry_price": "0.33912",
-      "quantity": "10456.203758",
-      "stop_loss": "0.33891",
+      "entry_price": "0.09109",
+      "quantity": "38911.758617",
+      "stop_loss": "0.0892682",
       "take_profits": [
-        "0.34590240",
-        "0.35132832",
-        "0.35607600"
+        "0.09291180",
+        "0.09436924",
+        "0.09564450"
       ],
       "tp_filled": [
         false,
@@ -118,33 +118,33 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "10456.203758",
+      "initial_quantity": "38911.758617",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.33912",
-      "lowest_price": "0.33897",
+      "highest_price": null,
+      "lowest_price": null,
       "strategy": "momentum",
-      "opened_at": 1788945103177,
+      "opened_at": 1788945505286,
       "notes": {
-        "score": 50.0,
+        "score": 56.0,
         "ml_probability": null,
-        "edge_pct": 67.8781,
-        "ev_r": 0.6787810603987401,
-        "ev_confidence": 0.4444444444444444,
-        "rr": 1.9999999999999942,
+        "edge_pct": 66.3127,
+        "ev_r": 0.6631274536115216,
+        "ev_confidence": 0.45454545454545453,
+        "rr": 2.0,
         "leverage": 1
       },
-      "fill_price": "0.33945912",
-      "entry_fee_per_unit": "0.000169729560",
-      "risk_distance": "0.0067824",
+      "fill_price": "0.09118109",
+      "entry_fee_per_unit": "0.000045590545",
+      "risk_distance": "0.0018218",
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 1,
+      "bars_held": 0,
       "leverage": "1",
-      "margin_used": "3545.90781841296"
+      "margin_used": "3544.47209242253"
     }
   ],
-  "realized_pnl": "-639.7918152953601944636993204",
+  "realized_pnl": "-652.7107852766524833776993204",
   "initial_capital": "36098.87"
 }
