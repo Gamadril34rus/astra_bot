@@ -44,7 +44,7 @@
       "regime": "RANGE",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
-      "bars_held": 9,
+      "bars_held": 11,
       "leverage": "1",
       "margin_used": "3487.995744240"
     },
@@ -73,7 +73,7 @@
       "initial_quantity": "34.114165",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "102.339",
+      "highest_price": "102.520",
       "lowest_price": "102.122",
       "strategy": "double_top_bottom",
       "opened_at": 1788983619342,
@@ -92,7 +92,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 7,
+      "bars_held": 9,
       "leverage": "1",
       "margin_used": "3485.614808875"
     },
@@ -121,7 +121,7 @@
       "initial_quantity": "1.414249",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "2466.97",
+      "highest_price": "2470.69",
       "lowest_price": "2465.06",
       "strategy": "cup_and_handle",
       "opened_at": 1788984557922,
@@ -140,7 +140,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 3,
+      "bars_held": 5,
       "leverage": "2",
       "margin_used": "1742.899253865"
     }
