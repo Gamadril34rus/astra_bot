@@ -51,6 +51,7 @@ class TestExitMetrics:
         )
         bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
         eng = bot._trading_engine
+        eng.exit_controller.smart_default = False
         asyncio.run(bot._tick())
         assert len(eng.broker.positions) == 1
         pos = eng.broker.positions[0]

@@ -215,11 +215,19 @@ class TradingEngine:
                 from .strategies.adapter import PipelineStrategyAdapter
                 from .strategies.pattern_strategies import (
                     AscendingTriangleStrategy,
+                    CupAndHandleStrategy,
                     DescendingTriangleStrategy,
+                    DiamondStrategy,
+                    DoubleTopBottomStrategy,
+                    ExpandingTriangleStrategy,
                     FallingWedgeStrategy,
+                    FlagStrategy,
                     HeadShouldersStrategy,
+                    PennantStrategy,
+                    RectangleStrategy,
                     RisingWedgeStrategy,
                     SymmetricalTriangleStrategy,
+                    TripleTopBottomStrategy,
                 )
                 from .strategies.volume_filtered import (
                     BreakoutStrategyV2,
@@ -235,6 +243,14 @@ class TradingEngine:
                     PipelineStrategyAdapter(DescendingTriangleStrategy(), SignalType.MOMENTUM),
                     PipelineStrategyAdapter(SymmetricalTriangleStrategy(), SignalType.MOMENTUM),
                     PipelineStrategyAdapter(HeadShouldersStrategy(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(DoubleTopBottomStrategy(), SignalType.MEAN_REVERSION),
+                    PipelineStrategyAdapter(TripleTopBottomStrategy(), SignalType.MEAN_REVERSION),
+                    PipelineStrategyAdapter(RectangleStrategy(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(ExpandingTriangleStrategy(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(FlagStrategy(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(PennantStrategy(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(DiamondStrategy(), SignalType.MOMENTUM),
+                    PipelineStrategyAdapter(CupAndHandleStrategy(), SignalType.MOMENTUM),
                     PipelineStrategyAdapter(TrendFollowingStrategyV2(), SignalType.MOMENTUM),
                     PipelineStrategyAdapter(MeanReversionStrategyV2(), SignalType.MEAN_REVERSION),
                     PipelineStrategyAdapter(BreakoutStrategyV2(), SignalType.MOMENTUM),
@@ -243,7 +259,7 @@ class TradingEngine:
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).error(
-                    "Pattern strategies import failed — 10 стратегий НЕ загружены: %s", e
+                    "Pattern strategies import failed — 18 стратегий НЕ загружены: %s", e
                 )
                 pattern_strats = []
 
@@ -293,15 +309,15 @@ class TradingEngine:
                 ],
             )
             # Громкая проверка загрузки (урок блока 9: стратегии молча
-            # не грузились месяцами). 7 ядро + 10 паттернов + 11 новых = 28.
+            # не грузились месяцами). 7 ядро + 18 паттернов + 11 новых = 36.
             _names = [getattr(s, "name", type(s).__name__) for s in pipeline.strategies]
-            if len(pipeline.strategies) < 18:
+            if len(pipeline.strategies) < 26:
                 logger.error(
-                    "Загружено стратегий %d/28 — состав неполный (7 ядро + 10 паттернов + 11 новых): %s",
+                    "Загружено стратегий %d/36 — состав неполный (7 ядро + 18 паттернов + 11 новых): %s",
                     len(pipeline.strategies), _names,
                 )
             else:
-                logger.info("Загружено стратегий %d/28 (7 ядро + 10 паттернов + 11 новых)", len(pipeline.strategies))
+                logger.info("Загружено стратегий %d/36 (7 ядро + 18 паттернов + 11 новых)", len(pipeline.strategies))
         self.pipeline = pipeline
         self.broker = broker or self._make_broker()
         # Risk Engine — независимый слой защиты (master prompt §11):
