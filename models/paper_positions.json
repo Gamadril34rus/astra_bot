@@ -1,54 +1,6 @@
 {
   "positions": [
     {
-      "id": "5ae1fb8d-2473-451d-bf80-33f65ad112c7",
-      "symbol": "FIL-USDT",
-      "direction": "short",
-      "entry_price": "0.8361",
-      "quantity": "4238.090966",
-      "stop_loss": "0.8338456618044624041625540876",
-      "take_profits": [
-        "0.82949170",
-        "0.82420506",
-        "0.81957925"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "4238.090966",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "0.8376",
-      "lowest_price": "0.8304",
-      "strategy": "momentum",
-      "opened_at": 1788943077698,
-      "notes": {
-        "score": 45.0,
-        "ml_probability": null,
-        "edge_pct": 26.761,
-        "ev_r": 0.2676101451070472,
-        "ev_confidence": 0.4339622641509434,
-        "rr": 5.060908251744019,
-        "leverage": 1
-      },
-      "fill_price": "0.8352639",
-      "entry_fee_per_unit": "0.00041763195",
-      "risk_distance": "0.0066083",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "1h",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 24,
-      "leverage": "1",
-      "margin_used": "3543.4678566726"
-    },
-    {
       "id": "249e79b2-4752-44e0-b7ec-29e93023b024",
       "symbol": "LINK-USDT",
       "direction": "short",
@@ -74,7 +26,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "12.465",
-      "lowest_price": "12.381",
+      "lowest_price": "12.378",
       "strategy": "trend_following",
       "opened_at": 1788945097700,
       "notes": {
@@ -92,7 +44,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
-      "bars_held": 11,
+      "bars_held": 13,
       "leverage": "2",
       "margin_used": "1772.953907639"
     },
@@ -102,7 +54,7 @@
       "direction": "long",
       "entry_price": "0.1709",
       "quantity": "20695.744960",
-      "stop_loss": "0.16988857142857142",
+      "stop_loss": "0.17001571428571427",
       "take_profits": [
         "0.1743180",
         "0.1770524",
@@ -121,7 +73,7 @@
       "initial_quantity": "20695.744960",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.17120",
+      "highest_price": "0.17123",
       "lowest_price": "0.17090",
       "strategy": "momentum",
       "opened_at": 1788946266539,
@@ -140,11 +92,59 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 3,
+      "bars_held": 5,
       "leverage": "1",
       "margin_used": "3536.9028136640"
+    },
+    {
+      "id": "6163bde6-12b6-4ff3-89ec-1c0fff5f4366",
+      "symbol": "FET-USDT",
+      "direction": "long",
+      "entry_price": "0.1758",
+      "quantity": "20150.170536",
+      "stop_loss": "0.174042",
+      "take_profits": [
+        "0.1775580",
+        "0.1789644",
+        "0.1801950"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "20150.170536",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "zscore_mean_reversion",
+      "opened_at": 1788946894533,
+      "notes": {
+        "score": 27.0,
+        "ml_probability": null,
+        "edge_pct": 25.964,
+        "ev_r": 0.25963998528639365,
+        "ev_confidence": 0.0,
+        "rr": 1.5246826830846019,
+        "leverage": 1
+      },
+      "fill_price": "0.1759758",
+      "entry_fee_per_unit": "0.00008798790",
+      "risk_distance": "0.001758",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "1h",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
+      "bars_held": 0,
+      "leverage": "1",
+      "margin_used": "3542.3999802288"
     }
   ],
-  "realized_pnl": "-677.9417144501351670558243204",
+  "realized_pnl": "-674.8701969387972048908369772",
   "initial_capital": "36098.87"
 }
