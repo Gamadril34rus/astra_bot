@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-09T20:25:26.536462+00:00",
+  "updated": "2026-09-09T20:33:59.253418+00:00",
   "buckets": {
     "scalp5m|UNKNOWN|": {
       "sample_size": 1,
@@ -698,40 +698,40 @@
       "last_updated": "2026-09-09T18:34:06.612109+00:00"
     },
     "cup_and_handle|T:RANGE/V:VERY_LOW/L:DEEP|5m": {
-      "sample_size": 2,
+      "sample_size": 4,
       "wins": 1,
-      "losses": 1,
-      "sum_r": 5.334925051443473e-26,
+      "losses": 3,
+      "sum_r": -0.8477462539149447,
       "wins_sum_r": 1.1148411999825642e-25,
-      "losses_sum_r": -5.813486948382169e-26,
-      "sum_mfe_r": 2.0459389331092894,
-      "sum_mae_r": 0.3564363262985706,
-      "sum_fees": 6.983604283630334,
-      "last_updated": "2026-09-09T19:51:35.976378+00:00"
+      "losses_sum_r": -0.8477462539149447,
+      "sum_mfe_r": 2.216476058586921,
+      "sum_mae_r": 0.8333729111386938,
+      "sum_fees": 13.95990314933623,
+      "last_updated": "2026-09-09T20:33:59.253375+00:00"
     },
     "cup_and_handle|LOW_VOLATILITY|5m": {
-      "sample_size": 3,
+      "sample_size": 5,
       "wins": 1,
-      "losses": 2,
-      "sum_r": 2.641832690105552e-26,
+      "losses": 4,
+      "sum_r": -0.8477462539149447,
       "wins_sum_r": 1.1148411999825642e-25,
-      "losses_sum_r": -8.50657930972009e-26,
-      "sum_mfe_r": 2.823716710887067,
-      "sum_mae_r": 0.8564363262985706,
-      "sum_fees": 10.46642138211854,
-      "last_updated": "2026-09-09T19:51:35.976389+00:00"
+      "losses_sum_r": -0.8477462539149447,
+      "sum_mfe_r": 2.994253836364699,
+      "sum_mae_r": 1.3333729111386938,
+      "sum_fees": 17.442720247824436,
+      "last_updated": "2026-09-09T20:33:59.253384+00:00"
     },
     "cup_and_handle|ANY|5m": {
-      "sample_size": 3,
+      "sample_size": 5,
       "wins": 1,
-      "losses": 2,
-      "sum_r": 2.641832690105552e-26,
+      "losses": 4,
+      "sum_r": -0.8477462539149447,
       "wins_sum_r": 1.1148411999825642e-25,
-      "losses_sum_r": -8.50657930972009e-26,
-      "sum_mfe_r": 2.823716710887067,
-      "sum_mae_r": 0.8564363262985706,
-      "sum_fees": 10.46642138211854,
-      "last_updated": "2026-09-09T19:51:35.976394+00:00"
+      "losses_sum_r": -0.8477462539149447,
+      "sum_mfe_r": 2.994253836364699,
+      "sum_mae_r": 1.3333729111386938,
+      "sum_fees": 17.442720247824436,
+      "last_updated": "2026-09-09T20:33:59.253389+00:00"
     },
     "open_interest_divergence|T:RANGE/V:LOW/L:NORMAL|5m": {
       "sample_size": 1,
