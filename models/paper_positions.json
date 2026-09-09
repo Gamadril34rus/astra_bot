@@ -6,7 +6,7 @@
       "direction": "short",
       "entry_price": "1.4019",
       "quantity": "2478.958830",
-      "stop_loss": "1.4071",
+      "stop_loss": "1.4045",
       "take_profits": [
         "1.38329430000000010",
         "1.36840974000000018",
@@ -26,7 +26,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "1.4039",
-      "lowest_price": "1.3990",
+      "lowest_price": "1.3966",
       "strategy": "cup_and_handle",
       "opened_at": 1788986044532,
       "notes": {
@@ -44,7 +44,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 3,
+      "bars_held": 4,
       "leverage": "1",
       "margin_used": "3475.2523837770"
     },
@@ -54,7 +54,7 @@
       "direction": "long",
       "entry_price": "0.10106",
       "quantity": "34388.010922",
-      "stop_loss": "0.09989714285714286",
+      "stop_loss": "0.10002142857142858",
       "take_profits": [
         "0.102633180",
         "0.103891724",
@@ -73,8 +73,8 @@
       "initial_quantity": "34388.010922",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.10098",
-      "lowest_price": "0.10078",
+      "highest_price": "0.10108",
+      "lowest_price": "0.10047",
       "strategy": "expanding_triangle",
       "opened_at": 1788986600275,
       "notes": {
@@ -92,57 +92,9 @@
       "regime": "STRONG_BEAR_TREND",
       "timeframe": "5m",
       "regime_axes": "T:STRONG/V:LOW/L:DEEP",
-      "bars_held": 1,
+      "bars_held": 2,
       "leverage": "3",
       "margin_used": "1158.417461259106666666666667"
-    },
-    {
-      "id": "dcbb37bb-36df-4690-92ba-2da603a9cd93",
-      "symbol": "HBAR-USDT",
-      "direction": "short",
-      "entry_price": "0.07695",
-      "quantity": "45162.474124",
-      "stop_loss": "0.07709910714285717",
-      "take_profits": [
-        "0.076800892857142830",
-        "0.076681607142857094",
-        "0.076577232142857075"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "45162.474124",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
-      "strategy": "diamond",
-      "opened_at": 1788986937014,
-      "notes": {
-        "score": 81.0,
-        "ml_probability": null,
-        "edge_pct": 123.588,
-        "ev_r": 1.2358802395207462,
-        "ev_confidence": 0.0,
-        "rr": 3.0850299401191994,
-        "leverage": 3
-      },
-      "fill_price": "0.07687305",
-      "entry_fee_per_unit": "0.000038436525",
-      "risk_distance": "0.00014910714285717",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "5m",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 0,
-      "leverage": "3",
-      "margin_used": "1158.41746128060"
     }
   ],
   "realized_pnl": "-1346.346161923689233588027901",
