@@ -44,21 +44,21 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 5,
+      "bars_held": 6,
       "leverage": "1",
       "margin_used": "3491.215905408"
     },
     {
-      "id": "e6c0678b-0905-4a72-9553-31199d969555",
-      "symbol": "LINK-USDT",
+      "id": "770b1621-2999-4303-881b-b2c0fd8d6519",
+      "symbol": "TIA-USDT",
       "direction": "short",
-      "entry_price": "11.933",
-      "quantity": "280.224032",
-      "stop_loss": "11.943714285714284",
+      "entry_price": "0.3949",
+      "quantity": "8830.064721",
+      "stop_loss": "0.39671428571428563",
       "take_profits": [
-        "11.3100669999999990",
-        "10.8117205999999982",
-        "10.3756674999999975"
+        "0.37820510",
+        "0.36484918",
+        "0.35316275"
       ],
       "tp_filled": [
         false,
@@ -70,33 +70,33 @@
         0.3,
         0.2
       ],
-      "initial_quantity": "280.224032",
+      "initial_quantity": "8830.064721",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "11.950",
-      "lowest_price": "11.899",
+      "highest_price": "0.3955",
+      "lowest_price": "0.3939",
       "strategy": "double_top_bottom",
-      "opened_at": 1788979709759,
+      "opened_at": 1788981420869,
       "notes": {
-        "score": 76.0,
+        "score": 45.0,
         "ml_probability": null,
-        "edge_pct": 115.4292,
-        "ev_r": 1.1542916416350202,
-        "ev_confidence": 0.09090909090909091,
-        "rr": 1.6000000000000008,
+        "edge_pct": 116.0979,
+        "ev_r": 1.1609794475876323,
+        "ev_confidence": 0.16666666666666666,
+        "rr": 1.6000000000000043,
         "leverage": 3
       },
-      "fill_price": "11.921067",
-      "entry_fee_per_unit": "0.0059605335",
-      "risk_distance": "0.622933000000001",
+      "fill_price": "0.3945051",
+      "entry_fee_per_unit": "0.00019725255",
+      "risk_distance": "0.0166949",
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 5,
+      "bars_held": 1,
       "leverage": "3",
-      "margin_used": "1114.637791285333333333333333"
+      "margin_used": "1162.3308527743"
     }
   ],
-  "realized_pnl": "-1215.926648704426132937509910",
+  "realized_pnl": "-1228.944415711437238432638779",
   "initial_capital": "36098.87"
 }
