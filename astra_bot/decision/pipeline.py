@@ -150,7 +150,15 @@ class DecisionPipeline:
                         entry_price=signal.entry_price,
                         stop_loss=signal.stop_loss,
                         take_profit=signal.take_profit,
-                        timeframe=preferred_tf or "1h",
+                        # Аудит эпохи-2 (блок K): пишем ФАКТИЧЕСКИЙ ТФ свечей,
+                        # на которых стратегия посчитала сигнал, а не "1h".
+                        timeframe=(
+                            getattr(candles[0], "timeframe", None)
+                            if candles
+                            else None
+                        )
+                        or preferred_tf
+                        or "1h",
                         strategy=getattr(strategy, "name", "strategy"),
                         confidence=signal.confidence,
                         features=getattr(signal, "features", {}) or {},

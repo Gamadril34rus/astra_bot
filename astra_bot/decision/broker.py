@@ -153,6 +153,9 @@ class PaperBroker:
         # mark price для ликвидаций, ставка фандинга для начислений.
         self._mark_prices: dict[str, Decimal] = {}
         self._funding_rates: dict[str, Decimal] = {}
+        # Аудит эпохи-2 (блок G): open_time последнего бара, зачтённого
+        # в bars_held (по символу). Без throttle счётчик тикал каждый тик.
+        self._last_extremes_bar: dict[str, Any] = {}
 
         # Единая модель издержек (TZ P0-1).
         # Если передан cost_model — используем его напрямую.
@@ -298,6 +301,22 @@ class PaperBroker:
         regime_axes: str = "",
         leverage: int | Decimal = 1,
     ) -> PaperPosition:
+        # Аудит эпохи-2 (блок F): fail-closed валидация стороны стопа/тейка.
+        # Перевёрнутая сделка (как momentum-SHORT до блока E) отклоняется
+        # громко, а не открывается молча. take<=0 = «без тейка» (ts_momentum).
+        if direction not in ("long", "short"):
+            raise ValueError(f"unknown direction: {direction!r}")
+        if direction == "long" and not stop_loss < entry_price:
+            raise ValueError(f"LONG: stop {stop_loss} должен быть ниже входа {entry_price}")
+        if direction == "short" and not stop_loss > entry_price:
+            raise ValueError(f"SHORT: stop {stop_loss} должен быть выше входа {entry_price}")
+        if take_profit == entry_price:
+            raise ValueError(f"нулевой reward: take {take_profit} равен входу {entry_price}")
+        if take_profit > 0:
+            if direction == "long" and not take_profit > entry_price:
+                raise ValueError(f"LONG: take {take_profit} должен быть выше входа {entry_price}")
+            if direction == "short" and not take_profit < entry_price:
+                raise ValueError(f"SHORT: take {take_profit} должен быть ниже входа {entry_price}")
         lev = max(Decimal("1"), min(Decimal(str(leverage)), self.max_leverage))
         if lev > Decimal("1"):
             self._check_margin(entry_price, quantity, lev)
@@ -380,12 +399,18 @@ class PaperBroker:
         на том же баре — TZ §16)."""
         high = Decimal(str(bar.high))
         low = Decimal(str(bar.low))
+        bar_ts = getattr(bar, "open_time", None)
         for pos in self.positions:
             if pos.symbol != getattr(bar, "symbol", pos.symbol):
                 continue
+            # Экстремумы — каждый тик (живой трейлинг), а счётчик баров —
+            # только на НОВОМ баре (блок G). Без open_time — как раньше.
             pos.highest_price = high if pos.highest_price is None else max(pos.highest_price, high)
             pos.lowest_price = low if pos.lowest_price is None else min(pos.lowest_price, low)
-            pos.bars_held += 1
+            last_ts = self._last_extremes_bar.get(pos.symbol)
+            if bar_ts is None or bar_ts != last_ts:
+                pos.bars_held += 1
+                self._last_extremes_bar[pos.symbol] = bar_ts
 
     def check_exits(self, bar) -> list[ClosedTrade]:
         """Стоп-лосс и частичные тейки по обновлённым экстремумам."""

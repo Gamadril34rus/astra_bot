@@ -103,6 +103,10 @@ class TestExitControllerLive:
         store = StrategyStatsStore(tmp_path / "stats.json")
         feed = FeedStub(gen_candles())
         eng = make_engine(tmp_path, feed, make_pipeline(tmp_path, store), lessons)
+        # Блок K: позиции теперь честно на 5m → VOL-проверка смотрит длинную
+        # 5m-серию и резала бы тестовые ралли-бар. Эти тесты — про логику
+        # ExitController, spike-выходы здесь глушим (они покрыты отдельно).
+        eng.exit_manager.config.vol_expansion_ratio = 1e9
         return eng, lessons
 
     def test_breakeven_plan_protects_trade(self, tmp_path, monkeypatch):

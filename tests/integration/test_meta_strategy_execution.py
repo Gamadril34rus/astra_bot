@@ -172,7 +172,8 @@ class TestTradeExecutionPath:
         pos = eng.broker.positions[0]
         assert pos.strategy == "scalp"
         assert pos.regime  # контекст режима зафиксирован на входе
-        assert pos.timeframe == "1h"
+        # Блок K: scalp оценивается на 5m — фактический ТФ, а не "1h".
+        assert pos.timeframe == "5m"
         assert pos.risk_distance > 0
         # Позиция учтена в Risk Engine.
         assert len(eng.risk._open_positions) == 1
@@ -196,14 +197,14 @@ class TestTradeExecutionPath:
         lesson = next(tr for tr in lessons if tr["id"] == stops[0].id)
         assert lesson["r_multiple"] == pytest.approx(-1.0, abs=1e-9)
         assert lesson["regime"] == pos.regime
-        assert lesson["timeframe"] == "1h"
+        assert lesson["timeframe"] == "5m"
 
         # Статистика по режиму обновлена: и бакет режима, и агрегированный ANY.
-        bucket = store.get("scalp", pos.regime, "1h")
+        bucket = store.get("scalp", pos.regime, "5m")
         assert bucket is not None
         assert bucket.sample_size >= 1
         assert bucket.expectancy_r < 0
-        any_bucket = store.get_any("scalp", "1h")
+        any_bucket = store.get_any("scalp", "5m")
         assert any_bucket.sample_size >= 1
 
         # Risk Engine: убыток в дневном PnL, позиция убрана из книги.
@@ -218,18 +219,21 @@ class TestTradeExecutionPath:
         )
         base = gen_candles()
         store = StrategyStatsStore(tmp_path / "stats.json")
-        # 40 убыточных сделок scalp в LOW_VOLATILITY (режим этого паттерна).
-        for _ in range(40):
-            store.record(
-                strategy="scalp",
-                regime="LOW_VOLATILITY",
-                timeframe="1h",
-                r_multiple=-0.9,
-            )
         feed = FeedStub(base)
         eng = make_engine(
             tmp_path, feed, make_pipeline(tmp_path, store), []
         )
+        # 40 убыточных сделок scalp в LOW_VOLATILITY (режим этого паттерна).
+        # Сеем ПОСЛЕ создания движка: иначе килл-свитч (блок A) честно уберёт
+        # стратегию с 40 лузами до того, как meta ответит LOW_EV, а этот тест —
+        # именно про путь LOW_EV. store тот же объект, что у пайплайна.
+        for _ in range(40):
+            store.record(
+                strategy="scalp",
+                regime="LOW_VOLATILITY",
+                timeframe="5m",  # блок K: кандидат scalp идёт с 5m
+                r_multiple=-0.9,
+            )
 
         # Шаг 1: NO_TRADE (EV в режиме отрицательный).
         asyncio.run(eng.process_symbol("BTC-USDT"))

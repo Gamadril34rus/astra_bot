@@ -197,7 +197,7 @@ class TestTpSelection:
 
 
 class TestPipelineStrategyNames:
-    def test_pipeline_strategy_names_unique(self):
+    def test_pipeline_strategy_names_unique(self, tmp_path, monkeypatch):
         """Имена стратегий в пайплайне не должны коллизировать.
 
         Статистика (strategy_stats) ключуется именем стратегии: две
@@ -205,16 +205,21 @@ class TestPipelineStrategyNames:
         """
         from astra_bot.decision.trading_engine import TradingEngine, TradingEngineConfig
 
+        # Блок A: килл-свитч читает stats_path — изолируем от live-файла.
+        monkeypatch.chdir(tmp_path)
         eng = TradingEngine(TradingEngineConfig(symbols=("BTC-USDT",)))
         names = [getattr(x, "name", "?") for x in eng.pipeline.strategies]
         assert len(names) == len(set(names)), f"коллизия имён: {sorted(names)}"
 
-    def test_pattern_strategies_loaded(self):
+    def test_pattern_strategies_loaded(self, tmp_path, monkeypatch):
         """18 pattern/V2-стратегий должны присутствовать в пайплайне
         (14 паттернных + 4 V2)."""
         from astra_bot.decision.strategies.adapter import PipelineStrategyAdapter
         from astra_bot.decision.trading_engine import TradingEngine, TradingEngineConfig
 
+        # Блок A: килл-свитч читает stats_path — изолируем от live-файла,
+        # иначе убыточные по живой статистике будут честно убраны.
+        monkeypatch.chdir(tmp_path)
         eng = TradingEngine(TradingEngineConfig(symbols=("BTC-USDT",)))
         adapted = [x.name for x in eng.pipeline.strategies if isinstance(x, PipelineStrategyAdapter)]
         assert len(adapted) == 18

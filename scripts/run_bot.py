@@ -57,6 +57,23 @@ def _rotate_state() -> None:
         logger.warning("State rotation error (не блокирует сессию): %s", exc)
 
 
+def make_telegram_notifier(bot):
+    """Notifier для TradingEngine через Telegram-бота (блок M: HALT-алерты).
+
+    Fire-and-forget со стороны движка; ошибки отправки — в лог, сессию
+    не валят. При отсутствии метода send_alert — тихий no-op.
+    """
+
+    async def _tg_notifier(text: str, severity: str = "info") -> None:
+        if bot and hasattr(bot, "send_alert"):
+            try:
+                await bot.send_alert(text, severity=severity)
+            except Exception as exc:
+                logger.warning("Notifier send failed: %s", exc)
+
+    return _tg_notifier
+
+
 async def amain() -> int:
     _rotate_state()
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
@@ -127,6 +144,9 @@ async def amain() -> int:
         config=TradingEngineConfig(symbols=symbols, poll_interval_seconds=300, leverage_max=_lev_max),
     )
     bot = await create_telegram_bot(bot_token=token, allowed_user_ids=allowed, admin_user_ids=admin_ids)
+
+    engine._notifier = make_telegram_notifier(bot)
+
     stop = asyncio.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
