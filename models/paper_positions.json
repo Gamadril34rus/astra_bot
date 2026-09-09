@@ -1,60 +1,12 @@
 {
   "positions": [
     {
-      "id": "5045dec4-4e9a-4785-a928-680c5145f57c",
-      "symbol": "HBAR-USDT",
-      "direction": "long",
-      "entry_price": "0.07819",
-      "quantity": "45044.461820",
-      "stop_loss": "0.0787242857142857",
-      "take_profits": [
-        "0.07897190",
-        "0.07959742",
-        "0.08014475"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "45044.461820",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "0.07897",
-      "lowest_price": "0.07805",
-      "strategy": "volume_delta",
-      "opened_at": 1788952398051,
-      "notes": {
-        "score": 22.0,
-        "ml_probability": null,
-        "edge_pct": 77.0091,
-        "ev_r": 0.7700908028688634,
-        "ev_confidence": 0.03225806451612903,
-        "rr": 1.4999999999999745,
-        "leverage": 1
-      },
-      "fill_price": "0.07826819",
-      "entry_fee_per_unit": "0.000039134095",
-      "risk_distance": "0.0007819",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "1h",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 53,
-      "leverage": "1",
-      "margin_used": "3522.02646970580"
-    },
-    {
       "id": "b3b88e7d-d755-4931-81e1-494fb586e962",
       "symbol": "UNI-USDT",
       "direction": "short",
       "entry_price": "6.697",
       "quantity": "525.172634",
-      "stop_loss": "6.718428571428571",
+      "stop_loss": "6.696",
       "take_profits": [
         "6.6166360",
         "6.5523448",
@@ -74,7 +26,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "6.718",
-      "lowest_price": "6.666",
+      "lowest_price": "6.638",
       "strategy": "pullback",
       "opened_at": 1788958644072,
       "notes": {
@@ -92,11 +44,11 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "1h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 15,
+      "bars_held": 16,
       "leverage": "1",
       "margin_used": "3517.081129898"
     }
   ],
-  "realized_pnl": "-943.5068345387859813311037645",
+  "realized_pnl": "-932.4221346100891469306416145",
   "initial_capital": "36098.87"
 }
