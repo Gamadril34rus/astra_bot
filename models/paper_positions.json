@@ -1,54 +1,6 @@
 {
   "positions": [
     {
-      "id": "35040e46-8f43-4946-9111-c7ecc14b7989",
-      "symbol": "ADA-USDT",
-      "direction": "short",
-      "entry_price": "0.214",
-      "quantity": "16185.955187",
-      "stop_loss": "0.21457142857142858",
-      "take_profits": [
-        "0.2129580",
-        "0.2121244",
-        "0.2113950"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "16185.955187",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "0.2144",
-      "lowest_price": "0.2132",
-      "strategy": "liquidity_sweep",
-      "opened_at": 1789018694929,
-      "notes": {
-        "score": 52.0,
-        "ml_probability": null,
-        "edge_pct": 27.2958,
-        "ev_r": 0.2729576588629891,
-        "ev_confidence": 0.09090909090909091,
-        "rr": 2.292471042470998,
-        "leverage": 1
-      },
-      "fill_price": "0.213786",
-      "entry_fee_per_unit": "0.0001068930",
-      "risk_distance": "0.001042",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "5m",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
-      "bars_held": 10,
-      "leverage": "1",
-      "margin_used": "3463.794410018"
-    },
-    {
       "id": "b5a37034-9505-4079-a408-47c6d01a829b",
       "symbol": "APT-USDT",
       "direction": "long",
@@ -92,11 +44,11 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
-      "bars_held": 5,
+      "bars_held": 6,
       "leverage": "3",
       "margin_used": "1153.567922297533333333333333"
     }
   ],
-  "realized_pnl": "-1491.832328671295045388725610",
+  "realized_pnl": "-1491.832328671295045388725611",
   "initial_capital": "36098.87"
 }
