@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-10T06:38:52.790486+00:00",
+  "updated": "2026-09-10T06:52:35.954755+00:00",
   "buckets": {
     "scalp5m|UNKNOWN|": {
       "sample_size": 1,
@@ -1332,6 +1332,42 @@
       "sum_mae_r": 0.4734434635667045,
       "sum_fees": 3.468780705487776,
       "last_updated": "2026-09-10T06:38:52.790450+00:00"
+    },
+    "pennant|T:RANGE/V:VERY_LOW/L:NORMAL|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -1.5663558278020018,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -1.5663558278020018,
+      "sum_mfe_r": 0.4151904188453144,
+      "sum_mae_r": 1.2455712565359431,
+      "sum_fees": 3.465328180081737,
+      "last_updated": "2026-09-10T06:52:35.954713+00:00"
+    },
+    "pennant|LOW_VOLATILITY|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -1.5663558278020018,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -1.5663558278020018,
+      "sum_mfe_r": 0.4151904188453144,
+      "sum_mae_r": 1.2455712565359431,
+      "sum_fees": 3.465328180081737,
+      "last_updated": "2026-09-10T06:52:35.954722+00:00"
+    },
+    "pennant|ANY|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -1.5663558278020018,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -1.5663558278020018,
+      "sum_mfe_r": 0.4151904188453144,
+      "sum_mae_r": 1.2455712565359431,
+      "sum_fees": 3.465328180081737,
+      "last_updated": "2026-09-10T06:52:35.954727+00:00"
     }
   }
 }
