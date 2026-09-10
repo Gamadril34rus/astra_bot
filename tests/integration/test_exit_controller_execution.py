@@ -205,6 +205,12 @@ class TestExitControllerLive:
         entry = float(pos.entry_price)
         risk = float(pos.risk_distance)
 
+        # Бэклог A5: входы только по закрытым барам — на тике ралли
+        # стратегии видят тот же набор закрытых баров, что и на входе,
+        # и scalp ДУБЛИРУЕТ сигнал (после трейл-шокаута). Тест про
+        # ExitController, не про повторные входы — гасим стратегии.
+        eng.pipeline.strategies = []
+
         candles = eng.exchange.candles
         rally = _bar_after(
             candles[-1], float(candles[-1].close),

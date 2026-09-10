@@ -114,6 +114,19 @@ class DecisionPipeline:
             return await maybe
         return maybe
 
+    @staticmethod
+    def _closed_entry_candles(candles: list) -> list:
+        """А5: свечки для ВХОДОВ без формирующегося бара.
+
+        Фид klines биржи отдаёт текущий незакрытый бар последним;
+        сигнал, построенный на нём, «плывёт» вместе с закрытием.
+        Для генерации входных сигналов используем только закрытые
+        бары. Выходы не затрагиваются (они на живой цене).
+        """
+        if len(candles) > 1:
+            return candles[:-1]
+        return list(candles)
+
     async def _candidates_from_strategies(
         self,
         ctx: MarketContext,
@@ -132,6 +145,17 @@ class DecisionPipeline:
                     candles = ctx.candles_on(preferred_tf)
                 else:
                     candles = primary
+                # Бэклог A5: ВХОДЫ только по закрытым барам. Последняя
+                # свеча в фиде klines — формирующийся бар (close ещё
+                # меняется); до фикса стратегии строили входной сигнал
+                # по нему. Вычитаем его ТОЛЬКО для генерации сигналов:
+                # выходы/трейлинг/стопы работают по живой цене
+                # (broker/exit_manager/market safety) — они не тронуты.
+                # current_price остаётся живым (ордер исполняется по
+                # рынку, а не по закрытию предпоследнего бара).
+                candles = self._closed_entry_candles(candles)
+                if not candles:
+                    continue
                 signal = await self._await_evaluate(
                     strategy.evaluate(
                         symbol=ctx.symbol,

@@ -36,6 +36,7 @@ from ..core.metrics import (
 from ..engines.cost_model import BINGX_PERPS_TAKER_FEE, bingx_perps_cost_model
 from ..engines.risk_engine import RiskConfig, RiskEngine
 from ..ml.live_lessons import append_lessons
+from . import halt_alerts
 from .broker import PaperBroker
 from .context import MarketContext
 from .pipeline import Decision, DecisionPipeline
@@ -135,6 +136,10 @@ class TradingEngineConfig:
     poll_interval_seconds: int = 60 * 5
     state_path: str = "models/paper_positions.json"
     trades_path: str = "models/paper_trades.jsonl"
+    # Персистентный dedup HALT-алертов {ключ: дата}. Actions-сессия —
+    # свежий процесс, без файла алерт повторялся бы каждые 5 минут.
+    # Файл должен быть в Save-state (bot.yml, добавляет владелец).
+    halt_alerts_path: str = "models/halt_alerts.json"
     # Реальные издержки paper-счёта (тейкер-комиссия / slippage на сторону).
     # База — тариф перпов BingX USDT-M: тейкер 0.05%, slippage 0.1%.
     fee_pct: Decimal = Decimal("0.0005")
@@ -173,6 +178,10 @@ class TradingEngine:
         self._notifier = notifier
         self.exchange = exchange
         self.config = config or TradingEngineConfig()
+        # HALT-алерты: dedup в пределах сессии (set) + персистентный файл
+        # между сессиями (halt_alerts.py; Actions поднимает процесс раз в 5 мин).
+        self._halt_alerts_sent: set[str] = set()
+        self._halt_alerts_path = Path(self.config.halt_alerts_path)
         if pipeline is None:
             from ..strategies import (
                 MeanReversionStrategy,
@@ -415,6 +424,8 @@ class TradingEngine:
         self._running = False
         self._capital_synced = False
         self._risk_synced = False
+        # Бэклог A6: кэш Instrument (tick/step/min_notional) по символам.
+        self._instruments_cache: dict[str, Any] = {}
         self._minute_bucket: int | None = None
 
     def _make_broker(self, initial_capital: Decimal | None = None) -> PaperBroker:
@@ -491,6 +502,22 @@ class TradingEngine:
         self._capital_synced = True
         return self.broker.initial_capital
 
+    def _sync_risk_equity(self) -> None:
+        """Синхронизировать капитал Risk Engine с NET-капиталом брокера.
+
+        Бэклог аудита A1 (H3): раньше риск-движок видел только realized
+        (initial + закрытые PnL), и плавающая просадка была ему невидима
+        до закрытия позиций — просадка/HWM/сайзинг запаздывали на весь
+        цикл удержания. Теперь equity риск-движка = ликвидационный
+        капитал (realized + плавающая по mark). set_capital — абсолютное
+        значение из брокера (источник правды), поэтому += pnl в
+        record_trade внутри шага не даёт двойного счёта.
+        """
+        try:
+            self.risk.set_capital(self.broker.net_equity, self.broker.initial_capital)
+        except Exception as exc:
+            logger.debug("risk equity sync failed: %s", exc)
+
     def _sync_risk_state(self) -> None:
         """Однократно за сессию восстановить риск-состояние из персиста.
 
@@ -512,9 +539,11 @@ class TradingEngine:
         except Exception as exc:
             logger.debug("Не прочитал paper_trades для risk-состояния: %s", exc)
         self.risk.restore_from_trades(trades, self.broker.initial_capital)
-        # Фактическая оценка брокера (initial + realized PnL) приоритетнее
-        # кривой из файла, если состояние было правлено вручную.
-        self.risk.set_capital(self.broker.equity, self.broker.initial_capital)
+        # Фактическая оценка брокера приоритетнее кривой из файла, если
+        # состояние было правлено вручную. Бэклог A1: риск-движку — NET
+        # ликвидационный капитал (realized + плавающая по mark), а не
+        # только realized: просадка/HWM видят рынок, а не только прошлое.
+        self._sync_risk_equity()
         for pos in self.broker.positions:
             # Meta для portfolio-лимитов (Этап 5): id-позиции без
             # номинала не видны в gross/net/группе — передаём явно.
@@ -526,9 +555,10 @@ class TradingEngine:
             )
         self._risk_synced = True
         logger.info(
-            "Risk state восстановлен: equity=%s, daily_pnl=%s, weekly_pnl=%s, "
-            "state=%s, trading_enabled=%s, open_positions=%d",
-            self.broker.equity, self.risk.daily_pnl, self.risk.weekly_pnl,
+            "Risk state восстановлен: equity=%s, net_equity=%s, daily_pnl=%s, "
+            "weekly_pnl=%s, state=%s, trading_enabled=%s, open_positions=%d",
+            self.broker.equity, self.broker.net_equity,
+            self.risk.daily_pnl, self.risk.weekly_pnl,
             self.risk.risk_state.value, self.risk.trading_enabled,
             len(self.broker.positions),
         )
@@ -677,9 +707,6 @@ class TradingEngine:
         недельный лимит потерь, лимиты, которые нельзя закрыть уменьшением
         размера). Иначе — исходный или уменьшенный до лимита размер.
         """
-        if not hasattr(self, "_halt_alerts_sent"):
-            self._halt_alerts_sent: set[str] = set()
-
         for _ in range(2):
             verdict = self.risk.check_trade(
                 symbol=symbol,
@@ -699,18 +726,9 @@ class TradingEngine:
                     symbol, self.risk.risk_state.value, verdict.reason,
                 )
                 reason_str = str(verdict.reason or "")
-                if "Daily loss limit" in reason_str or "Weekly loss limit" in reason_str:
-                    alert_key = f"loss_limit_{reason_str.split(':')[0]}"
-                    if alert_key not in self._halt_alerts_sent:
-                        self._halt_alerts_sent.add(alert_key)
-                        self._notify(f"⚠️ TRADING HALT: {reason_str}", severity="warning")
-                elif not self.risk.trading_enabled:
-                    state_val = str(self.risk.risk_state.value)
-                    alert_key = f"state_{state_val}"
-                    if alert_key not in self._halt_alerts_sent:
-                        self._halt_alerts_sent.add(alert_key)
-                        sev = "critical" if state_val == "EMERGENCY" else "warning"
-                        self._notify(f"🚨 TRADING HALT ({state_val}): {reason_str}", severity=sev)
+                dedup_key, message, severity = self._halt_alert_for(reason_str)
+                if dedup_key is not None:
+                    self._dispatch_halt_alert(dedup_key, message, severity)
                 return None
             size = Decimal(str(adjusted)).quantize(Decimal("0.000001"))
             if size <= 0:
@@ -721,6 +739,139 @@ class TradingEngine:
         # Два прохода не помогли (лимиты пересекаются) — не входим.
         logger.warning("RISK: не уложился в лимиты для %s, вход пропущен", symbol)
         return None
+
+
+    # ------------------------------------------------------- HALT-алерты
+    # Причины -> (dedup-ключ, текст по-русски, severity).
+    # Эмодзи в тексте НЕТ: send_alert подставляет своё по severity
+    # (один источник эмодзи — двойного больше нет).
+    _HALT_REASON_RU: dict[str, str] = {
+        "Trading is disabled": "торговля отключена риск-двигателем",
+    }
+
+    def _halt_alert_for(self, reason_str: str) -> tuple[str | None, str, str]:
+        """Построить HALT-алерт из причины Risk Engine.
+
+        Ключи: loss_limit_daily / loss_limit_weekly / state_<state>.
+        (None, "", "") — если причина не относится к HALT-алертам.
+        """
+        if "Daily loss limit" in reason_str or "Weekly loss limit" in reason_str:
+            daily = "Daily loss limit" in reason_str
+            dedup_key = "loss_limit_daily" if daily else "loss_limit_weekly"
+            return dedup_key, self._halt_limit_message(reason_str, daily), "warning"
+        if not self.risk.trading_enabled:
+            state_val = str(self.risk.risk_state.value)
+            reason_ru = self._HALT_REASON_RU.get(reason_str, reason_str)
+            message = (
+                f"Остановка торговли ({state_val}): {reason_ru}.\n"
+                + self._halt_open_positions_line()
+            )
+            severity = "critical" if state_val == "EMERGENCY" else "warning"
+            return f"state_{state_val}", message, severity
+        return None, "", ""
+
+    def _halt_limit_message(self, reason_str: str, daily: bool) -> str:
+        """``... limit reached: X / Y`` -> русский текст с пояснением.
+
+        Лимит считается по скользящему окну (24ч / 7 дней), а не по
+        календарному дню — см. RiskEngine.restore_from_trades.
+        """
+        loss: Decimal | None = None
+        limit: Decimal | None = None
+        try:
+            numbers = reason_str.split(":", 1)[1].strip().split(" / ")
+            loss = Decimal(numbers[0])
+            limit = Decimal(numbers[1])
+        except Exception:
+            pass
+        if daily:
+            title = "Остановка торговли (дневной лимит потерь)."
+            period = "за 24 часа"
+            limit_pct = self.risk.config.daily_loss_limit
+            unblock = "пока 24-часовой убыток не уйдёт ниже лимита"
+        else:
+            title = "Остановка торговли (недельный лимит потерь)."
+            period = "за 7 дней"
+            limit_pct = self.risk.config.weekly_loss_limit
+            unblock = "пока недельный убыток не уйдёт ниже лимита"
+        lines = [title]
+        capital = self.risk.initial_capital
+        if loss is not None and limit is not None:
+            lines.append(
+                f"Убыток {period}: −{loss:.2f} USDT (лимит {limit:.2f}, "
+                f"т.е. {float(limit_pct) * 100:g}% от {capital:.2f})."
+            )
+        else:
+            lines.append(f"Убыток {period}: {reason_str}.")
+        lines.append(f"Новые входы запрещены {unblock}.")
+        lines.append(self._halt_open_positions_line())
+        return "\n".join(lines)
+
+    def _halt_open_positions_line(self) -> str:
+        try:
+            positions = list(self.broker.positions or [])
+        except Exception:
+            positions = []
+        if not positions:
+            return "Открытые позиции: нет"
+        desc = ", ".join(f"{p.symbol} {p.direction}" for p in positions[:10])
+        more = f" (+ещё {len(positions) - 10})" if len(positions) > 10 else ""
+        return f"Открытые позиции: {desc}{more}"
+
+    def _dispatch_halt_alert(self, dedup_key: str, message: str, severity: str) -> None:
+        """Отправить HALT-алерт: раз в сутки на ключ (персистентный dedup).
+
+        In-memory set — дедуп внутри сессии; halt_alerts.json — между
+        сессиями (Actions каждые 5 минут поднимает новый процесс).
+        """
+        if dedup_key in self._halt_alerts_sent:
+            return
+        if halt_alerts.already_sent_today(self._halt_alerts_path, dedup_key):
+            logger.info(
+                "HALT-алерт %s уже отправлен сегодня (UTC) — повтор не шлём",
+                dedup_key,
+            )
+            self._halt_alerts_sent.add(dedup_key)
+            return
+        self._halt_alerts_sent.add(dedup_key)
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # Нет event loop (юнит-тесты): синхронная отправка + отметка.
+            sent = False
+            if self._notifier is not None:
+                try:
+                    res = self._notifier(message, severity)
+                    if asyncio.iscoroutine(res):
+                        asyncio.run(res)
+                    sent = True
+                except Exception as exc:
+                    logger.warning("HALT-алерт (%s) не отправлен: %s", dedup_key, exc)
+            if sent:
+                halt_alerts.mark_sent(self._halt_alerts_path, dedup_key)
+            return
+        # Живой контур: дожидаемся отправки, ТОЛЬКО тогда отмечаем ключ.
+        # Не дождёмся/провалимся — без отметки, следующая сессия повторит.
+        _spawn_background(self._send_halt_alert(message, severity, dedup_key))
+
+    async def _send_halt_alert(self, text: str, severity: str, dedup_key: str) -> None:
+        """Дождаться отправки HALT-алерта и пометить ключ как отправленный."""
+        sent = False
+        if self._notifier is not None:
+            try:
+                res = self._notifier(text, severity)
+                if asyncio.iscoroutine(res):
+                    await asyncio.wait_for(res, timeout=10.0)
+                sent = True
+            except Exception as exc:
+                logger.warning("HALT-алерт (%s) не отправлен: %s", dedup_key, exc)
+        if sent:
+            halt_alerts.mark_sent(self._halt_alerts_path, dedup_key)
+        else:
+            logger.warning(
+                "HALT-алерт (%s) не отправлен — повторим в следующей сессии",
+                dedup_key,
+            )
 
     async def _sync_perps_state(self, symbol: str, fallback_price: Any) -> None:
         """Подтянуть в брокер живые mark price и ставку фандинга.
@@ -780,7 +931,93 @@ class TradingEngine:
             pass
         return None
 
+    @staticmethod
+    def _build_ticker_map(ticker: Any) -> dict[str, float] | None:
+        """Тикер -> {last, open24h} для MarketSafety (резкое движение 24ч).
+
+        Бэклог аудита A4: клиент BingX возвращает реальный open24h
+        (adapters/bingx/client.py:654 ``"open_24h"`` <- openPrice из
+        swap/v2 quote/ticker), старый комментарий «без open24h» устарел.
+        Раньше open24h всегда оценивали серединой (hi+lo)/2: после пампа,
+        когда цена закрепилась у хая, hi≈lo≈last и сдвиг «исчезал» —
+        safety-проверка проваливалась мимо. Середина диапазона теперь
+        только fallback для адаптеров без поля (например, simulated.py).
+        """
+        if not ticker:
+            return None
+        last_f = float(ticker.get("last") or 0)
+        hi = float(ticker.get("high_24h") or 0)
+        lo = float(ticker.get("low_24h") or 0)
+        open24 = float(ticker.get("open_24h") or ticker.get("open24h") or 0)
+        if open24 <= 0:
+            open24 = (hi + lo) / 2 if hi and lo else 0.0
+        return {"last": last_f, "open24h": open24}
+
+    async def _get_instrument(self, symbol: str) -> Any:
+        """Instrument (tick/step/min_notional) с биржи, с кэшем (A6).
+
+        Нет данных (адаптер не отдаёт / ошибка сети) — None: валидация
+        ограничений пропускается, вход НЕ блокируется (fail-open: в live
+        ордер отклонит сама биржа, в paper ограничений нет).
+        """
+        if symbol in self._instruments_cache:
+            return self._instruments_cache[symbol]
+        inst = None
+        try:
+            inst = await self.exchange.get_instrument(symbol)
+        except Exception as exc:
+            logger.debug("instrument %s недоступен: %s", symbol, exc)
+            inst = None
+        self._instruments_cache[symbol] = inst
+        return inst
+
+    async def _apply_instrument_constraints(
+        self, symbol: str, entry_price: Decimal, size: Decimal
+    ) -> Decimal | None:
+        """Бэклог A6: сечение размера по ограничениям инструмента.
+
+        step_size — размер округляется ВНИЗ до шага (риск никогда не
+        увеличивается); min_quantity / min_notional — не укладываемся,
+        вход отклоняем (None); tick_size — офф-тик входной цены лишь
+        логируется (paper исполняет по заданной цене, в live биржа
+        отклонит — отдельный предмет live-контура).
+        Без данных инструмента — size как есть (fail-open).
+        """
+        inst = await self._get_instrument(symbol)
+        if inst is None:
+            return size
+        try:
+            step = Decimal(str(getattr(inst, "step_size", "") or 0))
+            if step and step > 0:
+                size = (size // step) * step
+            min_qty = Decimal(str(getattr(inst, "min_quantity", "") or 0))
+            if min_qty and size < min_qty:
+                logger.info(
+                    "%s: size %s < min_quantity %s — вход пропущен (A6)",
+                    symbol, size, min_qty,
+                )
+                return None
+            min_notional = Decimal(str(getattr(inst, "min_notional", "") or 0))
+            if min_notional and size * entry_price < min_notional:
+                logger.info(
+                    "%s: notional %s < min_notional %s — вход пропущен (A6)",
+                    symbol, size * entry_price, min_notional,
+                )
+                return None
+            tick = Decimal(str(getattr(inst, "tick_size", "") or 0))
+            if tick and tick > 0:
+                if abs(entry_price - (entry_price // tick) * tick) > 0:
+                    logger.debug(
+                        "%s: входная цена %s не на тике %s (A6)",
+                        symbol, entry_price, tick,
+                    )
+        except Exception as exc:
+            logger.debug("instrument constraints %s: %s", symbol, exc)
+            return size
+        return size
+
     async def process_symbol(self, symbol: str) -> list[Any]:
+
         # Риск-состояние (лимиты, HALT) живое между CI-сессиями:
         # восстанавливаем из персиста перед любым решением о входе.
         self._sync_risk_state()
@@ -914,7 +1151,8 @@ class TradingEngine:
         total_notional = sum(
             float(p.entry_price) * float(p.quantity) for p in open_positions
         )
-        equity = float(self.broker.equity)
+        # Бэклог A1: экспозиция меряется от NET капитала (с плавающей).
+        equity = float(self.broker.net_equity)
         if equity > 0 and total_notional / equity >= float(
             self.config.max_total_exposure_pct
         ):
@@ -938,17 +1176,7 @@ class TradingEngine:
                 "bids_depth": bids_depth,
                 "asks_depth": asks_depth,
             }
-        ticker_map = None
-        if ticker:
-            # get_ticker возвращает high_24h/low_24h без open24h; для
-            # проверки резкого движения считаем open из last и диапазона.
-            last_f = float(ticker.get("last") or 0)
-            hi = float(ticker.get("high_24h") or 0)
-            lo = float(ticker.get("low_24h") or 0)
-            # Грубая оценка open24h как середины диапазона (нам важен лишь
-            # факт резкого движения > 8%, точность до долей процента не нужна).
-            open24 = (hi + lo) / 2 if hi and lo else 0.0
-            ticker_map = {"last": last_f, "open24h": open24}
+        ticker_map = self._build_ticker_map(ticker)
         verdict = self.safety.check(
             symbol,
             ticker=ticker_map,
@@ -1010,9 +1238,13 @@ class TradingEngine:
         # Block 6.2: position sizing with ML confidence and volatility
         _atr_pct = None
         try:
-            # ATR from technical diagnostics if available
+            # ATR из технических диагностик. Контракт единиц (бэклог A3):
+            # ЕДИНЫЙ нормализованный atr_pct — ATR в % цены (так пишет
+            # TechnicalReport.to_dict, так ожидает position_sizer).
+            # Старый fallback tech.get("atr") убран: абсолютный ATR
+            # прочитался бы как проценты и ужал размер в 3+ раза.
             tech = decision.diagnostics.get("technical") or {}
-            _atr_pct = float(tech.get("atr_pct") or tech.get("atr") or 0) or None
+            _atr_pct = float(tech.get("atr_pct") or 0) or None
         except Exception:
             pass
         _ml_conf = None
@@ -1020,8 +1252,11 @@ class TradingEngine:
             _ml_conf = float(cand.ml_probability) if cand.ml_probability is not None else float(cand.confidence) if cand.confidence else None
         except Exception:
             pass
+        # Бэклог A1: сайзинг и риск-движок видят NET ликвидационный
+        # капитал (mark по символу уже подтянут _sync_perps_state выше).
+        self._sync_risk_equity()
         size = self._position_size(
-            self.broker.equity,
+            self.broker.net_equity,
             cand.entry_price,
             cand.stop_loss,
             ml_confidence=_ml_conf,
@@ -1030,6 +1265,14 @@ class TradingEngine:
         )
         if size <= 0:
             logger.info("%s: size=0, пропускаю", symbol)
+            return closed
+        # Бэклог A6: биржевые ограничения инструмента (step/min_qty/
+        # min_notional/tick) — до открытия, в paper broker их нет.
+        size = await self._apply_instrument_constraints(
+            symbol, cand.entry_price, size
+        )
+        if size is None or size <= 0:
+            logger.info("%s: size=0 (инструмент), пропускаю", symbol)
             return closed
 
         # ---- Risk Engine: независимый слой защиты (master prompt §11).

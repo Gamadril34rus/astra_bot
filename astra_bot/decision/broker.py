@@ -284,6 +284,63 @@ class PaperBroker:
     def equity(self) -> Decimal:
         return self.initial_capital + self.realized_pnl
 
+    # --- Бэклог аудита A1 (H3): разделение капитала для Risk Engine ---
+    # equity (realized) — «деньги в кармане»: initial + realized PnL.
+    # net_equity — ликвидационный капитал: + плавающая PnL по mark.
+    # Риск-движку (просадка/HWM/сайзинг/HALT) нужен NET, а не realized:
+    # плавающая просадка невидима для realized-капитала до закрытия.
+
+    def unrealized_pnl(self, symbol: str | None = None) -> Decimal:
+        """Суммарная (нетто) плавающая PnL открытых позиций по mark price.
+
+        По формуле закрытия, но без выходных издержек: эффективная цена
+        входа (fill_price с slippage) против текущего mark. Символы без
+        mark price дают 0 (mark подтягивается _sync_perps_state).
+        """
+        total = Decimal("0")
+        for pos in self.positions:
+            if symbol is not None and pos.symbol != symbol:
+                continue
+            mark = self._mark_prices.get(pos.symbol)
+            if mark is None:
+                continue
+            fill = pos.fill_price if pos.fill_price is not None else pos.entry_price
+            if pos.direction in ("long", "buy"):
+                total += (mark - fill) * pos.quantity
+            else:
+                total += (fill - mark) * pos.quantity
+        return total
+
+    @property
+    def gross_unrealized(self) -> Decimal:
+        """Сумма ABS плавающей PnL по позициям (валовая чувствительность)."""
+        total = Decimal("0")
+        for pos in self.positions:
+            mark = self._mark_prices.get(pos.symbol)
+            if mark is None:
+                continue
+            fill = pos.fill_price if pos.fill_price is not None else pos.entry_price
+            if pos.direction in ("long", "buy"):
+                u = (mark - fill) * pos.quantity
+            else:
+                u = (fill - mark) * pos.quantity
+            total += abs(u)
+        return total
+
+    @property
+    def realized_equity(self) -> Decimal:
+        """Капитал без плавающей части (initial + realized PnL)."""
+        return self.equity
+
+    @property
+    def net_equity(self) -> Decimal:
+        """Ликвидационный капитал: realized + плавающая PnL (net).
+
+        Именно его Risk Engine использует для просадки/HWM/сайзинга.
+        Без открытых позиций или без mark — равно realized equity.
+        """
+        return self.equity + self.unrealized_pnl()
+
     def open_position(
         self,
         *,

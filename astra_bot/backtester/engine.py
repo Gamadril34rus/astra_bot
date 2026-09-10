@@ -485,8 +485,14 @@ class BacktestEngine:
         self._open_positions[trade.id] = trade
         self._trades.append(trade)
 
-        # Обновление риск-движка
-        self._risk_engine.add_position(str(trade.id))
+        # Обновление риск-движка. Бэклог A2: meta обязательна —
+        # str-id без meta невидим для exposure-лимитов (notional=0).
+        self._risk_engine.add_position(
+            str(trade.id),
+            symbol=self.config.symbol,
+            side=trade.side,
+            notional=abs(trade.quantity * trade.entry_price),
+        )
 
         # Логирование
         logger.debug(f"LONG opened: {trade.id}, qty={quantity}, price={effective_price}")
@@ -537,7 +543,13 @@ class BacktestEngine:
         self._open_positions[trade.id] = trade
         self._trades.append(trade)
 
-        self._risk_engine.add_position(str(trade.id))
+        # Бэклог A2: meta — см. _open_long_position.
+        self._risk_engine.add_position(
+            str(trade.id),
+            symbol=self.config.symbol,
+            side=trade.side,
+            notional=abs(trade.quantity * trade.entry_price),
+        )
 
         logger.debug(f"SHORT opened: {trade.id}, qty={quantity}, price={effective_price}")
 
