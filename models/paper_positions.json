@@ -1,5 +1,54 @@
 {
-  "positions": [],
+  "positions": [
+    {
+      "id": "9916d1a1-137b-4b54-9758-2ad8ea40386b",
+      "symbol": "TIA-USDT",
+      "direction": "short",
+      "entry_price": "0.3798",
+      "quantity": "9088.519200",
+      "stop_loss": "0.3817",
+      "take_profits": [
+        "0.37736060",
+        "0.37540908",
+        "0.37370150"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "9088.519200",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "0.3802",
+      "lowest_price": "0.3791",
+      "strategy": "flag",
+      "opened_at": 1789029472163,
+      "notes": {
+        "score": 64.0,
+        "ml_probability": null,
+        "edge_pct": 430.2634,
+        "ev_r": 4.3026343283883515,
+        "ev_confidence": 0.23076923076923078,
+        "rr": 6.358454674839485,
+        "leverage": 3
+      },
+      "fill_price": "0.3794202",
+      "entry_fee_per_unit": "0.00018971010",
+      "risk_distance": "0.0024394",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "5m",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
+      "bars_held": 1,
+      "leverage": "3",
+      "margin_used": "1150.6065307200"
+    }
+  ],
   "realized_pnl": "-1580.674079929904754725442097",
   "initial_capital": "36098.87"
 }
