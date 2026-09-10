@@ -1,5 +1,102 @@
 {
-  "positions": [],
+  "positions": [
+    {
+      "id": "5dafca98-8a46-494d-89a1-1a3c4e781564",
+      "symbol": "NEAR-USDT",
+      "direction": "short",
+      "entry_price": "2.39",
+      "quantity": "1443.363189",
+      "stop_loss": "2.411714285714286",
+      "take_profits": [
+        "2.33983000000000030",
+        "2.29969400000000054",
+        "2.26457500000000075"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "1443.363189",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "2.393",
+      "lowest_price": "2.390",
+      "strategy": "symmetrical_triangle",
+      "opened_at": 1789033438080,
+      "notes": {
+        "score": 46.0,
+        "ml_probability": null,
+        "edge_pct": 144.7896,
+        "ev_r": 1.447895905073541,
+        "ev_confidence": 0.09090909090909091,
+        "rr": 2.000000000000012,
+        "leverage": 3
+      },
+      "fill_price": "2.38761",
+      "entry_fee_per_unit": "0.001193805",
+      "risk_distance": "0.0501699999999997",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "5m",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
+      "bars_held": 1,
+      "leverage": "3",
+      "margin_used": "1149.87934057"
+    },
+    {
+      "id": "441c1707-ef0f-40fa-b4e3-c142df141603",
+      "symbol": "FET-USDT",
+      "direction": "short",
+      "entry_price": "0.1658",
+      "quantity": "20806.019429",
+      "stop_loss": "0.1668",
+      "take_profits": [
+        "0.16350260",
+        "0.16166468",
+        "0.16005650"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "20806.019429",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "0.1659",
+      "lowest_price": "0.1656",
+      "strategy": "symmetrical_triangle",
+      "opened_at": 1789033468091,
+      "notes": {
+        "score": 65.0,
+        "ml_probability": null,
+        "edge_pct": 144.7896,
+        "ev_r": 1.4478959050735398,
+        "ev_confidence": 0.09090909090909091,
+        "rr": 2.0000000000000133,
+        "leverage": 3
+      },
+      "fill_price": "0.1656342",
+      "entry_fee_per_unit": "0.00008281710",
+      "risk_distance": "0.0022974",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "5m",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
+      "bars_held": 1,
+      "leverage": "3",
+      "margin_used": "1149.879340442733333333333333"
+    }
+  ],
   "realized_pnl": "-1602.489786433396017255041727",
   "initial_capital": "36098.87"
 }
