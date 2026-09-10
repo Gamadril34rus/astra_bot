@@ -26,7 +26,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "230.38",
-      "lowest_price": "227.79",
+      "lowest_price": "227.50",
       "strategy": "momentum_v2",
       "opened_at": 1789046322105,
       "notes": {
@@ -44,7 +44,7 @@
       "regime": "STRONG_BEAR_TREND",
       "timeframe": "5m",
       "regime_axes": "T:STRONG/V:LOW/L:STRESSED",
-      "bars_held": 4,
+      "bars_held": 5,
       "leverage": "2",
       "margin_used": "1716.738353175"
     },
@@ -54,7 +54,7 @@
       "direction": "short",
       "entry_price": "0.2099",
       "quantity": "16357.678889",
-      "stop_loss": "0.2138297",
+      "stop_loss": "0.2133",
       "take_profits": [
         "0.20597030",
         "0.20282654",
@@ -73,8 +73,8 @@
       "initial_quantity": "16357.678889",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "0.2110",
+      "lowest_price": "0.2100",
       "strategy": "order_block",
       "opened_at": 1789047561529,
       "notes": {
@@ -92,7 +92,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
-      "bars_held": 0,
+      "bars_held": 1,
       "leverage": "1",
       "margin_used": "3433.4767988011"
     }
