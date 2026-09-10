@@ -910,7 +910,30 @@ class TradingEngine:
             pass
         return None
 
+    @staticmethod
+    def _build_ticker_map(ticker: Any) -> dict[str, float] | None:
+        """Тикер -> {last, open24h} для MarketSafety (резкое движение 24ч).
+
+        Бэклог аудита A4: клиент BingX возвращает реальный open24h
+        (adapters/bingx/client.py:654 ``"open_24h"`` <- openPrice из
+        swap/v2 quote/ticker), старый комментарий «без open24h» устарел.
+        Раньше open24h всегда оценивали серединой (hi+lo)/2: после пампа,
+        когда цена закрепилась у хая, hi≈lo≈last и сдвиг «исчезал» —
+        safety-проверка проваливалась мимо. Середина диапазона теперь
+        только fallback для адаптеров без поля (например, simulated.py).
+        """
+        if not ticker:
+            return None
+        last_f = float(ticker.get("last") or 0)
+        hi = float(ticker.get("high_24h") or 0)
+        lo = float(ticker.get("low_24h") or 0)
+        open24 = float(ticker.get("open_24h") or ticker.get("open24h") or 0)
+        if open24 <= 0:
+            open24 = (hi + lo) / 2 if hi and lo else 0.0
+        return {"last": last_f, "open24h": open24}
+
     async def process_symbol(self, symbol: str) -> list[Any]:
+
         # Риск-состояние (лимиты, HALT) живое между CI-сессиями:
         # восстанавливаем из персиста перед любым решением о входе.
         self._sync_risk_state()
@@ -1068,17 +1091,7 @@ class TradingEngine:
                 "bids_depth": bids_depth,
                 "asks_depth": asks_depth,
             }
-        ticker_map = None
-        if ticker:
-            # get_ticker возвращает high_24h/low_24h без open24h; для
-            # проверки резкого движения считаем open из last и диапазона.
-            last_f = float(ticker.get("last") or 0)
-            hi = float(ticker.get("high_24h") or 0)
-            lo = float(ticker.get("low_24h") or 0)
-            # Грубая оценка open24h как середины диапазона (нам важен лишь
-            # факт резкого движения > 8%, точность до долей процента не нужна).
-            open24 = (hi + lo) / 2 if hi and lo else 0.0
-            ticker_map = {"last": last_f, "open24h": open24}
+        ticker_map = self._build_ticker_map(ticker)
         verdict = self.safety.check(
             symbol,
             ticker=ticker_map,
