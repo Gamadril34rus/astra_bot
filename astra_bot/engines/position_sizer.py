@@ -103,17 +103,26 @@ def calculate_position_size(
         except Exception:
             pass
 
-    # Volatility adjustment (high vol -> smaller position)
+    # Volatility adjustment (high vol -> smaller position).
+    # Контракт единиц (бэклог A3): atr_pct — это ATR в % цены (1..7 —
+    # нормальный диапазон, см. TechnicalEngine), НИКАКОГО абсолютного ATR.
     if atr_pct is not None:
         try:
             atr = float(atr_pct)
-            # If ATR > 2%, reduce size
-            if atr > 2.0:
+            if atr > 20.0:
+                # Sanity-guard: >20% в % цен на этих рынках не бывает —
+                # почти наверняка запутаны единицы (абсолютный ATR).
+                # Пропускаем корректировку (fail-open к базовому размеру),
+                # никогда не жмём позицию из-за мусорного входа.
+                pass
+            elif atr > 5.0:
+                # Extreme vol -> 0.3x (сначала экстрим: раньше ветка
+                # была недостижима — atr>5 всегда проходил в atr>2).
+                size = size * Decimal("0.3")
+            elif atr > 2.0:
+                # If ATR > 2%, reduce size
                 vol_multiplier = max(0.3, 2.0 / atr)
                 size = size * Decimal(str(vol_multiplier))
-            elif atr > 5.0:
-                # Extreme vol -> 0.3x
-                size = size * Decimal("0.3")
         except Exception:
             pass
 

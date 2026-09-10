@@ -1153,9 +1153,13 @@ class TradingEngine:
         # Block 6.2: position sizing with ML confidence and volatility
         _atr_pct = None
         try:
-            # ATR from technical diagnostics if available
+            # ATR из технических диагностик. Контракт единиц (бэклог A3):
+            # ЕДИНЫЙ нормализованный atr_pct — ATR в % цены (так пишет
+            # TechnicalReport.to_dict, так ожидает position_sizer).
+            # Старый fallback tech.get("atr") убран: абсолютный ATR
+            # прочитался бы как проценты и ужал размер в 3+ раза.
             tech = decision.diagnostics.get("technical") or {}
-            _atr_pct = float(tech.get("atr_pct") or tech.get("atr") or 0) or None
+            _atr_pct = float(tech.get("atr_pct") or 0) or None
         except Exception:
             pass
         _ml_conf = None
