@@ -1,54 +1,6 @@
 {
   "positions": [
     {
-      "id": "c06f5ae4-b139-49e1-9004-d10718cf4d7b",
-      "symbol": "ADA-USDT",
-      "direction": "long",
-      "entry_price": "0.2135",
-      "quantity": "16229.181483",
-      "stop_loss": "0.20965",
-      "take_profits": [
-        "0.217350",
-        "0.220430",
-        "0.223125"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "16229.181483",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
-      "strategy": "head_shoulders",
-      "opened_at": 1789017199953,
-      "notes": {
-        "score": 39.0,
-        "ml_probability": null,
-        "edge_pct": 99.5426,
-        "ev_r": 0.9954258037045017,
-        "ev_confidence": 0.0,
-        "rr": 1.5999999999999999,
-        "leverage": 2
-      },
-      "fill_price": "0.2137135",
-      "entry_fee_per_unit": "0.00010685675",
-      "risk_distance": "0.00385",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "5m",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
-      "bars_held": 0,
-      "leverage": "2",
-      "margin_used": "1732.46512331025"
-    },
-    {
       "id": "d7665112-165e-4aad-8cb3-ad588bf198bc",
       "symbol": "ATOM-USDT",
       "direction": "long",
@@ -73,8 +25,8 @@
       "initial_quantity": "1886.189574",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "1.841",
+      "lowest_price": "1.837",
       "strategy": "diamond",
       "opened_at": 1789017214786,
       "notes": {
@@ -92,11 +44,11 @@
       "regime": "WEAK_BEAR_TREND",
       "timeframe": "5m",
       "regime_axes": "T:WEAK/V:LOW/L:STRESSED",
-      "bars_held": 0,
+      "bars_held": 1,
       "leverage": "1",
       "margin_used": "3464.930247438"
     }
   ],
-  "realized_pnl": "-1449.567532762075708299944568",
+  "realized_pnl": "-1466.447405065212740727897693",
   "initial_capital": "36098.87"
 }
