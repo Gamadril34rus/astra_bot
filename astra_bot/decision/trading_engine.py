@@ -602,6 +602,11 @@ class TradingEngine:
         try:
             from ..engines.position_sizer import calculate_position_size
             # Try to get strategy stats for Kelly
+            # COLD-START PRIOR (B9): пока у стратегии нет статистики
+            # (stats_store.get_any -> sample_size < 10), Kelly-сайзинг
+            # считает по этому фиксированному prior: win_rate 0.55,
+            # средний выигрыш 1.5R, средний проигрыш 1.0R. Значения и
+            # имена НЕ менять в рамках B9 — калибровка отдельной задачей.
             win_rate = 0.55
             avg_win = 1.5
             avg_loss = 1.0
