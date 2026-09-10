@@ -1,5 +1,54 @@
 {
-  "positions": [],
+  "positions": [
+    {
+      "id": "c0afce99-b18e-4947-9dd3-8582488fc9f0",
+      "symbol": "FET-USDT",
+      "direction": "short",
+      "entry_price": "0.1693",
+      "quantity": "20408.233074",
+      "stop_loss": "0.17026341336852724",
+      "take_profits": [
+        "0.168336586631472760",
+        "0.167565855936650968",
+        "0.166891466578681900"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "20408.233074",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "pennant",
+      "opened_at": 1789022641496,
+      "notes": {
+        "score": 65.0,
+        "ml_probability": null,
+        "edge_pct": 521.9182,
+        "ev_r": 5.219181605565935,
+        "ev_confidence": 0.0,
+        "rr": 5.9164634685457305,
+        "leverage": 3
+      },
+      "fill_price": "0.1691307",
+      "entry_fee_per_unit": "0.00008456535",
+      "risk_distance": "0.00096341336852724",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "5m",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
+      "bars_held": 0,
+      "leverage": "3",
+      "margin_used": "1151.7046198094"
+    }
+  ],
   "realized_pnl": "-1547.731405703516316732516322",
   "initial_capital": "36098.87"
 }
