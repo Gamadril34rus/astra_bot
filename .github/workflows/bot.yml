@@ -89,7 +89,8 @@ jobs:
                    models/oi_history.json \
                    models/no_trade_outcomes.json \
                    models/research/hypotheses.json \
-                   models/research/observations.jsonl; do
+                   models/research/observations.jsonl \
+                   models/halt_alerts.json; do
             [ -f "$f" ] && git add -f "$f" || true
           done
           git diff --cached --quiet || \
