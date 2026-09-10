@@ -1,5 +1,54 @@
 {
-  "positions": [],
+  "positions": [
+    {
+      "id": "13b202e5-be29-4282-95b3-55277d842825",
+      "symbol": "ARB-USDT",
+      "direction": "short",
+      "entry_price": "0.15016",
+      "quantity": "22989.039417",
+      "stop_loss": "0.15251048",
+      "take_profits": [
+        "0.147809520",
+        "0.145929136",
+        "0.144283800"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "22989.039417",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "pennant",
+      "opened_at": 1789023851427,
+      "notes": {
+        "score": 70.0,
+        "ml_probability": null,
+        "edge_pct": 207.9646,
+        "ev_r": 2.079645997695276,
+        "ev_confidence": 0.09090909090909091,
+        "rr": 2.7847123215297986,
+        "leverage": 3
+      },
+      "fill_price": "0.15000984",
+      "entry_fee_per_unit": "0.000075004920",
+      "risk_distance": "0.00235048",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "5m",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
+      "bars_held": 0,
+      "leverage": "3",
+      "margin_used": "1150.67805295224"
+    }
+  ],
   "realized_pnl": "-1578.528411953808518791266322",
   "initial_capital": "36098.87"
 }
