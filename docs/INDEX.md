@@ -17,8 +17,11 @@
 | `HYPOTHESIS_ENGINE.md` | Lifecycle гипотез (DISCOVERED…RETIRED), допуски к VALIDATED, live-деградация |
 | `RESEARCH_MEMORY.md` | Типизированная память: OBSERVATIONS/HYPOTHESES/STRATEGIES/LESSONS/MODELS |
 | `EXIT_RESEARCH.md` | 8 exit-стратегий, walk-forward исследование, применение только ACTIVE |
+| `EXIT_PLAN_MAP.md` | B8: карта всех решений по позициям (7 слоёв), дубли логики, проект Unified ExitPlan |
 | `MODEL_REGISTRY.md` | Версии моделей, promotion chain, A/B, stress, rollback |
 | `PERSISTENCE_AND_CI.md` | Rotation state, size gates, quality gates (TZ §28/29/35) |
+| `BACKTEST_VS_PAPER_SEMANTICS.md` | B10: семантика бара и издержки в бэктесте против live — что учитывать при сравнении |
+| `FUNDING_BACKTEST_VS_PAPER.md` | B11: фандинг в live и бэктесте — модели, замер влияния, решение |
 
 ## 2. Обучение и память
 
