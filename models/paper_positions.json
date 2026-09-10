@@ -1,54 +1,6 @@
 {
   "positions": [
     {
-      "id": "cd6cf558-df5d-4c5d-82bb-44a166bb137f",
-      "symbol": "NEAR-USDT",
-      "direction": "long",
-      "entry_price": "2.483",
-      "quantity": "697.2570945",
-      "stop_loss": "2.490480930012887658377069749",
-      "take_profits": [
-        "2.5079293222041850",
-        "2.5278727799675330",
-        "2.5453233055104625"
-      ],
-      "tp_filled": [
-        true,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "1394.514189",
-      "trailing_activated": true,
-      "trailing_distance": null,
-      "highest_price": "2.509",
-      "lowest_price": "2.478",
-      "strategy": "flag",
-      "opened_at": 1789018011594,
-      "notes": {
-        "score": 39.0,
-        "ml_probability": null,
-        "edge_pct": 276.9472,
-        "ev_r": 2.769472319146741,
-        "ev_confidence": 0.0,
-        "rr": 3.4096394319830594,
-        "leverage": 3
-      },
-      "fill_price": "2.485483",
-      "entry_fee_per_unit": "0.0012427415",
-      "risk_distance": "0.024929322204185",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "5m",
-      "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
-      "bars_held": 8,
-      "leverage": "3",
-      "margin_used": "1154.192910429"
-    },
-    {
       "id": "35040e46-8f43-4946-9111-c7ecc14b7989",
       "symbol": "ADA-USDT",
       "direction": "short",
@@ -73,7 +25,7 @@
       "initial_quantity": "16185.955187",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.2140",
+      "highest_price": "0.2142",
       "lowest_price": "0.2132",
       "strategy": "liquidity_sweep",
       "opened_at": 1789018694929,
@@ -92,7 +44,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
-      "bars_held": 5,
+      "bars_held": 7,
       "leverage": "1",
       "margin_used": "3463.794410018"
     },
@@ -102,7 +54,7 @@
       "direction": "long",
       "entry_price": "0.6274",
       "quantity": "5515.944799",
-      "stop_loss": "0.612680228855721",
+      "stop_loss": "0.6226714285714287",
       "take_profits": [
         "0.6421197711442790",
         "0.6538955880597022",
@@ -121,8 +73,8 @@
       "initial_quantity": "5515.944799",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "0.6286",
+      "lowest_price": "0.6266",
       "strategy": "flag",
       "opened_at": 1789019441931,
       "notes": {
@@ -140,7 +92,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
-      "bars_held": 0,
+      "bars_held": 1,
       "leverage": "3",
       "margin_used": "1153.567922297533333333333333"
     }
