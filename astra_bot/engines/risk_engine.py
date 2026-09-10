@@ -762,10 +762,15 @@ class RiskEngine:
                 reason=f"Max positions reached: {len(self._open_positions)}",
             )
 
-        # Проверка экспозиции
+        # Проверка экспозиции.
+        # Бэклог A2: в книге могут быть str-id (бэктестер: add_position
+        # (str(trade.id))) — raw p.quantity давал AttributeError
+        # 'str' object has no attribute 'quantity' на каждом втором
+        # sizing-вызове, и бэктест блокировал все входы при открытой
+        # позиции (ошибка глоталась в цикле как «Strategy error»).
+        # _position_notional: meta (если передана) или getattr, str -> 0.
         current_exposure = sum(
-            abs(p.quantity * p.entry_price)
-            for p in self._open_positions.values()
+            self._position_notional(p) for p in self._open_positions.values()
         )
         new_exposure = current_exposure + theoretical_size * entry_price
         max_exposure = self._current_equity * self.config.max_exposure_pct
