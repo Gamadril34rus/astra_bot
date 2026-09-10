@@ -1,5 +1,54 @@
 {
-  "positions": [],
+  "positions": [
+    {
+      "id": "99c4b47a-31a0-417f-b345-5904e5c21246",
+      "symbol": "APT-USDT",
+      "direction": "short",
+      "entry_price": "0.6476",
+      "quantity": "5302.25746600",
+      "stop_loss": "0.6605519999999999",
+      "take_profits": [
+        "0.63464800000000010",
+        "0.62428640000000018",
+        "0.61522000000000025"
+      ],
+      "tp_filled": [
+        false,
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.5,
+        0.3,
+        0.2
+      ],
+      "initial_quantity": "5302.25746600",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "mean_reversion_v2",
+      "opened_at": 1789072630412,
+      "notes": {
+        "score": 43.0,
+        "ml_probability": null,
+        "edge_pct": 14.7991,
+        "ev_r": 0.14799053433201434,
+        "ev_confidence": 0.09090909090909091,
+        "rr": 1.026482396541075,
+        "leverage": 1
+      },
+      "fill_price": "0.6469524",
+      "entry_fee_per_unit": "0.00032347620",
+      "risk_distance": "0.0129519999999999",
+      "regime": "WEAK_BULL_TREND",
+      "timeframe": "5m",
+      "regime_axes": "T:WEAK/V:LOW/L:DEEP",
+      "bars_held": 0,
+      "leverage": "1",
+      "margin_used": "3433.741934981600"
+    }
+  ],
   "realized_pnl": "-1761.450651755068431609249304",
   "initial_capital": "36098.87"
 }
