@@ -6,7 +6,7 @@
       "direction": "short",
       "entry_price": "0.0965",
       "quantity": "35696.484101",
-      "stop_loss": "0.09781571428571428",
+      "stop_loss": "0.09743428571428572",
       "take_profits": [
         "0.09393050",
         "0.09187490",
@@ -26,7 +26,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "0.09696",
-      "lowest_price": "0.09650",
+      "lowest_price": "0.09607",
       "strategy": "breakout",
       "opened_at": 1789044520908,
       "notes": {
@@ -44,59 +44,11 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:LOW/L:STRESSED",
-      "bars_held": 1,
+      "bars_held": 2,
       "leverage": "1",
       "margin_used": "3444.7107157465"
-    },
-    {
-      "id": "99606bf6-3348-4d33-9596-9c1a257059b2",
-      "symbol": "INJ-USDT",
-      "direction": "short",
-      "entry_price": "5.927",
-      "quantity": "581.189593",
-      "stop_loss": "6.0122857142857145",
-      "take_profits": [
-        "5.7412190",
-        "5.5925942",
-        "5.4625475"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "581.189593",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "5.975",
-      "lowest_price": "5.938",
-      "strategy": "breakout",
-      "opened_at": 1789044524113,
-      "notes": {
-        "score": 41.0,
-        "ml_probability": null,
-        "edge_pct": 41.7908,
-        "ev_r": 0.4179077816233071,
-        "ev_confidence": 0.0,
-        "rr": 0.9378140002232898,
-        "leverage": 1
-      },
-      "fill_price": "5.921073",
-      "entry_fee_per_unit": "0.0029605365",
-      "risk_distance": "0.185781",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "5m",
-      "regime_axes": "T:RANGE/V:LOW/L:STRESSED",
-      "bars_held": 1,
-      "leverage": "1",
-      "margin_used": "3444.710717711"
     }
   ],
-  "realized_pnl": "-1651.762842987037457533668883",
+  "realized_pnl": "-1700.507309783789037718668883",
   "initial_capital": "36098.87"
 }
