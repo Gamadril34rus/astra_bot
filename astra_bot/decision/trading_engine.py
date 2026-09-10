@@ -500,6 +500,22 @@ class TradingEngine:
         self._capital_synced = True
         return self.broker.initial_capital
 
+    def _sync_risk_equity(self) -> None:
+        """Синхронизировать капитал Risk Engine с NET-капиталом брокера.
+
+        Бэклог аудита A1 (H3): раньше риск-движок видел только realized
+        (initial + закрытые PnL), и плавающая просадка была ему невидима
+        до закрытия позиций — просадка/HWM/сайзинг запаздывали на весь
+        цикл удержания. Теперь equity риск-движка = ликвидационный
+        капитал (realized + плавающая по mark). set_capital — абсолютное
+        значение из брокера (источник правды), поэтому += pnl в
+        record_trade внутри шага не даёт двойного счёта.
+        """
+        try:
+            self.risk.set_capital(self.broker.net_equity, self.broker.initial_capital)
+        except Exception as exc:
+            logger.debug("risk equity sync failed: %s", exc)
+
     def _sync_risk_state(self) -> None:
         """Однократно за сессию восстановить риск-состояние из персиста.
 
@@ -521,9 +537,11 @@ class TradingEngine:
         except Exception as exc:
             logger.debug("Не прочитал paper_trades для risk-состояния: %s", exc)
         self.risk.restore_from_trades(trades, self.broker.initial_capital)
-        # Фактическая оценка брокера (initial + realized PnL) приоритетнее
-        # кривой из файла, если состояние было правлено вручную.
-        self.risk.set_capital(self.broker.equity, self.broker.initial_capital)
+        # Фактическая оценка брокера приоритетнее кривой из файла, если
+        # состояние было правлено вручную. Бэклог A1: риск-движку — NET
+        # ликвидационный капитал (realized + плавающая по mark), а не
+        # только realized: просадка/HWM видят рынок, а не только прошлое.
+        self._sync_risk_equity()
         for pos in self.broker.positions:
             # Meta для portfolio-лимитов (Этап 5): id-позиции без
             # номинала не видны в gross/net/группе — передаём явно.
@@ -535,9 +553,10 @@ class TradingEngine:
             )
         self._risk_synced = True
         logger.info(
-            "Risk state восстановлен: equity=%s, daily_pnl=%s, weekly_pnl=%s, "
-            "state=%s, trading_enabled=%s, open_positions=%d",
-            self.broker.equity, self.risk.daily_pnl, self.risk.weekly_pnl,
+            "Risk state восстановлен: equity=%s, net_equity=%s, daily_pnl=%s, "
+            "weekly_pnl=%s, state=%s, trading_enabled=%s, open_positions=%d",
+            self.broker.equity, self.broker.net_equity,
+            self.risk.daily_pnl, self.risk.weekly_pnl,
             self.risk.risk_state.value, self.risk.trading_enabled,
             len(self.broker.positions),
         )
@@ -1067,7 +1086,8 @@ class TradingEngine:
         total_notional = sum(
             float(p.entry_price) * float(p.quantity) for p in open_positions
         )
-        equity = float(self.broker.equity)
+        # Бэклог A1: экспозиция меряется от NET капитала (с плавающей).
+        equity = float(self.broker.net_equity)
         if equity > 0 and total_notional / equity >= float(
             self.config.max_total_exposure_pct
         ):
@@ -1167,8 +1187,11 @@ class TradingEngine:
             _ml_conf = float(cand.ml_probability) if cand.ml_probability is not None else float(cand.confidence) if cand.confidence else None
         except Exception:
             pass
+        # Бэклог A1: сайзинг и риск-движок видят NET ликвидационный
+        # капитал (mark по символу уже подтянут _sync_perps_state выше).
+        self._sync_risk_equity()
         size = self._position_size(
-            self.broker.equity,
+            self.broker.net_equity,
             cand.entry_price,
             cand.stop_loss,
             ml_confidence=_ml_conf,
