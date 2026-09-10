@@ -424,6 +424,8 @@ class TradingEngine:
         self._running = False
         self._capital_synced = False
         self._risk_synced = False
+        # Бэклог A6: кэш Instrument (tick/step/min_notional) по символам.
+        self._instruments_cache: dict[str, Any] = {}
         self._minute_bucket: int | None = None
 
     def _make_broker(self, initial_capital: Decimal | None = None) -> PaperBroker:
@@ -951,6 +953,69 @@ class TradingEngine:
             open24 = (hi + lo) / 2 if hi and lo else 0.0
         return {"last": last_f, "open24h": open24}
 
+    async def _get_instrument(self, symbol: str) -> Any:
+        """Instrument (tick/step/min_notional) с биржи, с кэшем (A6).
+
+        Нет данных (адаптер не отдаёт / ошибка сети) — None: валидация
+        ограничений пропускается, вход НЕ блокируется (fail-open: в live
+        ордер отклонит сама биржа, в paper ограничений нет).
+        """
+        if symbol in self._instruments_cache:
+            return self._instruments_cache[symbol]
+        inst = None
+        try:
+            inst = await self.exchange.get_instrument(symbol)
+        except Exception as exc:
+            logger.debug("instrument %s недоступен: %s", symbol, exc)
+            inst = None
+        self._instruments_cache[symbol] = inst
+        return inst
+
+    async def _apply_instrument_constraints(
+        self, symbol: str, entry_price: Decimal, size: Decimal
+    ) -> Decimal | None:
+        """Бэклог A6: сечение размера по ограничениям инструмента.
+
+        step_size — размер округляется ВНИЗ до шага (риск никогда не
+        увеличивается); min_quantity / min_notional — не укладываемся,
+        вход отклоняем (None); tick_size — офф-тик входной цены лишь
+        логируется (paper исполняет по заданной цене, в live биржа
+        отклонит — отдельный предмет live-контура).
+        Без данных инструмента — size как есть (fail-open).
+        """
+        inst = await self._get_instrument(symbol)
+        if inst is None:
+            return size
+        try:
+            step = Decimal(str(getattr(inst, "step_size", "") or 0))
+            if step and step > 0:
+                size = (size // step) * step
+            min_qty = Decimal(str(getattr(inst, "min_quantity", "") or 0))
+            if min_qty and size < min_qty:
+                logger.info(
+                    "%s: size %s < min_quantity %s — вход пропущен (A6)",
+                    symbol, size, min_qty,
+                )
+                return None
+            min_notional = Decimal(str(getattr(inst, "min_notional", "") or 0))
+            if min_notional and size * entry_price < min_notional:
+                logger.info(
+                    "%s: notional %s < min_notional %s — вход пропущен (A6)",
+                    symbol, size * entry_price, min_notional,
+                )
+                return None
+            tick = Decimal(str(getattr(inst, "tick_size", "") or 0))
+            if tick and tick > 0:
+                if abs(entry_price - (entry_price // tick) * tick) > 0:
+                    logger.debug(
+                        "%s: входная цена %s не на тике %s (A6)",
+                        symbol, entry_price, tick,
+                    )
+        except Exception as exc:
+            logger.debug("instrument constraints %s: %s", symbol, exc)
+            return size
+        return size
+
     async def process_symbol(self, symbol: str) -> list[Any]:
 
         # Риск-состояние (лимиты, HALT) живое между CI-сессиями:
@@ -1200,6 +1265,14 @@ class TradingEngine:
         )
         if size <= 0:
             logger.info("%s: size=0, пропускаю", symbol)
+            return closed
+        # Бэклог A6: биржевые ограничения инструмента (step/min_qty/
+        # min_notional/tick) — до открытия, в paper broker их нет.
+        size = await self._apply_instrument_constraints(
+            symbol, cand.entry_price, size
+        )
+        if size is None or size <= 0:
+            logger.info("%s: size=0 (инструмент), пропускаю", symbol)
             return closed
 
         # ---- Risk Engine: независимый слой защиты (master prompt §11).
