@@ -334,7 +334,13 @@ class BacktestEngine:
         self._equity_curve = []
 
     def _process_tick(self):
-        """Обработать один тик (свечу)"""
+        """Обработать один тик (свечу).
+
+        Семантика: исторический «текущий» бар здесь уже ЗАКРЫТ (стратегия
+        видит его OHLC, вход по его close). Отличие от live-семантики
+        (A5: входы по закрытым барам, исполнение по живой цене) — см.
+        docs/BACKTEST_VS_PAPER_SEMANTICS.md (бэклог B10).
+        """
         candle = self._candles[self._current_idx]
         timestamp = candle["open_time"]
         current_price = Decimal(str(candle["close"]))
