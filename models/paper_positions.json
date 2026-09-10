@@ -44,59 +44,11 @@
       "regime": "STRONG_BEAR_TREND",
       "timeframe": "5m",
       "regime_axes": "T:STRONG/V:LOW/L:STRESSED",
-      "bars_held": 32,
+      "bars_held": 33,
       "leverage": "2",
       "margin_used": "1716.738353175"
-    },
-    {
-      "id": "5ca7575a-bf47-4079-8cfe-4bc88a760feb",
-      "symbol": "ADA-USDT",
-      "direction": "short",
-      "entry_price": "0.2106",
-      "quantity": "16293.440716",
-      "stop_loss": "0.2099703260745438968827274674",
-      "take_profits": [
-        "0.208568200000000020",
-        "0.206942760000000036",
-        "0.205520500000000050"
-      ],
-      "tp_filled": [
-        false,
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.5,
-        0.3,
-        0.2
-      ],
-      "initial_quantity": "16293.440716",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "0.2115",
-      "lowest_price": "0.2089",
-      "strategy": "order_block",
-      "opened_at": 1789052533000,
-      "notes": {
-        "score": 40.0,
-        "ml_probability": null,
-        "edge_pct": 11.6663,
-        "ev_r": 0.11666269229819383,
-        "ev_confidence": 0.09090909090909091,
-        "rr": 1.500000000000005,
-        "leverage": 1
-      },
-      "fill_price": "0.2103894",
-      "entry_fee_per_unit": "0.00010519470",
-      "risk_distance": "0.00203179999999998",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "5m",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
-      "bars_held": 7,
-      "leverage": "1",
-      "margin_used": "3431.3986147896"
     }
   ],
-  "realized_pnl": "-1784.883851164736736752353604",
+  "realized_pnl": "-1784.880815985430748638978604",
   "initial_capital": "36098.87"
 }
