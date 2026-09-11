@@ -97,6 +97,9 @@ def run_engine(strategy: BaseStrategy, candles: list[dict]) -> BacktestEngine:
         initial_capital=Decimal("1000"),
         max_open_positions=1,
         risk_config={"risk_per_trade": "0.004"},
+        # Тесты механики УРОВНЕЙ (стоп/тейк на цене уровня) — план выхода
+        # (стоп-правила B8) выключен, он покрыт тестами exit_plan.
+        exit_plan_enabled=False,
     )
     engine = BacktestEngine(config)
     engine.add_strategy(strategy.name, strategy)
