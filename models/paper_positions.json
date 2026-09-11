@@ -19,7 +19,7 @@
       "initial_quantity": "0.04418200",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "77985.9",
+      "highest_price": "78030.0",
       "lowest_price": "77629.9",
       "strategy": "volatility_breakout",
       "opened_at": 1789142296934,
@@ -38,12 +38,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 1,
+      "bars_held": 2,
       "leverage": "2",
       "margin_used": "1716.634173400",
       "plan_variant": "STATIC_TP",
       "plan_take": "74964.75560",
-      "plan_last_bar_ts": 1789142100000
+      "plan_last_bar_ts": 1789142400000
     },
     {
       "id": "fce3c210-0136-4c93-a84f-23e31ac5d8c3",
@@ -64,7 +64,7 @@
       "initial_quantity": "1.33895900",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "2573.66",
+      "highest_price": "2576.61",
       "lowest_price": "2556.31",
       "strategy": "volatility_breakout",
       "opened_at": 1789142298438,
@@ -83,12 +83,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
-      "bars_held": 1,
+      "bars_held": 2,
       "leverage": "2",
       "margin_used": "1715.6617250600",
       "plan_variant": "STATIC_TP",
       "plan_take": "2440.463920",
-      "plan_last_bar_ts": 1789142100000
+      "plan_last_bar_ts": 1789142400000
     }
   ],
   "realized_pnl": "-1782.208133731200670681632168",
