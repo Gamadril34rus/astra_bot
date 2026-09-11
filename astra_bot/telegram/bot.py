@@ -48,6 +48,7 @@ from ..core.state import get_system_state
 from ..core.training_state import get_training_state
 from ..engines.risk_engine import get_risk_engine
 from ..paperengine.paper_engine import get_paper_engine
+from .rate_limit import TelegramRateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -235,6 +236,8 @@ class AstraTelegramBot:
         # Ссылка на приложение AstraBot (main.py), если подключена —
         # используется для запуска multi-timeframe обучения как в CI.
         self.bot_app: Any = None
+
+        self._rate_limiter = TelegramRateLimiter()
 
         # Текущая фоновая задача обучения (для /стоп).
         self._train_task: asyncio.Task | None = None
@@ -471,6 +474,9 @@ class AstraTelegramBot:
 
     async def _send(self, chat_id: int, text: str) -> None:
         if not self._bot:
+            return
+        if not self._rate_limiter.allow():
+            logger.warning("Telegram rate-limit: drop send to %s", chat_id)
             return
         try:
             await self._bot.send_message(
@@ -1176,6 +1182,10 @@ class AstraTelegramBot:
             "error": "❌",
             "critical": "🚨",
         }.get(severity, "📢")
+        critical = is_critical
+        if not self._rate_limiter.allow(critical=critical):
+            logger.warning("Telegram rate-limit: drop alert severity=%s", severity)
+            return
         for admin_id in self.admin_user_ids:
             try:
                 await self._bot.send_message(

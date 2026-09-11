@@ -341,17 +341,18 @@ class TradingEngine:
         # Стратегии и ML не имеют права его обойти. Лимиты согласованы
         # с торговым конфигом, чтобы sizing не конфликтовал с чекером.
         # Block 6.1: Risk Management per spec — 1% risk, 3% daily loss, 10% max DD, max 3 positions
-        self.risk = risk_engine or RiskEngine(
-            RiskConfig(
-                risk_per_trade=Decimal(self.config.risk_per_trade_pct),
-                daily_loss_limit=Decimal("0.03"),  # 3% per spec
-                weekly_loss_limit=Decimal("0.06"),
-                max_open_positions=self.config.max_open_positions,
-                max_exposure_pct=Decimal(self.config.max_total_exposure_pct),
-                max_gross_exposure_pct=Decimal(self.config.max_total_exposure_pct),
-                max_net_exposure_pct=Decimal(self.config.max_total_exposure_pct),
-            )
+        # Единый RiskConfig (core.config): paper_runtime — явный override
+        # поверх YAML/ENV. Числа paper-контура не меняются.
+        _risk_cfg = RiskConfig.paper_runtime(
+            risk_per_trade=Decimal(self.config.risk_per_trade_pct),
+            max_open_positions=self.config.max_open_positions,
+            max_exposure_pct=Decimal(self.config.max_total_exposure_pct),
+            daily_loss_limit=Decimal("0.03"),  # 3% per spec
+            weekly_loss_limit=Decimal("0.06"),
         )
+        _risk_cfg.max_gross_exposure_pct = Decimal(self.config.max_total_exposure_pct)
+        _risk_cfg.max_net_exposure_pct = Decimal(self.config.max_total_exposure_pct)
+        self.risk = risk_engine or RiskEngine(_risk_cfg)
         # StateStore (Этап 3): единый атомарный checkpoint состояния.
         # Компонентные файлы остаются source of truth; бандл — для
         # crash-восстановления (например, утерянный paper_positions.json).

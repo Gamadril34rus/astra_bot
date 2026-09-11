@@ -3,7 +3,7 @@
 ## 1. Что нужно установить
 
 ### Windows
-1. **Python 3.11** — скачайте с https://www.python.org/downloads/
+1. **Python 3.12** — скачайте с https://www.python.org/downloads/
    При установке поставьте галочку **"Add Python to PATH"**.
 2. **Git for Windows** — https://git-scm.com/download/win
 3. Откройте **PowerShell** или **cmd**.
@@ -12,14 +12,14 @@
 ```bash
 # Установите Homebrew (если нет)
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-# Python 3.11
-brew install python@3.11 git
+# Python 3.12
+brew install python@3.12 git
 ```
 
 ### Linux (Ubuntu/Debian)
 ```bash
 sudo apt update
-sudo apt install -y python3.11 python3.11-venv python3-pip git
+sudo apt install -y python3.12 python3.12-venv python3-pip git
 ```
 
 ## 2. Скачать проект
@@ -45,7 +45,7 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 
 ### macOS / Linux
 ```bash
-python3.11 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 ```
 

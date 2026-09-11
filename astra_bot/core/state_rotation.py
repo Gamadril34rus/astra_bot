@@ -24,6 +24,7 @@ LIVE_JSONL_LIMITS: dict[str, int] = {
     "live_lessons.jsonl": 10_000,
     "lessons.jsonl": 10_000,
     "paper_trades.jsonl": 10_000,
+    "paper_ledger.jsonl": 20_000,
     "research_observations.jsonl": 20_000,
     "research/observations.jsonl": 10_000,
 }

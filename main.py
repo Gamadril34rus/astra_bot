@@ -15,9 +15,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from astra_bot.core.api_auth import ApiKeyMiddleware
 from astra_bot.core.config import get_settings
 from astra_bot.core.logger import get_component_logger, setup_logging
 from astra_bot.core.metrics import SYSTEM_ERRORS, render_metrics
+from astra_bot.core.request_context import set_request_id
 from astra_bot.main import AstraBot
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
@@ -106,6 +108,7 @@ async def _init_telegram(bot) -> None:
 
 # FastAPI приложение
 app = FastAPI(title="ASTRA BOT", version="1.0.0", lifespan=lifespan)
+app.add_middleware(ApiKeyMiddleware)
 
 
 @app.exception_handler(Exception)
@@ -190,6 +193,7 @@ async def status():
 async def add_request_id(request, call_next):
     """Пробросить/сгенерировать X-Request-Id для трассировки в логах."""
     request_id = request.headers.get("X-Request-Id") or os.urandom(8).hex()
+    set_request_id(request_id)
     response = await call_next(request)
     response.headers["X-Request-Id"] = request_id
     return response

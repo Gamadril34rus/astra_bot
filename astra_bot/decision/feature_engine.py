@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..core import models
+from ..core.feature_schema import FEATURE_SCHEMA_VERSION
 from . import indicators as ind
 from .config import DecisionConfig
 from .context import MarketContext
@@ -58,12 +59,15 @@ class Features:
 
     # Price
     price: float = 0.0
+    schema_version: str = FEATURE_SCHEMA_VERSION
     raw: dict[str, Any] = field(default_factory=dict)
 
     def as_ml_dict(self) -> dict[str, float | int | str]:
         out: dict[str, float | int | str] = {}
         for k, v in self.__dict__.items():
-            if k in {"raw", "htf_trend", "mtf_regime", "ltf_structure", "btc_regime"}:
+            if k in {"raw", "schema_version"}:
+                continue
+            if k in {"htf_trend", "mtf_regime", "ltf_structure", "btc_regime"}:
                 out[k] = v if isinstance(v, str) else 0.0
                 continue
             if v is None:

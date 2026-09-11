@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 
 from ..core import models
+from ..core.feature_schema import FEATURE_SCHEMA_VERSION, check_feature_schema
 
 # ML-зависимости опциональны: подтягиваются лениво, чтобы бот запускался без
 # установленного scikit-learn/lightgbm (например, в минимальном прод-образе).
@@ -27,9 +28,8 @@ try:
         roc_auc_score,
     )
     from sklearn.model_selection import (
-        StratifiedKFold,
+        TimeSeriesSplit,
         cross_val_score,
-        train_test_split,
     )
     from sklearn.preprocessing import StandardScaler
 
@@ -43,7 +43,7 @@ except ImportError:  # pragma: no cover - зависимости опциона�
             "Install with `pip install scikit-learn`."
         )
 
-    train_test_split = cross_val_score = StratifiedKFold = _missing_sklearn
+    cross_val_score = TimeSeriesSplit = _missing_sklearn
     accuracy_score = precision_score = recall_score = f1_score = _missing_sklearn
     roc_auc_score = classification_report = confusion_matrix = _missing_sklearn
     StandardScaler = _missing_sklearn
@@ -144,14 +144,21 @@ class TrainingData:
         self,
         test_size: float = 0.2,
         random_state: int = 42,
+        chronological: bool = True,
     ) -> tuple["TrainingData", "TrainingData"]:
-        """Разделить на train/test"""
-        X_train, X_test, y_train, y_test = train_test_split(
-            self.features,
-            self.labels,
-            test_size=test_size,
-            random_state=random_state,
-            stratify=self.labels,
+        """Разделить на train/test.
+
+        По умолчанию — хронологический сплит (TZ P1.7): тест = последние
+        ``test_size`` строк. Shuffle запрещён для финансовых рядов.
+        """
+        from ..core.ml_validation import chronological_split
+
+        del random_state  # kept for call-site compatibility
+        if not chronological:
+            raise ValueError("non-chronological split is forbidden for financial ML")
+        split = chronological_split(self.features, self.labels, test_size=test_size)
+        X_train, X_test, y_train, y_test = (
+            split.X_train, split.X_test, split.y_train, split.y_test
         )
 
         train_data = TrainingData(
@@ -215,6 +222,7 @@ class MLModel:
         # Версия обучения (заполняется при save()).
         self.version: str = ""
         self.saved_at: str = ""
+        self.feature_schema_version: str = ""
 
     def predict(self, features: np.ndarray) -> np.ndarray:
         """Предсказать"""
@@ -277,6 +285,8 @@ class MLModel:
             "is_fitted": self.is_fitted,
             "version": version,
             "saved_at": saved_at,
+            "feature_schema_version": self.feature_schema_version
+            or FEATURE_SCHEMA_VERSION,
         }
         with open(path, "wb") as f:
             pickle.dump(model_data, f)
@@ -299,6 +309,9 @@ class MLModel:
         model.is_fitted = model_data.get("is_fitted", False)
         model.version = model_data.get("version", "")
         model.saved_at = model_data.get("saved_at", "")
+        model.feature_schema_version = model_data.get("feature_schema_version", "")
+        if model.feature_schema_version:
+            check_feature_schema(None, model.feature_schema_version)
 
         logger.info("Model loaded from %s (version=%s)", path, model.version)
         return model
@@ -534,11 +547,7 @@ class ModelTrainer:
 
         # Cross-validation
         try:
-            cv = StratifiedKFold(
-                n_splits=self.config.cv_folds,
-                shuffle=True,
-                random_state=self.config.random_state,
-            )
+            cv = TimeSeriesSplit(n_splits=self.config.cv_folds)
             cv_scores = cross_val_score(
                 model,
                 train_data.features,
@@ -560,11 +569,7 @@ class ModelTrainer:
         """Cross-validation"""
         model = self._create_model(model_type or self.config.model_type)
 
-        cv = StratifiedKFold(
-            n_splits=self.config.cv_folds,
-            shuffle=True,
-            random_state=self.config.random_state,
-        )
+        cv = TimeSeriesSplit(n_splits=self.config.cv_folds)
 
         scores = cross_val_score(
             model,

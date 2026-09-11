@@ -11,6 +11,7 @@ from enum import Enum
 
 from ..adapters.base import Instrument
 from ..core import events, models
+from ..core.config import RiskConfig
 from ..core.metrics import (
     DRAWDOWN_PCT,
     EQUITY,
@@ -28,66 +29,6 @@ class RiskDecision(Enum):
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
     REDUCED = "REDUCED"
-
-
-@dataclass
-class RiskConfig:
-    """Конфигурация риска"""
-    # Риск на сделку
-    risk_per_trade: Decimal = Decimal("0.004")  # 0.4% (default, overridden to 1% in TradingEngine for Block 6.1)
-
-    # Дневные лимиты
-    daily_loss_limit: Decimal = Decimal("0.02")  # 2% (default, 3% in TradingEngine)
-    weekly_loss_limit: Decimal = Decimal("0.04")  # 4%
-
-    # Просадки
-    soft_drawdown: Decimal = Decimal("0.05")  # 5%
-    hard_drawdown: Decimal = Decimal("0.08")  # 8%
-    emergency_drawdown: Decimal = Decimal("0.10")  # 10%
-
-    # Экспозиция
-    max_exposure_pct: Decimal = Decimal("0.30")  # 30%
-    max_open_positions: int = 5
-
-    # Portfolio-экспозиция (Этап 5): gross / net / корреляционная группа.
-    # None = max_exposure_pct, т.е. по умолчанию поведение НЕ меняется;
-    # конфиг может только УЖЕСТОЧАТЬ (survival > returns).
-    max_gross_exposure_pct: Decimal | None = None
-    max_net_exposure_pct: Decimal | None = None
-    max_group_exposure_pct: Decimal | None = None
-    # Группы корреляции: символ → группа. Пусто = одна группа «crypto»
-    # (все крипто-пары в крахе коррелируют с BTC ≈ 1).
-    correlation_groups: dict[str, str] = field(default_factory=dict)
-    default_correlation_group: str = "crypto"
-
-    # Волатильность
-    high_volatility_multiplier: Decimal = Decimal("0.5")
-    extreme_volatility_threshold: Decimal = Decimal("0.15")
-    volatility_lookback: int = 20
-
-    # Корреляция
-    correlation_limit: Decimal = Decimal("0.7")
-
-    # Бета к BTC (Этап 5): размер позиции делится на max(1, beta) —
-    # только уменьшает, никогда не увеличивает. BTC = 1.0 (основной
-    # бенчмарк), альты — выше (скачистее). Unknown-символ → default_beta.
-    default_beta: Decimal = Decimal("1.5")
-    betas: dict[str, Decimal] = field(default_factory=lambda: {
-        "BTC": Decimal("1.0"),
-        "ETH": Decimal("1.4"),
-        "SOL": Decimal("1.8"),
-        "XRP": Decimal("1.3"),
-        "DOGE": Decimal("1.8"),
-        "TON": Decimal("1.5"),
-    })
-
-    # Инкременты риска по просадке
-    drawdown_adaptation: list[dict] = field(default_factory=lambda: [
-        {"drawdown": Decimal("0"), "risk_multiplier": Decimal("1.0")},
-        {"drawdown": Decimal("0.03"), "risk_multiplier": Decimal("0.75")},
-        {"drawdown": Decimal("0.05"), "risk_multiplier": Decimal("0.5")},
-        {"drawdown": Decimal("0.08"), "risk_multiplier": Decimal("0.0")},
-    ])
 
 
 @dataclass
