@@ -627,6 +627,7 @@ class BacktestEngine:
         расчёта правил — окно структурного стопа и ATR заканчиваются
         ПРЕДЫДУЩЕЙ свечой (без lookahead). Только подтягивание.
         """
+        from ..decision.exit_controller import _atr as _plan_atr
         from ..decision.exit_plan import (
             ExitPlanParams,
             apply_tighter,
@@ -634,7 +635,6 @@ class BacktestEngine:
             structural_tighten,
             trailing_target,
         )
-        from ..decision.exit_controller import _atr as _plan_atr
 
         p = ExitPlanParams()
         if idx < 1:
@@ -690,8 +690,8 @@ class BacktestEngine:
         только гипотезные (в бэктесте гипотез нет), REGIME_EXIT — нет
         режимного движка (задокументировано, docs/EXIT_PLAN_MAP.md §6).
         """
-        from ..decision.exit_plan import ExitPlanParams, LEVERAGE_TRIGGER_SCALE
         from ..decision.exit_manager import tr_series
+        from ..decision.exit_plan import ExitPlanParams
 
         p = ExitPlanParams()
         close = Decimal(str(candle["close"]))
