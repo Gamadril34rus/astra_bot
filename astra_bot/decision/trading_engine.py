@@ -404,6 +404,16 @@ class TradingEngine:
         self.exit_controller = ExitController(
             self.hypotheses, smart_default=self.config.smart_exit_default
         )
+        # B8 этап 2: единый исполнитель плана выхода (docs/EXIT_PLAN_MAP.md).
+        # Правила — в exit_plan.py (общие с бэктестером); параметры
+        # safety — из exit_manager.config; гипотезы/смарт-флаг — из
+        # exit_controller (совместимость с прежними слоями).
+        from .exit_plan import ExitPlanEngine
+
+        self.plan_engine = ExitPlanEngine(
+            exit_controller=self.exit_controller,
+            exit_manager=self.exit_manager,
+        )
         # Model Registry (TZ §18): живому пайплайну отдаём только
         # ACTIVE (production) модель; без неё пайплайн работает как
         # раньше (ml_probability = None). Сбой загрузки не роняет бота.
@@ -602,6 +612,11 @@ class TradingEngine:
         try:
             from ..engines.position_sizer import calculate_position_size
             # Try to get strategy stats for Kelly
+            # COLD-START PRIOR (B9): пока у стратегии нет статистики
+            # (stats_store.get_any -> sample_size < 10), Kelly-сайзинг
+            # считает по этому фиксированному prior: win_rate 0.55,
+            # средний выигрыш 1.5R, средний проигрыш 1.0R. Значения и
+            # имена НЕ менять в рамках B9 — калибровка отдельной задачей.
             win_rate = 0.55
             avg_win = 1.5
             avg_loss = 1.0
@@ -1059,17 +1074,22 @@ class TradingEngine:
             (decision.diagnostics.get("regime") or {}).get("regime", "")
         )
 
-        # Exit Research (TZ §16/§17): активная гипотеза выхода -> план;
-        # иначе STATIC_TP — live-поведение не меняется.
-        forced: list = []
+        # B8 этап 2 (решения владельца 11.09): единый план выходов.
+        # Иерархия: жёсткий стоп и тейк СТАРШЕ плана — поэтому STOP-правила
+        # плана (D1-структурный по закрытым барам + БУ + трейлинг; только
+        # подтягивание) применяются ДО проверки уровней (TZ §16), а
+        # FORCED-правила плана — ПОСЛЕ стопов/тейков и ликвидаций.
+        # Ликвидация в paper остаётся после стопов по mark price (не менялось).
         try:
-            forced = self.exit_controller.apply(
-                self.broker, symbol, last_bar, list(primary), regime_name
+            self.plan_engine.adjust_stops(
+                self.broker, symbol,
+                [p for p in self.broker.positions if p.symbol == symbol],
+                ctx.candles, list(primary), last_bar,
             )
         except Exception as exc:
-            logger.debug("exit_controller: %s", exc)
+            logger.debug("plan adjust_stops: %s", exc)
 
-        closed = forced + self.broker.check_exits(last_bar)
+        closed = self.broker.check_exits(last_bar)
 
         # Перпы: живые mark/фандинг в брокер + ликвидации по mark price.
         # Стопы/тейки уже проверены выше — они срабатывают раньше ликвидации.
@@ -1080,17 +1100,17 @@ class TradingEngine:
         except Exception as exc:
             logger.debug("liquidation check %s: %s", symbol, exc)
 
-        # Exit Manager (Этап 4): обязательные safety-выходы поверх
-        # контроллера — MAX_HOLD / VOL_EXPANSION (не зависят от гипотезы
-        # выхода, а только от состояния позиции и рынка).
+        # FORCED-правила плана (MAE_CUT/TIME_STOP/MOMENTUM_EXIT/REGIME_EXIT
+        # + safety MAX_HOLD/VOL_EXPANSION) — по живой цене, для переживших
+        # уровни позиций.
         try:
-            open_pos = [p for p in self.broker.positions if p.symbol == symbol]
-            if open_pos:
-                closed = closed + self.exit_manager.check_symbol(
-                    open_pos, ctx.candles, float(ctx.current_price)
-                )
+            closed = closed + self.plan_engine.forced_closes(
+                self.broker, symbol,
+                [p for p in self.broker.positions if p.symbol == symbol],
+                ctx.candles, last_bar.close, ctx.current_price, regime_name,
+            )
         except Exception as exc:
-            logger.debug("ExitManager.check_symbol: %s", exc)
+            logger.debug("plan forced_closes: %s", exc)
 
         # Закрытые на этом баре сделки → реальные уроки + уведомления.
         if closed:
@@ -1308,15 +1328,31 @@ class TradingEngine:
                     symbol, float(cand.confidence or 0.0), ev_r, leverage,
                 )
         try:
+            # B8 этап 2: ОДИН тейк плана (решение владельца — зона 2-2.3R
+            # стопа). Уровень считает exit_plan.clamp_take_rr; брокер
+            # только исполняет уровень (take_levels).
+            _dir = "long" if cand.direction == "long" else "short"
+            _plan_take = None
+            _take_levels = None
+            if not bool(cand_features.get("no_take_profit")) and cand.take_profit:
+                from .exit_plan import clamp_take_rr, smart_params
+
+                _sp = smart_params()
+                _plan_take = clamp_take_rr(
+                    cand.entry_price, cand.stop_loss, cand.take_profit,
+                    _dir, _sp.take_rr_min, _sp.take_rr_max,
+                )
+                _take_levels = [_plan_take]
             pos = self.broker.open_position(
                 symbol=symbol,
-                direction="long" if cand.direction == "long" else "short",
+                direction=_dir,
                 entry_price=cand.entry_price,
                 stop_loss=cand.stop_loss,
                 take_profit=cand.take_profit,
                 quantity=size,
                 strategy=cand.strategy,
                 no_take_profit=bool(cand_features.get("no_take_profit")),
+                take_levels=_take_levels,
                 regime=str(regime_info.get("regime", "")),
                 timeframe=cand.timeframe,
                 # A2 (МТЗ §10): композитный ключ осей Regime 2.0 — прокидывается
@@ -1333,6 +1369,14 @@ class TradingEngine:
                     "leverage": leverage,
                 },
             )
+            # B8 этап 2: план выбирается НА ВХОДЕ и закрепляется за
+            # позицией (аудит: какой план был активен при открытии).
+            try:
+                pos.plan_variant = self.plan_engine._plan(pos, str(regime_info.get("regime", "")))[0]
+                pos.plan_take = _plan_take
+                self.broker.save()
+            except Exception as exc:
+                logger.debug("plan attach: %s", exc)
         except ValueError as exc:
             # Маржа/ликвидация не позволили плечо — сделка отменяется
             # целиком (fail-closed), а не «как-нибудь без плеча».

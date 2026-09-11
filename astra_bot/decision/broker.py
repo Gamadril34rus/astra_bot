@@ -89,6 +89,15 @@ class PaperPosition:
     # но всё равно фьючерсная: фандинг и комиссии перпов применяются).
     leverage: Decimal = Decimal("1")
     margin_used: Decimal = Decimal("0")
+    # --- B8 этап 2: план выхода (docs/EXIT_PLAN_MAP.md) ---
+    # Вариант плана, закреплённый НА ВХОДЕ (гипотеза или SMART_DEFAULT).
+    plan_variant: str = "SMART_DEFAULT"
+    # Единственный уровень тейка плана (решение владельца: один тейк
+    # в зоне 2-2.3R); None = позиция без тейка (флип-стратегии).
+    plan_take: Decimal | None = None
+    # open_time последнего обработанного ЗАКРЫТОГО бара ТФ позиции
+    # (для D1: структурный стоп пересчитывается раз на закрытый бар).
+    plan_last_bar_ts: int = 0
 
 
 @dataclass
@@ -222,6 +231,9 @@ class PaperBroker:
                 # Плечо: поля могли отсутствовать в старых файлах.
                 pos.leverage = Decimal(str(getattr(pos, "leverage", 1) or 1))
                 pos.margin_used = Decimal(str(getattr(pos, "margin_used", 0) or 0))
+                # B8 этап 2: миграция плана для старых файлов.
+                pt = getattr(pos, "plan_take", None)
+                pos.plan_take = Decimal(str(pt)) if pt is not None else None
                 # FIX: migrate risk_distance=0 (old files) -> 1% of entry
                 try:
                     rd = Decimal(str(getattr(pos, 'risk_distance', 0) or 0))
@@ -266,6 +278,9 @@ class PaperBroker:
                     "margin_used": str(p.margin_used),
                     "regime": p.regime,
                     "timeframe": p.timeframe,
+                    "plan_variant": p.plan_variant,
+                    "plan_take": str(p.plan_take) if p.plan_take is not None else None,
+                    "plan_last_bar_ts": int(p.plan_last_bar_ts or 0),
                 }
                 for p in self.positions
             ],
@@ -357,6 +372,7 @@ class PaperBroker:
         timeframe: str = "",
         regime_axes: str = "",
         leverage: int | Decimal = 1,
+        take_levels: list[Decimal] | None = None,
     ) -> PaperPosition:
         # Аудит эпохи-2 (блок F): fail-closed валидация стороны стопа/тейка.
         # Перевёрнутая сделка (как momentum-SHORT до блока E) отклоняется
@@ -383,6 +399,10 @@ class PaperBroker:
         # не нужны, иначе частичные выходы искажают проверенное правило.
         if no_take_profit:
             tps: list[Decimal] = []
+        elif take_levels is not None:
+            # B8 этап 2: уровни задаёт план выхода (единый исполнитель),
+            # брокер только исполняет. Пустой список = без тейка.
+            tps = list(take_levels)
         else:
             risk = abs(entry_price - stop_loss)
             if direction == "long":
@@ -435,6 +455,9 @@ class PaperBroker:
             regime_axes=regime_axes,
         )
         pos.tp_filled = [False] * len(tps)
+        if take_levels is not None:
+            # Единый тейк закрывает весь объём (без частичных фиксаций).
+            pos.tp_fractions = [1.0] * len(tps)
         pos.initial_quantity = qty
         self.positions.append(pos)
         logger.info(

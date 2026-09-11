@@ -248,6 +248,9 @@ class StateStore:
                 pos.highest_price = Decimal(str(pos.highest_price))
             if pos.lowest_price is not None:
                 pos.lowest_price = Decimal(str(pos.lowest_price))
+            # B8 этап 2: план.
+            _pt = getattr(pos, "plan_take", None)
+            pos.plan_take = Decimal(str(_pt)) if _pt is not None else None
         broker.save()
         logger.warning(
             "Broker state восстановлен из state_bundle: позиций=%d, "
@@ -278,4 +281,7 @@ def broker_state_dict(pos: Any) -> dict[str, Any]:
     # Плечо (Decimal) — иначе бандл не сериализуется.
     d["leverage"] = str(getattr(pos, "leverage", Decimal("1")))
     d["margin_used"] = str(getattr(pos, "margin_used", Decimal("0")))
+    # B8 этап 2: план (plan_take — Decimal) — иначе бандл не сериализуется.
+    _pt = getattr(pos, "plan_take", None)
+    d["plan_take"] = str(_pt) if _pt is not None else None
     return d

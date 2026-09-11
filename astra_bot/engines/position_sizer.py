@@ -41,6 +41,7 @@ def calculate_position_size(
     ml_confidence: float | None = None,
     atr_pct: float | None = None,
     max_notional_pct: Decimal = Decimal("0.10"),
+    max_risk_pct: Decimal = Decimal("0.03"),
 ) -> Decimal:
     """
     Calculate position size with adjustments (Block 6.2).
@@ -56,6 +57,10 @@ def calculate_position_size(
         ml_confidence: ML model confidence 0-1 (0.5x to 1.0x adjustment)
         atr_pct: ATR as % of price for volatility adjustment
         max_notional_pct: Hard max 10% of balance
+        max_risk_pct: D2 (владелец, 11.09): жёсткий потолок риска на
+            сделку — 3% капитала. Сейчас недостижим (базовый риск 1%,
+            все множители только вниз), потолок — страховка от будущих
+            изменений формул.
 
     Returns:
         Position size (quantity)
@@ -125,6 +130,13 @@ def calculate_position_size(
                 size = size * Decimal(str(vol_multiplier))
         except Exception:
             pass
+
+    # D2: жёсткий потолок РИСКА на сделку (<= 3% капитала). Страховка:
+    # если будущие множители начнут поднимать размер, фактический риск
+    # size * stop_distance всё равно не превысит потолок.
+    max_risk_amount = equity * max_risk_pct
+    if size * stop_distance > max_risk_amount:
+        size = max_risk_amount / stop_distance
 
     # Hard max: 10% balance
     max_notional = equity * max_notional_pct

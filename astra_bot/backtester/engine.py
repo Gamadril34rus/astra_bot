@@ -6,6 +6,7 @@ Event-driven бэктестер
 import asyncio
 import inspect
 import logging
+import statistics
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -86,6 +87,11 @@ class BacktestConfig:
     # закрывает открытую позицию и открывает новую (переворот). Нужен для
     # трендовых фильтров типа ts_momentum, проверенных на истории.
     close_on_opposite_signal: bool = False
+
+    # B8 этап 2: единый план выхода (общие правила с paper —
+    # astra_bot/decision/exit_plan.py). Выключатель — для тестов
+    # механики уровней и для сравнения «до/после» на истории.
+    exit_plan_enabled: bool = True
 
     def to_dict(self) -> dict:
         return {
@@ -240,6 +246,16 @@ class BacktestEngine:
         self._trades: list[Trade] = []
         self._trade_id_counter = 0
 
+        # B8 этап 2: план выхода на позицию (общие правила с paper —
+        # astra_bot/decision/exit_plan.py). Бэктестер без хранилища
+        # гипотез — всегда SMART_DEFAULT; REGIME_EXIT недоступен
+        # (в бэктесте нет режимного движка) — см. docs/EXIT_PLAN_MAP.md §6.
+        self._plans: dict[int, str] = {}
+        self._plan_risk: dict[int, Decimal] = {}
+        self._plan_entry_idx: dict[int, int] = {}
+        self._plan_extremes: dict[int, tuple[Decimal, Decimal]] = {}
+        self._plan_bar_ts: dict[int, int] = {}
+
         # Статистика
         self._daily_stats: dict[str, DailyStats] = {}
 
@@ -334,7 +350,13 @@ class BacktestEngine:
         self._equity_curve = []
 
     def _process_tick(self):
-        """Обработать один тик (свечу)"""
+        """Обработать один тик (свечу).
+
+        Семантика: исторический «текущий» бар здесь уже ЗАКРЫТ (стратегия
+        видит его OHLC, вход по его close). Отличие от live-семантики
+        (A5: входы по закрытым барам, исполнение по живой цене) — см.
+        docs/BACKTEST_VS_PAPER_SEMANTICS.md (бэклог B10).
+        """
         candle = self._candles[self._current_idx]
         timestamp = candle["open_time"]
         current_price = Decimal(str(candle["close"]))
@@ -342,9 +364,28 @@ class BacktestEngine:
         # Обновление equity (закрытие позиций по текущей цене для расчёта unrealized PnL)
         self._update_unrealized_pnl(current_price)
 
+        # B8: экстремумы плана (для БУ/трейлинга) — до правил.
+        for trade in (list(self._open_positions.values()) if self.config.exit_plan_enabled else []):
+            hi, lo = self._plan_extremes.get(
+                trade.id, (trade.entry_price, trade.entry_price)
+            )
+            hi = max(hi, Decimal(str(candle["high"])))
+            lo = min(lo, Decimal(str(candle["low"])))
+            self._plan_extremes[trade.id] = (hi, lo)
+            # STOP-правила плана по закрытым барам ДО текущей (без lookahead),
+            # затем уровни (стоп/тейк) на текущей свече — иерархия
+            # «стоп и тейк старше плана», как в paper.
+            self._plan_adjust_stops(trade, candle, self._current_idx)
+
         # Проверка выходов по стопам/тейкам на текущей свече (внутрибарно)
         for trade in list(self._open_positions.values()):
             self._check_exit_conditions(trade, candle, timestamp)
+
+        # FORCED-правила плана по close текущей (закрытой в семантике
+        # бэктеста) свечи — только для переживших уровни позиций.
+        for trade in (list(self._open_positions.values()) if self.config.exit_plan_enabled else []):
+            if trade.id in self._plans:
+                self._plan_forced_rules(trade, candle, self._current_idx)
 
         # Проверка стратегий
         for strategy_name, strategy in self._strategies.items():
@@ -484,6 +525,7 @@ class BacktestEngine:
         self._trade_id_counter += 1
         self._open_positions[trade.id] = trade
         self._trades.append(trade)
+        self._attach_plan(trade, signal, entry_price, self._current_idx)
 
         # Обновление риск-движка. Бэклог A2: meta обязательна —
         # str-id без meta невидим для exposure-лимитов (notional=0).
@@ -542,6 +584,7 @@ class BacktestEngine:
         self._trade_id_counter += 1
         self._open_positions[trade.id] = trade
         self._trades.append(trade)
+        self._attach_plan(trade, signal, entry_price, self._current_idx)
 
         # Бэклог A2: meta — см. _open_long_position.
         self._risk_engine.add_position(
@@ -552,6 +595,144 @@ class BacktestEngine:
         )
 
         logger.debug(f"SHORT opened: {trade.id}, qty={quantity}, price={effective_price}")
+
+    # ------------------------------------------------ B8: план выхода
+    def _attach_plan(self, trade: Trade, signal: models.Signal, entry_price: Decimal, idx: int) -> None:
+        """План выбирается НА ВХОДЕ (SMART_DEFAULT) и закрепляется.
+
+        ОДИН тейк в зоне 2-2.3R (решение владельца, clamp_take_rr — тот
+        же код, что в paper); уровень 0 (нет тейка) не трогается.
+        """
+        from ..decision.exit_plan import SMART_DEFAULT, clamp_take_rr
+
+        self._plans[trade.id] = SMART_DEFAULT
+        self._plan_risk[trade.id] = abs(entry_price - trade.stop_loss)
+        self._plan_entry_idx[trade.id] = idx
+        self._plan_extremes[trade.id] = (entry_price, entry_price)
+        self._plan_bar_ts[trade.id] = 0
+        if (
+            self.config.exit_plan_enabled
+            and trade.take_profit and trade.take_profit > 0
+            and self._plan_risk[trade.id] > 0
+        ):
+            trade.take_profit = clamp_take_rr(
+                entry_price, trade.stop_loss, trade.take_profit,
+                trade.side, 2.0, 2.3,
+            )
+
+    def _plan_adjust_stops(self, trade: Trade, candle: dict, idx: int) -> None:
+        """STOP-правила плана на ЗАКРЫТЫХ барах (строго до текущего).
+
+        Семантика бэктеста: текущая свеча ещё «не закрыта» на момент
+        расчёта правил — окно структурного стопа и ATR заканчиваются
+        ПРЕДЫДУЩЕЙ свечой (без lookahead). Только подтягивание.
+        """
+        from ..decision.exit_controller import _atr as _plan_atr
+        from ..decision.exit_plan import (
+            ExitPlanParams,
+            apply_tighter,
+            breakeven_target,
+            structural_tighten,
+            trailing_target,
+        )
+
+        p = ExitPlanParams()
+        if idx < 1:
+            return
+        prior = self._convert_to_model_candles(self._candles[max(0, idx - 60):idx])
+        if len(prior) < 2:
+            return
+        entry = trade.entry_price
+        risk = self._plan_risk.get(trade.id) or abs(entry - trade.stop_loss)
+
+        # Новый закрытый бар?
+        new_ts = int(prior[-1].open_time)
+        is_new_bar = self._plan_bar_ts.get(trade.id, 0) != new_ts
+
+        hi, lo = self._plan_extremes.get(trade.id, (entry, entry))
+
+        if is_new_bar and risk > 0:
+            if apply_tighter(
+                trade,
+                structural_tighten(
+                    trade.side, entry, trade.stop_loss, prior,
+                    p.structural_lookback, p.structural_buffer_atr,
+                    p.structural_buffer_pct,
+                ),
+            ):
+                self._plan_bar_ts[trade.id] = new_ts
+
+        mfe_r = (
+            (float(hi) - float(entry)) / float(risk)
+            if trade.side == "long"
+            else (float(entry) - float(lo)) / float(risk)
+        )
+        if apply_tighter(
+            trade,
+            breakeven_target(
+                trade.side, trade.stop_loss, entry,
+                mfe_r, p.breakeven_trigger_r, None,
+            ),
+        ):
+            pass
+        apply_tighter(
+            trade,
+            trailing_target(
+                trade.side, trade.stop_loss, hi, lo,
+                _plan_atr(prior, len(prior) - 1), p.trailing_k,
+            ),
+        )
+
+    def _plan_forced_rules(self, trade: Trade, candle: dict, idx: int) -> None:
+        """FORCED-правила плана по close текущей ЗАКРЫТОЙ свечи бэктеста.
+
+        MAE_CUT / MAX_HOLD / VOL_EXPANSION. TIME_STOP/MOMENTUM_EXIT —
+        только гипотезные (в бэктесте гипотез нет), REGIME_EXIT — нет
+        режимного движка (задокументировано, docs/EXIT_PLAN_MAP.md §6).
+        """
+        from ..decision.exit_manager import tr_series
+        from ..decision.exit_plan import ExitPlanParams
+
+        p = ExitPlanParams()
+        close = Decimal(str(candle["close"]))
+        risk = self._plan_risk.get(trade.id) or abs(trade.entry_price - trade.stop_loss)
+        timestamp = candle["open_time"]
+
+        # 1) MAE_CUT (плечо в бэктесте 1x — scale 1.0).
+        if risk > 0:
+            r_now = (
+                (float(close) - float(trade.entry_price)) / float(risk)
+                if trade.side == "long"
+                else (float(trade.entry_price) - float(close)) / float(risk)
+            )
+            if r_now <= -p.mae_cut_r:
+                self._close_position(
+                    trade.id, "mae_cut", exit_price=close, timestamp=timestamp,
+                )
+                return
+
+        # 2) MAX_HOLD 48ч по барамому времени.
+        try:
+            held_ms = int(timestamp) - int(trade.entry_time.timestamp() * 1000)
+        except Exception:
+            held_ms = 0
+        if held_ms >= 48 * 3600 * 1000:
+            self._close_position(
+                trade.id, "MAX_HOLD", exit_price=close, timestamp=timestamp,
+            )
+            return
+
+        # 3) VOL_EXPANSION (параметры ExitManagerConfig: 2.0x медианы TR).
+        window = self._convert_to_model_candles(self._candles[max(0, idx - 80):idx + 1])
+        if len(window) >= 60:
+            series = tr_series(window, 20)
+            if len(series) >= 5:
+                med = statistics.median(series[:-1])
+                if med > 0 and series[-1] >= 2.0 * med:
+                    self._close_position(
+                        trade.id, "VOL_EXPANSION", exit_price=close,
+                        timestamp=timestamp,
+                    )
 
     def _calculate_quantity(self, desired_qty: Decimal, price: Decimal) -> Decimal:
         """Рассчитать допустимое количество"""
@@ -608,6 +789,12 @@ class BacktestEngine:
 
         trade = self._open_positions.pop(trade_id)
         self._risk_engine.remove_position(str(trade_id))
+        # B8: чистка состояния плана закрытой позиции.
+        self._plans.pop(trade_id, None)
+        self._plan_risk.pop(trade_id, None)
+        self._plan_entry_idx.pop(trade_id, None)
+        self._plan_extremes.pop(trade_id, None)
+        self._plan_bar_ts.pop(trade_id, None)
         if timestamp is not None:
             trade.exit_time = _ts_to_dt(timestamp)
         else:
