@@ -425,10 +425,17 @@ class TradingEngine:
 
                 prod = get_registry().get_production_model()
                 if prod is not None and prod.model_path and Path(prod.model_path).exists():
-                    pipeline.model = MLModel.load(prod.model_path)
-                    logger.info(
-                        "ML model из registry (production): %s", prod.version
-                    )
+                    loaded = MLModel.load(prod.model_path)
+                    if not getattr(loaded, "is_fitted", False) or loaded.model is None:
+                        logger.warning(
+                            "ML model schema mismatch or unfitted — pipeline без ML"
+                        )
+                        pipeline.model = None
+                    else:
+                        pipeline.model = loaded
+                        logger.info(
+                            "ML model из registry (production): %s", prod.version
+                        )
             except Exception as exc:
                 logger.debug("registry model load: %s", exc)
         self._last_bar_ts: dict[str, int] = {}

@@ -428,7 +428,7 @@ Withdraw   ❌  НИКОГДА
 ```
 
 HTTP `/tick` `/train` `/status` `/metrics` закрыты ключом `ASTRA_API_KEY`
-(`docs/API_AUTH.md`). `/health` открыт. Python **3.12**.
+(`docs/API_AUTH.md`). `/health` открыт. Python **3.11+** (CI recipe — 3.12).
 
 ## 🧪 Проверки
 

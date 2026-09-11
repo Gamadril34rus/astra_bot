@@ -9,8 +9,9 @@ from collections import deque
 class TelegramRateLimiter:
     """Allow at most ``max_per_minute`` sends, with a short burst cap.
 
-    Critical alerts (HALT / error) bypass the soft cap but still cannot
-    exceed ``critical_per_minute`` (default 5).
+    Critical alerts (HALT / error) are outside burst and per-minute caps
+    and are never dropped. ``critical_per_minute`` is kept for API
+    compatibility and is unused.
     """
 
     def __init__(
@@ -38,10 +39,7 @@ class TelegramRateLimiter:
         now = time.monotonic()
         self._prune(now)
         if critical:
-            if len(self._critical_times) >= self.critical_per_minute:
-                return False
-            self._critical_times.append(now)
-            self._times.append(now)
+            # HALT / error: never drop, never consume the regular budget.
             return True
         if len(self._burst_window) >= self.burst:
             return False

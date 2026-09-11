@@ -2,7 +2,7 @@
 
 Paper DecisionPipeline uses ``astra_bot.decision.feature_engine.Features``.
 Any trainer that consumes those vectors must pin ``FEATURE_SCHEMA_VERSION``.
-A model trained on another version is rejected at load (fail-closed).
+A model trained on another version is disabled at load (ML fallback, no crash).
 """
 
 from __future__ import annotations

@@ -484,7 +484,8 @@ class PaperBroker:
             price=fill,
             fee=fee_per_unit * quantity,
             ref_id=pos.id,
-            meta={"strategy": strategy, "leverage": str(lev)},
+            meta={"strategy": strategy, "leverage": str(lev), "phase": "open"},
+            event_id=f"order:{pos.id}:open",
         )
         self._ledger(
             "fill",
@@ -495,6 +496,8 @@ class PaperBroker:
             fee=fee_per_unit * quantity,
             ref_id=pos.id,
             position_delta=signed,
+            meta={"phase": "open"},
+            event_id=f"fill:{pos.id}:open",
         )
         return pos
 
@@ -669,7 +672,8 @@ class PaperBroker:
             cash_delta=pnl,
             position_delta=-signed,
             ref_id=pos.id,
-            meta={"exit_reason": reason},
+            meta={"exit_reason": reason, "phase": "close"},
+            event_id=f"fill:{pos.id}:close",
         )
         if fees:
             self._ledger(
@@ -679,6 +683,8 @@ class PaperBroker:
                 qty=qty,
                 fee=fees,
                 ref_id=pos.id,
+                meta={"phase": "close"},
+                event_id=f"fee:{pos.id}:close",
             )
         return trade
 

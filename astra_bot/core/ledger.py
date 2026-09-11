@@ -115,13 +115,34 @@ class TradeLedger:
         )
         self.initial_cash = initial_cash
         self._lock = threading.Lock()
+        self._seen_ids: set[str] | None = None
+
+    def _load_seen(self) -> set[str]:
+        if self._seen_ids is not None:
+            return self._seen_ids
+        seen: set[str] = set()
+        if self.path.exists():
+            try:
+                for event in self.iter_events():
+                    if event.event_id:
+                        seen.add(event.event_id)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug("ledger seen-index: %s", exc)
+        self._seen_ids = seen
+        return seen
 
     def append(self, event: LedgerEvent) -> LedgerEvent:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        line = event.to_json()
-        with self._lock, self.path.open("a", encoding="utf-8") as fh:
-            fh.write(line + "\n")
-            fh.flush()
+        with self._lock:
+            seen = self._load_seen()
+            if event.event_id and event.event_id in seen:
+                return event
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            line = event.to_json()
+            with self.path.open("a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
+                fh.flush()
+            if event.event_id:
+                seen.add(event.event_id)
         return event
 
     def record(
@@ -139,6 +160,7 @@ class TradeLedger:
         position_delta: Decimal | str | float = 0,
         ref_id: str = "",
         meta: dict[str, Any] | None = None,
+        event_id: str = "",
     ) -> LedgerEvent:
         event = LedgerEvent(
             kind=kind,
@@ -153,6 +175,7 @@ class TradeLedger:
             position_delta=str(_dec(position_delta)),
             ref_id=ref_id,
             meta=meta or {},
+            event_id=event_id,
         )
         return self.append(event)
 

@@ -6,6 +6,7 @@ from decimal import Decimal
 
 import pytest
 from astra_bot.core.ledger import LedgerEvent, TradeLedger, reset_ledger
+from astra_bot.core.state_rotation import LIVE_JSONL_LIMITS, rotate_jsonl
 
 
 def test_append_and_replay_round_trip(tmp_path):
@@ -68,3 +69,35 @@ def test_schema_version_on_row(tmp_path):
     assert event.schema_version == 1
     line = (tmp_path / "l.jsonl").read_text().strip()
     assert '"schema_version":1' in line.replace(" ", "")
+
+
+def test_event_id_dedup_skips_second_write(tmp_path):
+    path = tmp_path / "paper_ledger.jsonl"
+    ledger = TradeLedger(path, initial_cash=Decimal("1000"))
+    ledger.record("fill", symbol="BTC-USDT", side="long", event_id="fill:pos-1:open")
+    ledger.record("fill", symbol="BTC-USDT", side="long", event_id="fill:pos-1:open")
+    assert path.read_text(encoding="utf-8").count("\n") == 1
+    assert ledger.replay().events == 1
+
+
+def test_missing_ledger_file_is_created(tmp_path):
+    path = tmp_path / "absent" / "paper_ledger.jsonl"
+    assert not path.exists()
+    ledger = TradeLedger(path)
+    ledger.record("order", symbol="BTC-USDT", event_id="order:1:open")
+    assert path.exists()
+    assert ledger.replay().events == 1
+
+
+def test_ledger_rotation_independent_of_trades(tmp_path):
+    assert LIVE_JSONL_LIMITS["paper_ledger.jsonl"] == 20_000
+    assert LIVE_JSONL_LIMITS["paper_trades.jsonl"] == 10_000
+    assert LIVE_JSONL_LIMITS["paper_ledger.jsonl"] != LIVE_JSONL_LIMITS["paper_trades.jsonl"]
+    ledger = tmp_path / "paper_ledger.jsonl"
+    trades = tmp_path / "paper_trades.jsonl"
+    ledger.write_text("\n".join(f'{{"n":{i}}}' for i in range(25)) + "\n", encoding="utf-8")
+    trades.write_text("\n".join(f'{{"n":{i}}}' for i in range(25)) + "\n", encoding="utf-8")
+    assert rotate_jsonl(ledger, 20) == 5
+    assert rotate_jsonl(trades, 10) == 15
+    assert sum(1 for line in ledger.read_text().splitlines() if line.strip()) == 20
+    assert sum(1 for line in trades.read_text().splitlines() if line.strip()) == 10

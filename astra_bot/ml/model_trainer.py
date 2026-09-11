@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 
 from ..core import models
-from ..core.feature_schema import FEATURE_SCHEMA_VERSION, check_feature_schema
+from ..core.feature_schema import FEATURE_SCHEMA_VERSION, FeatureSchemaError, check_feature_schema
 
 # ML-зависимости опциональны: подтягиваются лениво, чтобы бот запускался без
 # установленного scikit-learn/lightgbm (например, в минимальном прод-образе).
@@ -311,7 +311,16 @@ class MLModel:
         model.saved_at = model_data.get("saved_at", "")
         model.feature_schema_version = model_data.get("feature_schema_version", "")
         if model.feature_schema_version:
-            check_feature_schema(None, model.feature_schema_version)
+            try:
+                check_feature_schema(None, model.feature_schema_version)
+            except FeatureSchemaError as exc:
+                logger.warning(
+                    "ML schema mismatch — disabling model (fallback, no crash): %s",
+                    exc,
+                )
+                model.is_fitted = False
+                model.model = None
+                return model
 
         logger.info("Model loaded from %s (version=%s)", path, model.version)
         return model

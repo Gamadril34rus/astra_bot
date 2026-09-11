@@ -3,7 +3,7 @@
 ## 1. Что нужно установить
 
 ### Windows
-1. **Python 3.12** — скачайте с https://www.python.org/downloads/
+1. **Python 3.11+** (рекомендуется 3.12) — https://www.python.org/downloads/
    При установке поставьте галочку **"Add Python to PATH"**.
 2. **Git for Windows** — https://git-scm.com/download/win
 3. Откройте **PowerShell** или **cmd**.
@@ -12,7 +12,7 @@
 ```bash
 # Установите Homebrew (если нет)
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-# Python 3.12
+# Python 3.11+
 brew install python@3.12 git
 ```
 
