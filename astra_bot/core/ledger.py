@@ -5,6 +5,9 @@ cash and positions without reading PaperBroker in-memory state.
 
 Schema version is stored on every row. Events are never rewritten
 in place — rotation moves old rows to ``*.archive.jsonl``.
+
+Комиссии учитываются ТОЛЬКО строками ``kind="fee"``: в ``order``/``fill``
+поле ``fee`` информационное, ``replay()`` его не суммирует (бэклог B2).
 """
 
 from __future__ import annotations
@@ -201,7 +204,11 @@ class TradeLedger:
         for event in self.iter_events():
             n += 1
             cash += _dec(event.cash_delta)
-            fees += _dec(event.fee)
+            # Бэклог B2: комиссия учитывается ТОЛЬКО в fee-строках.
+            # В order/fill поле fee — информационное (номинал ордера);
+            # суммирование по всем строкам удваивало издержки.
+            if event.kind == "fee":
+                fees += _dec(event.fee)
             realized += _dec(event.pnl)
             if event.symbol:
                 delta = _dec(event.position_delta)

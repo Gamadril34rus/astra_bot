@@ -74,16 +74,22 @@ def test_str_position_with_meta_counts_exposure():
 
 
 class _RepeatLongStrategy:
-    """Два LONG-сигнала (на 3-й и 5-й свече), ничего не закрывает."""
+    """Два LONG-сигнала после warm-up, ничего не закрывает."""
 
     enabled = True
-    _fire_at = (3, 5)
+    # The backtester passes a fixed-size lookback window after warm-up, so
+    # len(candles) cannot be used as a unique bar counter.
+    _fire_calls = {2, 4}
+
+    def __init__(self):
+        self._calls = 0
 
     def get_required_candles(self) -> int:
         return 2
 
     def evaluate(self, symbol, candles, current_price):
-        if len(candles) in self._fire_at:
+        self._calls += 1
+        if self._calls in self._fire_calls:
             price = Decimal(str(current_price))
             return models.Signal(
                 symbol=symbol,
@@ -123,7 +129,7 @@ def test_backtester_opens_second_trade_while_first_open():
     bt.load_candles(_flat_candles())
     result = bt.run()
     opened = [t for t in bt._trades]
-    # Обе свечи с сигналом дали сделки — риск-движок больше не падает.
+    # Exactly two scheduled signals must produce exactly two trades.
     assert bt._trade_id_counter == 2, (
         f"ожидали 2 открытые сделки, фактически {bt._trade_id_counter}; "
         "скорее всего sizing упал на str-id (бэклог A2)"

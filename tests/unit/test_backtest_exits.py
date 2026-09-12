@@ -119,7 +119,7 @@ def test_async_strategy_is_awaited_and_trade_opens():
     assert trades[0].strategy_name == "one_shot_long"
 
 
-def test_stop_loss_exits_intrabar_at_stop_price():
+def test_stop_loss_exits_intrabar_at_stop_price_with_adverse_slippage():
     candles = make_base_candles(102)
     candles[SIGNAL_IDX + 1] = candles[SIGNAL_IDX + 1] | {"low": 94.0, "close": 96.0}
     engine = run_engine(OneShotLongStrategy(), candles)
@@ -127,8 +127,10 @@ def test_stop_loss_exits_intrabar_at_stop_price():
     assert len(trades) == 1
     t = trades[0]
     assert t.exit_reason == "stop_loss"
-    assert t.exit_price == Decimal("95")
-    assert t.exit_price == t.stop_loss
+    # The stop is triggered at 95, then the market-style exit applies
+    # configured adverse slippage (0.1%), so the executed fill is 94.905.
+    assert t.stop_loss == Decimal("95")
+    assert t.exit_price == Decimal("94.905000")
     assert t.pnl < 0
 
 
@@ -140,7 +142,7 @@ def test_take_profit_exits_intrabar_at_tp_price():
     assert len(trades) == 1
     t = trades[0]
     assert t.exit_reason == "take_profit"
-    assert t.exit_price == Decimal("110")
+    assert t.exit_price == Decimal("109.890000")
     assert t.pnl > 0
 
 
@@ -149,10 +151,14 @@ def test_net_profit_does_not_double_count_fees():
     candles[SIGNAL_IDX + 1] = candles[SIGNAL_IDX + 1] | {"high": 112.0, "close": 108.0}
     engine = run_engine(OneShotLongStrategy(), candles)
     result = engine._calculate_results()
-    # trade.pnl уже включает комиссии; итоговый net_profit не должен
-    # вычитать их повторно.
+    # trade.pnl уже включает комиссии (вход и выход); итоговый net_profit
+    # не должен вычитать их повторно.
     assert result.net_profit == result.total_pnl
     assert result.total_fees > 0
+    # И тот же инвариант на уровне equity: realized = 1000 + Σ pnl сделок.
+    trades = closed_trades(engine)
+    assert len(trades) == 1
+    assert engine._realized_equity == Decimal("1000") + trades[0].pnl
 
 
 def test_one_position_at_a_time():

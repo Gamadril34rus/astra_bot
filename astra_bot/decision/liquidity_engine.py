@@ -24,6 +24,8 @@ class LiquidityEngine:
         self,
         max_slippage_pct: float = 0.1,
         min_volume: float = 1_000_000.0,
+        # ВНИМАНИЕ, ЕДИНИЦЫ (аудит A5): здесь ПРОЦЕНТЫ (0.05 = 0.05%),
+        # в отличие от CostModel, где ставки в ДОЛЯХ (0.0005 = 0.05%).
         taker_fee_pct: float = 0.05,
         safety_buffer_pct: float = 0.03,
     ):
