@@ -3,7 +3,7 @@ ASTRA BOT — Core модуль
 Базовые компоненты системы
 """
 
-from .config import SystemConfig, get_settings, load_settings
+from .config import RiskConfig, SystemConfig, get_settings, load_settings
 from .events import Event, EventBus, EventType
 from .exceptions import (
     AstraError,
@@ -22,6 +22,7 @@ __all__ = [
     "EventBus",
     "EventType",
     "ExchangeError",
+    "RiskConfig",
     "RiskError",
     "SystemConfig",
     "SystemState",

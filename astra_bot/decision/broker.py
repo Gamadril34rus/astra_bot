@@ -356,6 +356,15 @@ class PaperBroker:
         """
         return self.equity + self.unrealized_pnl()
 
+    def _ledger(self, kind: str, **kwargs) -> None:
+        """Best-effort double-entry row (TZ P1.8). Never breaks trading."""
+        try:
+            from ..core.ledger import record_best_effort
+
+            record_best_effort(kind=kind, account="paper", **kwargs)
+        except Exception:
+            logger.debug("ledger skipped", exc_info=True)
+
     def open_position(
         self,
         *,
@@ -466,6 +475,30 @@ class PaperBroker:
             tps[0] if tps else "-", pos.leverage, pos.margin_used,
         )
         self.save()
+        signed = pos.quantity if direction == "long" else -pos.quantity
+        self._ledger(
+            "order",
+            symbol=symbol,
+            side=direction,
+            qty=quantity,
+            price=fill,
+            fee=fee_per_unit * quantity,
+            ref_id=pos.id,
+            meta={"strategy": strategy, "leverage": str(lev), "phase": "open"},
+            event_id=f"order:{pos.id}:open",
+        )
+        self._ledger(
+            "fill",
+            symbol=symbol,
+            side=direction,
+            qty=quantity,
+            price=fill,
+            fee=fee_per_unit * quantity,
+            ref_id=pos.id,
+            position_delta=signed,
+            meta={"phase": "open"},
+            event_id=f"fill:{pos.id}:open",
+        )
         return pos
 
     def on_bar(self, bar) -> list[ClosedTrade]:
@@ -627,6 +660,32 @@ class PaperBroker:
             regime_axes=pos.regime_axes,
         )
         self._log_trade(trade)
+        signed = qty if pos.direction == "long" else -qty
+        self._ledger(
+            "fill",
+            symbol=pos.symbol,
+            side=pos.direction,
+            qty=qty,
+            price=price,
+            fee=fees,
+            pnl=pnl,
+            cash_delta=pnl,
+            position_delta=-signed,
+            ref_id=pos.id,
+            meta={"exit_reason": reason, "phase": "close"},
+            event_id=f"fill:{pos.id}:close",
+        )
+        if fees:
+            self._ledger(
+                "fee",
+                symbol=pos.symbol,
+                side=pos.direction,
+                qty=qty,
+                fee=fees,
+                ref_id=pos.id,
+                meta={"phase": "close"},
+                event_id=f"fee:{pos.id}:close",
+            )
         return trade
 
     def _r_metrics(

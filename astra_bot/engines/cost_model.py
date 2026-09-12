@@ -37,6 +37,14 @@ class CostModel:
     slippage_pct: Decimal = Decimal("0.001")  # 0.1%
     # Funding rate (8h) — для perpetual futures, опционально.
     funding_rate: Decimal = Decimal("0")
+    # Биржевые ограничения (документация + валидация сайзинга; fill-математика
+    # их не использует — tick/lot режет TradingEngine._apply_instrument_constraints).
+    min_notional: Decimal = Decimal("0")
+    tick_size: Decimal = Decimal("0")
+    lot_size: Decimal = Decimal("0")
+    # Резерв под моделирование reject / rate-limit (не начисляются автоматически).
+    reject_penalty: Decimal = Decimal("0")
+    rate_limit_penalty: Decimal = Decimal("0")
 
     # --- Минимальная ставка для инварианта (самая низкая из maker/taker).
     @property

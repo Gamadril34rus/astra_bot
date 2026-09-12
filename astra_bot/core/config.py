@@ -37,9 +37,27 @@ def _expand_env(value):
     return value
 
 
+def _default_betas() -> dict[str, Decimal]:
+    return {
+        "BTC": Decimal("1.0"),
+        "ETH": Decimal("1.4"),
+        "SOL": Decimal("1.8"),
+        "XRP": Decimal("1.3"),
+        "DOGE": Decimal("1.8"),
+        "TON": Decimal("1.5"),
+    }
+
+
 @dataclass
 class RiskConfig:
-    """Конфигурация risk-параметров"""
+    """Единая конфигурация риска (YAML + ENV + paper override).
+
+    Источник правды — этот класс. ``engines.risk_engine.RiskConfig``
+    реэкспортирует его. Приоритет: dataclass defaults < YAML
+    (``SystemConfig.risk``) < ``ASTRA_RISK_*`` env < явный
+    ``paper_runtime()`` (paper-контур TradingEngine).
+    """
+
     risk_per_trade: Decimal = Decimal("0.004")  # 0.4%
     daily_loss_limit: Decimal = Decimal("0.02")  # 2%
     weekly_loss_limit: Decimal = Decimal("0.04")  # 4%
@@ -49,6 +67,13 @@ class RiskConfig:
     max_exposure_pct: Decimal = Decimal("0.30")  # 30%
     max_open_positions: int = 5
 
+    # Portfolio-экспозиция (Этап 5). None = max_exposure_pct.
+    max_gross_exposure_pct: Decimal | None = None
+    max_net_exposure_pct: Decimal | None = None
+    max_group_exposure_pct: Decimal | None = None
+    correlation_groups: dict[str, str] = field(default_factory=dict)
+    default_correlation_group: str = "crypto"
+
     # Волатильность
     high_volatility_multiplier: Decimal = Decimal("0.5")
     extreme_volatility_threshold: Decimal = Decimal("0.15")
@@ -57,15 +82,31 @@ class RiskConfig:
     # Корреляция
     correlation_limit: Decimal = Decimal("0.7")
 
+    default_beta: Decimal = Decimal("1.5")
+    betas: dict[str, Decimal] = field(default_factory=_default_betas)
+
     # Инкременты риска по просадке
     drawdown_adaptation: list = field(
         default_factory=lambda: [dict(tier) for tier in DEFAULT_DRAWDOWN_ADAPTATION]
     )
 
+    @staticmethod
+    def _opt_decimal(data: dict, key: str) -> Decimal | None:
+        if key not in data or data[key] is None:
+            return None
+        return Decimal(str(data[key]))
+
     @classmethod
     def from_dict(cls, data: dict) -> "RiskConfig":
-        """Создание из словаря"""
-        return cls(
+        """Создание из словаря. ENV перекрывает YAML."""
+        raw_betas = data.get("betas")
+        betas = (
+            {str(k): Decimal(str(v)) for k, v in raw_betas.items()}
+            if isinstance(raw_betas, dict)
+            else _default_betas()
+        )
+        groups = data.get("correlation_groups") or {}
+        cfg = cls(
             risk_per_trade=Decimal(str(data.get("risk_per_trade", "0.004"))),
             daily_loss_limit=Decimal(str(data.get("daily_loss_limit", "0.02"))),
             weekly_loss_limit=Decimal(str(data.get("weekly_loss_limit", "0.04"))),
@@ -74,14 +115,57 @@ class RiskConfig:
             emergency_drawdown=Decimal(str(data.get("emergency_drawdown", "0.10"))),
             max_exposure_pct=Decimal(str(data.get("max_exposure_pct", "0.30"))),
             max_open_positions=data.get("max_open_positions", 5),
+            max_gross_exposure_pct=cls._opt_decimal(data, "max_gross_exposure_pct"),
+            max_net_exposure_pct=cls._opt_decimal(data, "max_net_exposure_pct"),
+            max_group_exposure_pct=cls._opt_decimal(data, "max_group_exposure_pct"),
+            correlation_groups={str(k): str(v) for k, v in groups.items()},
+            default_correlation_group=str(data.get("default_correlation_group", "crypto")),
             high_volatility_multiplier=Decimal(str(data.get("high_volatility_multiplier", "0.5"))),
             extreme_volatility_threshold=Decimal(str(data.get("extreme_volatility_threshold", "0.15"))),
             volatility_lookback=data.get("volatility_lookback", 20),
             correlation_limit=Decimal(str(data.get("correlation_limit", "0.7"))),
+            default_beta=Decimal(str(data.get("default_beta", "1.5"))),
+            betas=betas,
             drawdown_adaptation=data.get(
                 "drawdown_adaptation",
                 [dict(tier) for tier in DEFAULT_DRAWDOWN_ADAPTATION],
             ),
+        )
+        return cfg.apply_env_overrides()
+
+    def apply_env_overrides(self) -> "RiskConfig":
+        """``ASTRA_RISK_*`` перекрывает YAML/defaults. Не задано — без изменений."""
+        mapping = {
+            "ASTRA_RISK_PER_TRADE": ("risk_per_trade", lambda v: Decimal(str(v))),
+            "ASTRA_DAILY_LOSS_LIMIT": ("daily_loss_limit", lambda v: Decimal(str(v))),
+            "ASTRA_WEEKLY_LOSS_LIMIT": ("weekly_loss_limit", lambda v: Decimal(str(v))),
+            "ASTRA_MAX_OPEN_POSITIONS": ("max_open_positions", int),
+            "ASTRA_MAX_EXPOSURE_PCT": ("max_exposure_pct", lambda v: Decimal(str(v))),
+        }
+        for env_name, (field_name, caster) in mapping.items():
+            raw = os.environ.get(env_name)
+            if raw is None or raw.strip() == "":
+                continue
+            setattr(self, field_name, caster(raw.strip()))
+        return self
+
+    @classmethod
+    def paper_runtime(
+        cls,
+        *,
+        risk_per_trade: Decimal,
+        max_open_positions: int,
+        max_exposure_pct: Decimal,
+        daily_loss_limit: Decimal = Decimal("0.03"),
+        weekly_loss_limit: Decimal = Decimal("0.06"),
+    ) -> "RiskConfig":
+        """Явный override paper-контура (TradingEngine). Числа не меняются."""
+        return cls(
+            risk_per_trade=risk_per_trade,
+            daily_loss_limit=daily_loss_limit,
+            weekly_loss_limit=weekly_loss_limit,
+            max_open_positions=max_open_positions,
+            max_exposure_pct=max_exposure_pct,
         )
 
 

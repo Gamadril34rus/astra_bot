@@ -210,7 +210,9 @@ class DecisionPipeline:
         return out
 
     def _ml_probability(self, feats) -> float | None:
-        if self.model is None:
+        if self.model is None or not getattr(self.model, "is_fitted", True):
+            return None
+        if getattr(self.model, "model", self.model) is None:
             return None
         try:
             import numpy as np

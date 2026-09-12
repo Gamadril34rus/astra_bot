@@ -14,6 +14,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
+      # RED: production без ASTRA_API_KEY в .env → 401 на /tick|/status.
+      # Healthcheck бьёт открытый /health. Ключ только в .env (не в git).
       - ENVIRONMENT=production
     env_file:
       - .env
@@ -32,7 +34,13 @@ services:
     networks:
       - astra_network
     healthcheck:
-      test: ["CMD", "python", "-c", "import sys; sys.exit(0) if True else sys.exit(1)"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import os,urllib.request,sys; p=os.environ.get('PORT','8000'); r=urllib.request.urlopen('http://127.0.0.1:%s/health' % p, timeout=5); sys.exit(0 if getattr(r,'status',200)==200 else 1)",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -139,10 +147,14 @@ services:
         max-file: "5"
 
   # === Backup Service (optional) ===
+  # restart: daily невалиден в Compose. Запуск — host cron:
+  #   0 3 * * * docker compose --profile backup run --rm backup
+  # либо systemd timer. Не в live-цикле бота.
   backup:
     image: postgres:15-alpine
     container_name: astra_backup
-    restart: daily
+    restart: "no"
+    profiles: ["backup"]
     environment:
       - POSTGRES_PASSWORD=${DB_PASSWORD:-secure_password_change_me}
     volumes:

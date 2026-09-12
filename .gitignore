@@ -100,3 +100,8 @@ data/*.csv
 
 # Локальные прогон-состояния бота (демо/симуляция)
 run_state/
+
+# Снимки models/ для бэкапа (не git). Реальный каталог: models_archive_20260908/
+models_archive/
+models_archive_*/
+models_archive_*.tar.gz

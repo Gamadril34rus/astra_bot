@@ -46,8 +46,14 @@
 | Документ | Назначение |
 |---|---|
 | `GITHUB_ACTIONS.md` | Работа workflow в GitHub Actions |
-| `LOCAL_SETUP.md` | Локальная установка и запуск |
+| `LOCAL_SETUP.md` | Локальная установка и запуск (Python 3.12) |
 | `DIAGNOSTICS.md` | Диагностика типовых проблем |
+| `API_AUTH.md` | HTTP X-API-Key для /tick /status |
+| `OPS_CHECKLIST.md` | BingX права, backup cron, Python 3.12 |
+| `LEDGER.md` | Double-entry JSONL ledger |
+| `FEATURE_SCHEMA.md` | Версия фич + chronological ML |
+| `COST_MODEL.md` | Единая модель издержек |
+| `LEGAL_OPS.md` | Дисклеймер и ответственность оператора |
 | `../deploy/INSTALL_DEMO.md` | Установка на VPS/systemd |
 
 ## 5. Быстрый маршрут

@@ -341,17 +341,18 @@ class TradingEngine:
         # Стратегии и ML не имеют права его обойти. Лимиты согласованы
         # с торговым конфигом, чтобы sizing не конфликтовал с чекером.
         # Block 6.1: Risk Management per spec — 1% risk, 3% daily loss, 10% max DD, max 3 positions
-        self.risk = risk_engine or RiskEngine(
-            RiskConfig(
-                risk_per_trade=Decimal(self.config.risk_per_trade_pct),
-                daily_loss_limit=Decimal("0.03"),  # 3% per spec
-                weekly_loss_limit=Decimal("0.06"),
-                max_open_positions=self.config.max_open_positions,
-                max_exposure_pct=Decimal(self.config.max_total_exposure_pct),
-                max_gross_exposure_pct=Decimal(self.config.max_total_exposure_pct),
-                max_net_exposure_pct=Decimal(self.config.max_total_exposure_pct),
-            )
+        # Единый RiskConfig (core.config): paper_runtime — явный override
+        # поверх YAML/ENV. Числа paper-контура не меняются.
+        _risk_cfg = RiskConfig.paper_runtime(
+            risk_per_trade=Decimal(self.config.risk_per_trade_pct),
+            max_open_positions=self.config.max_open_positions,
+            max_exposure_pct=Decimal(self.config.max_total_exposure_pct),
+            daily_loss_limit=Decimal("0.03"),  # 3% per spec
+            weekly_loss_limit=Decimal("0.06"),
         )
+        _risk_cfg.max_gross_exposure_pct = Decimal(self.config.max_total_exposure_pct)
+        _risk_cfg.max_net_exposure_pct = Decimal(self.config.max_total_exposure_pct)
+        self.risk = risk_engine or RiskEngine(_risk_cfg)
         # StateStore (Этап 3): единый атомарный checkpoint состояния.
         # Компонентные файлы остаются source of truth; бандл — для
         # crash-восстановления (например, утерянный paper_positions.json).
@@ -424,10 +425,17 @@ class TradingEngine:
 
                 prod = get_registry().get_production_model()
                 if prod is not None and prod.model_path and Path(prod.model_path).exists():
-                    pipeline.model = MLModel.load(prod.model_path)
-                    logger.info(
-                        "ML model из registry (production): %s", prod.version
-                    )
+                    loaded = MLModel.load(prod.model_path)
+                    if not getattr(loaded, "is_fitted", False) or loaded.model is None:
+                        logger.warning(
+                            "ML model schema mismatch or unfitted — pipeline без ML"
+                        )
+                        pipeline.model = None
+                    else:
+                        pipeline.model = loaded
+                        logger.info(
+                            "ML model из registry (production): %s", prod.version
+                        )
             except Exception as exc:
                 logger.debug("registry model load: %s", exc)
         self._last_bar_ts: dict[str, int] = {}
