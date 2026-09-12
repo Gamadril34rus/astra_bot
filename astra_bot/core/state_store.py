@@ -153,6 +153,7 @@ class StateStore:
         base = self.path.parent
         for rel in (
             "no_trade_observations.jsonl",
+            "htf_shadow_bans.jsonl",
             "live_lessons.jsonl",
             "lessons.jsonl",
             "paper_trades.jsonl",

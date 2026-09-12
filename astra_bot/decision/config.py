@@ -53,6 +53,18 @@ class DecisionConfig:
     max_drawdown_pct: float = 15.0
     min_rr: float = 1.5
 
+    # D5 фаза 0: HTF directional-фильтр — SHADOW
+    # (docs/HTF_DIRECTIONAL_FILTER_PLAN.md, решение владельца 12.09.2026).
+    # Входы НЕ блокирует; пишет гипотетические запреты в журнал.
+    # Флип-стратегии исключены списком имён (план §2.4).
+    htf_shadow_enabled: bool = True
+    htf_shadow_tf: str = "4h"
+    htf_shadow_min_closed_bars: int = 60
+    htf_shadow_log_path: str = "models/htf_shadow_bans.jsonl"
+    htf_flip_strategies: frozenset[str] = frozenset(
+        {"ts_momentum", "ts_momentum_cross"}
+    )
+
     # ML/EV.
     min_ml_probability: float = 0.60
     min_expected_edge_pct: float = 0.4  # %
