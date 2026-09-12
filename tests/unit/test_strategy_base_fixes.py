@@ -212,8 +212,8 @@ class TestPipelineStrategyNames:
         assert len(names) == len(set(names)), f"коллизия имён: {sorted(names)}"
 
     def test_pattern_strategies_loaded(self, tmp_path, monkeypatch):
-        """18 pattern/V2-стратегий должны присутствовать в пайплайне
-        (14 паттернных + 4 V2)."""
+        """20 pattern/V2-стратегий должны присутствовать в пайплайне
+        (14 паттернных + 4 V2 + 2 Д-фигуры: rounded_top/rounded_bottom)."""
         from astra_bot.decision.strategies.adapter import PipelineStrategyAdapter
         from astra_bot.decision.trading_engine import TradingEngine, TradingEngineConfig
 
@@ -222,8 +222,9 @@ class TestPipelineStrategyNames:
         monkeypatch.chdir(tmp_path)
         eng = TradingEngine(TradingEngineConfig(symbols=("BTC-USDT",)))
         adapted = [x.name for x in eng.pipeline.strategies if isinstance(x, PipelineStrategyAdapter)]
-        assert len(adapted) == 18
+        assert len(adapted) == 20
         assert "falling_wedge" in adapted and "trend_following" in adapted
+        assert "rounded_top" in adapted and "rounded_bottom" in adapted
 
 
 class TestStrategyContextImport:

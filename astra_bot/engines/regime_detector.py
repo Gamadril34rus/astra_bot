@@ -281,6 +281,29 @@ STRATEGY_REGIME_COMPATIBILITY = {
         MarketRegime.PANIC: "OFF",
         MarketRegime.UNKNOWN: "OFF",
     },
+    # Д-фигуры владельца (12.09): профиль как у разворотных соседей
+    # (double/triple top_bottom) — без них check_regime_compatibility
+    # давал бы OFF во всех режимах.
+    "rounded_top": {
+        MarketRegime.BULL_TREND: "REDUCED",
+        MarketRegime.BEAR_TREND: "REDUCED",
+        MarketRegime.RANGE: "ON",
+        MarketRegime.BREAKOUT: "ON",
+        MarketRegime.HIGH_VOLATILITY: "OFF",
+        MarketRegime.LOW_VOLATILITY: "ON",
+        MarketRegime.PANIC: "OFF",
+        MarketRegime.UNKNOWN: "OFF",
+    },
+    "rounded_bottom": {
+        MarketRegime.BULL_TREND: "REDUCED",
+        MarketRegime.BEAR_TREND: "REDUCED",
+        MarketRegime.RANGE: "ON",
+        MarketRegime.BREAKOUT: "ON",
+        MarketRegime.HIGH_VOLATILITY: "OFF",
+        MarketRegime.LOW_VOLATILITY: "ON",
+        MarketRegime.PANIC: "OFF",
+        MarketRegime.UNKNOWN: "OFF",
+    },
     "rectangle": {
         MarketRegime.BULL_TREND: "ON",
         MarketRegime.BEAR_TREND: "ON",

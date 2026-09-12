@@ -2173,6 +2173,266 @@ class CupAndHandleStrategy(BasePatternStrategy):
             return None
 
 
+# ---------------------------------------------------------------------------
+# Круглая вершина / круглое дно (Д-фигура): свинг-дуга из N пивотов +
+# пробой линии шеи. Контракт владельца (12.09.2026): наследник
+# BasePatternStrategy, обе стороны, объёмный фильтр тот же, что у соседей
+# (BasePatternStrategy._check_volume), бакеты статистики —
+# rounded_top / rounded_bottom.
+#
+# Анти-дублирование с double/triple top — МЕХАНИЗМОМ, а не порогами:
+# круглая фигура — дуга из >= 5 пивотов с РОВНО ОДНОЙ вершиной (в верхней
+# 15%-зоне высоты фигуры лежит ровно 1 пивот); двойная/тройная вершина —
+# это 2-3 пика близкой высоты, и правило «одна вершина» их не пропускает.
+# Обратно: дуга короче 5 пивотов сюда не попадает и остаётся в зоне
+# ответственности double/triple.
+# ---------------------------------------------------------------------------
+
+# Пороги дуги (решение владельца 12.09.2026: зафиксированы в коде и НЕ
+# ослабляются ради частоты входов — частотой управляет kill-switch):
+ROUNDED_MIN_PIVOTS = 5          # меньше 5 пивотов — не дуга (двойная/тройная)
+ROUNDED_MAX_PIVOTS = 9          # больше 9 пивотов — канал, а не фигура
+ROUNDED_MIN_WINDOW = 40         # минимальная ширина дуги, баров
+ROUNDED_MAX_WINDOW = 120        # максимальная ширина дуги, баров
+ROUNDED_MIN_SIDE_PIVOTS = 2     # минимум пивотов с каждой стороны вершины
+ROUNDED_MAX_RESID_PCT = 0.15    # отклонение пивотов от дуги <= 15% высоты
+ROUNDED_MIN_R2 = 0.6            # гладкость квадратичной дуги (у соседей 0.5)
+ROUNDED_FILL_RATIO = 0.4        # «полнота» дуги у вершины (см. детектор)
+ROUNDED_BREAK_GAP = 0.001       # пробой: закрытие за шеей с зазором 0.1%
+ROUNDED_FRESH_BARS = 20         # последний пивот дуги не старше 20 баров
+ROUNDED_MIN_HEIGHT_PCT = 0.005  # фигура ниже 0.5% цены — шум, не сигнал
+
+
+def detect_rounded_top_bottom(
+    highs: list[float],
+    lows: list[float],
+    closes: list[float],
+) -> PatternResult:
+    """Д-фигура: круглая вершина (шорт) / круглое дно (лонг).
+
+    Свинг-дуга из 5-9 пивотов шириной 40-120 баров, квадратичная кривизна,
+    одна вершина; линия шеи — по двум последним противоположным свингам;
+    пробой — только закрытием последнего (закрытого в контексте А5) бара.
+    """
+    none_res = PatternResult(
+        pattern=PatternType.NONE,
+        confidence=0.0,
+        upper_line=None,
+        lower_line=None,
+        breakout_direction=None,
+        diagnostics={"type": "none"},
+    )
+    n = len(closes)
+    if n < ROUNDED_MIN_WINDOW + 2:
+        return none_res
+    hi_idx_all = _collapse_plateaus(_find_swings(highs, lows, window=3)[0])
+    lo_idx_all = _collapse_plateaus(_find_swings(highs, lows, window=3)[1])
+    price = float(closes[-1])
+
+    def _try(top: bool) -> PatternResult | None:
+        own = hi_idx_all if top else lo_idx_all     # пивоты дуги
+        opp = lo_idx_all if top else hi_idx_all     # шея — противоположные
+        lo_bound = n - 1 - ROUNDED_MAX_WINDOW
+        piv = [i for i in own if lo_bound < i < n - 1]
+        if not (ROUNDED_MIN_PIVOTS <= len(piv) <= ROUNDED_MAX_PIVOTS):
+            return None
+        if piv[-1] - piv[0] < ROUNDED_MIN_WINDOW:
+            return None
+        if piv[-1] < n - 1 - ROUNDED_FRESH_BARS:
+            return None  # дуга старая — пробой уже не привязан к фигуре
+        vals = [highs[i] if top else lows[i] for i in piv]
+        apex_k = (max if top else min)(range(len(vals)), key=lambda k: vals[k])
+        # вершина не с краю: дуга поднимается к центру и спускается
+        if (
+            apex_k < ROUNDED_MIN_SIDE_PIVOTS
+            or len(vals) - 1 - apex_k < ROUNDED_MIN_SIDE_PIVOTS
+        ):
+            return None
+        # линия шеи — по двум последним противоположным свингам окна
+        neck_piv = [i for i in opp if lo_bound < i < n - 1][-2:]
+        if len(neck_piv) < 2:
+            return None
+        opp_vals = lows if top else highs
+        neck = _fit_line(
+            [float(neck_piv[0]), float(neck_piv[1])],
+            [opp_vals[neck_piv[0]], opp_vals[neck_piv[1]]],
+        )
+        apex_v = vals[apex_k]
+        neck_at_apex = neck.value_at(float(piv[apex_k]))
+        height = (apex_v - neck_at_apex) if top else (neck_at_apex - apex_v)
+        if height < price * ROUNDED_MIN_HEIGHT_PCT:
+            return None
+        # квадратичная дуга: знак кривизны, гладкость, остаток
+        arc = _quadratic_regression([float(i) for i in piv], vals)
+        if arc is None or arc.quad is None:
+            return None
+        if (arc.curvature > 0) == top:  # купол вогнут (кривизна < 0), чаша — нет
+            return None
+        if arc.r2 < ROUNDED_MIN_R2:
+            return None
+        max_resid = max(
+            abs(v - arc.value_at(float(i))) for i, v in zip(piv, vals, strict=False)
+        )
+        if max_resid > ROUNDED_MAX_RESID_PCT * height:
+            return None
+        # «Полная» дуга (анти-дублирование с double/triple): между
+        # пивотами вокруг вершины цена НЕ возвращается к шее — у двойной
+        # вершины между пиками глубокий ретест шеи, здесь это отсекается.
+        a = max(0, apex_k - 1)
+        b = min(len(piv) - 1, apex_k + 1)
+        for j in range(a, b):
+            i0, i1 = piv[j], piv[j + 1]
+            neck_mid = neck.value_at(float(i0 + i1) / 2.0)
+            if top:
+                if min(lows[i0 : i1 + 1]) < neck_mid + ROUNDED_FILL_RATIO * height:
+                    return None
+            else:
+                if max(highs[i0 : i1 + 1]) > neck_mid - ROUNDED_FILL_RATIO * height:
+                    return None
+        # пробой — закрытием последнего закрытого бара (А5)
+        neck_now = neck.value_at(float(n - 1))
+        if top:
+            if not price < neck_now * (1 - ROUNDED_BREAK_GAP):
+                return None
+            ptype = PatternType.ROUNDED_TOP
+            brk, sig = "down", "short_on_neckline_break_down"
+        else:
+            if not price > neck_now * (1 + ROUNDED_BREAK_GAP):
+                return None
+            ptype = PatternType.ROUNDED_BOTTOM
+            brk, sig = "up", "long_on_neckline_break_up"
+        return PatternResult(
+            pattern=ptype,
+            confidence=min(0.9, 0.5 + arc.r2 * 0.3),
+            upper_line=None if top else neck,
+            lower_line=neck if top else None,
+            breakout_direction=brk,
+            diagnostics={
+                "type": "rounded_top" if top else "rounded_bottom",
+                "signal": sig,
+                "breakout": "closed_bar",
+                "arc_pivots": len(piv),
+                "arc_span": piv[-1] - piv[0],
+                "apex": apex_v,
+                "last_pivot": vals[-1],
+                "arc_height": height,
+                "neckline_at_now": neck_now,
+                "arc_r2": arc.r2,
+                "max_resid_pct": (max_resid / height) if height else 0.0,
+            },
+        )
+
+    return _try(top=True) or _try(top=False) or none_res
+
+
+class RoundedTopStrategy(BasePatternStrategy):
+    """Круглая вершина (купол): шорт на пробое линии шеи."""
+
+    name = "rounded_top"
+
+    async def evaluate(self, ctx: StrategyContext):
+        try:
+            candles = ctx.candles
+            if len(candles) < ROUNDED_MIN_WINDOW + 2:
+                return None
+            highs = [float(c.high) for c in candles]
+            lows = [float(c.low) for c in candles]
+            closes = [float(c.close) for c in candles]
+            result = detect_rounded_top_bottom(highs, lows, closes)
+            if result.pattern != PatternType.ROUNDED_TOP:
+                return None
+            if result.confidence < 0.5:
+                return None
+            # объёмный фильтр — точно как у соседей (порог 1.2), без послаблений
+            if not self._check_volume(candles):
+                return None
+            price = closes[-1]
+            neck = float(result.diagnostics.get("neckline_at_now", price))
+            apex = float(result.diagnostics.get("apex", price))
+            last_pivot = float(result.diagnostics.get("last_pivot", apex))
+            height = max(float(result.diagnostics.get("arc_height", 0.0)), price * 0.005)
+            # стоп за последний пивот дуги (правый «склон»), буфер как у
+            # head_shoulders: 0.5 x max(часть высоты, 0.5% цены)
+            sl = last_pivot + 0.5 * max(height * 0.25, price * 0.005)
+            risk = sl - price
+            tp = price - max(height, risk * 1.6)
+            reward = price - tp
+            if risk <= 0 or reward / risk < 1.5:
+                return None
+            return SignalCandidate(
+                symbol=ctx.symbol,
+                direction="short",
+                entry_price=Decimal(str(price)),
+                stop_loss=Decimal(str(sl)),
+                take_profit=Decimal(str(tp)),
+                timeframe=ctx.timeframe,
+                strategy=self.name,
+                confidence=result.confidence,
+                features={
+                    "pattern": result.pattern.value,
+                    "breakout": result.diagnostics.get("breakout"),
+                    "neckline": neck,
+                    "arc_height": height,
+                },
+            )
+        except Exception as e:
+            logger.debug("%s strategy error: %s", self.name, e)
+            return None
+
+
+class RoundedBottomStrategy(BasePatternStrategy):
+    """Круглое дно (чаша): лонг на пробое линии шеи."""
+
+    name = "rounded_bottom"
+
+    async def evaluate(self, ctx: StrategyContext):
+        try:
+            candles = ctx.candles
+            if len(candles) < ROUNDED_MIN_WINDOW + 2:
+                return None
+            highs = [float(c.high) for c in candles]
+            lows = [float(c.low) for c in candles]
+            closes = [float(c.close) for c in candles]
+            result = detect_rounded_top_bottom(highs, lows, closes)
+            if result.pattern != PatternType.ROUNDED_BOTTOM:
+                return None
+            if result.confidence < 0.5:
+                return None
+            # объёмный фильтр — точно как у соседей (порог 1.2), без послаблений
+            if not self._check_volume(candles):
+                return None
+            price = closes[-1]
+            neck = float(result.diagnostics.get("neckline_at_now", price))
+            apex = float(result.diagnostics.get("apex", price))
+            last_pivot = float(result.diagnostics.get("last_pivot", apex))
+            height = max(float(result.diagnostics.get("arc_height", 0.0)), price * 0.005)
+            sl = last_pivot - 0.5 * max(height * 0.25, price * 0.005)
+            risk = price - sl
+            tp = price + max(height, risk * 1.6)
+            reward = tp - price
+            if risk <= 0 or reward / risk < 1.5:
+                return None
+            return SignalCandidate(
+                symbol=ctx.symbol,
+                direction="long",
+                entry_price=Decimal(str(price)),
+                stop_loss=Decimal(str(sl)),
+                take_profit=Decimal(str(tp)),
+                timeframe=ctx.timeframe,
+                strategy=self.name,
+                confidence=result.confidence,
+                features={
+                    "pattern": result.pattern.value,
+                    "breakout": result.diagnostics.get("breakout"),
+                    "neckline": neck,
+                    "arc_height": height,
+                },
+            )
+        except Exception as e:
+            logger.debug("%s strategy error: %s", self.name, e)
+            return None
+
+
 ALL_PATTERN_STRATEGIES = [
     FallingWedgeStrategy,
     RisingWedgeStrategy,
@@ -2188,4 +2448,6 @@ ALL_PATTERN_STRATEGIES = [
     PennantStrategy,
     DiamondStrategy,
     CupAndHandleStrategy,
+    RoundedTopStrategy,
+    RoundedBottomStrategy,
 ]

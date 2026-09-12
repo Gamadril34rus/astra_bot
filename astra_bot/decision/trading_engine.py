@@ -236,6 +236,8 @@ class TradingEngine:
                     PennantStrategy,
                     RectangleStrategy,
                     RisingWedgeStrategy,
+                    RoundedBottomStrategy,
+                    RoundedTopStrategy,
                     SymmetricalTriangleStrategy,
                     TripleTopBottomStrategy,
                 )
@@ -261,6 +263,10 @@ class TradingEngine:
                     PipelineStrategyAdapter(PennantStrategy(), SignalType.MOMENTUM),
                     PipelineStrategyAdapter(DiamondStrategy(), SignalType.MOMENTUM),
                     PipelineStrategyAdapter(CupAndHandleStrategy(), SignalType.MOMENTUM),
+                    # Д-фигуры владельца (12.09): разворотные, как
+                    # DoubleTopBottom — тип MEAN_REVERSION.
+                    PipelineStrategyAdapter(RoundedTopStrategy(), SignalType.MEAN_REVERSION),
+                    PipelineStrategyAdapter(RoundedBottomStrategy(), SignalType.MEAN_REVERSION),
                     PipelineStrategyAdapter(TrendFollowingStrategyV2(), SignalType.MOMENTUM),
                     PipelineStrategyAdapter(MeanReversionStrategyV2(), SignalType.MEAN_REVERSION),
                     PipelineStrategyAdapter(BreakoutStrategyV2(), SignalType.MOMENTUM),
