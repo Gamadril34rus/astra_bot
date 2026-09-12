@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 # Живые append-only файлы (live-схема), строки.
 LIVE_JSONL_LIMITS: dict[str, int] = {
     "no_trade_observations.jsonl": 5_000,
+    # D5 фаза 0: гипотетические запреты HTF-фильтра (shadow, не блокирует).
+    "htf_shadow_bans.jsonl": 5_000,
     "decision_log.jsonl": 20_000,
     "live_lessons.jsonl": 10_000,
     "lessons.jsonl": 10_000,

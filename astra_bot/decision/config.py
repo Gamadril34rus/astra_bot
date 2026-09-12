@@ -22,6 +22,9 @@ class DecisionConfig:
     adx_strong_threshold: float = 40.0
     ema_fast: int = 20
     ema_mid: int = 50
+    # Лента дневных гейтов (п.7.4): 20/50/100/200 — 100 добавлена к
+    # существующим 20/50/200 (поправка владельца).
+    ema_band: int = 100
     ema_slow: int = 200
 
     # Волатильность.
@@ -52,6 +55,33 @@ class DecisionConfig:
     max_daily_loss_pct: float = 3.0
     max_drawdown_pct: float = 15.0
     min_rr: float = 1.5
+
+    # D5 фаза 0: HTF directional-фильтр — SHADOW
+    # (docs/HTF_DIRECTIONAL_FILTER_PLAN.md, решение владельца 12.09.2026).
+    # Входы НЕ блокирует; пишет гипотетические запреты в журнал.
+    # Флип-стратегии исключены списком имён (план §2.4).
+    htf_shadow_enabled: bool = True
+    htf_shadow_tf: str = "4h"
+    htf_shadow_min_closed_bars: int = 60
+    htf_shadow_log_path: str = "models/htf_shadow_bans.jsonl"
+    # ---- Набор индикаторов владельца (п.7, 12.09): дневные ЖИВЫЕ гейты.
+    # Режут кандидатов (не тень, как D5) — решение владельца.
+    htf_gate_enabled: bool = True
+    htf_gate_tf: str = "1d"
+    htf_gate_min_bars: int = 200
+    # Список гейтуемых бакетов — В КОНФИГЕ (поправка 3 владельца), не
+    # константой: расширение на остальные фигуры — отдельное решение по
+    # данным HTF_GATE через 2 недели.
+    htf_gate_strategies: frozenset[str] = frozenset(
+        {"ob_swing", "breaker_block", "maicross", "rounded_top", "rounded_bottom"}
+    )
+    htf_gate_btc_symbol: str = "BTC-USDT"
+    htf_gate_btc_cache_ttl: int = 900
+    htf_gate_daily_bars: int = 500
+
+    htf_flip_strategies: frozenset[str] = frozenset(
+        {"ts_momentum", "ts_momentum_cross"}
+    )
 
     # ML/EV.
     min_ml_probability: float = 0.60

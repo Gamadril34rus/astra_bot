@@ -123,6 +123,13 @@ class TradingEngineConfig:
     bars_per_tf: dict[str, int] = field(
         default_factory=lambda: {"5m": 250, "15m": 200, "1h": 200, "4h": 320}
     )
+    # Набор владельца (п.7, 12.09): дневной ряд для об/брейкер/маикросс
+    # и дневных гейтов. 500 баров (поправка 4): один запрос
+    # (_MAX_KLINES=500), EMA200 на 250 барах нестабилен (посев от
+    # values[0]), на 500 — приемлемо. В config.timeframes НЕ входит:
+    # выбор ТФ остальных стратегий не меняется.
+    htf_daily_tf: str = "1d"
+    htf_daily_bars: int = 500
     # Block 6.1: Максимальный риск на сделку 1% (было 0.5%)
     risk_per_trade_pct: Decimal = Decimal("0.01")
     # Block 6.2: Жёсткий максимум 10% баланса на позицию
@@ -162,6 +169,9 @@ class TradingEngineConfig:
     no_trade_observations_path: str = "models/no_trade_observations.jsonl"
     no_trade_outcomes_path: str = "models/no_trade_outcomes.json"
     hypotheses_path: str = "models/research/hypotheses.json"
+    # Анти-дребезг (решение владельца 12.09.2026): после выхода по стопу
+    # та же стратегия не входит в тот же символ/сторону столько минут.
+    reentry_cooldown_minutes: int = 20
 
 
 class TradingEngine:
@@ -236,6 +246,8 @@ class TradingEngine:
                     PennantStrategy,
                     RectangleStrategy,
                     RisingWedgeStrategy,
+                    RoundedBottomStrategy,
+                    RoundedTopStrategy,
                     SymmetricalTriangleStrategy,
                     TripleTopBottomStrategy,
                 )
@@ -261,6 +273,10 @@ class TradingEngine:
                     PipelineStrategyAdapter(PennantStrategy(), SignalType.MOMENTUM),
                     PipelineStrategyAdapter(DiamondStrategy(), SignalType.MOMENTUM),
                     PipelineStrategyAdapter(CupAndHandleStrategy(), SignalType.MOMENTUM),
+                    # Д-фигуры владельца (12.09): разворотные, как
+                    # DoubleTopBottom — тип MEAN_REVERSION.
+                    PipelineStrategyAdapter(RoundedTopStrategy(), SignalType.MEAN_REVERSION),
+                    PipelineStrategyAdapter(RoundedBottomStrategy(), SignalType.MEAN_REVERSION),
                     PipelineStrategyAdapter(TrendFollowingStrategyV2(), SignalType.MOMENTUM),
                     PipelineStrategyAdapter(MeanReversionStrategyV2(), SignalType.MEAN_REVERSION),
                     PipelineStrategyAdapter(BreakoutStrategyV2(), SignalType.MOMENTUM),
@@ -275,6 +291,14 @@ class TradingEngine:
 
             from ..strategies.fair_value_gap import FairValueGapStrategy
             from ..strategies.funding_rate_contrarian import FundingRateContrarianStrategy
+
+            # Набор индикаторов владельца (п.7, 12.09): дневные
+            # об/брейкер по Люксу + маикросс (ЕМА 20/50).
+            from ..strategies.htf_blocks import (
+                BreakerBlockStrategy,
+                MaiCrossStrategy,
+                ObSwingStrategy,
+            )
             from ..strategies.liquidity_sweep import LiquiditySweepStrategy
             from ..strategies.open_interest_divergence import OpenInterestDivergenceStrategy
             from ..strategies.order_block import OrderBlockStrategy
@@ -297,6 +321,10 @@ class TradingEngine:
                 VolumeDeltaStrategy(),
                 VWAPDeviationStrategy(),
                 OpenInterestDivergenceStrategy(),
+                # Набор владельца (п.7): дневные источники входов.
+                ObSwingStrategy(),
+                BreakerBlockStrategy(),
+                MaiCrossStrategy(),
             ]
 
             pipeline = DecisionPipeline(
@@ -319,15 +347,16 @@ class TradingEngine:
                 ],
             )
             # Громкая проверка загрузки (урок блока 9: стратегии молча
-            # не грузились месяцами). 7 ядро + 18 паттернов + 11 новых = 36.
+            # не грузились месяцами). 7 ядро + 18 паттернов + 14 новых = 39
+            # (с 12.09 +3 набора владельца: об/брейкер/маикросс, п.7).
             _names = [getattr(s, "name", type(s).__name__) for s in pipeline.strategies]
-            if len(pipeline.strategies) < 26:
+            if len(pipeline.strategies) < 29:
                 logger.error(
-                    "Загружено стратегий %d/36 — состав неполный (7 ядро + 18 паттернов + 11 новых): %s",
+                    "Загружено стратегий %d/39 — состав неполный (7 ядро + 18 паттернов + 14 новых): %s",
                     len(pipeline.strategies), _names,
                 )
             else:
-                logger.info("Загружено стратегий %d/36 (7 ядро + 18 паттернов + 11 новых)", len(pipeline.strategies))
+                logger.info("Загружено стратегий %d/39 (7 ядро + 18 паттернов + 14 новых)", len(pipeline.strategies))
         self.pipeline = pipeline
         # Аудит эпохи-2 (блок A): пер-стратегийный килл-свитч из статистики
         # (пересчёт каждую сессию = самовосстановление).
@@ -590,6 +619,18 @@ class TradingEngine:
                 timeframe=tf,
                 limit=self.config.bars_per_tf.get(tf, 300),
             )
+        # Набор владельца (п.7): дневные бары — вне config.timeframes,
+        # чтобы их не видел никто, кроме стратегий с
+        # preferred_timeframe="1d" и дневных гейтов. Ошибка — не фатальна:
+        # без дневных стратегия промолчит, гейт сработает фейл-оупен.
+        try:
+            candles[self.config.htf_daily_tf] = await self.exchange.get_candles(
+                symbol,
+                timeframe=self.config.htf_daily_tf,
+                limit=self.config.htf_daily_bars,
+            )
+        except Exception as exc:
+            logger.warning("Дневные свечи %s недоступны (фейл-оупен): %s", symbol, exc)
         primary = candles.get("5m") or candles.get("15m") or candles.get("1h") or []
         if not primary:
             raise RuntimeError(f"Нет данных по {symbol}")
@@ -665,6 +706,25 @@ class TradingEngine:
                 return qty.quantize(Decimal("0.000001"))
             except Exception:
                 return Decimal("0")
+
+    # ------------------------------------------- анти-дребезг (кулдаун)
+    @staticmethod
+    def _cooldown_key(strategy: str, symbol: str, side: str) -> str:
+        # Имя стратегии в ключе — ровно как в бакетах strategy_stats
+        # (там ключ начинается с "стратегия|...").
+        return f"{strategy}|{symbol}|{side}"
+
+    def _cooldown_ttl_ms(self) -> int:
+        return int(self.config.reentry_cooldown_minutes) * 60_000
+
+    def _cooldown_blocks(self, strategy: str, symbol: str, side: str) -> bool:
+        """Активен ли кулдаун анти-дребезга для этой тройки."""
+        return (
+            self.broker.cooldown_remaining_ms(
+                self._cooldown_key(strategy, symbol, side)
+            )
+            > 0
+        )
 
     def apply_kill_switches_from_stats(self) -> list[str]:
         """Пер-стратегийный килл-свитч из статистики (блок A).
@@ -1170,6 +1230,28 @@ class TradingEngine:
             logger.debug("NO_TRADE %s: %s", symbol, decision.reasons)
             return closed
 
+        # Анти-дребезг (решение владельца 12.09): та же стратегия + тот же
+        # символ + сторона не входят 20 минут после выхода по стопу.
+        # Реестр живёт в существующем state брокера (процесс пересоздаётся
+        # каждые ~5 минут — в памяти не удержать).
+        if self._cooldown_blocks(
+            decision.candidate.strategy, symbol, decision.candidate.direction
+        ):
+            _cd_left = self.broker.cooldown_remaining_ms(
+                self._cooldown_key(
+                    decision.candidate.strategy, symbol,
+                    decision.candidate.direction,
+                )
+            )
+            logger.info(
+                "COOLDOWN symbol=%s strategy=%s side=%s осталось=%d мин",
+                symbol,
+                decision.candidate.strategy,
+                decision.candidate.direction,
+                -(-_cd_left // 60000),
+            )
+            return closed
+
         # Дисциплина капитала: лимит числа позиций, однонаправленных
         # входов и суммарной экспозиции. Защищает от пачки
         # коррелированных сделок, которые стопнутся одновременно.
@@ -1608,6 +1690,28 @@ class TradingEngine:
             )
         if not trades:
             return
+        # Анти-дребезг: выход по стопу ставит ключ в реестр кулдаунов
+        # (только стоп; VOL_EXPANSION и прочие forced-причины не трогаем —
+        # решение владельца 12.09). Реестр персистится в state брокера.
+        try:
+            _cd_changed = False
+            _now_ms = int(datetime.now(tz=UTC).timestamp() * 1000)
+            for t in closed:
+                if getattr(t, "exit_reason", "") == "stop_loss":
+                    _cd_key = self._cooldown_key(
+                        getattr(t, "strategy", "") or "",
+                        getattr(t, "symbol", "") or "",
+                        getattr(t, "direction", "") or "",
+                    )
+                    _cd_at = int(getattr(t, "closed_at", 0) or _now_ms)
+                    self.broker.register_cooldown(
+                        _cd_key, _cd_at + self._cooldown_ttl_ms()
+                    )
+                    _cd_changed = True
+            if _cd_changed:
+                self.broker.save()
+        except Exception as exc:
+            logger.debug("cooldown register skipped: %s", exc)
         # Block 2.1 & 7.1: Save to data/trades.db and data/state.json via StateManager
         try:
             from ..data.state_manager import get_state_manager

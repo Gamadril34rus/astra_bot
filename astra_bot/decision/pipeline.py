@@ -20,6 +20,7 @@ from .correlation_engine import CorrelationEngine
 from .derivatives_engine import DerivativesEngine
 from .ev_engine import EVEngine
 from .feature_engine import FeatureEngine
+from .htf_shadow import HtfShadowLog, htf_bias
 from .liquidity_engine import LiquidityEngine
 from .meta_strategy import MetaStrategy, NoTradeReason
 from .news_engine import NewsEngine, NewsReport
@@ -98,6 +99,9 @@ class DecisionPipeline:
         self.correlation = CorrelationEngine()
         self.scorer = SignalScorer(self.config)
         self.ev = EVEngine(self.config.min_expected_edge_pct)
+        # D5 фаза 0: shadow-журнал гипотетических HTF-запретов
+        # (не блокирует входы; см. htf_shadow.py).
+        self.htf_shadow = HtfShadowLog(self.config.htf_shadow_log_path)
 
     # ----------------------------------------------------------- builders
     @staticmethod
@@ -129,6 +133,47 @@ class DecisionPipeline:
         if len(candles) > 1:
             return candles[:-1]
         return list(candles)
+
+    # ------------------------------------------------- D5 фаза 0 (shadow)
+    def _htf_shadow_observe(self, ctx: MarketContext, candidates: list) -> None:
+        """Записать гипотетические HTF-запреты (тень, входы не трогаем).
+
+        Правило (план §2.2): направление 4h по EMA20/50 на закрытых барах;
+        лонг запрещён при EMA20 < EMA50 и close < EMA50, шорт — зеркально.
+        Флип-стратегии исключены (план §2.4); < 60 закрытых баров 4h или
+        ошибка — молчим (fail-open, план §2.5).
+        """
+        if not self.config.htf_shadow_enabled or not candidates:
+            return
+        candles = ctx.candles_on(self.config.htf_shadow_tf)
+        closed = self._closed_entry_candles(candles)
+        closes = [float(c.close) for c in closed]
+        bias, diag = htf_bias(
+            closes, min_closed_bars=self.config.htf_shadow_min_closed_bars
+        )
+        if bias is None:
+            return  # нейтрально или fail-open — запретов нет
+        forbidden = "long" if bias == "short" else "short"
+        bar_time = int(getattr(closed[-1], "open_time", 0) or 0)
+        for cand in candidates:
+            if cand.direction != forbidden:
+                continue
+            if cand.strategy in self.config.htf_flip_strategies:
+                continue  # флип: смена направления старшего ТФ и есть сигнал
+            self.htf_shadow.record(
+                symbol=ctx.symbol,
+                bar_time=bar_time,
+                strategy=cand.strategy,
+                direction=cand.direction,
+                bias=bias,
+                ema_fast=float(diag.get("ema_fast", 0.0)),
+                ema_slow=float(diag.get("ema_slow", 0.0)),
+                close=float(diag.get("close", 0.0)),
+                entry_price=str(cand.entry_price),
+                stop_loss=str(cand.stop_loss),
+                take_profit=str(cand.take_profit),
+                rr=cand.risk_reward,
+            )
 
     async def _candidates_from_strategies(
         self,
@@ -319,6 +364,13 @@ class DecisionPipeline:
                 reason_code=NoTradeReason.NO_VALID_SETUP.value,
             )
 
+        # D5 фаза 0: HTF shadow-фильтр (план §2). НЕ блокирует: только
+        # пишет гипотетические запреты кандидатов, идущих против 4h-тренда.
+        try:
+            self._htf_shadow_observe(ctx, candidates)
+        except Exception as exc:
+            logger.debug("htf shadow observe skipped: %s", exc)
+
         # 7.1 Флип-стратегии (ts_momentum): смена режима — детерминированное
         # действие, которое не должно зависеть от скоринга конкурентов.
         # CLOSE — выйти из рынка, FLIP — перевернуть позицию.
@@ -419,6 +471,15 @@ class DecisionPipeline:
             candidates = await apply_candidate_filters(candidates)
         except Exception as exc:
             logger.debug("Candidate filters execution failed: %s", exc)
+
+        # 8.1.6 HTF-гейты набора владельца (п.7): дневная лента своего
+        # символа + фильтр «по BTC». ЖИВЫЕ (режут), фейл-оупен; список
+        # гейтуемых бакетов — в конфиге (поправка 3 владельца).
+        try:
+            from .htf_gates import apply_htf_gates
+            candidates = await apply_htf_gates(candidates, ctx, self.config)
+        except Exception as exc:
+            logger.debug("HTF gates execution failed: %s", exc)
 
         # 8.2 Meta-Strategy: выбор по shrunken EV в текущем режиме (TZ §5).
         # total_score — лишь диагностика; не он определяет выбор.

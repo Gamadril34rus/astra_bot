@@ -198,6 +198,11 @@ class PaperBroker:
                     self.fee_pct = fp
                     self.slippage_pct = sp
 
+        # Анти-дребезг (решение владельца 12.09): реестр повторных входов.
+        # Ключ "стратегия|символ|сторона" -> момент истечения (мс). Живёт
+        # в существующем state-файле (процесс пересоздаётся каждые ~5 мин).
+        self.cooldowns: dict[str, int] = {}
+
         self._load()
 
     # ------------------------------------------------------------ persistence
@@ -255,6 +260,11 @@ class PaperBroker:
             # Восстанавливаем стартовый капитал из состояния, если он там есть.
             if data.get("initial_capital"):
                 self.initial_capital = Decimal(str(data["initial_capital"]))
+            # Анти-дребезг: восстанавливаем реестр и чистим просроченное.
+            self.cooldowns = {
+                str(k): int(v) for k, v in (data.get("cooldowns") or {}).items()
+            }
+            self._purge_cooldowns()
         except Exception as exc:
             logger.warning("Не загрузил состояние paper-брокера: %s", exc)
 
@@ -286,8 +296,27 @@ class PaperBroker:
             ],
             "realized_pnl": str(self.realized_pnl),
             "initial_capital": str(self.initial_capital),
+            # Анти-дребезг: просроченные записи не пишем (рост ограничен).
+            "cooldowns": self._purge_cooldowns(),
         }
         self.state_path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+
+    # ------------------------------------------------- анти-дребезг (кулдаун)
+    def _purge_cooldowns(self, now_ms: int | None = None) -> dict[str, int]:
+        """Убрать просроченные записи; вернуть живой остаток реестра."""
+        now = int(now_ms if now_ms is not None else datetime.now(tz=UTC).timestamp() * 1000)
+        self.cooldowns = {k: int(v) for k, v in self.cooldowns.items() if int(v) > now}
+        return self.cooldowns
+
+    def register_cooldown(self, key: str, expires_at_ms: int) -> None:
+        """Поставить ключ в реестр (вызывается движком при выходе по стопу)."""
+        if key:
+            self.cooldowns[str(key)] = int(expires_at_ms)
+
+    def cooldown_remaining_ms(self, key: str, now_ms: int | None = None) -> int:
+        """Сколько мс ещё действует запрет (0, если можно входить)."""
+        now = int(now_ms if now_ms is not None else datetime.now(tz=UTC).timestamp() * 1000)
+        return max(0, int(self.cooldowns.get(str(key), 0)) - now)
 
     def _log_trade(self, trade: ClosedTrade) -> None:
         self.trades_path.parent.mkdir(parents=True, exist_ok=True)

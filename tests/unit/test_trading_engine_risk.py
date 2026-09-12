@@ -232,6 +232,9 @@ def test_closed_trade_updates_risk_state(engine_factory):
     # Убыток = qty * distance (1.0) учтён в дневном PnL.
     # Since qty is now ~1.0 (not 1.5), daily_pnl should be -qty
     assert float(eng.risk._daily_pnl) == pytest.approx(-float(first_qty), abs=0.01)
-    # Движок перешёл в следующую позицию (fake pipeline снова дал LONG)
-    assert len(eng.broker.positions) == 1
-    assert len(eng.risk._open_positions) == 1
+    # Анти-дребезг (решение владельца 12.09): немедленный повторный вход той
+    # же стратегии/символа/стороны после выхода по стопу заблокирован
+    # кулдауном 20 мин — новая позиция НЕ открывается (раньше открывалась).
+    assert len(eng.broker.positions) == 0
+    assert len(eng.risk._open_positions) == 0
+    assert eng._cooldown_blocks("fake_strategy", SYMBOL, "long")
