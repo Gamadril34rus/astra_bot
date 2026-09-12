@@ -123,6 +123,13 @@ class TradingEngineConfig:
     bars_per_tf: dict[str, int] = field(
         default_factory=lambda: {"5m": 250, "15m": 200, "1h": 200, "4h": 320}
     )
+    # Набор владельца (п.7, 12.09): дневной ряд для об/брейкер/маикросс
+    # и дневных гейтов. 500 баров (поправка 4): один запрос
+    # (_MAX_KLINES=500), EMA200 на 250 барах нестабилен (посев от
+    # values[0]), на 500 — приемлемо. В config.timeframes НЕ входит:
+    # выбор ТФ остальных стратегий не меняется.
+    htf_daily_tf: str = "1d"
+    htf_daily_bars: int = 500
     # Block 6.1: Максимальный риск на сделку 1% (было 0.5%)
     risk_per_trade_pct: Decimal = Decimal("0.01")
     # Block 6.2: Жёсткий максимум 10% баланса на позицию
@@ -284,6 +291,14 @@ class TradingEngine:
 
             from ..strategies.fair_value_gap import FairValueGapStrategy
             from ..strategies.funding_rate_contrarian import FundingRateContrarianStrategy
+
+            # Набор индикаторов владельца (п.7, 12.09): дневные
+            # об/брейкер по Люксу + маикросс (ЕМА 20/50).
+            from ..strategies.htf_blocks import (
+                BreakerBlockStrategy,
+                MaiCrossStrategy,
+                ObSwingStrategy,
+            )
             from ..strategies.liquidity_sweep import LiquiditySweepStrategy
             from ..strategies.open_interest_divergence import OpenInterestDivergenceStrategy
             from ..strategies.order_block import OrderBlockStrategy
@@ -306,6 +321,10 @@ class TradingEngine:
                 VolumeDeltaStrategy(),
                 VWAPDeviationStrategy(),
                 OpenInterestDivergenceStrategy(),
+                # Набор владельца (п.7): дневные источники входов.
+                ObSwingStrategy(),
+                BreakerBlockStrategy(),
+                MaiCrossStrategy(),
             ]
 
             pipeline = DecisionPipeline(
@@ -328,15 +347,16 @@ class TradingEngine:
                 ],
             )
             # Громкая проверка загрузки (урок блока 9: стратегии молча
-            # не грузились месяцами). 7 ядро + 18 паттернов + 11 новых = 36.
+            # не грузились месяцами). 7 ядро + 18 паттернов + 14 новых = 39
+            # (с 12.09 +3 набора владельца: об/брейкер/маикросс, п.7).
             _names = [getattr(s, "name", type(s).__name__) for s in pipeline.strategies]
-            if len(pipeline.strategies) < 26:
+            if len(pipeline.strategies) < 29:
                 logger.error(
-                    "Загружено стратегий %d/36 — состав неполный (7 ядро + 18 паттернов + 11 новых): %s",
+                    "Загружено стратегий %d/39 — состав неполный (7 ядро + 18 паттернов + 14 новых): %s",
                     len(pipeline.strategies), _names,
                 )
             else:
-                logger.info("Загружено стратегий %d/36 (7 ядро + 18 паттернов + 11 новых)", len(pipeline.strategies))
+                logger.info("Загружено стратегий %d/39 (7 ядро + 18 паттернов + 14 новых)", len(pipeline.strategies))
         self.pipeline = pipeline
         # Аудит эпохи-2 (блок A): пер-стратегийный килл-свитч из статистики
         # (пересчёт каждую сессию = самовосстановление).
@@ -599,6 +619,18 @@ class TradingEngine:
                 timeframe=tf,
                 limit=self.config.bars_per_tf.get(tf, 300),
             )
+        # Набор владельца (п.7): дневные бары — вне config.timeframes,
+        # чтобы их не видел никто, кроме стратегий с
+        # preferred_timeframe="1d" и дневных гейтов. Ошибка — не фатальна:
+        # без дневных стратегия промолчит, гейт сработает фейл-оупен.
+        try:
+            candles[self.config.htf_daily_tf] = await self.exchange.get_candles(
+                symbol,
+                timeframe=self.config.htf_daily_tf,
+                limit=self.config.htf_daily_bars,
+            )
+        except Exception as exc:
+            logger.warning("Дневные свечи %s недоступны (фейл-оупен): %s", symbol, exc)
         primary = candles.get("5m") or candles.get("15m") or candles.get("1h") or []
         if not primary:
             raise RuntimeError(f"Нет данных по {symbol}")

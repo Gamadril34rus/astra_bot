@@ -23,6 +23,8 @@ class Features:
     # Trend
     ema20: float | None = None
     ema50: float | None = None
+    # Лента расширена до 20/50/100/200 (набор владельца, п.7.4).
+    ema100: float | None = None
     ema200: float | None = None
     adx: float | None = None
     trend_alignment: int = 0  # +1 long, -1 short, 0 none
@@ -108,11 +110,13 @@ class FeatureEngine:
         closes, highs, lows, volumes = self._arrays(primary)
         e20 = ind.ema(closes, cfg.ema_fast)
         e50 = ind.ema(closes, cfg.ema_mid)
+        e100 = ind.ema(closes, getattr(cfg, "ema_band", 100))
         e200 = ind.ema(closes, cfg.ema_slow)
         bb = ind.bollinger_bands(closes, cfg.bb_period, cfg.bb_std)
 
         features.ema20 = e20
         features.ema50 = e50
+        features.ema100 = e100
         features.ema200 = e200
         features.adx = ind.adx(highs, lows, closes, period=cfg.atr_period)
         features.trend_alignment = self._trend_alignment(closes, e20, e50, e200)

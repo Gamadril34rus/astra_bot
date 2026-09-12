@@ -304,6 +304,38 @@ STRATEGY_REGIME_COMPATIBILITY = {
         MarketRegime.PANIC: "OFF",
         MarketRegime.UNKNOWN: "OFF",
     },
+    # Набор владельца (п.7, 12.09): об/брейкер — разворотный профиль
+    # (как у Д-фигур), maicross — трендовый (как у ts_momentum_cross).
+    "ob_swing": {
+        MarketRegime.BULL_TREND: "REDUCED",
+        MarketRegime.BEAR_TREND: "REDUCED",
+        MarketRegime.RANGE: "ON",
+        MarketRegime.BREAKOUT: "ON",
+        MarketRegime.HIGH_VOLATILITY: "OFF",
+        MarketRegime.LOW_VOLATILITY: "ON",
+        MarketRegime.PANIC: "OFF",
+        MarketRegime.UNKNOWN: "OFF",
+    },
+    "breaker_block": {
+        MarketRegime.BULL_TREND: "REDUCED",
+        MarketRegime.BEAR_TREND: "REDUCED",
+        MarketRegime.RANGE: "ON",
+        MarketRegime.BREAKOUT: "ON",
+        MarketRegime.HIGH_VOLATILITY: "OFF",
+        MarketRegime.LOW_VOLATILITY: "ON",
+        MarketRegime.PANIC: "OFF",
+        MarketRegime.UNKNOWN: "OFF",
+    },
+    "maicross": {
+        MarketRegime.BULL_TREND: "ON",
+        MarketRegime.BEAR_TREND: "ON",
+        MarketRegime.RANGE: "REDUCED",
+        MarketRegime.BREAKOUT: "ON",
+        MarketRegime.HIGH_VOLATILITY: "REDUCED",
+        MarketRegime.LOW_VOLATILITY: "ON",
+        MarketRegime.PANIC: "OFF",
+        MarketRegime.UNKNOWN: "OFF",
+    },
     "rectangle": {
         MarketRegime.BULL_TREND: "ON",
         MarketRegime.BEAR_TREND: "ON",

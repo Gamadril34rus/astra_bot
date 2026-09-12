@@ -472,6 +472,15 @@ class DecisionPipeline:
         except Exception as exc:
             logger.debug("Candidate filters execution failed: %s", exc)
 
+        # 8.1.6 HTF-гейты набора владельца (п.7): дневная лента своего
+        # символа + фильтр «по BTC». ЖИВЫЕ (режут), фейл-оупен; список
+        # гейтуемых бакетов — в конфиге (поправка 3 владельца).
+        try:
+            from .htf_gates import apply_htf_gates
+            candidates = await apply_htf_gates(candidates, ctx, self.config)
+        except Exception as exc:
+            logger.debug("HTF gates execution failed: %s", exc)
+
         # 8.2 Meta-Strategy: выбор по shrunken EV в текущем режиме (TZ §5).
         # total_score — лишь диагностика; не он определяет выбор.
         # A2 (МТЗ §10): приоритет у композитного ключа осей Regime 2.0,
