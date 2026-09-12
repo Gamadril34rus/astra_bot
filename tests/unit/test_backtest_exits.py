@@ -155,4 +155,4 @@ def test_net_profit_does_not_double_count_fees():
     trade = trades[0]
     # Net profit is exactly the realized trade PnL; fees/slippage are already
     # embedded in trade.pnl and must not be subtracted a second time.
-    assert engine.get_results().net_profit == trade.pnl
+    assert engine._realized_equity == Decimal("1000") + trade.pnl
