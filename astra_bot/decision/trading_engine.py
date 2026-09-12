@@ -162,6 +162,9 @@ class TradingEngineConfig:
     no_trade_observations_path: str = "models/no_trade_observations.jsonl"
     no_trade_outcomes_path: str = "models/no_trade_outcomes.json"
     hypotheses_path: str = "models/research/hypotheses.json"
+    # Анти-дребезг (решение владельца 12.09.2026): после выхода по стопу
+    # та же стратегия не входит в тот же символ/сторону столько минут.
+    reentry_cooldown_minutes: int = 20
 
 
 class TradingEngine:
@@ -672,6 +675,25 @@ class TradingEngine:
             except Exception:
                 return Decimal("0")
 
+    # ------------------------------------------- анти-дребезг (кулдаун)
+    @staticmethod
+    def _cooldown_key(strategy: str, symbol: str, side: str) -> str:
+        # Имя стратегии в ключе — ровно как в бакетах strategy_stats
+        # (там ключ начинается с "стратегия|...").
+        return f"{strategy}|{symbol}|{side}"
+
+    def _cooldown_ttl_ms(self) -> int:
+        return int(self.config.reentry_cooldown_minutes) * 60_000
+
+    def _cooldown_blocks(self, strategy: str, symbol: str, side: str) -> bool:
+        """Активен ли кулдаун анти-дребезга для этой тройки."""
+        return (
+            self.broker.cooldown_remaining_ms(
+                self._cooldown_key(strategy, symbol, side)
+            )
+            > 0
+        )
+
     def apply_kill_switches_from_stats(self) -> list[str]:
         """Пер-стратегийный килл-свитч из статистики (блок A).
 
@@ -1176,6 +1198,28 @@ class TradingEngine:
             logger.debug("NO_TRADE %s: %s", symbol, decision.reasons)
             return closed
 
+        # Анти-дребезг (решение владельца 12.09): та же стратегия + тот же
+        # символ + сторона не входят 20 минут после выхода по стопу.
+        # Реестр живёт в существующем state брокера (процесс пересоздаётся
+        # каждые ~5 минут — в памяти не удержать).
+        if self._cooldown_blocks(
+            decision.candidate.strategy, symbol, decision.candidate.direction
+        ):
+            _cd_left = self.broker.cooldown_remaining_ms(
+                self._cooldown_key(
+                    decision.candidate.strategy, symbol,
+                    decision.candidate.direction,
+                )
+            )
+            logger.info(
+                "COOLDOWN symbol=%s strategy=%s side=%s осталось=%d мин",
+                symbol,
+                decision.candidate.strategy,
+                decision.candidate.direction,
+                -(-_cd_left // 60000),
+            )
+            return closed
+
         # Дисциплина капитала: лимит числа позиций, однонаправленных
         # входов и суммарной экспозиции. Защищает от пачки
         # коррелированных сделок, которые стопнутся одновременно.
@@ -1614,6 +1658,28 @@ class TradingEngine:
             )
         if not trades:
             return
+        # Анти-дребезг: выход по стопу ставит ключ в реестр кулдаунов
+        # (только стоп; VOL_EXPANSION и прочие forced-причины не трогаем —
+        # решение владельца 12.09). Реестр персистится в state брокера.
+        try:
+            _cd_changed = False
+            _now_ms = int(datetime.now(tz=UTC).timestamp() * 1000)
+            for t in closed:
+                if getattr(t, "exit_reason", "") == "stop_loss":
+                    _cd_key = self._cooldown_key(
+                        getattr(t, "strategy", "") or "",
+                        getattr(t, "symbol", "") or "",
+                        getattr(t, "direction", "") or "",
+                    )
+                    _cd_at = int(getattr(t, "closed_at", 0) or _now_ms)
+                    self.broker.register_cooldown(
+                        _cd_key, _cd_at + self._cooldown_ttl_ms()
+                    )
+                    _cd_changed = True
+            if _cd_changed:
+                self.broker.save()
+        except Exception as exc:
+            logger.debug("cooldown register skipped: %s", exc)
         # Block 2.1 & 7.1: Save to data/trades.db and data/state.json via StateManager
         try:
             from ..data.state_manager import get_state_manager
