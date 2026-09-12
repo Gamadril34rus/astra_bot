@@ -474,10 +474,12 @@ class BacktestEngine:
 
     def _open_long_position(self, signal: models.Signal, entry_price: Decimal, timestamp: datetime):
         """Открыть LONG позицию"""
-        # Расчёт размера
+        # Size against the slippage-adjusted entry so actual stop risk
+        # does not exceed the configured risk budget.
+        effective_entry = entry_price * (Decimal("1") + self.config.slippage_percent)
         risk_engine_result = self._risk_engine.calculate_position_size(
             symbol=self.config.symbol,
-            entry_price=entry_price,
+            entry_price=effective_entry,
             stop_loss=signal.stop_loss,
         )
 
@@ -488,19 +490,17 @@ class BacktestEngine:
         # Расчёт фактического размера с учётом ограничений биржи
         quantity = self._calculate_quantity(
             risk_engine_result.quantity,
-            entry_price,
+            effective_entry,
         )
 
         if quantity <= 0:
             return
 
         # Расчёт комиссии
-        notional = quantity * entry_price
+        notional = quantity * effective_entry
         fees = notional * self.config.maker_fee_rate
-
-        # Сlippage
-        slippage = notional * self.config.slippage_percent
-        effective_price = entry_price + slippage / quantity
+        slippage = abs(effective_entry - entry_price) * quantity
+        effective_price = effective_entry
 
         # Валидация
         if notional < self.config.min_notional:
@@ -542,9 +542,10 @@ class BacktestEngine:
     def _open_short_position(self, signal: models.Signal, entry_price: Decimal, timestamp: datetime):
         """Открыть SHORT позицию"""
         # Аналогично LONG, но с учётом SHORT логики
+        effective_entry = entry_price * (Decimal("1") - self.config.slippage_percent)
         risk_engine_result = self._risk_engine.calculate_position_size(
             symbol=self.config.symbol,
-            entry_price=entry_price,
+            entry_price=effective_entry,
             stop_loss=signal.stop_loss,
         )
 
@@ -553,16 +554,16 @@ class BacktestEngine:
 
         quantity = self._calculate_quantity(
             risk_engine_result.quantity,
-            entry_price,
+            effective_entry,
         )
 
         if quantity <= 0:
             return
 
-        notional = quantity * entry_price
+        notional = quantity * effective_entry
         fees = notional * self.config.maker_fee_rate
-        slippage = notional * self.config.slippage_percent
-        effective_price = entry_price - slippage / quantity
+        slippage = abs(effective_entry - entry_price) * quantity
+        effective_price = effective_entry
 
         if notional < self.config.min_notional:
             return
@@ -802,11 +803,24 @@ class BacktestEngine:
         trade.exit_reason = reason
 
         if exit_price is not None:
-            trade.exit_price = exit_price
+            # Stops/TP/end-of-test are market-style exits: adverse slippage
+            # and the exit taker fee must both be included in realized PnL.
+            raw_exit_price = Decimal(str(exit_price))
             if trade.side == "long":
-                unrealized = (exit_price - trade.entry_price) * trade.quantity
+                effective_exit = raw_exit_price * (
+                    Decimal("1") - self.config.slippage_percent
+                )
+                unrealized = (effective_exit - trade.entry_price) * trade.quantity
             else:
-                unrealized = (trade.entry_price - exit_price) * trade.quantity
+                effective_exit = raw_exit_price * (
+                    Decimal("1") + self.config.slippage_percent
+                )
+                unrealized = (trade.entry_price - effective_exit) * trade.quantity
+
+            exit_fee = abs(effective_exit * trade.quantity) * self.config.taker_fee_rate
+            trade.exit_price = effective_exit
+            trade.fees += exit_fee
+            trade.slippage += abs(effective_exit - raw_exit_price) * trade.quantity
             trade.pnl = unrealized - trade.fees
             if trade.quantity > 0:
                 trade.pnl_pct = (
