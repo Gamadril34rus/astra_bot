@@ -511,7 +511,6 @@ class PaperBroker:
             side=direction,
             qty=quantity,
             price=fill,
-            fee=fee_per_unit * quantity,
             ref_id=pos.id,
             meta={"strategy": strategy, "leverage": str(lev), "phase": "open"},
             event_id=f"order:{pos.id}:open",
@@ -522,12 +521,25 @@ class PaperBroker:
             side=direction,
             qty=quantity,
             price=fill,
-            fee=fee_per_unit * quantity,
             ref_id=pos.id,
             position_delta=signed,
             meta={"phase": "open"},
             event_id=f"fill:{pos.id}:open",
         )
+        # Бэклог B2: комиссия живёт ТОЛЬКО в fee-строках. Входная
+        # комиссия начисляется один раз здесь; в order/fill-строках fee=0.
+        if fee_per_unit * quantity:
+            self._ledger(
+                "fee",
+                symbol=symbol,
+                side=direction,
+                qty=quantity,
+                price=fill,
+                fee=fee_per_unit * quantity,
+                ref_id=pos.id,
+                meta={"phase": "open"},
+                event_id=f"fee:{pos.id}:open",
+            )
         return pos
 
     def on_bar(self, bar) -> list[ClosedTrade]:
@@ -584,7 +596,7 @@ class PaperBroker:
                 pos.tp_filled[i] = True
                 frac = pos.tp_fractions[i]
                 part_qty = pos.initial_quantity * Decimal(str(frac))
-                pnl, fees, funding = self._pnl_with_fees(pos, part_qty, tp)
+                pnl, fees, funding, exit_fee = self._pnl_with_fees(pos, part_qty, tp)
                 r_mult, mfe_r, mae_r = self._r_metrics(pos, part_qty, pnl)
                 self.realized_pnl += pnl
                 trade = ClosedTrade(
@@ -610,6 +622,35 @@ class PaperBroker:
                     regime_axes=pos.regime_axes,
                 )
                 self._log_trade(trade)
+                # Бэклог B2: частичный выход — тоже мутация инвентаря:
+                # пишем fill-строку (id стабилен: номер tp-уровня i) и
+                # отдельную fee-строку с комиссией ТОЛЬКО выхода (входная
+                # часть уже начислена fee-строкой открытия).
+                self._ledger(
+                    "fill",
+                    symbol=pos.symbol,
+                    side=pos.direction,
+                    qty=part_qty,
+                    price=tp,
+                    pnl=pnl,
+                    cash_delta=pnl,
+                    position_delta=-(part_qty if pos.direction == "long" else -part_qty),
+                    ref_id=pos.id,
+                    meta={"exit_reason": f"tp{i + 1}", "phase": "partial"},
+                    event_id=f"fill:{pos.id}:partial:{i}",
+                )
+                if exit_fee:
+                    self._ledger(
+                        "fee",
+                        symbol=pos.symbol,
+                        side=pos.direction,
+                        qty=part_qty,
+                        price=tp,
+                        fee=exit_fee,
+                        ref_id=pos.id,
+                        meta={"phase": "partial", "tp": i + 1},
+                        event_id=f"fee:{pos.id}:partial:{i}",
+                    )
                 closed.append(trade)
                 # Уменьшаем оставшийся объём.
                 pos.quantity -= part_qty
@@ -662,7 +703,7 @@ class PaperBroker:
 
     def _close(self, pos: PaperPosition, price: Decimal, reason: str) -> ClosedTrade:
         qty = pos.quantity
-        pnl, fees, funding = self._pnl_with_fees(pos, qty, price)
+        pnl, fees, funding, exit_fee = self._pnl_with_fees(pos, qty, price)
         r_mult, mfe_r, mae_r = self._r_metrics(pos, qty, pnl)
         self.realized_pnl += pnl
         self.positions.remove(pos)
@@ -696,7 +737,6 @@ class PaperBroker:
             side=pos.direction,
             qty=qty,
             price=price,
-            fee=fees,
             pnl=pnl,
             cash_delta=pnl,
             position_delta=-signed,
@@ -704,13 +744,14 @@ class PaperBroker:
             meta={"exit_reason": reason, "phase": "close"},
             event_id=f"fill:{pos.id}:close",
         )
-        if fees:
+        if exit_fee:
             self._ledger(
                 "fee",
                 symbol=pos.symbol,
                 side=pos.direction,
                 qty=qty,
-                fee=fees,
+                price=price,
+                fee=exit_fee,
                 ref_id=pos.id,
                 meta={"phase": "close"},
                 event_id=f"fee:{pos.id}:close",
@@ -927,13 +968,16 @@ class PaperBroker:
 
     def _pnl_with_fees(
         self, pos: PaperPosition, qty: Decimal, exit_price: Decimal
-    ) -> tuple[Decimal, Decimal, Decimal]:
-        """(нетто PnL, комиссии, фандинг) закрытия ``qty`` по ``exit_price``.
+    ) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+        """(нетто PnL, комиссии, фандинг, комиссия выхода) закрытия ``qty``.
 
         Считаем по эффективной цене входа (с slippage), применяем
         slippage на выход и тейкер-комиссию с обеих сторон. Комиссия входа
         делится пропорционально закрытому объёму (для частичных тейков).
         Фандинг — отдельно со знаком (+ заплатили, − получили).
+        Четвёртый элемент — комиссия ТОЛЬКО выхода: именно она пишется в
+        отдельную fee-строку ledger; входная часть начислена при открытии
+        (иначе replay суммировал бы входную комиссию дважды, бэклог B2).
 
         Использует CostModel если доступен (TZ P0-1), иначе legacy-логику.
         """
@@ -953,11 +997,12 @@ class PaperBroker:
             else:
                 exit_fill = exit_price * (Decimal("1") + self.slippage_pct)
                 gross = (fill - exit_fill) * qty
-            fees = pos.entry_fee_per_unit * qty + exit_fill * self.fee_pct * qty
+            exit_fee = exit_fill * self.fee_pct * qty
+            fees = pos.entry_fee_per_unit * qty + exit_fee
         # Фандинг перпов — на нотионал, по времени удержания.
         funding = self.funding_payment(pos, qty, fill)
-        return gross - fees - funding, fees, funding
+        return gross - fees - funding, fees, funding, exit_fee
 
     def _pnl(self, pos: PaperPosition, qty: Decimal, exit_price: Decimal) -> Decimal:
-        pnl, _, _ = self._pnl_with_fees(pos, qty, exit_price)
+        pnl, _, _, _ = self._pnl_with_fees(pos, qty, exit_price)
         return pnl

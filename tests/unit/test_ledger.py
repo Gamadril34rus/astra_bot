@@ -10,6 +10,12 @@ from astra_bot.core.state_rotation import LIVE_JSONL_LIMITS, rotate_jsonl
 
 
 def test_append_and_replay_round_trip(tmp_path):
+    """Контракт B2: комиссии учитываются ТОЛЬКО fee-строками.
+
+    До фикса комиссия лежала и в fill, и в fee-строке — replay складывал
+    её дважды. Теперь fill несёт исполнение (cash/инвентарь), fee —
+    начисление; здесь это проверяется на обеих строках каждой стороны.
+    """
     path = tmp_path / "paper_ledger.jsonl"
     ledger = reset_ledger(path, initial_cash=Decimal("1000"))
     ledger.record(
@@ -18,25 +24,27 @@ def test_append_and_replay_round_trip(tmp_path):
         side="long",
         qty="0.1",
         price="50000",
-        fee="2.5",
+        fee="2.5",          # информационное поле — не суммируется
         cash_delta="-5002.5",
         position_delta="0.1",
         ref_id="pos-1",
     )
+    ledger.record("fee", symbol="BTC-USDT", side="long", qty="0.1", fee="2.5")
     ledger.record(
         "fill",
         symbol="BTC-USDT",
         side="long",
         qty="0.1",
         price="51000",
-        fee="2.55",
+        fee="2.55",         # информационное поле — не суммируется
         pnl="95",
         cash_delta="5097.45",
         position_delta="-0.1",
         ref_id="pos-1",
     )
+    ledger.record("fee", symbol="BTC-USDT", side="long", qty="0.1", fee="2.55")
     snap = ledger.replay(initial_cash=Decimal("1000"))
-    assert snap.events == 2
+    assert snap.events == 4
     assert snap.positions == {}
     assert snap.cash == Decimal("1000") - Decimal("5002.5") + Decimal("5097.45")
     assert snap.realized_pnl == Decimal("95")
