@@ -1,51 +1,5 @@
 {
-  "positions": [
-    {
-      "id": "f791edb7-2cd7-43fe-9519-8b72b132c7d0",
-      "symbol": "UNI-USDT",
-      "direction": "long",
-      "entry_price": "6.222",
-      "quantity": "550.47534900",
-      "stop_loss": "6.124334",
-      "take_profits": [
-        "6.417332000000001000000000000"
-      ],
-      "tp_filled": [
-        false
-      ],
-      "tp_fractions": [
-        1.0
-      ],
-      "initial_quantity": "550.47534900",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
-      "strategy": "ascending_triangle",
-      "opened_at": 1789193325179,
-      "notes": {
-        "score": 65.0,
-        "ml_probability": null,
-        "edge_pct": 142.6623,
-        "ev_r": 1.4266226008598235,
-        "ev_confidence": 0.0,
-        "rr": 2.00000000000001,
-        "leverage": 3
-      },
-      "fill_price": "6.228222",
-      "entry_fee_per_unit": "0.0031141110",
-      "risk_distance": "0.097666",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "5m",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
-      "bars_held": 0,
-      "leverage": "3",
-      "margin_used": "1141.68587382600",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "6.417332000000001000000000000",
-      "plan_last_bar_ts": 0
-    }
-  ],
-  "realized_pnl": "-1848.293776725227806579483246",
+  "positions": [],
+  "realized_pnl": "-1866.263591215636369649083246",
   "initial_capital": "36098.87"
 }
