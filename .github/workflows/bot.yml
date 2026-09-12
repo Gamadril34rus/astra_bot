@@ -80,7 +80,7 @@ jobs:
       - name: Save state
         if: always()
         run: |
-                    for f in models/paper_positions.json models/paper_trades.jsonl \
+          for f in models/paper_positions.json models/paper_trades.jsonl \
                    models/paper_ledger.jsonl \
                    models/live_lessons.jsonl models/trading_budget.json \
                    models/readiness.json models/training_state.json \
