@@ -214,6 +214,7 @@ class TradingEngine:
             cfg.min_ml_probability = 0.0
             cfg.min_expected_edge_pct = 0.0
             cfg.max_spread_pct = 0.30
+            # ЕДИНИЦЫ (аудит A5): ПРОЦЕНТЫ (0.02 = 0.02% цены).
             cfg.slippage_buffer_pct = 0.02
             cfg.min_book_depth = 1_000.0
             # Meta-Strategy: EV-гейт 0.05R (аудит эпохи-2: 0.0 пропускал
@@ -285,7 +286,8 @@ class TradingEngine:
             except Exception as e:
                 import logging
                 logging.getLogger(__name__).error(
-                    "Pattern strategies import failed — 18 стратегий НЕ загружены: %s", e
+                    "Pattern strategies import failed — паттерн-стратегии "
+                    "НЕ загружены (состав пайплайна неполный): %s", e
                 )
                 pattern_strats = []
 
@@ -347,16 +349,18 @@ class TradingEngine:
                 ],
             )
             # Громкая проверка загрузки (урок блока 9: стратегии молча
-            # не грузились месяцами). 7 ядро + 18 паттернов + 14 новых = 39
-            # (с 12.09 +3 набора владельца: об/брейкер/маикросс, п.7).
+            # не грузились месяцами). Фактический состав (13.09.2026):
+            # 7 ядро + 20 паттернов + 14 новых = 41; число НЕ дублируем
+            # константой в тексте (устаревало), считаем от самого списка.
             _names = [getattr(s, "name", type(s).__name__) for s in pipeline.strategies]
             if len(pipeline.strategies) < 29:
                 logger.error(
-                    "Загружено стратегий %d/39 — состав неполный (7 ядро + 18 паттернов + 14 новых): %s",
+                    "Загружено стратегий %d — состав неполный "
+                    "(7 ядро + 20 паттернов + 14 новых = 41): %s",
                     len(pipeline.strategies), _names,
                 )
             else:
-                logger.info("Загружено стратегий %d/39 (7 ядро + 18 паттернов + 14 новых)", len(pipeline.strategies))
+                logger.info("Загружено стратегий %d (7 ядро + 20 паттернов + 14 новых = 41)", len(pipeline.strategies))
         self.pipeline = pipeline
         # Аудит эпохи-2 (блок A): пер-стратегийный килл-свитч из статистики
         # (пересчёт каждую сессию = самовосстановление).
@@ -648,6 +652,27 @@ class TradingEngine:
         )
 
     # ----------------------------------------------------------- sizing (Block 6.2)
+    def _effective_entry_price(self, price: Decimal, direction: str) -> Decimal:
+        """Фактическая цена входа с slippage — ровно как исполнит брокер.
+
+        Аудит A2 / решение владельца (13.09.2026): сайзинг и риск-гейт
+        считаются от этой цены, а не от сигнальной. Иначе фактический риск
+        (fill − stop) систематически превышает бюджет на slip/d, где d —
+        относительная дистанция стопа; выравнивание с бэктестером
+        (PR #73) и с реальным исполнением PaperBroker.
+        """
+        try:
+            cm = getattr(self.broker, "cost_model", None)
+            if cm is not None:
+                return cm.effective_entry_price(price, direction)
+            slip = Decimal(str(getattr(self.broker, "slippage_pct", 0) or 0))
+        except Exception:
+            logger.debug("effective entry: fallback без slippage", exc_info=True)
+            return price
+        if direction in ("long", "buy"):
+            return price * (Decimal("1") + slip)
+        return price * (Decimal("1") - slip)
+
     def _position_size(
         self,
         equity: Decimal,
@@ -783,18 +808,23 @@ class TradingEngine:
         side: str,
         cand: Any,
         size: Decimal,
+        entry_price: Decimal | None = None,
     ) -> Decimal | None:
         """Прогнать сделку через Risk Engine; вернуть допустимый размер.
 
         Возвращает ``None``, если вход запрещён (TRADING HALT, дневной/
         недельный лимит потерь, лимиты, которые нельзя закрыть уменьшением
         размера). Иначе — исходный или уменьшенный до лимита размер.
+
+        ``entry_price`` — фактическая цена входа (со slippage, аудит A2):
+        риск-движок должен видеть тот же стоп-зазор, что и рынок.
         """
+        _entry = entry_price if entry_price is not None else cand.entry_price
         for _ in range(2):
             verdict = self.risk.check_trade(
                 symbol=symbol,
                 side=side,
-                entry_price=cand.entry_price,
+                entry_price=_entry,
                 stop_loss=cand.stop_loss,
                 take_profit=cand.take_profit,
                 proposed_size=size,
@@ -1365,9 +1395,13 @@ class TradingEngine:
         # Бэклог A1: сайзинг и риск-движок видят NET ликвидационный
         # капитал (mark по символу уже подтянут _sync_perps_state выше).
         self._sync_risk_equity()
+        # Аудит A2 (решение владельца 13.09.2026): сайзинг и риск-гейт
+        # считаются от ФАКТИЧЕСКОЙ цены входа (сигнальная ± slippage) —
+        # иначе реальный риск на стопе больше бюджета на slip/d.
+        entry_for_risk = self._effective_entry_price(cand.entry_price, wanted_dir)
         size = self._position_size(
             self.broker.net_equity,
-            cand.entry_price,
+            entry_for_risk,
             cand.stop_loss,
             ml_confidence=_ml_conf,
             atr_pct=_atr_pct,
@@ -1379,7 +1413,7 @@ class TradingEngine:
         # Бэклог A6: биржевые ограничения инструмента (step/min_qty/
         # min_notional/tick) — до открытия, в paper broker их нет.
         size = await self._apply_instrument_constraints(
-            symbol, cand.entry_price, size
+            symbol, entry_for_risk, size
         )
         if size is None or size <= 0:
             logger.info("%s: size=0 (инструмент), пропускаю", symbol)
@@ -1389,7 +1423,9 @@ class TradingEngine:
         # Дневные/недельные лимиты потерь, просадка, exposure, HALT.
         # Если торговля остановлена — вход запрещён независимо от силы
         # сигнала. Если размер можно уменьшить — уменьшаем и проверяем.
-        size = self._risk_check_and_adjust(symbol, wanted_dir, cand, size)
+        size = self._risk_check_and_adjust(
+            symbol, wanted_dir, cand, size, entry_price=entry_for_risk
+        )
         if size is None or size <= 0:
             return closed
 
