@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-13T22:09:25.034267+00:00",
+  "updated": "2026-09-13T22:13:06.241520+00:00",
   "buckets": {
     "scalp5m|UNKNOWN|": {
       "sample_size": 1,
@@ -1860,6 +1860,42 @@
       "sum_mae_r": 0.1991040318566451,
       "sum_fees": 0.8522059932211238,
       "last_updated": "2026-09-13T22:09:25.034219+00:00"
+    },
+    "falling_wedge|T:RANGE/V:LOW/L:STRESSED|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -0.9894978076454811,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -0.9894978076454811,
+      "sum_mfe_r": -0.4443127962085352,
+      "sum_mae_r": 0.8886255924170704,
+      "sum_fees": 0.849272342727816,
+      "last_updated": "2026-09-13T22:13:06.241485+00:00"
+    },
+    "falling_wedge|LOW_VOLATILITY|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -0.9894978076454811,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -0.9894978076454811,
+      "sum_mfe_r": -0.4443127962085352,
+      "sum_mae_r": 0.8886255924170704,
+      "sum_fees": 0.849272342727816,
+      "last_updated": "2026-09-13T22:13:06.241494+00:00"
+    },
+    "falling_wedge|ANY|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -0.9894978076454811,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -0.9894978076454811,
+      "sum_mfe_r": -0.4443127962085352,
+      "sum_mae_r": 0.8886255924170704,
+      "sum_fees": 0.849272342727816,
+      "last_updated": "2026-09-13T22:13:06.241497+00:00"
     }
   }
 }
