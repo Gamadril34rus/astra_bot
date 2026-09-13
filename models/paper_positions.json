@@ -6,7 +6,7 @@
       "direction": "long",
       "entry_price": "54.74",
       "quantity": "15.61803400",
-      "stop_loss": "54.69",
+      "stop_loss": "54.714285714285715",
       "take_profits": [
         "56.07474",
         "57.409480"
@@ -52,12 +52,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 10,
+      "bars_held": 11,
       "leverage": "2",
       "margin_used": "427.4655905800",
       "plan_variant": "STATIC_TP",
       "plan_take": "57.409480",
-      "plan_last_bar_ts": 1789329000000
+      "plan_last_bar_ts": 1789329300000
     },
     {
       "id": "39edb592-89bd-4d9f-96a6-94ef018327cd",
@@ -111,23 +111,23 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 10,
+      "bars_held": 11,
       "leverage": "3",
       "margin_used": "285.5430613319625",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.13259078488372060",
-      "plan_last_bar_ts": 1789329000000
+      "plan_last_bar_ts": 1789329300000
     },
     {
-      "id": "e47157b3-0af5-4d86-8eca-671bd969a619",
-      "symbol": "SOL-USDT",
+      "id": "97e65f9d-6ce4-4c77-9e99-7211c457ea2c",
+      "symbol": "XRP-USDT",
       "direction": "short",
-      "entry_price": "100.912",
-      "quantity": "8.48847850",
-      "stop_loss": "100.97028571428572",
+      "entry_price": "1.3542",
+      "quantity": "632.50181700",
+      "stop_loss": "1.3686542",
       "take_profits": [
-        "99.624088",
-        "98.3361760"
+        "1.3397458",
+        "1.32529160"
       ],
       "tp_filled": [
         false,
@@ -137,48 +137,50 @@
         0.3,
         0.7
       ],
-      "initial_quantity": "8.48847850",
+      "initial_quantity": "632.50181700",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "100.913",
-      "lowest_price": "100.802",
+      "highest_price": null,
+      "lowest_price": null,
       "strategy": "triple_top_bottom",
-      "opened_at": 1789328160151,
+      "opened_at": 1789329827603,
       "notes": {
-        "signal_bar_close": 100.912,
-        "effective_entry": 100.811088,
-        "initial_stop": 102.199912,
-        "initial_take": 98.85134080000002,
-        "stop_pct": 0.013776500457965498,
-        "confidence": 0.8721828813210711,
+        "signal_bar_close": 1.3542,
+        "effective_entry": 1.3528458,
+        "initial_stop": 1.3686542,
+        "initial_take": 1.3310732800000002,
+        "stop_pct": 0.011685293327591363,
+        "confidence": 0.95,
         "ml_probability": null,
-        "prior_r": 1.032615953205465,
-        "costs_r": 0.21776212392642982,
-        "equity_before": 34229.30982746414,
-        "risk_budget": 342.29309827464135,
+        "prior_r": 1.1889329053147182,
+        "costs_r": 0.2567329647529162,
+        "equity_before": 34227.09705965275,
+        "risk_budget": 342.2709705965275,
         "binding_constraint": "probation",
-        "score": 27.0,
-        "edge_pct": 80.9139,
-        "ev_r": 0.8091389834408101,
-        "ev_confidence": 0.16666666666666666,
-        "rr": 1.5999999999999845,
+        "score": 39.0,
+        "edge_pct": 84.5624,
+        "ev_r": 0.8456235532303429,
+        "ev_confidence": 0.23076923076923078,
+        "rr": 1.599999999999986,
         "leverage": 2
       },
-      "fill_price": "100.811088",
-      "entry_fee_per_unit": "0.0504055440",
-      "risk_distance": "1.287912",
+      "fill_price": "1.3528458",
+      "entry_fee_per_unit": "0.00067642290",
+      "risk_distance": "0.0144542",
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 7,
+      "bars_held": 0,
       "leverage": "2",
-      "margin_used": "428.29467119600",
+      "margin_used": "428.266980290700",
       "plan_variant": "STATIC_TP",
-      "plan_take": "98.3361760",
-      "plan_last_bar_ts": 1789329000000
+      "plan_take": "1.32529160",
+      "plan_last_bar_ts": 0
     }
   ],
-  "realized_pnl": "-1869.093622248456169643798404",
+  "realized_pnl": "-1872.151758584855606822172473",
   "initial_capital": "36098.87",
-  "cooldowns": {}
+  "cooldowns": {
+    "triple_top_bottom|SOL-USDT|short": 1789331023107
+  }
 }
