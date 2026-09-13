@@ -18,7 +18,18 @@ from astra_bot.decision.trading_engine import TradingEngine, TradingEngineConfig
 
 
 def _make_engine(tmp_path: Path, notifier: MagicMock):
-    config = TradingEngineConfig(halt_alerts_path=str(tmp_path / "halt_alerts.json"))
+    # Все state-пути — в tmp: движок не читает закоммиченный models/
+    # (иначе «Открытые позиции: …» брались бы из paper_positions.json).
+    config = TradingEngineConfig(
+        halt_alerts_path=str(tmp_path / "halt_alerts.json"),
+        state_path=str(tmp_path / "paper_positions.json"),
+        trades_path=str(tmp_path / "paper_trades.jsonl"),
+        stats_path=str(tmp_path / "strategy_stats.json"),
+        no_trade_observations_path=str(tmp_path / "no_trade_observations.jsonl"),
+        no_trade_outcomes_path=str(tmp_path / "no_trade_outcomes.json"),
+        hypotheses_path=str(tmp_path / "hypotheses.json"),
+        pattern_exit_shadow_path=str(tmp_path / "pattern_exit_shadow.jsonl"),
+    )
     engine = TradingEngine(
         exchange=MagicMock(),
         pipeline=MagicMock(),

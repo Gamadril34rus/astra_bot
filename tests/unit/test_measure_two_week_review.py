@@ -308,17 +308,45 @@ def test_section_trades_no_partials(models_dir):
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git недоступен")
-def test_git_ref_source_is_readonly():
-    """--git-ref читает закоммиченное состояние и не трогает рабочую копию."""
-    repo_models = Path(__file__).resolve().parents[2] / "models"
-    before = _snapshot(repo_models)
-    source = StateSource(repo_models, git_ref="HEAD")
+def test_git_ref_source_is_readonly(tmp_path, monkeypatch):
+    """--git-ref читает закоммиченное состояние и не трогает рабочую копию.
+
+    Герметично: маленький git-репозиторий в tmp (не закоммиченный models/),
+    ``PROJECT_ROOT`` модуля переключается на него через monkeypatch.
+    """
+    import scripts.measure_two_week_review as mwr
+
+    repo = tmp_path / "repo"
+    models = repo / "models"
+    models.mkdir(parents=True)
+    (models / "strategy_stats.json").write_text(
+        json.dumps({"updated": "2026-09-12T00:00:00+00:00", "buckets": {
+            "test|ANY|1h": {"sample_size": 3, "wins_sum_r": 1.0, "losses_sum_r": -1.0},
+        }}),
+        encoding="utf-8",
+    )
+
+    def _git_init():
+        env_run = ["git", "-c", "user.name=test", "-c", "user.email=test@example.com"]
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        subprocess.run([*env_run, "add", "-A"], cwd=repo, check=True)
+        subprocess.run([*env_run, "commit", "-q", "-m", "init"], cwd=repo, check=True)
+
+    _git_init()
+    monkeypatch.setattr(mwr, "PROJECT_ROOT", repo)
+
+    before = _snapshot(models)
+    source = StateSource(models, git_ref="HEAD")
     assert source.describe().startswith("git HEAD @")
     stats = source.read_json("strategy_stats.json")
     assert isinstance(stats, dict) and "buckets" in stats
-    # файла paper_ledger.jsonl нет в HEAD (и нет на диске) — честный None
+    # закоммиченный файл виден
+    assert source.exists("strategy_stats.json") is True
+    # незакоммиченный файл — честный None (не зависит от живого state репозитория)
     assert source.exists("paper_ledger.jsonl") is False
-    assert _snapshot(repo_models) == before
+    assert source.read_text("paper_ledger.jsonl") is None
+    assert _snapshot(models) == before
+
 
 
 def test_parse_as_of_formats():
