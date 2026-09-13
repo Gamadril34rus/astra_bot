@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-13T22:59:08.066192+00:00",
+  "updated": "2026-09-13T23:04:37.373905+00:00",
   "buckets": {
     "scalp5m|UNKNOWN|": {
       "sample_size": 1,
@@ -1814,16 +1814,16 @@
       "last_updated": "2026-09-13T21:27:33.771406+00:00"
     },
     "vwap_deviation|ANY|5m": {
-      "sample_size": 2,
+      "sample_size": 3,
       "wins": 1,
-      "losses": 1,
-      "sum_r": -2.490937091811576e-25,
+      "losses": 2,
+      "sum_r": -3.2533356949681466e-25,
       "wins_sum_r": 3.630856164966304e-26,
-      "losses_sum_r": -2.8540227083082063e-25,
-      "sum_mfe_r": 2.160323966175912,
-      "sum_mae_r": 1.0498248612835632,
-      "sum_fees": 1.707256315543485,
-      "last_updated": "2026-09-13T22:59:08.066168+00:00"
+      "losses_sum_r": -3.616421311464777e-25,
+      "sum_mfe_r": 3.0418666659004105,
+      "sum_mae_r": 1.3804033736802501,
+      "sum_fees": 2.560241020560309,
+      "last_updated": "2026-09-13T23:04:37.373876+00:00"
     },
     "rectangle|T:RANGE/V:VERY_LOW/L:NORMAL|5m": {
       "sample_size": 1,
@@ -1982,16 +1982,28 @@
       "last_updated": "2026-09-13T22:59:08.066153+00:00"
     },
     "vwap_deviation|STRONG_BEAR_TREND|5m": {
+      "sample_size": 2,
+      "wins": 0,
+      "losses": 2,
+      "sum_r": -3.616421311464777e-25,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -3.616421311464777e-25,
+      "sum_mfe_r": 2.254697522930815,
+      "sum_mae_r": 0.888422659324253,
+      "sum_fees": 1.7061597270248696,
+      "last_updated": "2026-09-13T23:04:37.373870+00:00"
+    },
+    "vwap_deviation|T:STRONG/V:VERY_LOW/L:NORMAL|5m": {
       "sample_size": 1,
       "wins": 0,
       "losses": 1,
-      "sum_r": -2.8540227083082063e-25,
+      "sum_r": -7.623986031565708e-26,
       "wins_sum_r": 0.0,
-      "losses_sum_r": -2.8540227083082063e-25,
-      "sum_mfe_r": 1.3731548232063164,
-      "sum_mae_r": 0.5578441469275661,
-      "sum_fees": 0.8531750220080455,
-      "last_updated": "2026-09-13T22:59:08.066163+00:00"
+      "losses_sum_r": -7.623986031565708e-26,
+      "sum_mfe_r": 0.8815426997244985,
+      "sum_mae_r": 0.33057851239668695,
+      "sum_fees": 0.8529847050168241,
+      "last_updated": "2026-09-13T23:04:37.373860+00:00"
     }
   }
 }
