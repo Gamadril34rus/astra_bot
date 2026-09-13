@@ -727,7 +727,10 @@ class TradingEngine:
                 ml_confidence=ml_confidence, atr_pct=atr_pct,
                 max_notional_pct=self.config.max_notional_pct,
             )
-            # After Kelly/volatility; downstream instrument and D2 risk caps follow.
+            # Множитель probation применяется ПОСЛЕ сайзера: Kelly/volatility и
+            # внутренние капы (в т.ч. D2-потолок риска 3% — position_sizer.py)
+            # уже посчитаны внутри calculate_position_size. 0.25 только уменьшает
+            # размер, поэтому кап не нарушается; ниже — instrument и Risk Engine.
             return qty * (Decimal("0.25") if probation else Decimal("1"))
         except Exception:
             # Fallback to simple calculation
