@@ -127,6 +127,30 @@ class ClosedTrade:
     regime: str = ""
     timeframe: str = ""
     regime_axes: str = ""
+    # Immutable decision/sizing snapshot (None for legacy positions/rows).
+    signal_bar_close: float | None = None
+    effective_entry: float | None = None
+    initial_stop: float | None = None
+    initial_take: float | None = None
+    stop_pct: float | None = None
+    confidence: float | None = None
+    ml_probability: float | None = None
+    prior_r: float | None = None
+    costs_r: float | None = None
+    equity_before: float | None = None
+    risk_budget: float | None = None
+    binding_constraint: str | None = None
+
+
+def _entry_snapshot(pos: PaperPosition) -> dict[str, Any]:
+    """Closed-row snapshot; absent keys preserve legacy compatibility."""
+    notes = pos.notes or {}
+    names = (
+        "signal_bar_close", "effective_entry", "initial_stop", "initial_take",
+        "stop_pct", "confidence", "ml_probability", "prior_r", "costs_r",
+        "equity_before", "risk_budget", "binding_constraint",
+    )
+    return {name: notes.get(name) for name in names}
 
 
 class PaperBroker:
@@ -635,6 +659,7 @@ class PaperBroker:
                     regime=pos.regime,
                     timeframe=pos.timeframe,
                     regime_axes=pos.regime_axes,
+                    **_entry_snapshot(pos),
                 )
                 self._log_trade(trade)
                 # Бэклог B2: частичный выход — тоже мутация инвентаря:
@@ -742,6 +767,7 @@ class PaperBroker:
             regime=pos.regime,
             timeframe=pos.timeframe,
             regime_axes=pos.regime_axes,
+            **_entry_snapshot(pos),
         )
         self._log_trade(trade)
         signed = qty if pos.direction == "long" else -qty

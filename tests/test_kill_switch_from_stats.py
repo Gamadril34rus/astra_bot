@@ -35,13 +35,15 @@ def test_loser_removed_winner_kept(tmp_path):
     eng = _make_engine(
         tmp_path,
         {
-            # PF = 1/5 = 0.2 < 1, n=10 → килл-свитч (два бакета одного имени).
+            # PF = 1/5 = 0.2 < 1, честный ANY n=10 → kill-switch.
+            "bad_strat|ANY|1h": {"sample_size": 6, "wins_sum_r": 1.0, "losses_sum_r": -3.0},
+            "bad_strat|ANY|5m": {"sample_size": 4, "wins_sum_r": 0.0, "losses_sum_r": -2.0},
+            # Режимная копия той же статистики не увеличивает n.
             "bad_strat|LOW_VOL|1h": {"sample_size": 6, "wins_sum_r": 1.0, "losses_sum_r": -3.0},
-            "bad_strat|RANGE|5m": {"sample_size": 4, "wins_sum_r": 0.0, "losses_sum_r": -2.0},
             # PF = 6/2 = 3 → живёт.
-            "good_strat|LOW_VOL|1h": {"sample_size": 10, "wins_sum_r": 6.0, "losses_sum_r": -2.0},
+            "good_strat|ANY|1h": {"sample_size": 10, "wins_sum_r": 6.0, "losses_sum_r": -2.0},
             # Мёртвое имя (не загружено) — пропускается молча, не падает.
-            "ghost_strat|LOW_VOL|1h": {"sample_size": 50, "wins_sum_r": 0.0, "losses_sum_r": -50.0},
+            "ghost_strat|ANY|1h": {"sample_size": 50, "wins_sum_r": 0.0, "losses_sum_r": -50.0},
         },
     )
     assert _names(eng) == ["good_strat"]
@@ -52,7 +54,7 @@ def test_small_sample_kept(tmp_path):
         tmp_path,
         {
             # Убыточна, но n=3 < 5 → рано судить, живёт.
-            "bad_strat|LOW_VOL|1h": {"sample_size": 3, "wins_sum_r": 0.0, "losses_sum_r": -3.0},
+            "bad_strat|ANY|1h": {"sample_size": 3, "wins_sum_r": 0.0, "losses_sum_r": -3.0},
         },
     )
     assert _names(eng) == ["bad_strat", "good_strat"]

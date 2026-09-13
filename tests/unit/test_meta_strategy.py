@@ -164,15 +164,15 @@ class TestHardGatesMapped:
 class TestCandidatePrior:
     def test_prior_with_tp(self):
         cand = _candidate(confidence=0.7)  # RR = 3 (103/99/100)
-        # p=0.7, win=3R, loss=1R, costs=(0.1%+0.1%)/1% = 0.2R
-        # EV = 0.7*3 - 0.3*1 - 0.2 = 1.6
-        assert candidate_prior_r(cand) == pytest.approx(1.6)
+        # Paper defaults per side: fee=.05%, slip=.1%; round trip=.3R.
+        # EV = 0.7*3 - 0.3*1 - 0.3 = 1.5
+        assert candidate_prior_r(cand) == pytest.approx(1.5)
 
     def test_prior_no_tp_uses_one_r(self):
         cand = _candidate(confidence=0.7)
         cand.take_profit = Decimal("0")  # flip-стратегия без тейка
-        # EV = 0.7*1 - 0.3*1 - 0.2 = 0.2
-        assert candidate_prior_r(cand) == pytest.approx(0.2)
+        # EV = 0.7*1 - 0.3*1 - 0.3 = 0.1
+        assert candidate_prior_r(cand) == pytest.approx(0.1)
 
     def test_prior_zero_risk(self):
         cand = _candidate(confidence=0.7)
