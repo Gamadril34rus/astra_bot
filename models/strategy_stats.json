@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-13T22:13:06.241520+00:00",
+  "updated": "2026-09-13T22:18:09.477244+00:00",
   "buckets": {
     "scalp5m|UNKNOWN|": {
       "sample_size": 1,
@@ -746,28 +746,28 @@
       "last_updated": "2026-09-09T14:47:41.689454+00:00"
     },
     "open_interest_divergence|LOW_VOLATILITY|5m": {
-      "sample_size": 3,
-      "wins": 0,
-      "losses": 3,
-      "sum_r": -2.0122016905558517,
-      "wins_sum_r": 0.0,
-      "losses_sum_r": -2.0122016905558517,
-      "sum_mfe_r": 0.9912322677470531,
-      "sum_mae_r": 1.4875802620563492,
-      "sum_fees": 5.204465639778977,
-      "last_updated": "2026-09-13T22:09:25.034232+00:00"
-    },
-    "open_interest_divergence|ANY|5m": {
       "sample_size": 4,
       "wins": 0,
       "losses": 4,
-      "sum_r": -3.0867494549921894,
+      "sum_r": -2.7115283230568212,
       "wins_sum_r": 0.0,
-      "losses_sum_r": -3.0867494549921894,
+      "losses_sum_r": -2.7115283230568212,
+      "sum_mfe_r": 0.9912322677470531,
+      "sum_mae_r": 2.3019395773297413,
+      "sum_fees": 6.055670326980933,
+      "last_updated": "2026-09-13T22:17:39.515373+00:00"
+    },
+    "open_interest_divergence|ANY|5m": {
+      "sample_size": 5,
+      "wins": 0,
+      "losses": 5,
+      "sum_r": -3.786076087493159,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -3.786076087493159,
       "sum_mfe_r": 1.5710952092336108,
-      "sum_mae_r": 2.383732080717393,
-      "sum_fees": 8.693426343174277,
-      "last_updated": "2026-09-13T22:09:25.034237+00:00"
+      "sum_mae_r": 3.198091395990785,
+      "sum_fees": 9.544631030376232,
+      "last_updated": "2026-09-13T22:17:39.515378+00:00"
     },
     "ts_momentum_cross|T:RANGE/V:VERY_LOW/L:DEEP|5m": {
       "sample_size": 2,
@@ -1838,16 +1838,16 @@
       "last_updated": "2026-09-13T22:03:33.795953+00:00"
     },
     "open_interest_divergence|T:RANGE/V:VERY_LOW/L:DEEP|5m": {
-      "sample_size": 1,
+      "sample_size": 2,
       "wins": 0,
-      "losses": 1,
-      "sum_r": -0.3132736258847709,
+      "losses": 2,
+      "sum_r": -1.0126002583857403,
       "wins_sum_r": 0.0,
-      "losses_sum_r": -0.3132736258847709,
+      "losses_sum_r": -1.0126002583857403,
       "sum_mfe_r": 0.2505935109469797,
-      "sum_mae_r": 0.2505935109469797,
-      "sum_fees": 0.8529419927150717,
-      "last_updated": "2026-09-13T22:07:18.963859+00:00"
+      "sum_mae_r": 1.0649528262203716,
+      "sum_fees": 1.7041466799170273,
+      "last_updated": "2026-09-13T22:17:39.515361+00:00"
     },
     "open_interest_divergence|T:RANGE/V:VERY_LOW/L:STRESSED|5m": {
       "sample_size": 1,
@@ -1886,16 +1886,40 @@
       "last_updated": "2026-09-13T22:13:06.241494+00:00"
     },
     "falling_wedge|ANY|5m": {
+      "sample_size": 2,
+      "wins": 0,
+      "losses": 2,
+      "sum_r": -1.8365316049708142,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -1.8365316049708142,
+      "sum_mfe_r": -0.643080436836641,
+      "sum_mae_r": 1.6836961549294935,
+      "sum_fees": 1.6989235035732673,
+      "last_updated": "2026-09-13T22:18:09.477211+00:00"
+    },
+    "falling_wedge|T:RANGE/V:LOW/L:NORMAL|5m": {
       "sample_size": 1,
       "wins": 0,
       "losses": 1,
-      "sum_r": -0.9894978076454811,
+      "sum_r": -0.847033797325333,
       "wins_sum_r": 0.0,
-      "losses_sum_r": -0.9894978076454811,
-      "sum_mfe_r": -0.4443127962085352,
-      "sum_mae_r": 0.8886255924170704,
-      "sum_fees": 0.849272342727816,
-      "last_updated": "2026-09-13T22:13:06.241497+00:00"
+      "losses_sum_r": -0.847033797325333,
+      "sum_mfe_r": -0.19876764062810576,
+      "sum_mae_r": 0.795070562512423,
+      "sum_fees": 0.8496511608454512,
+      "last_updated": "2026-09-13T22:18:09.477194+00:00"
+    },
+    "falling_wedge|RANGE|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -0.847033797325333,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -0.847033797325333,
+      "sum_mfe_r": -0.19876764062810576,
+      "sum_mae_r": 0.795070562512423,
+      "sum_fees": 0.8496511608454512,
+      "last_updated": "2026-09-13T22:18:09.477205+00:00"
     }
   }
 }
