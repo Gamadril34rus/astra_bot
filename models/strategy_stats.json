@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-13T21:52:05.978109+00:00",
+  "updated": "2026-09-13T21:57:00.847238+00:00",
   "buckets": {
     "scalp5m|UNKNOWN|": {
       "sample_size": 1,
@@ -1334,40 +1334,40 @@
       "last_updated": "2026-09-10T06:38:52.790450+00:00"
     },
     "pennant|T:RANGE/V:VERY_LOW/L:NORMAL|5m": {
-      "sample_size": 1,
+      "sample_size": 2,
       "wins": 0,
-      "losses": 1,
-      "sum_r": -1.5663558278020018,
+      "losses": 2,
+      "sum_r": -1.9064125407836805,
       "wins_sum_r": 0.0,
-      "losses_sum_r": -1.5663558278020018,
-      "sum_mfe_r": 0.4151904188453144,
-      "sum_mae_r": 1.2455712565359431,
-      "sum_fees": 3.465328180081737,
-      "last_updated": "2026-09-10T06:52:35.954713+00:00"
+      "losses_sum_r": -1.9064125407836805,
+      "sum_mfe_r": 0.7815395829031284,
+      "sum_mae_r": 1.4120936038349496,
+      "sum_fees": 4.3192070301498,
+      "last_updated": "2026-09-13T21:57:00.847195+00:00"
     },
     "pennant|LOW_VOLATILITY|5m": {
-      "sample_size": 3,
+      "sample_size": 4,
       "wins": 1,
-      "losses": 2,
-      "sum_r": -1.5148714256575864,
+      "losses": 3,
+      "sum_r": -1.854928138639265,
       "wins_sum_r": 0.26187611147511025,
-      "losses_sum_r": -1.7767475371326968,
-      "sum_mfe_r": 1.5192738226436915,
-      "sum_mae_r": 1.4196104210368135,
-      "sum_fees": 7.762127248230369,
-      "last_updated": "2026-09-13T20:22:56.641853+00:00"
+      "losses_sum_r": -2.1168042501143756,
+      "sum_mfe_r": 1.8856229867015055,
+      "sum_mae_r": 1.58613276833582,
+      "sum_fees": 8.616006098298431,
+      "last_updated": "2026-09-13T21:57:00.847205+00:00"
     },
     "pennant|ANY|5m": {
-      "sample_size": 3,
+      "sample_size": 4,
       "wins": 1,
-      "losses": 2,
-      "sum_r": -1.5148714256575864,
+      "losses": 3,
+      "sum_r": -1.854928138639265,
       "wins_sum_r": 0.26187611147511025,
-      "losses_sum_r": -1.7767475371326968,
-      "sum_mfe_r": 1.5192738226436915,
-      "sum_mae_r": 1.4196104210368135,
-      "sum_fees": 7.762127248230369,
-      "last_updated": "2026-09-13T20:22:56.641857+00:00"
+      "losses_sum_r": -2.1168042501143756,
+      "sum_mfe_r": 1.8856229867015055,
+      "sum_mae_r": 1.58613276833582,
+      "sum_fees": 8.616006098298431,
+      "last_updated": "2026-09-13T21:57:00.847209+00:00"
     },
     "pennant|T:RANGE/V:VERY_LOW/L:STRESSED|5m": {
       "sample_size": 1,
