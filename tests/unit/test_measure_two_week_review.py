@@ -265,6 +265,48 @@ def test_days_and_as_of_affect_window(models_dir):
     assert "входов/день = 0.29" in long
 
 
+def test_section_trades_counts_partials_by_dup_id(tmp_path):
+    """Частички: tp1 при дубле id — первые частички, их R ≈ +1R."""
+    d = tmp_path / "models"
+    d.mkdir()
+    _write(
+        d / "paper_trades.jsonl",
+        [
+            # Позиция p1: 30%-частичка + хвост (один id, две строки).
+            {
+                "id": "p1", "symbol": "BTC-USDT", "direction": "long",
+                "exit_reason": "tp1", "strategy": "s", "quantity": "3.0",
+                "pnl": "3.0", "fees": "0.02", "funding": "0",
+                "r_multiple": 1.0, "opened_at": _ms(2.0), "closed_at": _ms(2.0),
+            },
+            {
+                "id": "p1", "symbol": "BTC-USDT", "direction": "long",
+                "exit_reason": "tp2", "strategy": "s", "quantity": "7.0",
+                "pnl": "16.1", "fees": "0.05", "funding": "0",
+                "r_multiple": 2.3, "opened_at": _ms(2.0), "closed_at": _ms(1.0),
+            },
+            # Одиночный tp1 без дубля — полный выход, не частичка.
+            {
+                "id": "p2", "symbol": "ETH-USDT", "direction": "short",
+                "exit_reason": "tp1", "strategy": "s", "quantity": "5.0",
+                "pnl": "5.0", "fees": "0.03", "funding": "0",
+                "r_multiple": 1.0, "opened_at": _ms(1.5), "closed_at": _ms(1.5),
+            },
+        ],
+    )
+    report = render_report(StateSource(d), days=14, as_of_ms=AS_OF_MS)
+    assert "позиций с частичками (дубль id): 1" in report
+    assert "первых частичек (tp1 при дубле id): 1" in report
+    assert "R частичек: mean +1.000, median +1.000" in report
+
+
+def test_section_trades_no_partials(models_dir):
+    """Фикстура без дублей id: частичек ноль, секция не падает."""
+    report = render_report(StateSource(models_dir), days=14, as_of_ms=AS_OF_MS)
+    assert "позиций с частичками (дубль id): 0" in report
+    assert "первых частичек (tp1 при дубле id): 0" in report
+
+
 @pytest.mark.skipif(shutil.which("git") is None, reason="git недоступен")
 def test_git_ref_source_is_readonly():
     """--git-ref читает закоммиченное состояние и не трогает рабочую копию."""

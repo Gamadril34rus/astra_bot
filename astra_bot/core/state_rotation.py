@@ -22,6 +22,8 @@ LIVE_JSONL_LIMITS: dict[str, int] = {
     "no_trade_observations.jsonl": 5_000,
     # D5 фаза 0: гипотетические запреты HTF-фильтра (shadow, не блокирует).
     "htf_shadow_bans.jsonl": 5_000,
+    # Фаза-0 тени паттерн-выходов (блок D): только журнал, не влияет.
+    "pattern_exit_shadow.jsonl": 5_000,
     "decision_log.jsonl": 20_000,
     "live_lessons.jsonl": 10_000,
     "lessons.jsonl": 10_000,

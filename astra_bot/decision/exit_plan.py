@@ -145,6 +145,36 @@ def clamp_take_rr(
     return entry - risk * rr
 
 
+# Доли 2-уровневого тейка плана (решение владельца 13.09.2026):
+# 1R-частичка 30% + хвост на клампе 2.0-2.3R 70%.
+PLAN_TP_FRACTIONS: tuple[float, float] = (0.3, 0.7)
+
+
+def plan_take_levels(
+    entry: Decimal,
+    stop: Decimal,
+    take: Decimal,
+    direction: str,
+    rr_min: float = 2.0,
+    rr_max: float = 2.3,
+) -> tuple[Decimal, Decimal]:
+    """Два уровня тейка плана: 1R-частичка + хвост на клампе.
+
+    Первый уровень — ровно 1.0R от входа (по сигнальным ценам входа и
+    стопа — та же R-единица, что фиксирует брокер в risk_distance);
+    второй уровень — clamp_take_rr без изменений.
+    """
+    entry_d = Decimal(str(entry))
+    stop_d = Decimal(str(stop))
+    risk = abs(entry_d - stop_d)
+    if direction == "long":
+        tp1 = entry_d + risk
+    else:
+        tp1 = entry_d - risk
+    tail = clamp_take_rr(entry_d, stop_d, take, direction, rr_min, rr_max)
+    return tp1, tail
+
+
 def structural_tighten(
     direction: str,
     entry: Decimal,
