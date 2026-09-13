@@ -23,7 +23,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "54.78",
-      "lowest_price": "54.71",
+      "lowest_price": "54.69",
       "strategy": "triple_top_bottom",
       "opened_at": 1789327815873,
       "notes": {
@@ -52,12 +52,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 3,
+      "bars_held": 5,
       "leverage": "2",
       "margin_used": "427.4655905800",
       "plan_variant": "STATIC_TP",
       "plan_take": "57.409480",
-      "plan_last_bar_ts": 1789327800000
+      "plan_last_bar_ts": 1789328100000
     },
     {
       "id": "39edb592-89bd-4d9f-96a6-94ef018327cd",
@@ -65,7 +65,7 @@
       "direction": "short",
       "entry_price": "0.13761",
       "quantity": "6225.05038875",
-      "stop_loss": "0.13808142857142858",
+      "stop_loss": "0.13794857142857142",
       "take_profits": [
         "0.1351003924418603",
         "0.13259078488372060"
@@ -82,7 +82,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "0.13782",
-      "lowest_price": "0.13730",
+      "lowest_price": "0.13717",
       "strategy": "pennant",
       "opened_at": 1789327832528,
       "notes": {
@@ -111,12 +111,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 3,
+      "bars_held": 5,
       "leverage": "3",
       "margin_used": "285.5430613319625",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.13259078488372060",
-      "plan_last_bar_ts": 1789327800000
+      "plan_last_bar_ts": 1789328100000
     },
     {
       "id": "e47157b3-0af5-4d86-8eca-671bd969a619",
@@ -124,7 +124,7 @@
       "direction": "short",
       "entry_price": "100.912",
       "quantity": "8.48847850",
-      "stop_loss": "102.199912",
+      "stop_loss": "101.01185714285715",
       "take_profits": [
         "99.624088",
         "98.3361760"
@@ -140,8 +140,8 @@
       "initial_quantity": "8.48847850",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "100.913",
+      "lowest_price": "100.837",
       "strategy": "triple_top_bottom",
       "opened_at": 1789328160151,
       "notes": {
@@ -170,12 +170,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 0,
+      "bars_held": 2,
       "leverage": "2",
       "margin_used": "428.29467119600",
       "plan_variant": "STATIC_TP",
       "plan_take": "98.3361760",
-      "plan_last_bar_ts": 0
+      "plan_last_bar_ts": 1789328100000
     }
   ],
   "realized_pnl": "-1869.093622248456169643798404",
