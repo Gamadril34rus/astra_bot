@@ -52,12 +52,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
-      "bars_held": 15,
+      "bars_held": 17,
       "leverage": "3",
       "margin_used": "284.81719809250",
       "plan_variant": "STATIC_TP",
       "plan_take": "2.41105980000000046",
-      "plan_last_bar_ts": 1789335600000
+      "plan_last_bar_ts": 1789335900000
     },
     {
       "id": "0ba4792b-060c-4fad-a50a-0c8b23181847",
@@ -81,7 +81,7 @@
       "initial_quantity": "2386.04254075",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.3589",
+      "highest_price": "0.3590",
       "lowest_price": "0.3575",
       "strategy": "rectangle",
       "opened_at": 1789334836436,
@@ -111,12 +111,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
-      "bars_held": 7,
+      "bars_held": 9,
       "leverage": "1",
       "margin_used": "854.919042350725",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.350550200000000060",
-      "plan_last_bar_ts": 1789335600000
+      "plan_last_bar_ts": 1789335900000
     },
     {
       "id": "98a4a02f-3570-4573-bf44-a2204a36ae3f",
@@ -140,8 +140,8 @@
       "initial_quantity": "0.01102450",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "77379.8",
-      "lowest_price": "77325.8",
+      "highest_price": "77381.3",
+      "lowest_price": "77316.3",
       "strategy": "ts_momentum_cross",
       "opened_at": 1789334912125,
       "notes": {
@@ -170,7 +170,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 6,
+      "bars_held": 7,
       "leverage": "1",
       "margin_used": "853.213616250",
       "plan_variant": "STATIC_TP",
@@ -180,8 +180,5 @@
   ],
   "realized_pnl": "-1937.639647570018957747401689",
   "initial_capital": "36098.87",
-  "cooldowns": {
-    "scalp5m|SUI-USDT|long": 1789336029143,
-    "vwap_deviation|FET-USDT|short": 1789336053580
-  }
+  "cooldowns": {}
 }
