@@ -694,6 +694,7 @@ class TradingEngine:
         ml_confidence: float | None = None,
         atr_pct: float | None = None,
         strategy: str = "",
+        timeframe: str = "",
     ) -> Decimal:
         # Use new position_sizer with Kelly, ML confidence, volatility adjustments
         try:
@@ -717,19 +718,17 @@ class TradingEngine:
                         avg_loss = abs(bucket.avg_loss_r) or 1.0
             except Exception:
                 pass
+            bucket = self.stats_store.get_any(strategy, timeframe) if strategy else None
+            probation = bucket is None or bucket.sample_size < 5
             qty = calculate_position_size(
-                equity=equity,
-                entry_price=entry,
-                stop_loss=stop,
+                equity=equity, entry_price=entry, stop_loss=stop,
                 risk_per_trade_pct=self.config.risk_per_trade_pct,
-                win_rate=win_rate,
-                avg_win_r=avg_win,
-                avg_loss_r=avg_loss,
-                ml_confidence=ml_confidence,
-                atr_pct=atr_pct,
+                win_rate=win_rate, avg_win_r=avg_win, avg_loss_r=avg_loss,
+                ml_confidence=ml_confidence, atr_pct=atr_pct,
                 max_notional_pct=self.config.max_notional_pct,
             )
-            return qty
+            # After Kelly/volatility; downstream instrument and D2 risk caps follow.
+            return qty * (Decimal("0.25") if probation else Decimal("1"))
         except Exception:
             # Fallback to simple calculation
             try:
@@ -767,7 +766,7 @@ class TradingEngine:
     def apply_kill_switches_from_stats(self) -> list[str]:
         """Пер-стратегийный килл-свитч из статистики (блок A).
 
-        Агрегирует бакеты strategy_stats.json по имени стратегии. Правило:
+        Агрегирует только position-unique ANY-бакеты по имени стратегии. Правило:
         n>=5 и PF=wins/|losses|<1.0 → убрать стратегию из
         pipeline.strategies + logger.error. Именно убрать из списка: флаг
         enabled новые стратегии игнорируют. Вызывается из __init__ (раз в
@@ -784,7 +783,11 @@ class TradingEngine:
             for key, row in buckets.items():
                 if not isinstance(row, dict):
                     continue
-                name = str(key).split("|")[0].strip()
+                parts = str(key).split("|")
+                # Regime/axes rows are copies; ANY is position-unique per TF.
+                if len(parts) < 3 or parts[1].strip().upper() != "ANY":
+                    continue
+                name = parts[0].strip()
                 if not name:
                     continue
                 a = agg.setdefault(name, {"n": 0.0, "w": 0.0, "l": 0.0})
@@ -795,6 +798,7 @@ class TradingEngine:
                 getattr(st, "name", type(st).__name__)
                 for st in (self.pipeline.strategies or [])
             ]
+            retained: list[str] = []
             for name, a in agg.items():
                 if name not in loaded:
                     continue  # мёртвые/переименованные имена — молча
@@ -811,6 +815,14 @@ class TradingEngine:
                         name, int(a["n"]), pf, a["w"], a["l"],
                     )
                     disabled.append(name)
+                else:
+                    retained.append(name)
+            logger.info(
+                "KILL-SWITCH ANY n_any=%s killed=%s retained=%s",
+                {name: int(values["n"]) for name, values in sorted(agg.items())},
+                sorted(disabled),
+                sorted(retained),
+            )
         except Exception as exc:
             logger.debug("kill-switch read failed: %s", exc)
         return disabled
@@ -1313,6 +1325,7 @@ class TradingEngine:
         # коррелированных сделок, которые стопнутся одновременно.
         open_positions = list(self.broker.positions)
         if len(open_positions) >= self.config.max_open_positions:
+            self._record_capacity_rejection(symbol, decision, list(primary), "capacity")
             return closed
         total_notional = sum(
             float(p.entry_price) * float(p.quantity) for p in open_positions
@@ -1322,6 +1335,7 @@ class TradingEngine:
         if equity > 0 and total_notional / equity >= float(
             self.config.max_total_exposure_pct
         ):
+            self._record_capacity_rejection(symbol, decision, list(primary), "exposure")
             return closed
 
         # Рыночная «безопасность»: расписание/бюджет часов, новости,
@@ -1361,6 +1375,7 @@ class TradingEngine:
             1 for p in self.broker.positions if p.direction == wanted_dir
         )
         if same_dir >= self.config.max_same_direction:
+            self._record_capacity_rejection(symbol, decision, list(primary), "direction")
             logger.info(
                 "%s: лимит %s-позиций достигнут (%d), пропуск",
                 symbol, wanted_dir, same_dir,
@@ -1432,10 +1447,16 @@ class TradingEngine:
             ml_confidence=_ml_conf,
             atr_pct=_atr_pct,
             strategy=cand.strategy,
+            timeframe=cand.timeframe,
         )
         if size <= 0:
             logger.info("%s: size=0, пропускаю", symbol)
             return closed
+        _sized_qty = size
+        _binding_constraint = "none"
+        _any_bucket = self.stats_store.get_any(cand.strategy, cand.timeframe)
+        if _any_bucket is None or _any_bucket.sample_size < 5:
+            _binding_constraint = "probation"
         # Бэклог A6: биржевые ограничения инструмента (step/min_qty/
         # min_notional/tick) — до открытия, в paper broker их нет.
         size = await self._apply_instrument_constraints(
@@ -1444,6 +1465,9 @@ class TradingEngine:
         if size is None or size <= 0:
             logger.info("%s: size=0 (инструмент), пропускаю", symbol)
             return closed
+        if size < _sized_qty:
+            _binding_constraint = "instrument"
+        _instrument_qty = size
 
         # ---- Risk Engine: независимый слой защиты (master prompt §11).
         # Дневные/недельные лимиты потерь, просадка, exposure, HALT.
@@ -1454,6 +1478,8 @@ class TradingEngine:
         )
         if size is None or size <= 0:
             return closed
+        if size < _instrument_qty:
+            _binding_constraint = "risk_engine"
 
         cand_features = cand.features or {}
         regime_info = decision.diagnostics.get("regime") or {}
@@ -1517,8 +1543,20 @@ class TradingEngine:
                 regime_axes=str(regime_info.get("axes_key") or ""),
                 leverage=leverage,
                 notes={
+                    # Immutable entry telemetry for future counterfactuals.
+                    "signal_bar_close": float(primary[-2].close if len(primary) > 1 else primary[-1].close),
+                    "effective_entry": float(entry_for_risk),
+                    "initial_stop": float(cand.stop_loss),
+                    "initial_take": float(cand.take_profit) if cand.take_profit else None,
+                    "stop_pct": float(abs(entry_for_risk - cand.stop_loss) / entry_for_risk),
+                    "confidence": float(cand.confidence),
+                    "ml_probability": float(cand.ml_probability) if cand.ml_probability is not None else None,
+                    "prior_r": __import__("astra_bot.decision.meta_strategy", fromlist=["candidate_prior_r"]).candidate_prior_r(cand),
+                    "costs_r": 2.0 * (float(self.config.fee_pct) + float(self.config.slippage_pct)) / float(abs(entry_for_risk - cand.stop_loss) / entry_for_risk),
+                    "equity_before": float(self.broker.net_equity),
+                    "risk_budget": float(self.broker.net_equity * self.config.risk_per_trade_pct),
+                    "binding_constraint": _binding_constraint,
                     "score": cand.total_score,
-                    "ml_probability": cand.ml_probability,
                     "edge_pct": cand.expected_edge_pct,
                     "ev_r": cand_features.get("ev_r"),
                     "ev_confidence": cand_features.get("ev_confidence"),
@@ -1571,6 +1609,41 @@ class TradingEngine:
         # отчёт и отвечаем на команды из меню.
         logger.info("OPEN %s %s entry=%s", pos.direction, pos.symbol, pos.entry_price)
         return closed
+
+    def _record_capacity_rejection(
+        self, symbol: str, decision: Decision, primary: list, stage: str
+    ) -> None:
+        """Append a candidate rejected by portfolio capacity to NO_TRADE."""
+        try:
+            from ..ml.no_trade_observations import (
+                NoTradeObservation,
+                make_observation_id,
+                quick_features,
+            )
+            cand = decision.candidate
+            if cand is None or not primary:
+                return
+            bar = primary[-1]
+            candidate = {
+                "strategy": cand.strategy, "direction": cand.direction,
+                "entry_price": float(cand.entry_price),
+                "stop_loss": float(cand.stop_loss),
+                "take_profit": float(cand.take_profit) if cand.take_profit else None,
+            }
+            reason = f"PORTFOLIO_{stage.upper()}"
+            obs = NoTradeObservation(
+                id=make_observation_id(symbol, int(bar.open_time), reason, cand.strategy, cand.direction),
+                symbol=symbol, bar_time=int(bar.open_time),
+                timestamp=int(datetime.now(tz=UTC).timestamp() * 1000),
+                market_regime=str((decision.diagnostics.get("regime") or {}).get("regime", "UNKNOWN")),
+                regime_confidence=float((decision.diagnostics.get("regime") or {}).get("confidence", 0.0)),
+                reason_code=reason, reasons=[f"rejection_stage={stage}"],
+                candidate=candidate, features=quick_features(list(primary)),
+                rejection_stage=stage,
+            )
+            self.obs_log.add(obs)
+        except Exception as exc:
+            logger.debug("capacity observation: %s", exc)
 
     def _record_no_trade(self, symbol: str, decision: Decision, primary: list) -> None:
         """Записать NO_TRADE-наблюдение (TZ §12). Append-only, idempotent."""

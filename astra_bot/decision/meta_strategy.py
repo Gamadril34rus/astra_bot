@@ -69,7 +69,7 @@ REASON_MAP: dict[str, NoTradeReason] = {
 
 def candidate_prior_r(
     candidate: SignalCandidate,
-    fee_pct: float = 0.001,
+    fee_pct: float = 0.0005,
     slippage_pct: float = 0.001,
 ) -> float:
     """Prior-EV кандидата в R на уровне сделки.
@@ -89,7 +89,8 @@ def candidate_prior_r(
     p_win = candidate.ml_probability if candidate.ml_probability is not None else max(0.4, float(candidate.confidence))
     p_win = min(0.99, max(0.01, p_win))
     stop_pct = risk / entry
-    costs_r = (fee_pct + slippage_pct) / stop_pct  # издержки на две стороны, в R
+    # fee_pct/slippage_pct заданы на сторону; полный круг = вход + выход.
+    costs_r = 2.0 * (fee_pct + slippage_pct) / stop_pct
     return p_win * avg_win_r - (1.0 - p_win) * 1.0 - costs_r
 
 

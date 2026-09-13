@@ -52,6 +52,8 @@ class NoTradeObservation:
     candidate: dict[str, Any] | None = None
     features: dict[str, float] = field(default_factory=dict)
     result: dict[str, Any] | None = None
+    # Additive portfolio-gate attribution; absent on legacy rows.
+    rejection_stage: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -66,6 +68,7 @@ class NoTradeObservation:
             "candidate": self.candidate,
             "features": self.features,
             "result": self.result,
+            "rejection_stage": self.rejection_stage,
         }
 
     @classmethod
@@ -82,6 +85,7 @@ class NoTradeObservation:
             candidate=data.get("candidate"),
             features=dict(data.get("features") or {}),
             result=data.get("result"),
+            rejection_stage=data.get("rejection_stage"),
         )
 
 

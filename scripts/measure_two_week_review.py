@@ -636,6 +636,59 @@ def section_trades(
     )
 
 
+def section_entry_audit(source: StateSource, trades: list[dict[str, Any]], out: list[str]) -> None:
+    """Post-PR immutable telemetry, capacity rejects, epochs and entry hours."""
+    out.extend(["", "(6) ENTRY TELEMETRY / CAPACITY / EPOCHS (position-id dedup)"])
+    by_id: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in trades:
+        by_id[str(row.get("id") or f"row:{len(by_id)}")].append(row)
+    positions = [min(rows, key=lambda x: int(x.get("opened_at") or 0)) for rows in by_id.values()]
+    fresh = [r for r in positions if r.get("signal_bar_close") is not None and r.get("effective_entry") is not None]
+    slips = []
+    for row in fresh:
+        signal = float(row["signal_bar_close"])
+        fill = float(row["effective_entry"])
+        if signal > 0:
+            slips.append(
+                (fill / signal - 1)
+                if row.get("direction") == "long"
+                else (signal / fill - 1)
+            )
+    if slips:
+        ordered = sorted(slips)
+        p90 = ordered[min(len(ordered) - 1, int(0.9 * len(ordered)))]
+        out.append(f"  signed slippage: n={len(slips)}, median={statistics.median(slips)*100:.4f}%, p90={p90*100:.4f}%")
+    else:
+        out.append("  signed slippage: новых строк со snapshot-полями нет")
+    observations = source.read_jsonl("no_trade_observations.jsonl") or []
+    rejected = [r for r in observations if r.get("rejection_stage") in {"capacity", "exposure", "direction"}]
+    out.append(f"  capacity rejects: n={len(rejected)}, stages={dict(Counter(r.get('rejection_stage') for r in rejected))}")
+    cutoff = 1789118703000  # 2026-09-11 09:25:03 UTC, merge #70
+    for label, rows in (("до #70", [r for r in positions if int(r.get("opened_at") or 0) < cutoff]),
+                        ("после #70", [r for r in positions if int(r.get("opened_at") or 0) >= cutoff])):
+        rs = [float(r["r_multiple"]) for r in rows if r.get("r_multiple") is not None]
+        out.append(f"  {label}: positions={len(rows)}, sumR={sum(rs):+.3f}, meanR={statistics.fmean(rs):+.3f}" if rs else f"  {label}: positions=0")
+    hours = Counter()
+    for row in positions:
+        opened = int(row.get("opened_at") or 0)
+        if opened:
+            hours[(__import__("datetime").datetime.fromtimestamp(opened/1000, __import__("datetime").UTC).hour + 3) % 24] += 1
+    out.append("  входы по часу МСК: " + ", ".join(f"{h:02d}={hours[h]}" for h in range(24)))
+    partial_ids = sum(1 for rows in by_id.values() if len(rows) > 1)
+    partial_rows = 0
+    for rows in by_id.values():
+        if len(rows) < 2:
+            continue
+        initial_quantity = sum(float(row.get("quantity") or 0) for row in rows)
+        partial_rows += sum(
+            1 for row in rows if float(row.get("quantity") or 0) < initial_quantity
+        )
+    out.append(
+        f"  частички: duplicate position id={partial_ids}; "
+        f"rows quantity<initial={partial_rows}"
+    )
+
+
 def _iso_ms(ms: int) -> str:
     from datetime import UTC, datetime
 
@@ -662,6 +715,7 @@ def render_report(source: StateSource, days: int, as_of_ms: int | None) -> str:
     section_ledger(source, trades, positions_state, out)
     section_shadow(source, out)
     section_trades(trades, days, as_of_ms, out)
+    section_entry_audit(source, trades, out)
 
     out.append("")
     out.append("=" * 100)
