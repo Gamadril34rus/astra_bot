@@ -200,8 +200,14 @@ class TestRegimeExit:
 
 
 class TestBrokerNetBreakeven:
-    def test_tp1_stop_is_net_breakeven(self, tmp_path):
-        """После TP1 стоп стоит ВЫШЕ входа: покрывает комиссии и фандинг."""
+    def test_tp1_stop_is_raw_entry(self, tmp_path):
+        """После TP1 стоп стоит РОВНО во входе (решение владельца 13.09.2026).
+
+        Раньше кандидат был нетто-БУ (выше входа); теперь кандидат — сырой
+        вход через apply_tighter: только подтягивание, D1-стоп лучше —
+        остаётся D1. Выход по такому стопу — маленький гарантированный
+        минус на издержках, а не рыночный убыток.
+        """
         b = _mk_broker(tmp_path)
         pos = b.open_position(
             symbol="BTC-USDT", direction="long",
@@ -217,12 +223,13 @@ class TestBrokerNetBreakeven:
         closed = b.check_exits(bar)
         assert any(t.exit_reason == "tp1" for t in closed)
         assert pos.trailing_activated
-        assert float(pos.stop_loss) > 100.0, "БУ должен покрывать издержки"
-        # Стоп выбит на следующем баре → сделка НЕ в минус от издержек.
+        assert pos.stop_loss == Decimal("100"), "стоп ровно в сыром входе"
+        # Стоп выбит на следующем баре → минус только на издержках.
         bar2 = Bar(open=99.8, high=100.0, low=float(pos.stop_loss) - 0.01, close=float(pos.stop_loss) - 0.05)
         closed2 = b.check_exits(bar2)
         assert closed2 and closed2[0].exit_reason == "stop_loss"
-        assert closed2[0].pnl > -0.05, "выход в нетто-БУ ~ ноль, а не минус"
+        assert closed2[0].pnl < 0, "сырой вход с издержками — маленький минус"
+        assert closed2[0].pnl > -1.0, "минус только издержки, не рынок"
 
     def test_funding_included_in_be(self, tmp_path):
         """Чем дольше держим, тем выше нетто-БУ (фандинг перпов копится)."""

@@ -169,6 +169,10 @@ class TradingEngineConfig:
     no_trade_observations_path: str = "models/no_trade_observations.jsonl"
     no_trade_outcomes_path: str = "models/no_trade_outcomes.json"
     hypotheses_path: str = "models/research/hypotheses.json"
+    # Фаза-0 тени паттерн-выходов (бэклог блок D): только журнал,
+    # на решения не влияет (образец D5 — htf_shadow).
+    pattern_exit_shadow_enabled: bool = True
+    pattern_exit_shadow_path: str = "models/pattern_exit_shadow.jsonl"
     # Анти-дребезг (решение владельца 12.09.2026): после выхода по стопу
     # та же стратегия не входит в тот же символ/сторону столько минут.
     reentry_cooldown_minutes: int = 20
@@ -448,6 +452,15 @@ class TradingEngine:
             exit_controller=self.exit_controller,
             exit_manager=self.exit_manager,
         )
+        # Тень паттерн-выходов (фаза-0): None при выключенном флаге.
+        if self.config.pattern_exit_shadow_enabled:
+            from .pattern_exit_shadow import PatternExitShadow
+
+            self.pattern_exit_shadow: PatternExitShadow | None = PatternExitShadow(
+                self.config.pattern_exit_shadow_path
+            )
+        else:
+            self.pattern_exit_shadow = None
         # Model Registry (TZ §18): живому пайплайну отдаём только
         # ACTIVE (production) модель; без неё пайплайн работает как
         # раньше (ml_probability = None). Сбой загрузки не роняет бота.
@@ -1214,6 +1227,19 @@ class TradingEngine:
         if closed:
             self._record_closed(closed)
 
+        # --- Research: тень паттерн-выходов (фаза-0, бэклог блок D).
+        # Только наблюдение переживших выходы позиций: что БЫ сделал
+        # паттерн-выход на этом баре. На решения не влияет (образец D5).
+        if self.pattern_exit_shadow is not None:
+            try:
+                self.pattern_exit_shadow.observe_many(
+                    [p for p in self.broker.positions if p.symbol == symbol],
+                    list(primary),
+                    float(ctx.current_price),
+                )
+            except Exception as exc:
+                logger.debug("pattern_exit_shadow: %s", exc)
+
         # --- Research: NO_TRADE — результат модели, а не «пустой цикл».
         # Дедупликация по стабильному id (bar_time) — повторная обработка
         # того же бара дубль не создаёт (TZ §30).
@@ -1454,21 +1480,25 @@ class TradingEngine:
                     symbol, float(cand.confidence or 0.0), ev_r, leverage,
                 )
         try:
-            # B8 этап 2: ОДИН тейк плана (решение владельца — зона 2-2.3R
-            # стопа). Уровень считает exit_plan.clamp_take_rr; брокер
-            # только исполняет уровень (take_levels).
+            # План выхода: ДВА уровня тейка (решение владельца 13.09.2026 —
+            # 1R-частичка 30% + хвост на клампе 2.0-2.3R 70%). Уровни считает
+            # exit_plan.plan_take_levels; брокер только исполняет уровни
+            # (take_levels) и доли (tp_fractions).
             _dir = "long" if cand.direction == "long" else "short"
             _plan_take = None
             _take_levels = None
+            _tp_fractions = None
             if not bool(cand_features.get("no_take_profit")) and cand.take_profit:
-                from .exit_plan import clamp_take_rr, smart_params
+                from .exit_plan import PLAN_TP_FRACTIONS, plan_take_levels, smart_params
 
                 _sp = smart_params()
-                _plan_take = clamp_take_rr(
+                _tp1, _plan_take = plan_take_levels(
                     cand.entry_price, cand.stop_loss, cand.take_profit,
                     _dir, _sp.take_rr_min, _sp.take_rr_max,
                 )
-                _take_levels = [_plan_take]
+                # _plan_take — хвост (кламп), пишется в pos.plan_take.
+                _take_levels = [_tp1, _plan_take]
+                _tp_fractions = list(PLAN_TP_FRACTIONS)
             pos = self.broker.open_position(
                 symbol=symbol,
                 direction=_dir,
@@ -1479,6 +1509,7 @@ class TradingEngine:
                 strategy=cand.strategy,
                 no_take_profit=bool(cand_features.get("no_take_profit")),
                 take_levels=_take_levels,
+                tp_fractions=_tp_fractions,
                 regime=str(regime_info.get("regime", "")),
                 timeframe=cand.timeframe,
                 # A2 (МТЗ §10): композитный ключ осей Regime 2.0 — прокидывается

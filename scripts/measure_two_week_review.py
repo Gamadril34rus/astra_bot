@@ -21,7 +21,7 @@
       реплеем (штатным ``TradeLedger.replay()``);
   (4) ``htf_shadow_bans.jsonl``: объём, разбивка по стратегиям/направлениям;
   (5) ``paper_trades.jsonl`` за окно: входов/день, доли ``exit_reason``,
-      R стоп-выходов.
+      R стоп-выходов, частички (дубль id).
 
 Деньги — ``Decimal`` (никакого float там, где суммируются комиссии/PnL).
 """
@@ -599,6 +599,33 @@ def section_trades(
             f"    R: mean {_r(statistics.fmean(rs))}, median {_r(statistics.median(rs))}, "
             f"min {_r(min(rs))}, max {_r(max(rs))}, хуже -1R: "
             f"{sum(1 for x in rs if x < -1.0)}/{len(rs)} (fees и проскальзывание/гэп сверх уровня)"
+        )
+    # Частички 2-уровневого тейка (paper с 13.09.2026): позиция закрыта
+    # несколькими строками с одним id; частичка отличается объёмом
+    # (quantity < суммы по id), а не причиной. Доли exit_reason выше
+    # считают СТРОКИ, а не позиции: tp1 при дубле id — это 30%-частичка,
+    # а не полный выход.
+    by_id: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for t in window:
+        if t.get("id"):
+            by_id[str(t["id"])].append(t)
+    multi = {i: rows for i, rows in by_id.items() if len(rows) > 1}
+    first_partials = [
+        t for rows in multi.values() for t in rows
+        if str(t.get("exit_reason")) == "tp1"
+    ]
+    out.append(
+        f"  позиций с частичками (дубль id): {len(multi)}; "
+        f"первых частичек (tp1 при дубле id): {len(first_partials)}"
+    )
+    prs = [
+        float(t["r_multiple"]) for t in first_partials
+        if t.get("r_multiple") is not None
+    ]
+    if prs:
+        out.append(
+            f"    R частичек: mean {_r(statistics.fmean(prs))}, "
+            f"median {_r(statistics.median(prs))} (ожидание ≈ +1R)"
         )
     pnl = sum((_dec(t.get("pnl")) for t in window), Decimal("0"))
     fees = sum((_dec(t.get("fees")) for t in window), Decimal("0"))

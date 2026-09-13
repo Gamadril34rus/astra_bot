@@ -57,14 +57,19 @@ def test_safety_blocks_wide_spread():
 
 
 def test_safety_blocks_when_not_scheduled(monkeypatch):
-    # Ночь МСК — вне активных часов.
+    # 24/7 (решение владельца 13.09.2026): ночью вход разрешён по
+    # умолчанию; блокировка — только через сужающий env-override.
     import datetime as dt
     from datetime import timedelta, timezone
     night = dt.datetime(2026, 8, 13, 2, 0, tzinfo=timezone(timedelta(hours=3)))
+    monkeypatch.delenv("TRADE_ACTIVE_HOURS_MSK", raising=False)
     s = market_safety.MarketSafety()
     v = s.check("BTC/USDT", now=night)
-    assert v.scheduled is False
-    assert v.allowed is False
+    assert v.scheduled is True
+    monkeypatch.setenv("TRADE_ACTIVE_HOURS_MSK", "8-23")
+    v2 = s.check("BTC/USDT", now=night)
+    assert v2.scheduled is False
+    assert v2.allowed is False
 
 
 def test_safety_allows_healthy_daytime(monkeypatch):

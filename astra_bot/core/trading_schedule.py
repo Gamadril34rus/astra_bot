@@ -2,23 +2,23 @@
 Бюджет торговых часов на месяц.
 
 Идея владельца: «боту разрешено торговать ограниченное число часов в
-месяц — например 700. Делим их на количество дней в текущем месяце и
-получаем ~22.5 часа в сутки». В эти часы бот торгует/обучается; в
-оставшееся время рынок не мониторится и новые позиции не открываются
-(защита от овертрейдинга и выгорания на тонком ночном рынке).
+месяц». Бюджет покрывает круглосуточную работу (дефолт 750 ч/мес,
+переопределяется через TRADE_HOURS_PER_MONTH). В остатке — защита от
+овертрейдинга: при исчерпании бюджета новые позиции не открываются.
 
 Реализация:
 * бюджет хранится в персистентном файле ``models/trading_budget.json``;
 * в начале месяца счётчик сбрасывается;
 * ``can_trade_now(now)`` говорит, активен ли бот в данный момент
-  (раскладка часов внутри суток — наиболее ликвидные сессии);
+  (все часы суток по умолчанию — решение владельца 13.09.2026);
 * ``record_hour()`` / ``record_minutes()`` учитывают фактически
   наторгованное время;
 * Telegram-команды показывают остаток.
 
-Раскладка внутри дня НЕ равномерная: мы берём самые ликвидные часы
-(пересечение лондонской и нью-йоркской сессий по МСК) и часть азиатской,
-чтобы не торговать в самый тонкий рынок (00:00–07:00 МСК).
+Расписание внутри дня — 24/7: bot.yml уже круглосуточный, в paper
+проскальзывание модельное (0.1% на сторону), а данные 24/7 ценнее
+пропущенных ночных движений. Сузить окно можно через
+TRADE_ACTIVE_HOURS_MSK (например "8-23").
 """
 
 from __future__ import annotations
@@ -35,9 +35,11 @@ logger = logging.getLogger(__name__)
 
 _STATE_PATH = Path(__file__).resolve().parents[2] / "models" / "trading_budget.json"
 
-# Сколько часов в месяц разрешено торговать по умолчанию. 700 часов при
-# 31 дне ≈ 22.5 ч/сутки. Можно переопределить через TRADE_HOURS_PER_MONTH.
-DEFAULT_HOURS_PER_MONTH = 700
+# Сколько часов в месяц разрешено торговать по умолчанию. 750 часов:
+# длинный месяц (31 день) — это 744 часа, бюджет покрывает 24/7 целиком
+# и бот не встанет в конце месяца. Можно переопределить через
+# TRADE_HOURS_PER_MONTH.
+DEFAULT_HOURS_PER_MONTH = 750
 
 MSK = timezone(timedelta(hours=3))
 
@@ -72,12 +74,41 @@ class BudgetState:
         return asdict(self)
 
 
-# Предпочтительные часы торговли по МСК (самые ликвидные сессии).
-# 10–20 МСК: пересечение Лондона и Нью-Йорка (максим. объём/узкий спред);
-# 08–10 и 20–24 МСК: Лондон/азиатская сессия;
-# 00–07 МСК intentionally excluded — тонкий рынок, высокий риск проскальзываний.
-ACTIVE_HOURS_MSK: frozenset[int] = frozenset(
-    list(range(8, 24)))  # 08:00–23:59 МСК
+# Активные часы торговли по МСК. Дефолт — ВСЕ сутки 0–23 (решение
+# владельца 13.09.2026, 24/7): bot.yml уже круглосуточный, в paper
+# проскальзывание модельное (0.1% на сторону), данные 24/7 ценнее
+# пропущенных ночных движений. Прежняя мотивировка «ночь — тонкий
+# рынок» для paper-контура снята.
+# Сузить окно: TRADE_ACTIVE_HOURS_MSK="8-23" (диапазон) или "0,1,2"
+# (перечисление); часы через запятую и диапазоны можно комбинировать.
+ACTIVE_HOURS_MSK: frozenset[int] = frozenset(range(24))  # 00:00–24:00 МСК
+
+
+def _active_hours() -> frozenset[int]:
+    """Активные часы с учётом TRADE_ACTIVE_HOURS_MSK (дефолт — 24/7)."""
+    raw = (os.environ.get("TRADE_ACTIVE_HOURS_MSK") or "").strip()
+    if not raw:
+        return ACTIVE_HOURS_MSK
+    try:
+        hours: set[int] = set()
+        for part in raw.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            if "-" in part:
+                start_s, end_s = part.split("-", 1)
+                hours.update(range(int(start_s), int(end_s) + 1))
+            else:
+                hours.add(int(part))
+        hours = {h for h in hours if 0 <= h <= 23}
+        if hours:
+            return frozenset(hours)
+    except ValueError:
+        pass
+    logger.warning(
+        "TRADE_ACTIVE_HOURS_MSK=%r не распознан — использую 24/7", raw
+    )
+    return ACTIVE_HOURS_MSK
 
 
 def _state_path() -> Path:
@@ -154,12 +185,12 @@ def can_trade_now(now: datetime | None = None) -> bool:
     """Можно ли торговать прямо сейчас.
 
     Условия (все должны выполняться):
-    1. Сейчас активные часы суток (ликвидные сессии по МСК).
+    1. Сейчас активные часы суток (дефолт 24/7; см. _active_hours).
     2. Не исчерпан дневной лимит минут.
     3. Не исчерпан месячный бюджет.
     """
     now = now or _now_msk()
-    if now.hour not in ACTIVE_HOURS_MSK:
+    if now.hour not in _active_hours():
         return False
 
     state = _load_or_reset(now)
@@ -209,6 +240,7 @@ def get_status(now: datetime | None = None) -> dict:
     state = _load_or_reset(now)
     dim = _days_in_month(now.year, now.month)
     day_budget_h = state.budget_hours / dim
+    hrs = _active_hours()
     return {
         "now_msk": now.strftime("%d.%m.%Y %H:%M"),
         "month": f"{now.year}-{now.month:02d}",
@@ -218,7 +250,7 @@ def get_status(now: datetime | None = None) -> dict:
         "remaining_hours": round(state.remaining_hours, 2),
         "hours_per_day": round(day_budget_h, 2),
         "daily_remaining_minutes": round(remaining_minutes_today(now), 1),
-        "active_hours_msk": f"{min(ACTIVE_HOURS_MSK):02d}:00–{max(ACTIVE_HOURS_MSK)+1:02d}:00",
+        "active_hours_msk": f"{min(hrs):02d}:00–{max(hrs)+1:02d}:00",
         "can_trade_now": can_trade_now(now),
     }
 

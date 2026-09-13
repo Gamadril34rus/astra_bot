@@ -411,6 +411,7 @@ class PaperBroker:
         regime_axes: str = "",
         leverage: int | Decimal = 1,
         take_levels: list[Decimal] | None = None,
+        tp_fractions: list[float] | None = None,
     ) -> PaperPosition:
         # Аудит эпохи-2 (блок F): fail-closed валидация стороны стопа/тейка.
         # Перевёрнутая сделка (как momentum-SHORT до блока E) отклоняется
@@ -494,8 +495,22 @@ class PaperBroker:
         )
         pos.tp_filled = [False] * len(tps)
         if take_levels is not None:
-            # Единый тейк закрывает весь объём (без частичных фиксаций).
-            pos.tp_fractions = [1.0] * len(tps)
+            # Уровни и доли задаёт план выхода (2-уровневый тейк: 1R×30% +
+            # кламп×70%). Без долей — единый тейк на весь объём.
+            if tp_fractions is None:
+                pos.tp_fractions = [1.0] * len(tps)
+            else:
+                if len(tp_fractions) != len(tps):
+                    raise ValueError(
+                        f"tp_fractions {len(tp_fractions)} != take_levels {len(tps)}"
+                    )
+                if any(float(f) <= 0 for f in tp_fractions):
+                    raise ValueError(f"tp_fractions должны быть > 0: {tp_fractions}")
+                if sum(float(f) for f in tp_fractions) > 1.0 + 1e-9:
+                    raise ValueError(
+                        f"tp_fractions в сумме > 100%: {tp_fractions}"
+                    )
+                pos.tp_fractions = [float(f) for f in tp_fractions]
         pos.initial_quantity = qty
         self.positions.append(pos)
         logger.info(
@@ -654,16 +669,15 @@ class PaperBroker:
                 closed.append(trade)
                 # Уменьшаем оставшийся объём.
                 pos.quantity -= part_qty
-                # После первого тейка включаем трейлинг и двигаем стоп в
-                # НЕТТО-безубыток (вход + комиссии + плата за плечо):
-                # сырой вход с комиссиями — это маленький гарантированный минус.
+                # После первой частички — стоп в безубыток (решение
+                # владельца 13.09.2026): кандидат = сырой вход через
+                # apply_tighter — только подтягивание; если D1-стоп уже
+                # лучше (выше для лонга) — остаётся D1. Риск не возвращается.
                 if i == 0:
                     pos.trailing_activated = True
-                    be = self.net_breakeven_price(pos)
-                    if pos.direction == "long":
-                        pos.stop_loss = max(pos.stop_loss, be)
-                    else:
-                        pos.stop_loss = min(pos.stop_loss, be)
+                    from .exit_plan import apply_tighter  # локально: цикл импорта
+
+                    apply_tighter(pos, pos.entry_price)
                 # После второго — тянем стоп вслед за ценой.
                 if i == 1 and pos.direction == "long" and pos.highest_price:
                     pos.stop_loss = max(
