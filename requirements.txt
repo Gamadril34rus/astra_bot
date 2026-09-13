@@ -19,7 +19,7 @@ ccxt>=4.0
 # Data processing
 numpy>=2.4.6,<3
 pandas>=2.2
-polars>=0.20
+polars>=1.44.2
 
 # ML (опционально). Раскомментируйте при включении auto-train/predictor:
 scikit-learn>=1.4
