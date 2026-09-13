@@ -1,71 +1,12 @@
 {
   "positions": [
     {
-      "id": "740120b7-8a0f-4c48-9ec5-cd08b495629b",
-      "symbol": "HBAR-USDT",
-      "direction": "short",
-      "entry_price": "0.07597",
-      "quantity": "7874.946805250",
-      "stop_loss": "0.07508",
-      "take_profits": [
-        "0.07520000000000001",
-        "0.074430000000000020"
-      ],
-      "tp_filled": [
-        true,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "11249.92400750",
-      "trailing_activated": true,
-      "trailing_distance": null,
-      "highest_price": "0.07576",
-      "lowest_price": "0.07471",
-      "strategy": "rectangle",
-      "opened_at": 1789337239772,
-      "notes": {
-        "signal_bar_close": 0.07597,
-        "effective_entry": 0.07589403,
-        "initial_stop": 0.07673999999999999,
-        "initial_take": 0.07473800000000001,
-        "stop_pct": 0.01114672656070563,
-        "confidence": 0.9,
-        "ml_probability": null,
-        "prior_r": 1.044012987012978,
-        "costs_r": 0.2691373098336853,
-        "equity_before": 34152.08280519187,
-        "risk_budget": 341.5208280519187,
-        "binding_constraint": "probation",
-        "score": 39.0,
-        "edge_pct": 78.4603,
-        "ev_r": 0.784603471084559,
-        "ev_confidence": 0.16666666666666666,
-        "rr": 1.6000000000000079,
-        "leverage": 1
-      },
-      "fill_price": "0.07589403",
-      "entry_fee_per_unit": "0.000037947015",
-      "risk_distance": "0.00076999999999999",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "5m",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 22,
-      "leverage": "1",
-      "margin_used": "854.6567268497750",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "0.074430000000000020",
-      "plan_last_bar_ts": 1789342800000
-    },
-    {
       "id": "b7c326de-a7fe-49eb-b7a2-c2ce8e585e28",
       "symbol": "DOT-USDT",
       "direction": "long",
       "entry_price": "0.9999",
       "quantity": "851.83329100",
-      "stop_loss": "0.9955142857142857",
+      "stop_loss": "0.9958285714285714",
       "take_profits": [
         "1.0067997",
         "1.01576931"
@@ -111,12 +52,12 @@
       "regime": "STRONG_BEAR_TREND",
       "timeframe": "5m",
       "regime_axes": "T:STRONG/V:LOW/L:NORMAL",
-      "bars_held": 12,
+      "bars_held": 13,
       "leverage": "1",
       "margin_used": "851.748107670900",
       "plan_variant": "STATIC_TP",
       "plan_take": "1.01576931",
-      "plan_last_bar_ts": 1789342800000
+      "plan_last_bar_ts": 1789343100000
     },
     {
       "id": "e7c5ea5f-9819-4916-acbd-53147967cb44",
@@ -170,17 +111,18 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 4,
+      "bars_held": 5,
       "leverage": "1",
       "margin_used": "853.1922636322275",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.13137180",
-      "plan_last_bar_ts": 1789342800000
+      "plan_last_bar_ts": 1789343100000
     }
   ],
-  "realized_pnl": "-2005.818330978820406532771034",
+  "realized_pnl": "-2000.440262945347090101736047",
   "initial_capital": "36098.87",
   "cooldowns": {
-    "fair_value_gap|ICP-USDT|short": 1789343701153
+    "fair_value_gap|ICP-USDT|short": 1789343701153,
+    "rectangle|HBAR-USDT|short": 1789344871000
   }
 }
