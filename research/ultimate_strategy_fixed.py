@@ -1,9 +1,19 @@
-"""Compatibility wrapper around ultimate_strategy.py with corrected Config construction."""
+"""Executable wrapper around ultimate_strategy.py with corrected config grid."""
 from __future__ import annotations
 
+import importlib.util
 import itertools
+import sys
+from pathlib import Path
 
-import research.ultimate_strategy as u
+ROOT = Path(__file__).resolve().parents[1]
+MOD_PATH = ROOT / "research" / "ultimate_strategy.py"
+spec = importlib.util.spec_from_file_location("ultimate_strategy", MOD_PATH)
+if spec is None or spec.loader is None:
+    raise RuntimeError(f"cannot load {MOD_PATH}")
+u = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = u
+spec.loader.exec_module(u)
 
 
 def candidate_grid() -> list[u.Config]:
