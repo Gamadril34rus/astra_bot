@@ -7,6 +7,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from astra_bot.core.config import DEFAULT_DRAWDOWN_ADAPTATION, RiskConfig, SystemConfig
+from astra_bot.core.instruments import TRADING_UNIVERSE
 from astra_bot.decision.config import DecisionConfig
 from astra_bot.decision.trading_engine import TradingEngineConfig
 from astra_bot.engines.position_sizer import calculate_position_size
@@ -67,12 +68,20 @@ def test_drawdown_adaptation_ladder():
     ] == DEFAULT_DRAWDOWN_ADAPTATION
 
 
-def test_instruments_ten_pairs_match_readme():
+def test_readme_universe_guard_follows_trading_universe():
+    # 1) Мёртвый конфиг SystemConfig.instruments: прод-контур его не использует,
+    #    но он имеет свой канон — фиксируем неизменность.
     instruments = SystemConfig().instruments
     assert instruments == EXPECTED_INSTRUMENTS
+    # 2) Живой юниверс: README не должен расходиться с TRADING_UNIVERSE
+    #    (core/instruments.py, его берёт scripts/run_bot.py в CI). Требуем
+    #    упоминания каждого тикера хотя бы по одному разу — точное форматирование
+    #    строки в README не фиксируем, чтобы документ мог переформатироваться.
     readme = Path("README.md").read_text(encoding="utf-8")
-    tickers = ["BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "AVAX", "LINK", "DOT", "TRX"]
-    assert " ".join(tickers) in readme
+    tickers = [symbol.split("/")[0] for symbol in TRADING_UNIVERSE]
+    assert len(set(tickers)) == len(tickers), "дубли тикеров в TRADING_UNIVERSE"
+    missing = [ticker for ticker in tickers if ticker not in readme]
+    assert not missing, f"README не упоминает тикеры живого юниверса: {missing}"
 
 
 def test_backup_restart_is_no_not_daily():
