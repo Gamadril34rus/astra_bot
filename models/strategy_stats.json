@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-13T23:54:31.346039+00:00",
+  "updated": "2026-09-14T00:08:51.798078+00:00",
   "buckets": {
     "scalp5m|UNKNOWN|": {
       "sample_size": 1,
@@ -1754,40 +1754,40 @@
       "last_updated": "2026-09-13T20:49:24.564894+00:00"
     },
     "scalp5m|T:RANGE/V:VERY_LOW/L:DEEP|5m": {
-      "sample_size": 1,
+      "sample_size": 2,
       "wins": 0,
-      "losses": 1,
-      "sum_r": -0.6912689819425758,
+      "losses": 2,
+      "sum_r": -1.6503840670163628,
       "wins_sum_r": 0.0,
-      "losses_sum_r": -0.6912689819425758,
-      "sum_mfe_r": 0.14700323407114957,
-      "sum_mae_r": 0.29400646814229914,
-      "sum_fees": 0.8526316182835612,
-      "last_updated": "2026-09-13T21:27:09.360850+00:00"
+      "losses_sum_r": -1.6503840670163628,
+      "sum_mfe_r": 0.2531055110818575,
+      "sum_mae_r": 0.8356865139338082,
+      "sum_fees": 1.7067123460330613,
+      "last_updated": "2026-09-14T00:08:51.798021+00:00"
     },
     "scalp5m|LOW_VOLATILITY|5m": {
-      "sample_size": 1,
+      "sample_size": 2,
       "wins": 0,
-      "losses": 1,
-      "sum_r": -0.6912689819425758,
+      "losses": 2,
+      "sum_r": -1.6503840670163628,
       "wins_sum_r": 0.0,
-      "losses_sum_r": -0.6912689819425758,
-      "sum_mfe_r": 0.14700323407114957,
-      "sum_mae_r": 0.29400646814229914,
-      "sum_fees": 0.8526316182835612,
-      "last_updated": "2026-09-13T21:27:09.360859+00:00"
+      "losses_sum_r": -1.6503840670163628,
+      "sum_mfe_r": 0.2531055110818575,
+      "sum_mae_r": 0.8356865139338082,
+      "sum_fees": 1.7067123460330613,
+      "last_updated": "2026-09-14T00:08:51.798035+00:00"
     },
     "scalp5m|ANY|5m": {
-      "sample_size": 1,
+      "sample_size": 2,
       "wins": 0,
-      "losses": 1,
-      "sum_r": -0.6912689819425758,
+      "losses": 2,
+      "sum_r": -1.6503840670163628,
       "wins_sum_r": 0.0,
-      "losses_sum_r": -0.6912689819425758,
-      "sum_mfe_r": 0.14700323407114957,
-      "sum_mae_r": 0.29400646814229914,
-      "sum_fees": 0.8526316182835612,
-      "last_updated": "2026-09-13T21:27:09.360864+00:00"
+      "losses_sum_r": -1.6503840670163628,
+      "sum_mfe_r": 0.2531055110818575,
+      "sum_mae_r": 0.8356865139338082,
+      "sum_fees": 1.7067123460330613,
+      "last_updated": "2026-09-14T00:08:51.798040+00:00"
     },
     "vwap_deviation|T:RANGE/V:VERY_LOW/L:NORMAL|5m": {
       "sample_size": 1,
@@ -1814,16 +1814,16 @@
       "last_updated": "2026-09-13T21:27:33.771406+00:00"
     },
     "vwap_deviation|ANY|5m": {
-      "sample_size": 3,
+      "sample_size": 4,
       "wins": 1,
-      "losses": 2,
-      "sum_r": -3.2533356949681466e-25,
+      "losses": 3,
+      "sum_r": -0.9850311277509125,
       "wins_sum_r": 3.630856164966304e-26,
-      "losses_sum_r": -3.616421311464777e-25,
-      "sum_mfe_r": 3.0418666659004105,
-      "sum_mae_r": 1.3804033736802501,
-      "sum_fees": 2.560241020560309,
-      "last_updated": "2026-09-13T23:04:37.373876+00:00"
+      "losses_sum_r": -0.9850311277509125,
+      "sum_mfe_r": 3.4621747952393673,
+      "sum_mae_r": 1.989125492033222,
+      "sum_fees": 3.4103783419005453,
+      "last_updated": "2026-09-14T00:06:43.093529+00:00"
     },
     "rectangle|T:RANGE/V:VERY_LOW/L:NORMAL|5m": {
       "sample_size": 1,
@@ -1982,16 +1982,16 @@
       "last_updated": "2026-09-13T22:59:08.066153+00:00"
     },
     "vwap_deviation|STRONG_BEAR_TREND|5m": {
-      "sample_size": 2,
+      "sample_size": 3,
       "wins": 0,
-      "losses": 2,
-      "sum_r": -3.616421311464777e-25,
+      "losses": 3,
+      "sum_r": -0.9850311277509125,
       "wins_sum_r": 0.0,
-      "losses_sum_r": -3.616421311464777e-25,
-      "sum_mfe_r": 2.254697522930815,
-      "sum_mae_r": 0.888422659324253,
-      "sum_fees": 1.7061597270248696,
-      "last_updated": "2026-09-13T23:04:37.373870+00:00"
+      "losses_sum_r": -0.9850311277509125,
+      "sum_mfe_r": 2.6750056522697716,
+      "sum_mae_r": 1.4971447776772249,
+      "sum_fees": 2.556297048365106,
+      "last_updated": "2026-09-14T00:06:43.093523+00:00"
     },
     "vwap_deviation|T:STRONG/V:VERY_LOW/L:NORMAL|5m": {
       "sample_size": 1,
@@ -2030,16 +2030,52 @@
       "last_updated": "2026-09-13T23:35:01.459450+00:00"
     },
     "fair_value_gap|ANY|5m": {
+      "sample_size": 2,
+      "wins": 0,
+      "losses": 2,
+      "sum_r": -1.8145578426363138,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -1.8145578426363138,
+      "sum_mfe_r": 0.9598281065410988,
+      "sum_mae_r": 1.7942336688760827,
+      "sum_fees": 1.7109154729653282,
+      "last_updated": "2026-09-14T00:07:05.222304+00:00"
+    },
+    "vwap_deviation|T:STRONG/V:LOW/L:NORMAL|5m": {
       "sample_size": 1,
       "wins": 0,
       "losses": 1,
-      "sum_r": -1.2673368894990835,
+      "sum_r": -0.9850311277509125,
       "wins_sum_r": 0.0,
-      "losses_sum_r": -1.2673368894990835,
-      "sum_mfe_r": 0.2549286199864038,
-      "sum_mae_r": 1.0197144799456153,
-      "sum_fees": 0.8569930141138328,
-      "last_updated": "2026-09-13T23:35:01.459453+00:00"
+      "losses_sum_r": -0.9850311277509125,
+      "sum_mfe_r": 0.4203081293389568,
+      "sum_mae_r": 0.6087221183529719,
+      "sum_fees": 0.8501373213402365,
+      "last_updated": "2026-09-14T00:06:43.093512+00:00"
+    },
+    "fair_value_gap|T:RANGE/V:VERY_LOW/L:DEEP|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -0.5472209531372304,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -0.5472209531372304,
+      "sum_mfe_r": 0.704899486554695,
+      "sum_mae_r": 0.7745191889304673,
+      "sum_fees": 0.8539224588514953,
+      "last_updated": "2026-09-14T00:07:05.222289+00:00"
+    },
+    "fair_value_gap|LOW_VOLATILITY|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -0.5472209531372304,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -0.5472209531372304,
+      "sum_mfe_r": 0.704899486554695,
+      "sum_mae_r": 0.7745191889304673,
+      "sum_fees": 0.8539224588514953,
+      "last_updated": "2026-09-14T00:07:05.222299+00:00"
     }
   }
 }
