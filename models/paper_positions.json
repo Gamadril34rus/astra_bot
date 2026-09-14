@@ -1,69 +1,9 @@
 {
-  "positions": [
-    {
-      "id": "86374a22-ba85-4908-b4e7-b04d73f4e98d",
-      "symbol": "ATOM-USDT",
-      "direction": "short",
-      "entry_price": "1.537",
-      "quantity": "552.77049275",
-      "stop_loss": "1.578611",
-      "take_profits": [
-        "1.495389",
-        "1.4537780"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "552.77049275",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
-      "strategy": "breakout",
-      "opened_at": 1789390537192,
-      "notes": {
-        "signal_bar_close": 1.537,
-        "effective_entry": 1.535463,
-        "initial_stop": 1.578611,
-        "initial_take": 1.4988491897654581,
-        "stop_pct": 0.02810097019596044,
-        "confidence": 0.75,
-        "ml_probability": null,
-        "prior_r": 0.3268212173681555,
-        "costs_r": 0.10675787985538147,
-        "equity_before": 33950.345559187066,
-        "risk_budget": 339.50345559187065,
-        "binding_constraint": "probation",
-        "score": 76.0,
-        "edge_pct": 9.6758,
-        "ev_r": 0.09675766127124862,
-        "ev_confidence": 0.23076923076923078,
-        "rr": 0.9168443496801782,
-        "leverage": 1
-      },
-      "fill_price": "1.535463",
-      "entry_fee_per_unit": "0.0007677315",
-      "risk_distance": "0.041611",
-      "regime": "STRONG_BEAR_TREND",
-      "timeframe": "5m",
-      "regime_axes": "T:STRONG/V:VERY_LOW/L:NORMAL",
-      "bars_held": 0,
-      "leverage": "1",
-      "margin_used": "849.60824735675",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "1.4537780",
-      "plan_last_bar_ts": 0
-    }
-  ],
-  "realized_pnl": "-2148.524440812933712165155603",
+  "positions": [],
+  "realized_pnl": "-2155.343009423309556388616498",
   "initial_capital": "36098.87",
   "cooldowns": {
-    "descending_triangle|ATOM-USDT|short": 1789390736710,
-    "breakout|AVAX-USDT|long": 1789391563317
+    "breakout|AVAX-USDT|long": 1789391563317,
+    "breakout|ATOM-USDT|short": 1789391966244
   }
 }
