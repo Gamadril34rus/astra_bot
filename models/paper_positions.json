@@ -52,12 +52,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
-      "bars_held": 6,
+      "bars_held": 7,
       "leverage": "2",
       "margin_used": "424.42650194450",
       "plan_variant": "STATIC_TP",
       "plan_take": "2.4419920",
-      "plan_last_bar_ts": 1789352400000
+      "plan_last_bar_ts": 1789352700000
     },
     {
       "id": "36c728be-fc8e-4663-a4d4-d06b8f4d8a96",
@@ -111,12 +111,12 @@
       "regime": "RANGE",
       "timeframe": "5m",
       "regime_axes": "T:TRANSITION/V:LOW/L:DEEP",
-      "bars_held": 3,
+      "bars_held": 4,
       "leverage": "1",
       "margin_used": "848.90089536475",
       "plan_variant": "STATIC_TP",
       "plan_take": "6.3025700",
-      "plan_last_bar_ts": 1789352400000
+      "plan_last_bar_ts": 1789352700000
     },
     {
       "id": "3d6c27f2-6213-42ca-8428-61ec31644787",
@@ -124,7 +124,7 @@
       "direction": "short",
       "entry_price": "2.848",
       "quantity": "298.61451175",
-      "stop_loss": "2.90496",
+      "stop_loss": "2.856142857142857",
       "take_profits": [
         "2.79104",
         "2.734080"
@@ -140,8 +140,8 @@
       "initial_quantity": "298.61451175",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "2.851",
+      "lowest_price": "2.824",
       "strategy": "mean_reversion_v2",
       "opened_at": 1789352868237,
       "notes": {
@@ -170,19 +170,17 @@
       "regime": "WEAK_BULL_TREND",
       "timeframe": "5m",
       "regime_axes": "T:WEAK/V:LOW/L:DEEP",
-      "bars_held": 0,
+      "bars_held": 1,
       "leverage": "1",
       "margin_used": "850.45412946400",
       "plan_variant": "STATIC_TP",
       "plan_take": "2.734080",
-      "plan_last_bar_ts": 0
+      "plan_last_bar_ts": 1789352700000
     }
   ],
   "realized_pnl": "-2123.546945255105069332364674",
   "initial_capital": "36098.87",
   "cooldowns": {
-    "liquidity_sweep|ADA-USDT|short": 1789353087762,
-    "head_shoulders|APT-USDT|long": 1789353234835,
     "zscore_mean_reversion|ARB-USDT|short": 1789353515486,
     "zscore_mean_reversion|TIA-USDT|short": 1789354058688
   }
