@@ -40,6 +40,16 @@ flowchart LR
 
 ---
 
+## 🌐 Торгуемый юниверс: 35 пар (`TRADING_UNIVERSE`)
+
+Прод-контур в CI (`scripts/run_bot.py`) перебирает кандидатов из `TRADING_UNIVERSE` (`astra_bot/core/instruments.py`) — 35 ликвидных USDT-пар BingX USDT-M. Перед торговлей список фильтруется по фактическому статусу `trading` на бирже; при недоступности фильтра используется весь статический юниверс.
+
+> ⚠️ `SystemConfig.instruments` (10 пар, `astra_bot/core/config.py`) — мёртвый legacy-конфиг: прод-контур его не читает, golden-тест фиксирует его только как отдельный канон конфига. Актуальный канон живого юниверса — приведённый ниже список.
+
+BTC · ETH · SOL · BNB · XRP · ADA · AVAX · DOGE · LINK · DOT · TRX · LTC · BCH · ATOM · NEAR · APT · ARB · OP · SUI · INJ · TIA · FIL · ICP · HBAR · AAVE · UNI · FET · TON · XLM · SHIB · PEPE · ETC · CRO · MKR · XMR (все против USDT)
+
+---
+
 ## 🧭 Пайплайн решения (по каждому символу, каждый цикл)
 
 ```mermaid
