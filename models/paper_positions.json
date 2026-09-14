@@ -6,7 +6,7 @@
       "direction": "long",
       "entry_price": "2.332",
       "quantity": "364.00214575",
-      "stop_loss": "2.3377142857142856",
+      "stop_loss": "2.3395714285714284",
       "take_profits": [
         "2.386996",
         "2.4419920"
@@ -52,12 +52,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
-      "bars_held": 9,
+      "bars_held": 10,
       "leverage": "2",
       "margin_used": "424.42650194450",
       "plan_variant": "STATIC_TP",
       "plan_take": "2.4419920",
-      "plan_last_bar_ts": 1789353300000
+      "plan_last_bar_ts": 1789353600000
     },
     {
       "id": "36c728be-fc8e-4663-a4d4-d06b8f4d8a96",
@@ -65,7 +65,7 @@
       "direction": "long",
       "entry_price": "6.119",
       "quantity": "138.73196525",
-      "stop_loss": "6.066857142857144",
+      "stop_loss": "6.073142857142858",
       "take_profits": [
         "6.210785",
         "6.3025700"
@@ -81,7 +81,7 @@
       "initial_quantity": "138.73196525",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "6.133",
+      "highest_price": "6.139",
       "lowest_price": "6.098",
       "strategy": "ts_momentum_cross",
       "opened_at": 1789352044659,
@@ -111,17 +111,15 @@
       "regime": "RANGE",
       "timeframe": "5m",
       "regime_axes": "T:TRANSITION/V:LOW/L:DEEP",
-      "bars_held": 6,
+      "bars_held": 7,
       "leverage": "1",
       "margin_used": "848.90089536475",
       "plan_variant": "STATIC_TP",
       "plan_take": "6.3025700",
-      "plan_last_bar_ts": 1789353300000
+      "plan_last_bar_ts": 1789353600000
     }
   ],
   "realized_pnl": "-2121.011588723988674032364674",
   "initial_capital": "36098.87",
-  "cooldowns": {
-    "zscore_mean_reversion|TIA-USDT|short": 1789354058688
-  }
+  "cooldowns": {}
 }
