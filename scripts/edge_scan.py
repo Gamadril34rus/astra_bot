@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Edge scan: есть ли вообще край, который делает сделки плюсовыми (read-only).
 
 Вопрос, на который отвечает скрипт: «привести бота в плюсовые сделки» — что для
@@ -31,19 +30,18 @@ from __future__ import annotations
 import argparse
 import collections
 import json
-import random
 import math
+import random
 import statistics
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.lever_scan import build_paths  # noqa: E402
+from scripts.lever_scan import build_paths
 
 SRC = ROOT / "models" / "no_trade_outcomes.json"
 TRADES = ROOT / "models" / "paper_trades.jsonl"
@@ -61,9 +59,10 @@ class Panel:
     """Матрица [символ][бар] = (close-to-close r, max up, max down) без дырок."""
 
     def __init__(self) -> None:
-        rows = list(json.load(open(SRC, encoding="utf-8"))["outcomes"].values())
+        with open(SRC, encoding="utf-8") as fh:
+            rows = list(json.load(fh)["outcomes"].values())
         paths = build_paths(rows)
-        cell: Dict[Tuple[str, int], Tuple[float, float, float]] = {}
+        cell: dict[tuple[str, int], tuple[float, float, float]] = {}
         for sym, runs in paths.items():
             for run in runs:
                 for ts, r, u, d in run:
@@ -72,15 +71,15 @@ class Panel:
         idx = self.idx = {t: i for i, t in enumerate(self.ts)}
         self.syms = sorted(paths)
         self.n = len(self.ts)
-        self.r: Dict[str, List[Optional[float]]] = {s: [None] * self.n for s in self.syms}
-        self.u: Dict[str, List[Optional[float]]] = {s: [None] * self.n for s in self.syms}
-        self.d: Dict[str, List[Optional[float]]] = {s: [None] * self.n for s in self.syms}
+        self.r: dict[str, list[float | None]] = {s: [None] * self.n for s in self.syms}
+        self.u: dict[str, list[float | None]] = {s: [None] * self.n for s in self.syms}
+        self.d: dict[str, list[float | None]] = {s: [None] * self.n for s in self.syms}
         for (s, t), (r, u, d) in cell.items():
             i = idx[t]
             self.r[s][i], self.u[s][i], self.d[s][i] = r, u, d
         self.alts = [s for s in self.syms if s != BTC]
         # vol[symbol][bar_ts] = медиана |r| за 24 предыдущих бара (известна в момент решения)
-        self.vol: Dict[str, Dict[int, float]] = {}
+        self.vol: dict[str, dict[int, float]] = {}
         for sym, runs in paths.items():
             for run in runs:
                 vals = [(x[0], x[1]) for x in run]
@@ -90,11 +89,11 @@ class Panel:
                     )
 
     def utc(self, i: int) -> datetime:
-        return datetime.fromtimestamp(self.ts[i] / 1000, tz=timezone.utc)
+        return datetime.fromtimestamp(self.ts[i] / 1000, tz=UTC)
 
 
 # ------------------------------------------------------------------- метрики ---
-def mean_se(vals: List[float]) -> Tuple[float, float, float]:
+def mean_se(vals: list[float]) -> tuple[float, float, float]:
     """(среднее, ст.ошибка, t) — в тех же единицах, что и вход."""
     if len(vals) < 2:
         return (float("nan"),) * 3  # type: ignore[assignment]
@@ -103,7 +102,7 @@ def mean_se(vals: List[float]) -> Tuple[float, float, float]:
     return m, se, (m / se if se else float("nan"))
 
 
-def fmt_bps(vals: List[float], scale: float = 10_000) -> str:
+def fmt_bps(vals: list[float], scale: float = 10_000) -> str:
     m, se, t = mean_se(vals)
     if len(vals) < 30:
         return f"n={len(vals):>5}  (мало)"
@@ -113,7 +112,6 @@ def fmt_bps(vals: List[float], scale: float = 10_000) -> str:
 # --------------------------------------------------------- A. брутто-предиктивность
 def block_gross(p: Panel) -> None:
     print("=== A. сколько рынок даёт предиктивности (брутто, без издержек) ===")
-    fwd = {h: [] for h in (1, 3, 6)}
     ac1 = []
     for s in p.syms:
         col = p.r[s]
@@ -220,11 +218,11 @@ def simulate(
     theta: float,
     theta_alt: float,
     take: float,
-    stop: Optional[float],
+    stop: float | None,
     hold: int,
     fee: str,
     stop_fill: str = "extreme",
-) -> List[Tuple[int, str, float, str]]:
+) -> list[tuple[int, str, float, str]]:
     """Одна сделка целиком, с ЧЕСТНЫМ выравниванием по времени.
 
     Индексы панели: r[s][t] — доход close_t→close_{t+1}; u/d[s][t] — экстремумы
@@ -236,7 +234,7 @@ def simulate(
     net — доля от нотионала уже за вычетом издержек.
     """
     entry_cost = MAKER if fee == "maker" else TAKER + SLIP
-    out: List[Tuple[int, str, float, str]] = []
+    out: list[tuple[int, str, float, str]] = []
     for i in range(1, p.n - hold - 2):
         b = p.r[BTC][i - 1]
         if b is None or abs(b) < theta:
@@ -265,8 +263,8 @@ def simulate(
                 continue
             # цена = 1.0 на close_i; после бара i+1 (её закрытие) — 1 + r[s][i]
             cum = 1.0 + p.r[s][i]
-            kind: Optional[str] = None
-            px: Optional[float] = None
+            kind: str | None = None
+            px: float | None = None
             for k in range(i + 1, i + 1 + hold):
                 if p.r[s][k] is None:
                     break
@@ -322,7 +320,7 @@ def block_execution(p: Panel) -> None:
                     if len(t) < 200:
                         continue
                     v = [x[2] for x in t]
-                    m, se, tt = mean_se(v)
+                    m, _se, tt = mean_se(v)
                     kinds = collections.Counter(x[3] for x in t)
                     print(f"{sig:>9} {max(th, tha) * 100:>5.2f}% {tk * 10000:>4.0f}б "
                           f"{(str(round(sl * 10000)) + 'б') if sl else '  нет':>5} {hold:>4} {fee:>6} {sf:>10} "
@@ -377,7 +375,7 @@ def block_gates(p: Panel) -> None:
         vols = [x[0] for x in sub]
         hi = [x[1] for x in sub]
         lo = [x[2] for x in sub]
-        best = [max(a, -b) for a, b in zip(hi, lo)]
+        best = [max(a, -b) for a, b in zip(hi, lo, strict=False)]
         print(f"    {lab:>12} {statistics.median(vols) * 100:>11.3f}% "
               f"{statistics.median(hi) * 100:>8.3f}%/{statistics.median(lo) * 100:+7.3f}% "
               f"{100 * sum(1 for e in best if e >= 0.003) / len(best):>26.1f}%")
@@ -385,7 +383,8 @@ def block_gates(p: Panel) -> None:
     print("      в верхних 20% — сопоставим или больше. Казалось бы, «торговать только в шуме».")
 
     print("\n  C2. собственные сделки бота: meanR по квантилям vol на входе")
-    tr = [json.loads(l) for l in open(TRADES, encoding="utf-8") if l.strip()]
+    with open(TRADES, encoding="utf-8") as fh:
+        tr = [json.loads(line) for line in fh if line.strip()]
     tr = [t for t in tr if t.get("closed_at") and t.get("r_multiple") is not None]
     pairs = []
     missed = 0
@@ -430,7 +429,8 @@ def block_gates(p: Panel) -> None:
 # --------------------------------------------------------- D. лог: потолок и издержки
 def block_log(p: Panel) -> None:
     print("\n=== D. лог сделок: откуда берётся минус и каков потолок улучшений ===")
-    tr = [json.loads(l) for l in open(TRADES, encoding="utf-8") if l.strip()]
+    with open(TRADES, encoding="utf-8") as fh:
+        tr = [json.loads(line) for line in fh if line.strip()]
     tr = [t for t in tr if t.get("closed_at") and t.get("exit_price") is not None]
     mv = []
     notional = 0.0
@@ -441,7 +441,7 @@ def block_log(p: Panel) -> None:
     fees = sum(t.get("fees") or 0.0 for t in tr)
     fund = sum(t.get("funding") or 0.0 for t in tr)
     net = sum(t["pnl"] for t in tr)
-    price = sum(m * t["entry_price"] * t["quantity"] for m, t in zip(mv, tr))
+    price = sum(m * t["entry_price"] * t["quantity"] for m, t in zip(mv, tr, strict=False))
     cycle = 2 * (TAKER + SLIP)
     # Σpnl = ход цены − слип(2 стороны) − комиссии + фандинг → слип выводим из равенства
     slip_total = -(net - (price - fees + fund))
@@ -470,7 +470,7 @@ def block_log(p: Panel) -> None:
         act = sum(t["pnl"] for t, _ in good)
         oracle = sum(t["mfe_r"] * r for t, r in good)
         nt = sum(t["entry_price"] * t["quantity"] for t, _ in good)
-        print(f"\n  потолок политики ВЫХОДОВ (оракульный выход на вершине каждой сделки),")
+        print("\n  потолок политики ВЫХОДОВ (оракульный выход на вершине каждой сделки),")
         print(f"  на {len(good)} сделках с полными полями (у остальных нет initial_stop):")
         print(f"    факт {act:+.2f} U → оракул {oracle:+.2f} U, запас {oracle - act:+.2f} U "
               f"({(oracle - act) / len(good):+.2f} U/сделку)")

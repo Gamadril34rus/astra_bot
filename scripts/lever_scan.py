@@ -118,7 +118,7 @@ def excursions(paths: dict, cost: float) -> None:
         hi: list[float] = []
         for series in paths.values():
             for s in series:
-                for i in range(0, len(s) - h):
+                for i in range(len(s) - h):
                     cum = 1.0        # close_j / close_i (до движения бара j)
                     mx = -9e9
                     mxhi = -9e9
@@ -150,7 +150,7 @@ def microstructure(paths: dict, rows: list[dict], cost: float) -> None:
         x = [p[0] for p in pairs]
         y = [p[1] for p in pairs]
         mx, my = statistics.mean(x), statistics.mean(y)
-        cov = sum((a - mx) * (b - my) for a, b in zip(x, y)) / len(x)
+        cov = sum((a - mx) * (b - my) for a, b in zip(x, y, strict=False)) / len(x)
         sd = statistics.pstdev(x) * statistics.pstdev(y)
         ac = cov / sd if sd else 0.0
         t = ac * math.sqrt(len(x) - 2) / math.sqrt(max(1e-12, 1 - ac * ac))

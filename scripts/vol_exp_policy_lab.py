@@ -207,7 +207,7 @@ def main() -> int:
                   f"среднее {statistics.mean(t.pnl for t in ve):+.2f} U, "
                   f"медиана {statistics.median(t.pnl for t in ve):+.2f} U, "
                   f"средний R {statistics.mean(t.r for t in ve):+.3f}")
-            print(f"  средний R популяции по ТФ: " + ", ".join(f"{k}: {v:+.3f}" for k, v in sorted(by_tf.items())))
+            print("  средний R популяции по ТФ: " + ", ".join(f"{k}: {v:+.3f}" for k, v in sorted(by_tf.items())))
             print(f"  1R в бакете: мин {min(t.risk_usd for t in ve):.1f} / "
                   f"медиана {statistics.median(t.risk_usd for t in ve):.1f} / "
                   f"макс {max(t.risk_usd for t in ve):.1f} U "
@@ -215,7 +215,7 @@ def main() -> int:
 
         det = [t for t in tr if t.exit_reason == "VOL_EXPANSION"]
         if det:
-            print(f"\n  разбор бакета (ход цены = нижняя граница TR триггер-бара):")
+            print("\n  разбор бакета (ход цены = нижняя граница TR триггер-бара):")
             print(f"    {'символ':<11}{'pnl':>8}{'R':>7}{'ход%':>7}{'1R,U':>7}{'тейк,R':>7}"
                   f"{'если не резать: stop':>22}{'pop':>8}{'take':>8}")
             for t in sorted(det, key=lambda x: x.closed_at):
