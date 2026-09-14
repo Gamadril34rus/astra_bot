@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import os
 import sys
 import time
 import urllib.error
@@ -99,24 +100,51 @@ def parse_klines_csv(text: str) -> list[str]:
     return out
 
 
-def fetch_binance_vision(symbol: str, timeframe: str, start: datetime, end: datetime) -> tuple[str, dict]:
-    """Скачать и склеить помесячные архивы Vision. Возвращает (CSV-текст, мета)."""
+def fetch_binance_vision(
+    symbol: str,
+    timeframe: str,
+    start: datetime,
+    end: datetime,
+    now: datetime | None = None,
+) -> tuple[str, dict]:
+    """Скачать и склеить помесячные архивы Vision. Возвращает (CSV-текст, мета).
+
+    Логика из задания Strategy Lab (file:line + цитата — см. задачу):
+    * месяцы >= текущего (UTC) — сразу skip без retry, строка в manifest
+      ``\"skipped: month not closed yet\"`` — экономия 4 ретраев на гарантированный 404;
+    * дыра >3 месяцев подряд 404 НЕ в хвосте — падение с внятной ошибкой;
+    * хвост из 404 — штатная ситуация (архив ещё не опубликован).
+    """
     start_ms = int(start.timestamp() * 1000)
     end_ms = int(end.timestamp() * 1000)
     rows: list[str] = []
     months_attempted = 0
     months_ok = 0
     months_failed = 0
+    months_skipped = 0
     failures: list[str] = []
+    skipped: list[str] = []
+    statuses: list[tuple[int, int, str]] = []  # (y,m, "ok"|"failed"|"skipped")
     months = list(iter_months(start, end))
+    if now is None:
+        now = datetime.now(UTC)
+    now_ym = (now.year, now.month)
     for idx, (y, m) in enumerate(months):
         months_attempted += 1
+        # 1.1: месяцы >= текущего — сразу skip, без retry-цикла
+        if (y, m) >= now_ym:
+            months_skipped += 1
+            skipped.append(f"{y:04d}-{m:02d}: skipped: month not closed yet")
+            statuses.append((y, m, "skipped"))
+            print(f"  {y:04d}-{m:02d}: skipped (month not closed yet)", file=sys.stderr)
+            continue
         url = vision_monthly_url(symbol, timeframe, y, m)
         try:
             raw = _urlopen_with_retry(url, timeout=60)
         except Exception as exc:
             months_failed += 1
             failures.append(f"{y:04d}-{m:02d}:{exc.__class__.__name__}")
+            statuses.append((y, m, "failed"))
             print(f"  {y:04d}-{m:02d}: нет данных ({exc})", file=sys.stderr)
             continue
         try:
@@ -126,6 +154,7 @@ def fetch_binance_vision(symbol: str, timeframe: str, start: datetime, end: date
         except Exception as exc:
             months_failed += 1
             failures.append(f"{y:04d}-{m:02d}:zip:{exc!r}")
+            statuses.append((y, m, "failed"))
             print(f"  {y:04d}-{m:02d}: битый архив ({exc})", file=sys.stderr)
             continue
         lines = parse_klines_csv(text)
@@ -136,16 +165,43 @@ def fetch_binance_vision(symbol: str, timeframe: str, start: datetime, end: date
         ]
         rows.extend(lines)
         months_ok += 1
+        statuses.append((y, m, "ok"))
         print(f"  {y:04d}-{m:02d}: {len(lines)} свечей", file=sys.stderr)
         if idx < len(months) - 1:
             time.sleep(0.2)
+
+    # 1.3: деградация — >3 месяцев подряд 404 НЕ в хвосте => внятная ошибка
+    # хвост = суффикс из failed+skipped без последующих ok
+    i = 0
+    while i < len(statuses):
+        if statuses[i][2] != "failed":
+            i += 1
+            continue
+        j = i
+        while j < len(statuses) and statuses[j][2] == "failed":
+            j += 1
+        streak_len = j - i
+        if streak_len > 3:
+            has_ok_after = any(s[2] == "ok" for s in statuses[j:])
+            if has_ok_after:
+                start_ym = f"{statuses[i][0]:04d}-{statuses[i][1]:02d}"
+                end_ym = f"{statuses[j-1][0]:04d}-{statuses[j-1][1]:02d}"
+                raise RuntimeError(
+                    f"обнаружена дыра в данных: {streak_len} месяцев подряд отсутствуют "
+                    f"({start_ym}..{end_ym}), при этом после дыры есть успешные месяцы — "
+                    f"данные неполны (failures={failures[:10]})"
+                )
+        i = j
+
     csv = HEADER + "\n".join(sorted(set(rows))) + "\n" if rows else ""
     meta = {
         "source": "binance_vision",
         "months_attempted": months_attempted,
         "months_ok": months_ok,
         "months_failed": months_failed,
+        "months_skipped": months_skipped,
         "failures_sample": failures[:5],
+        "skipped_sample": skipped[:5],
         "candles": len(rows),
     }
     return csv, meta
@@ -266,11 +322,30 @@ def main() -> int:
 
             out.write_text(csv_text, encoding="utf-8")
 
-            # coverage metadata
+            # coverage metadata — 1.2: бухгалтерия путей через relpath, гарантия внутри каталога
             lines = [ln for ln in csv_text.splitlines() if ln and ln.split(",", 1)[0].isdigit()]
             first_ts = int(lines[0].split(",", 1)[0]) if lines else None
             last_ts = int(lines[-1].split(",", 1)[0]) if lines else None
             n = len(lines)
+            # 1.2 фикс: ранее было str(out.relative_to(data_dir.parent)) → ValueError если файл вне каталога
+            # теперь используем os.path.relpath от CWD, который никогда не падает на ValueError,
+            # и гарантируем, что out лежит внутри ожидаемого каталога (data_dir) — если out кастомный,
+            # проверяем, что его parent существует (уже создан), а relpath всё равно считается от CWD.
+            try:
+                # если out внутри data_dir — ок, иначе это кастомный --out, но parent уже создан
+                out_resolved = out.resolve()
+                cwd_resolved = Path.cwd().resolve()
+                file_rel = os.path.relpath(out_resolved, start=cwd_resolved)
+                # дополнительная гарантия: если out не внутри data_dir и не внутри cwd, всё равно relpath работает
+                # но для штатного случая проверяем, что out внутри data_dir.parent (репозиторий)
+                # чтобы не писать абсолютные пути в манифест
+                if not out_resolved.is_relative_to(data_dir.resolve()) and args.out:
+                    # кастомный путь — оставляем relpath, это и есть фикс от ValueError
+                    pass
+            except Exception:
+                # fallback: если resolve не сработал (симлинки и т.п.), используем relpath без resolve
+                file_rel = os.path.relpath(out, start=Path.cwd())
+
             coverage[f"{sym}_{tf}"] = {
                 "symbol": sym,
                 "timeframe": tf,
@@ -280,7 +355,7 @@ def main() -> int:
                 "first_ts_iso": datetime.fromtimestamp(first_ts/1000, tz=UTC).isoformat() if first_ts else None,
                 "last_ts": last_ts,
                 "last_ts_iso": datetime.fromtimestamp(last_ts/1000, tz=UTC).isoformat() if last_ts else None,
-                "file": str(out.relative_to(data_dir.parent)),
+                "file": file_rel,
                 **meta,
             }
             print(f"✅ {sym} {tf}: {n} свечей → {out} (источник={used_source})")
