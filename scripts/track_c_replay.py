@@ -71,6 +71,317 @@ OVERSHOOT_GAP = 0.001  # Z4: перехай уровня на 0.1% с закры
 RSI_PERIOD = 14  # Z2: период RSI (урок 9 автора; файл в origin/arena-01a08cde)
 
 
+# ---------------------------------------------------------------------------
+# PR #78 (часть 2): официальные архивы Binance, HTF-контекст и Z6/Z7.
+# Правила зафиксированы ДО прогона; подгонка под OOS = провал задания.
+# ---------------------------------------------------------------------------
+# Z6: ретест-вход разворота РАЗРЕШЁН только при согласии дневной ленты EMA
+# 20/50/100/200 (то же правило, что в боевом astra_bot/decision/htf_gates.py:
+# бычий стэк + цена над EMA20 → лонг; зеркально → шорт; neutral/None → отказ).
+Z6_STRICT_CONTEXT = True          # нет контекста / нейтральная лента = сигнала нет
+RIBBON_MIN_DAILY_BARS = 200       # как htf_gate_min_bars в проде
+RIBBON_EMAS = (20, 50, 100, 200)
+DAY_SECONDS = 86_400
+
+# Z7: вход у границы зоны только ПОСЛЕ реакции — первое закрытие «в сторону
+# входа» после касания границы (зелёная свеча, закрывшаяся внутри зоны для
+# лонга; зеркально для шорта). Касание — с допуском CH_TOUCH_TOL.
+Z7_MIN_TOUCHES = 2                # не торгуем первое касание свежего уровня
+Z7_REQUIRE_INSIDE = True          # закрытие должно вернуться за границу зоны
+Z7_REACTION_BARS = 6              # реакция должна наступить в этом окне после касания
+
+# Метки силы. strong НЕ присваивается НИКОГДА (решение PR #77: много гипотез на
+# одних данных). Пороги фиксированы, OOS-окно единственное.
+VERDICT_MODERATE_MIN_N = 100
+VERDICT_MODERATE_MIN_CI_LOW = 0.0
+VERDICT_WEAK_MIN_N = 30
+
+BINANCE_KLINE_COLS = [
+    "open_time", "open", "high", "low", "close", "volume", "close_time",
+    "quote_volume", "count", "taker_buy_base", "taker_buy_quote", "ignore",
+]
+
+
+def _ema_last(values: list[float], period: int) -> float | None:
+    """EMA по образцу astra_bot.core.utils.exponential_moving_average (посев от values[0])."""
+    if len(values) < period:
+        return None
+    k = 2.0 / (period + 1)
+    ema = float(values[0])
+    for v in values[1:]:
+        ema = float(v) * k + ema * (1.0 - k)
+    return ema
+
+
+try:  # боевая реализация — тот же код, что режет входы в проде
+    from astra_bot.decision.htf_gates import ribbon_bias as _ribbon_bias_prod  # type: ignore
+
+    RIBBON_SOURCE = "astra_bot.decision.htf_gates.ribbon_bias"
+except Exception:  # pragma: no cover — скрипт должен работать и без тяжёлых зависимостей
+    _ribbon_bias_prod = None
+    RIBBON_SOURCE = "local replica"
+
+
+def ribbon_bias(closes: list[float], min_bars: int = RIBBON_MIN_DAILY_BARS) -> str | None:
+    """Бычий/медвежий/нейтральный стэк дневной ленты; None — контекст недоступен."""
+    if _ribbon_bias_prod is not None:
+        bias, _diag = _ribbon_bias_prod(closes, min_bars=min_bars)
+        return bias
+    if len(closes) < min_bars:
+        return None
+    emas = [_ema_last(closes, p) for p in RIBBON_EMAS]
+    if any(e is None for e in emas):
+        return None
+    e20, e50, e100, e200 = (float(e) for e in emas)
+    last = float(closes[-1])
+    if e20 > e50 > e100 > e200 and last > e20:
+        return "bull"
+    if e20 < e50 < e100 < e200 and last < e20:
+        return "bear"
+    return "neutral"
+
+
+def daily_bias(bars: list[dict[str, Any]]) -> list[str | None]:
+    """Смещение на КАЖДЫЙ бар — по ленте из закрытых дневных баров ПРЕДЫДУЩИХ дней.
+
+    Текущий (незавершённый) день не используется: иначе HTF-фильтр подглядывал
+    бы в будущее. Это то же требование, что у боевого htf_gates (min_closed_bars).
+    """
+    bias: list[str | None] = [None] * len(bars)
+    days: list[int] = []
+    day_close: list[float] = []
+    by_day: dict[int, int] = {}
+    for b in bars:
+        d = int(b["ts"]) // DAY_SECONDS
+        if d in by_day:
+            day_close[by_day[d]] = float(b["close"])
+        else:
+            by_day[d] = len(days)
+            days.append(d)
+            day_close.append(float(b["close"]))
+    # префиксные исходы: на день d доступна лента по дням 0..d-1
+    prefix_bias: dict[int, str | None] = {}
+    for i, d in enumerate(days):
+        closes = day_close[:i]  # только ЗАКРЫТЫЕ дни
+        prefix_bias[d] = ribbon_bias(closes) if len(closes) >= RIBBON_MIN_DAILY_BARS else (
+            ribbon_bias(closes) if closes else None
+        )
+    for b_idx, b in enumerate(bars):
+        d = int(b["ts"]) // DAY_SECONDS
+        bias[b_idx] = prefix_bias.get(d)
+    return bias
+
+
+def _to_seconds(value: object) -> int:
+    """open_time из Binance — миллисекунды; неофициальный фид — секунды."""
+    v = float(value)
+    if v > 1e14:      # микросекунды
+        return int(v / 1_000_000)
+    if v > 1e11:      # миллисекунды (формат data.binance.vision)
+        return int(v / 1000)
+    return int(v)
+
+
+def _read_kline_csv(path: Path) -> pd.DataFrame:
+    """Официальный файл Binance: с заголовком (файлы с 2025-01) или без него.
+
+    ZIP читаем в память (месячный klines-архив — единицы МБ) и разбираем тот же
+    парсер: ``pd.read_csv`` по `.zip` берёт «первый попавшийся» файл, а нам нужна
+    конкретная CSV внутри — иначе сборка архивов зависит от порядка в архиве.
+    """
+    import io
+    import zipfile
+
+    if path.suffix == ".zip":
+        with zipfile.ZipFile(path) as zf:
+            name = next((n for n in zf.namelist() if n.lower().endswith(".csv")), None)
+            if name is None:
+                raise ValueError(f"{path}: в архиве нет CSV")
+            buf = io.BytesIO(zf.read(name))
+    else:
+        buf = path.open("rb")
+    try:
+        first = buf.readline().decode("utf-8", "replace").strip()
+        buf.seek(0)
+        has_header = bool(first) and not first[:1].isdigit() and first[0] not in "-."
+        df = pd.read_csv(buf, header=0 if has_header else None)
+    finally:
+        buf.close()
+    if has_header:
+        df.columns = [str(c).strip().lower() for c in df.columns]
+    else:
+        df.columns = BINANCE_KLINE_COLS[: len(df.columns)]
+    return df
+
+
+def load_binance_vision(
+    root: Path, symbol: str, tf: str, years: tuple[int, ...] | None = None
+) -> pd.DataFrame:
+    """Собирает ОФИЦИАЛЬНЫЕ месячные/дневные архивы data.binance.vision.
+
+    Ищет ``{root}/**/{SYMBOL}{quote}-{tf}-YYYY-MM(.csv|.zip)`` в любом вложенном
+    виде (klines/spot/BTCUSDT/monthly/…, плоский каталог, выгрузка на диск).
+    """
+    sym = symbol.upper() + ("USDT" if symbol.upper() in ("BTC", "ETH", "SOL") else "")
+    prefix = f"{sym}-{tf}-"
+    files = sorted(
+        p
+        for p in list(root.rglob(prefix + "*.csv")) + list(root.rglob(prefix + "*.zip"))
+        if ".DS_Store" not in p.name
+    )
+    if years:
+        files = [p for p in files if any(f"-{y}" in p.name for y in years)]
+    if not files:
+        raise FileNotFoundError(
+            f"{root}: не найдено ни одного {prefix}YYYY-MM.(csv|zip) — "
+            f"проверь, что архив data.binance.vision распакован (klines/spot/{sym}/{tf}/)"
+        )
+    frames = [_read_kline_csv(p) for p in files]
+    df = pd.concat(frames, ignore_index=True)
+    if "open_time" not in df.columns:
+        raise ValueError(f"{files[0]}: нет колонки open_time (ожидались {BINANCE_KLINE_COLS[:6]})")
+    df = df.rename(columns={"open_time": "ts_raw"})
+    need = {"ts_raw", "open", "high", "low", "close", "volume"}
+    missing = need - set(df.columns)
+    if missing:
+        raise ValueError(f"{files[0]}: нет колонок {sorted(missing)}")
+    df = df.assign(open_time=df["ts_raw"].map(_to_seconds))
+    for col in ("open", "high", "low", "close", "volume"):
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df.dropna(subset=["open_time", "open", "high", "low", "close"])
+    df = df.sort_values("open_time").drop_duplicates("open_time").reset_index(drop=True)
+    df.attrs["files"] = [p.name for p in files]
+    return df
+
+
+def scan_htf_gated_retest(bars: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Z6 = Z1 (ретест-вход разворота), но только когда дневная лента СОГЛАСУЕТ.
+
+    Это честная версия провалившейся Z1: метод автора — конъюнкция
+    «HTF-контекст → формация → ретест → реакция», прошлый суд проверял её без
+    первого элемента.
+    """
+    base = scan_retest(bars)
+    if not base:
+        return []
+    bias = daily_bias(bars)
+    out: list[dict[str, Any]] = []
+    for e in base:
+        b = bias[e["entry_bar"]] if e["entry_bar"] < len(bias) else None
+        ok = (b == "bull" and e["dir"] == "long") or (b == "bear" and e["dir"] == "short")
+        if not Z6_STRICT_CONTEXT and b is None:
+            ok = True
+        if ok:
+            out.append({**e, "meta": {**e["meta"], "htf_bias": b}})
+    return out
+
+
+def _z7_reacted(k: int, side: str, level: float, opens: list[float], closes: list[float]) -> bool:
+    """Закрытие «в сторону входа»: зелёная свеча выше границы для лонга, зеркально для шорта."""
+    if side == "long":
+        return closes[k] > opens[k] and (not Z7_REQUIRE_INSIDE or closes[k] > level)
+    return closes[k] < opens[k] and (not Z7_REQUIRE_INSIDE or closes[k] < level)
+
+
+def _z7_failed(k: int, side: str, level: float, closes: list[float]) -> bool:
+    """Зона пробита по close (для лонга — закрытие под поддержкой) → идея отменена."""
+    if side == "long":
+        return closes[k] < level * (1.0 - CH_TOUCH_TOL)
+    return closes[k] > level * (1.0 + CH_TOUCH_TOL)
+
+
+def scan_zone_reaction(bars: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Z7: вход у границы зоны ТОЛЬКО после реакции — первого закрытия в сторону входа.
+
+    Формулировка автора: у зоны надо не «ловить нож», а дождаться реакции.
+    Реализация (правило зафиксировано до прогона):
+
+      * зона — границы последних подтверждённых свингов (``channel_structure``,
+        то же зеркало ``detect_rectangle``, что и у Z5);
+      * касание = подтверждённый свинг, чей экстремум лежит в допуске границы
+        (``CH_TOUCH_TOL``); нужно ``>= Z7_MIN_TOUCHES`` касаний этой границы —
+        первое касание свежего уровня не торгуем;
+      * сигнал — ПЕРВОЕ закрытие в сторону входа после подтверждения касания
+        (лонг: зелёная свеча, закрывшаяся выше поддержки; шорт зеркально), не
+        позже ``Z7_REACTION_BARS`` баров; если раньше была реакция — входим по
+        первой, а не по любой;
+      * если до реакции цена закрылась за пределами зоны (пробой) — сигнала нет;
+      * стоп — за экстремумом касания с ``STOP_BUFFER``, цель — противоположная
+        граница, но не уже ``TARGET_MIN_RR``×R (как в Z5).
+
+    Взгляд в будущее отсутствует: состояние на баре t считается по свингам,
+    подтверждённым к t-1 (``i + SWING_W <= t - 1``).
+    """
+    highs = [b["high"] for b in bars]
+    lows = [b["low"] for b in bars]
+    opens = [b["open"] for b in bars]
+    closes = [b["close"] for b in bars]
+    hi, lo = swings(highs, lows, SWING_W)
+    hi_set = set(hi)
+    lo_set = set(lo)
+    entries: list[dict[str, Any]] = []
+    for t in range(2 * SWING_W + 3, len(bars)):
+        ch = channel_structure(highs, lows, hi, lo, t, SWING_W)
+        if ch is None:
+            continue
+        res, sup = ch["res"], ch["sup"]
+        for side, level, ext, idx_set in (
+            ("long", sup, lows, lo_set),
+            ("short", res, highs, hi_set),
+        ):
+            touches = [
+                i for i in sorted(idx_set)
+                if i + SWING_W <= t - 1 and abs(ext[i] - level) <= CH_TOUCH_TOL * max(level, 1.0)
+            ]
+            if len(touches) < Z7_MIN_TOUCHES:
+                continue
+            i = touches[-1]
+            confirmed = i + SWING_W
+            if t - confirmed > Z7_REACTION_BARS:
+                continue  # реакция запоздала — это уже не «первое закрытие»
+            if any(_z7_failed(k, side, level, closes) for k in range(confirmed + 1, t)):
+                continue  # зона пробита по close → идея отменена
+            if not _z7_reacted(t, side, level, opens, closes):
+                continue
+            if any(_z7_reacted(k, side, level, opens, closes) for k in range(confirmed + 1, t)):
+                continue  # входим строго по ПЕРВОЙ реакции
+            entry = closes[t]
+            stop = ext[i] * (1.0 - STOP_BUFFER) if side == "long" else ext[i] * (1.0 + STOP_BUFFER)
+            risk = abs(entry - stop)
+            if risk <= 0:
+                continue
+            target = res if side == "long" else sup
+            min_target = entry + risk * TARGET_MIN_RR if side == "long" else entry - risk * TARGET_MIN_RR
+            target = max(target, min_target) if side == "long" else min(target, min_target)
+            entries.append(
+                {
+                    "entry_bar": t,
+                    "dir": side,
+                    "entry": entry,
+                    "stop": stop,
+                    "target": target,
+                    "meta": {"kind": "zone_reaction", "touches": len(touches), "boundary": side},
+                }
+            )
+    return entries
+
+
+def verdict(oos: dict[str, Any] | None) -> str:
+    """Метка силы ПО OOS. strong запрещена (PR #77): много гипотез, один срез."""
+    if not oos:
+        return "none"
+    n = int(oos.get("n") or 0)
+    mr = oos.get("mean_r")
+    ci = oos.get("bootstrap_95_ci_mean_r") or [None, None]
+    if mr is None:
+        return "none"
+    if n >= VERDICT_MODERATE_MIN_N and mr > 0 and ci[0] is not None and ci[0] > VERDICT_MODERATE_MIN_CI_LOW:
+        return "moderate"
+    if n >= VERDICT_WEAK_MIN_N and mr > 0:
+        return "weak"
+    return "none"
+
+
 def load(path: Path) -> pd.DataFrame:
     df = pd.read_csv(path)
     required = {"timestamp", "open", "high", "low", "close", "volume"}
@@ -887,6 +1198,14 @@ VARIANTS: dict[str, Any] = {
     },
     "Z4_overshoot": {"scan": scan_overshoot, "label": "Z4 overshoot 3-го экстремума"},
     "Z5_channel_touch": {"scan": scan_channel_touch, "label": "Z5 вход от границы (3-4 касание)"},
+    "Z6_htf_gated_retest": {
+        "scan": scan_htf_gated_retest,
+        "label": "Z6 ретест-вход + согласие дневной ленты EMA 20/50/100/200",
+    },
+    "Z7_zone_reaction": {
+        "scan": scan_zone_reaction,
+        "label": "Z7 вход у границы только после реакции (первое закрытие в сторону)",
+    },
 }
 
 BASELINES: dict[str, Any] = {
@@ -895,6 +1214,10 @@ BASELINES: dict[str, Any] = {
     "Z3_false_breakout": None,  # базлайн канала/прямоугольника — отдельно
     "Z4_overshoot": None,  # базлайн тройной фигуры — scan_breakout (triple)
     "Z5_channel_touch": None,
+    # Z6 — это Z1 с добавленным HTF-контекстом: базлайном служит сама Z1.
+    "Z6_htf_gated_retest": lambda bars: scan_retest(bars),
+    # Z7 — Z5 с требованием реакции: базлайном служит вход от границы без реакции.
+    "Z7_zone_reaction": lambda bars: scan_channel_touch(bars),
 }
 
 
@@ -929,6 +1252,21 @@ def run_symbol_tf(
         entries = spec["scan"](bars)
         record("in_sample", name, entries)
         record("out_of_sample", name, entries)
+
+    # Метки силы — ТОЛЬКО по OOS (strong запрещена, см. verdict()).
+    res["verdict_oos"] = {
+        name: verdict(res["out_of_sample"].get(name)) for name in res["out_of_sample"]
+    }
+    # Сколько баров вообще имело HTF-контекст (иначе «Z6 не сработала» можно
+    # спутать с «Z6 опровергнута»).
+    try:
+        _bias = daily_bias(bars)
+        res["htf_context_coverage"] = round(
+            sum(1 for b in _bias if b in ("bull", "bear")) / max(1, len(_bias)), 4
+        )
+    except Exception as exc:  # pragma: no cover
+        res["htf_context_coverage"] = None
+        res["htf_context_error"] = str(exc)
 
     # базлайны: пробой шеи для Z1/Z2 (та же фигура) и канала для Z3/Z5
     base_breakout = scan_breakout(bars, divergence_only=False)
@@ -984,22 +1322,182 @@ def run_symbol_tf(
     return res, pool
 
 
+
+def _synthetic_bars(n: int, seed: int, tf: str) -> list[dict[str, Any]]:
+    """Детерминированная синтетика: дрейфующий случайное-блуждающий ряд с режимами."""
+    rng = random.Random(seed)
+    step = {"1h": 3600, "4h": 14400, "1d": 86400}.get(tf, 3600)
+    out: list[dict[str, Any]] = []
+    price = 100.0
+    t = 1_600_000_000
+    drift = 0.0
+    for i in range(n):
+        if i % 400 == 0:
+            drift = rng.choice((-0.0006, -0.0002, 0.0, 0.0002, 0.0006))
+        r = drift + rng.gauss(0.0, 0.006)
+        o = price
+        price = max(1.0, price * (1.0 + r))
+        c = price
+        hi = max(o, c) * (1.0 + abs(rng.gauss(0.0, 0.002)))
+        lo = min(o, c) * (1.0 - abs(rng.gauss(0.0, 0.002)))
+        out.append({
+            "ts": t + i * step, "open": o, "high": hi, "low": lo, "close": c,
+            "volume": 1000.0 * (1.0 + abs(r) * 50.0),
+        })
+    return out
+
+
+def self_test() -> dict[str, Any]:
+    """Механика без данных: парсеры Official CSV, лента HTF, детерминизм, метки.
+
+    Нужен ровно на период «ветка с архивами ещё не прилетела»: он доказывает,
+    что пайплин готов к перезапуску, и не проверяет гипотезы (для этого нужны
+    официльные бары).
+    """
+    import tempfile
+
+    res: dict[str, Any] = {"mode": "self-test", "checks": {}}
+
+    # 1) парсер: официальный CSV без заголовка и с заголовком (с 2025-01)
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        flat = root / "klines" / "spot" / "BTCUSDT" / "1h"
+        flat.mkdir(parents=True)
+        ms = 1_600_000_000 * 1000
+        rows_no_header = "\n".join(
+            f"{ms + i * 3600000},{100 + i},{101 + i},{99 + i},{100.5 + i},1000,"
+            f"{ms + (i + 1) * 3600000 - 1},100000,{100 + i},500,50000,0"
+            for i in range(5)
+        )
+        (flat / "BTCUSDT-1h-2020-09.csv").write_text(rows_no_header + "\n", encoding="utf-8")
+        rows_header = (
+            "open_time,open,high,low,close,volume,close_time,quote_volume,count,"
+            "taker_buy_base_asset_volume,taker_buy_quote_asset_volume,ignore\n"
+            + rows_no_header + "\n"
+        )
+        (flat / "BTCUSDT-1h-2025-01.csv").write_text(rows_header, encoding="utf-8")
+        df = load_binance_vision(root, "BTC", "1h")
+        res["checks"]["loader_parses_both_forms"] = bool(len(df) == 5 and "open_time" in df.columns)
+        res["checks"]["loader_open_time_seconds"] = bool(int(df.iloc[0]["open_time"]) == 1_600_000_000)
+        try:
+            load_binance_vision(root, "SOL", "4h")
+            res["checks"]["loader_missing_raises"] = False
+        except FileNotFoundError:
+            res["checks"]["loader_missing_raises"] = True
+
+    # 2) HTF-лента: None, пока нет 200 ЗАКРЫТЫХ дневных баров, затем определяется.
+    # Отдельно и дёшево: daily_bias — O(n), а сканы фигур — O(n·структур).
+    bars_long = _synthetic_bars(24 * 210, 7, "1h")  # 210 дней часовых баров
+    bias = daily_bias(bars_long)
+    n_first_days = 24 * RIBBON_MIN_DAILY_BARS  # баров до дня, когда лента становится доступной
+    res["checks"]["ribbon_requires_history"] = all(
+        b is None for b in bias[: n_first_days - 24]
+    )
+    res["checks"]["ribbon_becomes_available"] = any(
+        b in ("bull", "bear", "neutral") for b in bias[n_first_days:]
+    )
+    # текущий (незавершённый) день не участвует в ленте — подглядывания нет
+    res["checks"]["ribbon_never_looks_ahead"] = all(
+        bias[i] == bias[i + 1] for i in range(n_first_days, len(bias) - 25, 24)
+    )
+
+    # 3) Z6/Z7 исполняются и не падают; Z6 ⊆ Z1 (фильтр может только убирать)
+    bars = _synthetic_bars(2500, 11, "1h")
+    z1 = scan_retest(bars)
+    z6 = scan_htf_gated_retest(bars)
+    z7 = scan_zone_reaction(bars)
+    key = lambda e: (e["entry_bar"], e["dir"])  # noqa: E731
+    res["checks"]["z6_subset_of_z1"] = all(key(e) in {key(x) for x in z1} for e in z6)
+    res["checks"]["z7_produces_valid_geometry"] = all(
+        (e["dir"] == "long" and e["stop"] < e["entry"] < e["target"])
+        or (e["dir"] == "short" and e["target"] < e["entry"] < e["stop"])
+        for e in z7
+    )
+    res["z6_z7_counts"] = {"z1": len(z1), "z6": len(z6), "z7": len(z7)}
+
+    # 4) детерминизм: два прогона подряд = побайтово одинаковый результат
+    import pandas as pd
+
+    df = pd.DataFrame([
+        {"open_time": b["ts"], "open": b["open"], "high": b["high"],
+         "low": b["low"], "close": b["close"], "volume": b["volume"]}
+        for b in bars
+    ])
+    a, _ = run_symbol_tf("BTC", "1h", df)
+    b2, _ = run_symbol_tf("BTC", "1h", df)
+    res["checks"]["determinism"] = json.dumps(a, sort_keys=True) == json.dumps(b2, sort_keys=True)
+
+    # 5) метки силы: strong не выдаётся никогда
+    res["checks"]["strong_never_emitted"] = all(
+        verdict(m) in ("moderate", "weak", "none")
+        for m in (
+            {"n": 10_000, "mean_r": 1.0, "bootstrap_95_ci_mean_r": [0.5, 0.9]},
+            {"n": 40, "mean_r": 0.1, "bootstrap_95_ci_mean_r": [-0.1, 0.3]},
+            {"n": 5, "mean_r": 0.9, "bootstrap_95_ci_mean_r": [0.1, 1.0]},
+            None,
+        )
+    )
+    res["ready_for_data"] = all(v is True for v in res["checks"].values())
+    return res
+
+
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Track C replay (PR #77)")
+    ap = argparse.ArgumentParser(description="Track C replay (PR #77 + PR #78)")
     ap.add_argument(
         "--data-dir",
         type=Path,
-        required=True,
-        help="каталог с Binance_{BTC,ETH,SOL}USDT_{1h,4h}.csv",
+        default=None,
+        help="каталог с Binance_{BTC,ETH,SOL}USDT_{1h,4h}.csv (неофициальный фид, PR #77)",
     )
-    ap.add_argument("--provenance", required=True, help="источник данных (repo @ commit)")
+    ap.add_argument(
+        "--source",
+        choices=("unofficial", "binance-vision"),
+        default="unofficial",
+        help="binance-vision — официальные месячные архивы data.binance.vision (PR #78)",
+    )
+    ap.add_argument(
+        "--archive-dir",
+        type=Path,
+        default=None,
+        help="корень распакованных архивов data.binance.vision (для --source binance-vision)",
+    )
+    ap.add_argument("--years", default="", help="фильтр по годам, напр. 2021,2022,2023")
+    ap.add_argument("--provenance", default="", help="источник данных (repo @ commit / URL)")
+    ap.add_argument(
+        "--self-test",
+        action="store_true",
+        help="прогнать детерминизм и парсеры на синтетике (когда данных ещё нет)",
+    )
     args = ap.parse_args()
+
+    if args.self_test:
+        print(json.dumps(self_test(), ensure_ascii=False, indent=2))
+        return
+
+    if args.source == "binance-vision":
+        if args.archive_dir is None:
+            raise SystemExit("--source binance-vision требует --archive-dir")
+        loader = lambda sym, tf: load_binance_vision(  # noqa: E731
+            args.archive_dir, sym, tf, years=tuple(int(y) for y in args.years.split(",") if y.strip())
+        )
+        provenance = args.provenance or "data.binance.vision (official spot klines, monthly)"
+    else:
+        if args.data_dir is None:
+            raise SystemExit(
+                "ждёт данных: нужен либо --archive-dir с официальными архивами "
+                "data.binance.vision, либо --data-dir с фидом PR #77 "
+                "(--self-test проверяет механику без данных)"
+            )
+        loader = lambda sym, tf: load(args.data_dir / f"Binance_{sym}USDT_{tf}.csv")  # noqa: E731
+        provenance = args.provenance or "unofficial"
 
     output: dict[str, Any] = {
         "seed": SEED,
         "resamples": RESAMPLES,
         "split": SPLIT,
-        "provenance": args.provenance,
+        "provenance": provenance,
+        "source": args.source,
+        "ribbon_source": RIBBON_SOURCE,
         "cost_round_trip_pct": COST_PER_SIDE * 2 * 100,
         "rules": {
             "level_tol": LEVEL_TOL,
@@ -1018,17 +1516,33 @@ def main() -> None:
             "channel_touch_tol": CH_TOUCH_TOL,
             "overshoot_gap": OVERSHOOT_GAP,
             "rsi_period": RSI_PERIOD,
+            "z6_strict_context": Z6_STRICT_CONTEXT,
+            "ribbon_min_daily_bars": RIBBON_MIN_DAILY_BARS,
+            "ribbon_emas": list(RIBBON_EMAS),
+            "z7_min_touches": Z7_MIN_TOUCHES,
+            "z7_require_inside": Z7_REQUIRE_INSIDE,
+            "verdict_rules": {
+                "strong": "запрещена (PR #77): много гипотез на одном OOS-срезе",
+                "moderate": f"OOS n>={VERDICT_MODERATE_MIN_N} и mean_r>0 и нижняя CI>0",
+                "weak": f"OOS n>={VERDICT_WEAK_MIN_N} и mean_r>0",
+            },
         },
         "symbols": {},
     }
     pooled: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for tf in TIMEFRAMES:
         for sym in SYMBOLS:
-            path = args.data_dir / f"Binance_{sym}USDT_{tf}.csv"
-            if not path.exists():
-                output["symbols"][f"{sym}USDT|{tf}"] = {"error": f"missing {path.name}"}
+            try:
+                df = loader(sym, tf)
+            except FileNotFoundError as exc:
+                output["symbols"][f"{sym}USDT|{tf}"] = {"error": str(exc), "status": "ждёт данных"}
                 continue
-            df = load(path)
+            if len(df) < 400:
+                output["symbols"][f"{sym}USDT|{tf}"] = {
+                    "error": f"слишком короткая история: {len(df)} баров (нужно >= 400)",
+                    "bars": len(df),
+                }
+                continue
             res, pool = run_symbol_tf(sym, tf, df)
             output["symbols"][f"{sym}USDT|{tf}"] = res
             for k, v in pool.items():

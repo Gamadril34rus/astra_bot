@@ -106,6 +106,13 @@ TICK_LATENCY = Histogram(
     buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0),
     registry=REGISTRY,
 )
+ENTRY_GATE_TOTAL = Counter(
+    "astra_entry_gate_total",
+    "Entry-gate hits (PR #78 часть 3): mode=shadow только журнал, "
+    "mode=live вход заблокирован",
+    labelnames=("gate", "mode"),
+    registry=REGISTRY,
+)
 EXITS_TOTAL = Counter(
     "astra_exits_total",
     "Total position exits by reason (TP/SL/trailing/BE/max_hold/vol/panic)",

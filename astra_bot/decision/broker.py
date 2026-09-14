@@ -143,14 +143,28 @@ class ClosedTrade:
 
 
 def _entry_snapshot(pos: PaperPosition) -> dict[str, Any]:
-    """Closed-row snapshot; absent keys preserve legacy compatibility."""
+    """Closed-row snapshot; absent keys preserve legacy compatibility.
+
+    PR #78, часть 4: два поля восстанавливаются точно из самой позиции, если
+    снимок не дошёл (позиции, загруженные из state-файла до введения снимка):
+    ``risk_distance`` на открытии = |entry − initial_stop| (строка 520), а
+    ``fill_price`` — и есть фактическая цена входа. Остальные поля выводить
+    не из чего, и мы их не изобретаем: ``signal_bar_close`` знает только движок.
+    """
     notes = pos.notes or {}
     names = (
         "signal_bar_close", "effective_entry", "initial_stop", "initial_take",
         "stop_pct", "confidence", "ml_probability", "prior_r", "costs_r",
         "equity_before", "risk_budget", "binding_constraint",
     )
-    return {name: notes.get(name) for name in names}
+    out = {name: notes.get(name) for name in names}
+    if out.get("effective_entry") is None and pos.fill_price is not None:
+        out["effective_entry"] = float(pos.fill_price)
+    if out.get("initial_stop") is None and pos.risk_distance:
+        risk = Decimal(str(pos.risk_distance))
+        entry = Decimal(str(pos.entry_price))
+        out["initial_stop"] = float(entry - risk if pos.direction == "long" else entry + risk)
+    return out
 
 
 class PaperBroker:
@@ -517,6 +531,46 @@ class PaperBroker:
             timeframe=timeframe,
             regime_axes=regime_axes,
         )
+        # ---- Телеметрия входа (PR #78, часть 4) --------------------------------
+        # Поля entry-telemetry раньше зависели от доброй воли вызывающего кода:
+        # 132 из 180 записей эпохи-2 пришли без effective_entry/initial_stop, и
+        # декомпозиция P&L (ход цены против слипа и комиссий) на них слепая.
+        # Брокер сам дописывает всё, что может вывести из собственного контракта;
+        # явные значения из notes имеют приоритет.
+        snap = dict(notes or {})
+        # float(): notes сериализуются в state как есть, Decimal там падает.
+        snap.setdefault("signal_bar_close", float(entry_price))
+        snap.setdefault("effective_entry", float(fill))
+        snap.setdefault("initial_stop", float(stop_loss))
+        if "initial_take" not in snap:
+            _take0 = tps[0] if tps else (take_profit if take_profit > 0 else None)
+            snap["initial_take"] = float(_take0) if _take0 is not None else None
+        if float(entry_price) > 0:
+            _stop_pct = abs(float(entry_price) - float(stop_loss)) / float(entry_price)
+            snap.setdefault("stop_pct", _stop_pct)
+            if snap.get("costs_r") is None and _stop_pct > 0:
+                _fee = (
+                    self.cost_model.taker_fee_rate
+                    if self.cost_model is not None
+                    else self.fee_pct
+                )
+                _slip = (
+                    self.cost_model.slippage_pct
+                    if self.cost_model is not None
+                    else self.slippage_pct
+                )
+                # float, а не Decimal: совпадает с формулой движка
+                # (trading_engine.py, notes["costs_r"]) до бита — две правды
+                # об издержках входа нам не нужны.
+                snap["costs_r"] = 2.0 * (float(_fee) + float(_slip)) / _stop_pct
+        pos.notes = snap
+        # ВАЖНО (и это не педантизм): highest_price/lowest_price здесь НЕ
+        # инициализируются. Соблазн «посеять их ценой входа, чтобы mfe_r/mae_r
+        # никогда не были None» ломает семантику: exit_plan.py:354-355 читает эти
+        # поля как ЦЕНОВУЮ ИСТОРИЮ позиции (правило D1-structural), и посев
+        # подставил бы в него цену входа вместо последнего бара — стоп начал бы
+        # подтягиваться на баре открытия. Отсутствие экстремумов уже означает
+        # «цена ещё не обновлялась», и _r_metrics даёт за это 0.0, а не None.
         pos.tp_filled = [False] * len(tps)
         if take_levels is not None:
             # Уровни и доли задаёт план выхода (2-уровневый тейк: 1R×30% +
@@ -554,6 +608,8 @@ class PaperBroker:
             meta={"strategy": strategy, "leverage": str(lev), "phase": "open"},
             event_id=f"order:{pos.id}:open",
         )
+        # Проскальзывание факта против сигнального close (сигнал → исполнение).
+        _slip_ratio = float(fill) / float(snap.get("signal_bar_close") or entry_price or fill)
         self._ledger(
             "fill",
             symbol=symbol,
@@ -562,7 +618,27 @@ class PaperBroker:
             price=fill,
             ref_id=pos.id,
             position_delta=signed,
-            meta={"phase": "open"},
+            meta={
+                "phase": "open",
+                # PR #78, часть 4: фактическая цена фи́лла против сигнального
+                # close. В paper slippage_realized_pct тождественен модели
+                # (движок исполняет сам себя), но как только в цепочку придёт
+                # биржевой fill, поле станет измерением: модель 0.1%/сторону
+                # можно будет проверить, а не принять на веру.
+                "signal_bar_close": float(snap.get("signal_bar_close") or entry_price),
+                "fill_price": float(fill),
+                # Знак: положительное число = проскальзывание ПРОТИВ нас.
+                # Для шорта исполнение ниже сигнального close — это тоже «против».
+                "slippage_realized_pct": (
+                    _slip_ratio - 1.0 if direction == "long" else 1.0 - _slip_ratio
+                ),
+                "slippage_model_pct": float(
+                    self.cost_model.slippage_pct if self.cost_model is not None else self.slippage_pct
+                ),
+                "fee_model_pct": float(
+                    self.cost_model.taker_fee_rate if self.cost_model is not None else self.fee_pct
+                ),
+            },
             event_id=f"fill:{pos.id}:open",
         )
         # Бэклог B2: комиссия живёт ТОЛЬКО в fee-строках. Входная
@@ -803,8 +879,20 @@ class PaperBroker:
     ) -> tuple[float, float, float]:
         """(r_multiple, mfe_r, mae_r) закрытой части в R-единицах (net)."""
         if not pos.risk_distance or qty <= 0:
-            return 0.0, 0.0, 0.0
-        risk_d = pos.risk_distance
+            # PR #78, часть 4: риск-расстояние не заполнено у позиций, открытых
+            # в обход движка. Восстанавливаем из снимка входа: иначе mfe_r/mae_r
+            # молча становятся нулями и статистика выходов портится без причины.
+            _snap_stop = (pos.notes or {}).get("initial_stop")
+            if not _snap_stop:
+                return 0.0, 0.0, 0.0
+            try:
+                risk_d = abs(Decimal(str(pos.entry_price)) - Decimal(str(_snap_stop)))
+            except Exception:
+                return 0.0, 0.0, 0.0
+            if risk_d <= 0:
+                return 0.0, 0.0, 0.0
+        else:
+            risk_d = pos.risk_distance
         r = float(pnl / (risk_d * qty))
         if pos.direction == "long":
             mfe = (
