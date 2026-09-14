@@ -6,7 +6,7 @@
       "direction": "short",
       "entry_price": "0.2025",
       "quantity": "16838.47045900",
-      "stop_loss": "0.20535714285714285",
+      "stop_loss": "0.20534285714285713",
       "take_profits": [
         "0.1994925",
         "0.19648500"
@@ -52,12 +52,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
-      "bars_held": 4,
+      "bars_held": 5,
       "leverage": "2",
       "margin_used": "1704.895133973750",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.19648500",
-      "plan_last_bar_ts": 1789346700000
+      "plan_last_bar_ts": 1789347000000
     },
     {
       "id": "61e8badc-774e-48a3-aaa3-bbe168fa656f",
@@ -65,7 +65,7 @@
       "direction": "short",
       "entry_price": "0.3494",
       "quantity": "2437.03826800",
-      "stop_loss": "0.3546285714285714",
+      "stop_loss": "0.35459999999999997",
       "take_profits": [
         "0.3433518",
         "0.33730360"
@@ -111,12 +111,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 4,
+      "bars_held": 5,
       "leverage": "1",
       "margin_used": "851.501170839200",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.33730360",
-      "plan_last_bar_ts": 1789346700000
+      "plan_last_bar_ts": 1789347000000
     },
     {
       "id": "cf45cfca-d135-42ca-bdb7-7e9f75f977db",
@@ -124,7 +124,7 @@
       "direction": "long",
       "entry_price": "718.83",
       "quantity": "4.73371500",
-      "stop_loss": "717.5728571428571",
+      "stop_loss": "717.6142857142856",
       "take_profits": [
         "726.2164899999999",
         "733.60297999999980"
@@ -170,17 +170,15 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 3,
+      "bars_held": 4,
       "leverage": "1",
       "margin_used": "3402.7363534500",
       "plan_variant": "STATIC_TP",
       "plan_take": "733.60297999999980",
-      "plan_last_bar_ts": 1789346700000
+      "plan_last_bar_ts": 1789347000000
     }
   ],
   "realized_pnl": "-2037.480328369131117413123212",
   "initial_capital": "36098.87",
-  "cooldowns": {
-    "symmetrical_triangle|SUI-USDT|short": 1789347280704
-  }
+  "cooldowns": {}
 }
