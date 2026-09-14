@@ -6,7 +6,7 @@
       "direction": "short",
       "entry_price": "0.3534",
       "quantity": "2408.25607225",
-      "stop_loss": "0.35616020000000004",
+      "stop_loss": "0.35588571428571425",
       "take_profits": [
         "0.35063979999999996",
         "0.347879599999999920"
@@ -22,8 +22,8 @@
       "initial_quantity": "2408.25607225",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.3533",
-      "lowest_price": "0.3533",
+      "highest_price": "0.3543",
+      "lowest_price": "0.3528",
       "strategy": "liquidity_sweep",
       "opened_at": 1789348540716,
       "notes": {
@@ -52,7 +52,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
-      "bars_held": 1,
+      "bars_held": 2,
       "leverage": "2",
       "margin_used": "425.538847966575",
       "plan_variant": "STATIC_TP",
