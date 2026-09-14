@@ -1,8 +1,66 @@
 {
-  "positions": [],
+  "positions": [
+    {
+      "id": "c2a259b6-9853-468f-97ef-a3bf27b5af68",
+      "symbol": "AVAX-USDT",
+      "direction": "long",
+      "entry_price": "7.527",
+      "quantity": "112.67544200",
+      "stop_loss": "7.335419",
+      "take_profits": [
+        "7.718581",
+        "7.9101620"
+      ],
+      "tp_filled": [
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.3,
+        0.7
+      ],
+      "initial_quantity": "112.67544200",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "breakout",
+      "opened_at": 1789388819188,
+      "notes": {
+        "signal_bar_close": 7.527,
+        "effective_entry": 7.534527,
+        "initial_stop": 7.335419,
+        "initial_take": 7.67290659345283,
+        "stop_pct": 0.026426078239549743,
+        "confidence": 0.8,
+        "ml_probability": null,
+        "prior_r": 0.29140715813292534,
+        "costs_r": 0.11352422303473492,
+        "equity_before": 33958.24639921285,
+        "risk_budget": 339.58246399212845,
+        "binding_constraint": "probation",
+        "score": 68.0,
+        "edge_pct": 11.7191,
+        "ev_r": 0.11719141004118204,
+        "ev_confidence": 0.16666666666666666,
+        "rr": 0.7615921905242691,
+        "leverage": 1
+      },
+      "fill_price": "7.534527",
+      "entry_fee_per_unit": "0.0037672635",
+      "risk_distance": "0.191581",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "5m",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
+      "bars_held": 0,
+      "leverage": "1",
+      "margin_used": "848.10805193400",
+      "plan_variant": "STATIC_TP",
+      "plan_take": "7.9101620",
+      "plan_last_bar_ts": 0
+    }
+  ],
   "realized_pnl": "-2140.623600787153342970411957",
   "initial_capital": "36098.87",
-  "cooldowns": {
-    "descending_triangle|INJ-USDT|short": 1789388691995
-  }
+  "cooldowns": {}
 }
