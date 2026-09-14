@@ -1,0 +1,43 @@
+name: Ultimate strategy research
+
+on:
+  push:
+    branches:
+      - research/binance-data
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy
+
+      - name: Run research
+        run: python research/ultimate_strategy.py
+
+      - name: Show report
+        run: cat research_ultimate_report.md
+
+      - name: Upload research results
+        uses: actions/upload-artifact@v4
+        with:
+          name: ultimate-strategy-results
+          path: |
+            research_ultimate_report.md
+            research_ultimate_all_results.csv
+            research_ultimate_ranked.csv
+            research_ultimate_winners.csv
+          retention-days: 30
