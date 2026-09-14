@@ -3,11 +3,10 @@
 import io
 import os
 import sys
-import zipfile
 import urllib.error
+import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -111,7 +110,7 @@ def test_tail_404_is_ok(monkeypatch):
 
     monkeypatch.setattr("fetch_klines._urlopen_with_retry", fake_urlopen)
 
-    csv_text, meta = fetch_binance_vision("BTCUSDT", "4h", start, end, now=now)
+    _csv_text, meta = fetch_binance_vision("BTCUSDT", "4h", start, end, now=now)
     # не должно падать
     assert meta["months_ok"] == 2
     assert meta["months_failed"] == 2
@@ -158,7 +157,7 @@ def test_hole_three_months_is_allowed(monkeypatch):
 
     monkeypatch.setattr("fetch_klines._urlopen_with_retry", fake_urlopen)
 
-    csv_text, meta = fetch_binance_vision("BTCUSDT", "4h", start, end, now=now)
+    _csv_text, meta = fetch_binance_vision("BTCUSDT", "4h", start, end, now=now)
     assert meta["months_failed"] == 3
     # не падает
     assert meta["months_ok"] == 3
