@@ -124,12 +124,15 @@ def block_gross(p: Panel) -> None:
             ac1.append((a, b))
     x = [a for a, _b in ac1]
     y = [b for _a, b in ac1]
-    mx, my = statistics.mean(x), statistics.mean(y)
     sx = statistics.pstdev(x)
     sy = statistics.pstdev(y)
-    rho = statistics.covariance(x, y) / (len(x) - 1) / sx / sy if sx and sy else float("nan")
+    # covariance() уже делит на (n-1); σ — pop-оценки, поэтому множитель (n-1)/n
+    rho = statistics.covariance(x, y) * (len(x) - 1) / len(x) / sx / sy if sx and sy else float("nan")
     t_rho = rho * math.sqrt((len(x) - 2) / max(1e-12, 1 - rho * rho))
-    print(f"  автокорреляция 5m lag1: ρ={rho:+.4f} (t={t_rho:+.1f}, n={len(x)}) — отрицательная = реверс")
+    print("  (ниже вход = close того же бара, что породил сигнал — идеализация;")
+    print("   что от неё остаётся при реальных заявках — блок B)")
+    print(f"  автокорреляция 5m lag1 (последовательные непрекрывающиеся бары): "
+          f"ρ={rho:+.4f} (t={t_rho:+.1f}, n={len(x)}) — отрицательная = реверс")
 
     print("\n  1) фейд собственного бара символа (|r|>порог → против):")
     for th in (0.0010, 0.0020, 0.0030):
