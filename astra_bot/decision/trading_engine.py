@@ -30,6 +30,7 @@ from ..core.market_safety import MarketSafety
 from ..core.metrics import (
     DECISION_LATENCY,
     DECISIONS_TOTAL,
+    ENTRY_GATE_TOTAL,
     EXITS_TOTAL,
     TICK_LATENCY,
 )
@@ -39,6 +40,8 @@ from ..ml.live_lessons import append_lessons
 from . import halt_alerts
 from .broker import PaperBroker
 from .context import MarketContext
+from .entry_gates import EntryGateConfig
+from .entry_gates import evaluate as evaluate_entry_gates
 from .pipeline import Decision, DecisionPipeline
 
 # Fire-and-forget задачи (уведомления и т.п.). Ссылки хранятся явно:
@@ -176,6 +179,24 @@ class TradingEngineConfig:
     # Анти-дребезг (решение владельца 12.09.2026): после выхода по стопу
     # та же стратегия не входит в тот же символ/сторону столько минут.
     reentry_cooldown_minutes: int = 20
+    # ---- «Не торгуй в шуме» (PR #78, часть 3) -------------------------------
+    # Гейты входа из методики «Зевс» + нашей арифметики издержек. По умолчанию
+    # ЖИВОЙ режим выключен (окно фиксации #76), работает только тень:
+    # счётчик + гипотетический R в NO_TRADE-журнале (rejection_stage="entry_gate"),
+    # чтобы включение можно было оценить ДО включения. Логика — entry_gates.py.
+    entry_gates_enabled: bool = False
+    entry_gates_shadow_enabled: bool = True
+    # Гейт A: режимы, в которых вход запрещён (правило из наших данных).
+    entry_gate_block_regimes: frozenset[str] = frozenset({"LOW_VOLATILITY"})
+    # Гейт B (vola-floor): не входить, если round-trip стоит >= этой доли R.
+    entry_gate_max_costs_r: float = 0.25
+    # ---- Кэш реальных баров (PR #78, часть 4): чистая телеметрия ----------
+    # Склеенные из no_trade_outcomes серии (медиана 31 бар) не дают мерить
+    # мультисуточные горизонты. Кэш дописывает каждый закрытый бар один раз.
+    klines_cache_enabled: bool = True
+    klines_cache_dir: str = "models/klines_cache"
+    klines_cache_timeframes: tuple[str, ...] = ("5m",)
+    klines_cache_keep_days: int = 45
 
 
 class TradingEngine:
@@ -430,6 +451,13 @@ class TradingEngine:
             observations_path=Path(self.config.no_trade_observations_path),
             outcomes_path=Path(self.config.no_trade_outcomes_path),
         )
+        # Гейты входа «не торгуй в шуме» (PR #78, часть 3). Живой режим выключен
+        # по умолчанию; тень пишет счётчик и гипотетический R в NO_TRADE-журнал.
+        self.entry_gates = EntryGateConfig.from_engine_config(self.config)
+        self.entry_gate_stats: dict[str, int] = {}
+        from ..data.klines_cache import KlineCache, KlineCacheConfig
+
+        self.klines_cache = KlineCache(KlineCacheConfig.from_engine_config(self.config))
         # Hypothesis Engine (TZ §9): lifecycle гипотез + live-мониторинг
         # деградации (ACTIVE -> WEAKENING при ухудшении статистики).
         from ..ml.hypothesis_engine import HypothesisStore
@@ -1163,6 +1191,12 @@ class TradingEngine:
         # восстанавливаем из персиста перед любым решением о входе.
         self._sync_risk_state()
         ctx = await self.fetch_context(symbol)
+        # Телеметрия (PR #78, часть 4): складываем закрытые бары в локальный кэш.
+        # Тихо и без последствий для решения — ошибка кэша не мешает торговле.
+        try:
+            self.klines_cache.store_context(ctx.candles, symbol)
+        except Exception as _cc_exc:  # pragma: no cover
+            logger.debug("klines cache: %s", _cc_exc)
         primary = ctx.candles.get("5m") or ctx.candles.get("1h") or []
         if not primary:
             return []
@@ -1371,6 +1405,36 @@ class TradingEngine:
             return closed
 
         cand = decision.candidate
+
+        # ---- Гейты входа «не торгуй в шуме» (PR #78, часть 3) ------------------
+        # Вычисляются ВСЕГДА, когда активна хотя бы тень: решение и гипотетический
+        # R пишутся в NO_TRADE-журнал, а вход блокируется только при
+        # entry_gates_enabled=True (решение владельца на срезе ~26–27.09).
+        if self.entry_gates.active:
+            try:
+                _gv = evaluate_entry_gates(
+                    entry=float(cand.entry_price),
+                    stop=float(cand.stop_loss),
+                    regime_info=(decision.diagnostics or {}).get("regime") or {},
+                    fee_pct=float(self.config.fee_pct),
+                    slippage_pct=float(self.config.slippage_pct),
+                    cfg=self.entry_gates,
+                )
+            except Exception as _gv_exc:  # fail-open: сломать вход гейт не может
+                logger.debug("entry_gates: %s", _gv_exc)
+                _gv = None
+            if _gv is not None and _gv.blocked:
+                _mode = "live" if _gv.live else "shadow"
+                _key = f"{_gv.code}:{_mode}"
+                self.entry_gate_stats[_key] = self.entry_gate_stats.get(_key, 0) + 1
+                try:
+                    ENTRY_GATE_TOTAL.labels(gate=_gv.code, mode=_mode).inc()
+                except Exception:  # метрика не должна ронять тик
+                    pass
+                logger.info(_gv.log_line(symbol))
+                self._record_entry_gate_rejection(symbol, decision, list(primary), _gv)
+                if _gv.live:
+                    return closed
 
         # Не набираем слишком много позиций в одну сторону.
         wanted_dir = "long" if cand.direction == "long" else "short"
@@ -1612,6 +1676,60 @@ class TradingEngine:
         # отчёт и отвечаем на команды из меню.
         logger.info("OPEN %s %s entry=%s", pos.direction, pos.symbol, pos.entry_price)
         return closed
+
+    def _record_entry_gate_rejection(
+        self, symbol: str, decision: Decision, primary: list, verdict: Any
+    ) -> None:
+        """Сработать гейт = записать кандидата в NO_TRADE с гипотетическим R.
+
+        Кандидат не открыт (или открыт, если режим «живой»), но его геометрия
+        (entry/stop/take) отправляется в журнал: ``NoTradeObservationLog``
+        обогатит запись форвардными исходами и ``hypothetic_r``, поэтому
+        эффект гейта можно померить ДО включения живого режима.
+        """
+        try:
+            from ..ml.no_trade_observations import (
+                NoTradeObservation,
+                make_observation_id,
+                quick_features,
+            )
+            cand = decision.candidate
+            if cand is None or not primary:
+                return
+            bar = primary[-1]
+            reason = f"ENTRY_GATE_{verdict.code}"
+            entry = float(cand.entry_price)
+            stop = float(cand.stop_loss)
+            candidate = {
+                "strategy": cand.strategy,
+                "direction": cand.direction,
+                "entry_price": entry,
+                "stop_loss": stop,
+                "take_profit": float(cand.take_profit) if cand.take_profit else None,
+            }
+            regime_diag = (decision.diagnostics or {}).get("regime") or {}
+            obs = NoTradeObservation(
+                id=make_observation_id(
+                    symbol, int(bar.open_time), reason, cand.strategy, cand.direction
+                ),
+                symbol=symbol,
+                bar_time=int(bar.open_time),
+                timestamp=int(datetime.now(tz=UTC).timestamp() * 1000),
+                market_regime=str(regime_diag.get("regime", "UNKNOWN")),
+                regime_confidence=float(regime_diag.get("confidence", 0.0)),
+                reason_code=reason,
+                reasons=[
+                    *verdict.reasons(),
+                    "mode=" + ("live" if verdict.live else "shadow"),
+                    "costs_r=" + ("nan" if verdict.costs_r is None else f"{verdict.costs_r:.4f}"),
+                ],
+                candidate=candidate,
+                features=quick_features(list(primary)),
+                rejection_stage="entry_gate",
+            )
+            self.obs_log.add(obs)
+        except Exception as exc:
+            logger.debug("entry_gate observation: %s", exc)
 
     def _record_capacity_rejection(
         self, symbol: str, decision: Decision, primary: list, stage: str

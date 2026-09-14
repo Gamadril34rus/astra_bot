@@ -24,6 +24,7 @@
 | `TAKE_RR_FEASIBILITY.md` | D4: достижимость тейка 2-2.3R на текущих сделках — замер и рычаги |
 | `HTF_DIRECTIONAL_FILTER_PLAN.md` | D5: входы против старшего ТФ — инвентаризация и план фильтра |
 | `RSI_DIVERGENCE_RESEARCH.md` | D6: RSI-расхождения — детектор по закрытым барам и замер на BTC 4h |
+| `ZEUS_RECONCILIATION.md` | Внешний метод vs бот: сверка правил, гейты входа `entry_gates` (default off), телеметрия входа, реплей-реванш Z3/Z4/Z6/Z7 |
 | `FUNDING_BACKTEST_VS_PAPER.md` | B11: фандинг в live и бэктесте — модели, замер влияния, решение |
 
 ## 2. Обучение и память

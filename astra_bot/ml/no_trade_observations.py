@@ -226,7 +226,7 @@ class NoTradeObservationLog:
             result = _forward_outcome(candles, obs.bar_time, self.horizons)
             if result is None:
                 continue
-            self._outcomes[obs.id] = {
+            outcome_row = {
                 "bar_time": obs.bar_time,
                 "symbol": obs.symbol,
                 "reason_code": obs.reason_code,
@@ -234,6 +234,17 @@ class NoTradeObservationLog:
                 "horizons": result,
                 "computed_at": datetime.now(UTC).isoformat(),
             }
+            # PR #78 (часть 3): гипотетический R от geometрии отклонённого
+            # кандидата — чистая телеметрия, нужна чтобы оценить эффект гейта
+            # «не торгуй в шуме» ДО его включения. Ошибки глотаем: без него
+            # обогащение горизонтов должно работать как раньше.
+            try:
+                hyp = _hypothetic_r(candles, obs.bar_time, obs.candidate, max(self.horizons))
+            except Exception:  # pragma: no cover
+                hyp = None
+            if hyp is not None:
+                outcome_row["hypothetic_r"] = hyp
+            self._outcomes[obs.id] = outcome_row
             enriched.append(obs)
             changed = True
         if changed:
@@ -265,10 +276,19 @@ class NoTradeObservationLog:
                         fout.write(line + "\n")
                         continue
                     obs_id = str(row.get("id", ""))
-                    if obs_id in self._outcomes and row.get("result") is None:
+                    if obs_id in self._outcomes:
                         outcome = self._outcomes[obs_id]
-                        row["result"] = outcome.get("horizons")
-                        updated += 1
+                        dirty = False
+                        if row.get("result") is None:
+                            row["result"] = outcome.get("horizons")
+                            dirty = True
+                        # аддитивно: гипотетический R для записей гейтов входа
+                        hyp = outcome.get("hypothetic_r")
+                        if hyp is not None and row.get("hypothetic_r") is None:
+                            row["hypothetic_r"] = hyp
+                            dirty = True
+                        if dirty:
+                            updated += 1
                     fout.write(json.dumps(row, ensure_ascii=False) + "\n")
             tmp_path.replace(self.observations_path)
         except OSError as exc:
@@ -287,6 +307,78 @@ class NoTradeObservationLog:
         }
         if len(keep) != len(self._outcomes):
             self._outcomes = keep
+
+
+def _hypothetic_r(
+    candles: list[models.Candle],
+    bar_time: int,
+    candidate: dict[str, Any] | None,
+    max_bars: int,
+) -> dict[str, Any] | None:
+    """Гипотетический R отклонённого кандидата (грязто, без комиссий).
+
+    Правила фиксированы и консервативны:
+      * отсчёт от close сигнального бара (тот же репер, что и в ``_forward_outcome``);
+      * вход предполагается по цене кандидата, т.е. R = |entry − stop|;
+      * если в одном баре касаются и стоп, и тейк — засчитывается СТОП (как в
+        ``lever_scan``/``edge_scan``);
+      * тейк/стоп исполняются ровно на уровне (без гэпа) — это верхняя оценка
+        для стопа и нижняя для тейка;
+      * если ни один уровень не тронут за ``max_bars`` — выход по close
+        последнего бара окна, ``incomplete=True`` если баров ещё нет.
+
+    Возвращает ``None``, если геометрия непригодна (нет стопа/нулевой риск) —
+    молча, чтобы не влиять на основной поток обогащения.
+    """
+    if not candidate:
+        return None
+    try:
+        entry = float(candidate.get("entry_price") or 0.0)
+        stop = float(candidate.get("stop_loss") or 0.0)
+    except (TypeError, ValueError):
+        return None
+    if entry <= 0.0 or stop <= 0.0:
+        return None
+    risk = abs(entry - stop)
+    if risk <= 0.0:
+        return None
+    dirn = -1.0 if str(candidate.get("direction", "long")).lower() == "short" else 1.0
+    take = candidate.get("take_profit")
+    try:
+        take_dist = abs(float(take) - entry) if take else None
+    except (TypeError, ValueError):
+        take_dist = None
+    index = None
+    for i, c in enumerate(candles):
+        if int(c.open_time) == int(bar_time):
+            index = i
+            break
+    if index is None:
+        return None
+    end_limit = min(len(candles) - 1, index + max(1, int(max_bars)))
+    for k in range(index + 1, end_limit + 1):
+        c = candles[k]
+        hi = float(c.high)
+        lo = float(c.low)
+        if dirn > 0:
+            if lo <= entry - risk:
+                return {"r": -1.0, "exit_kind": "stop", "bars": k - index}
+            if take_dist and hi >= entry + take_dist:
+                return {"r": round(take_dist / risk, 4), "exit_kind": "take", "bars": k - index}
+        else:
+            if hi >= entry + risk:
+                return {"r": -1.0, "exit_kind": "stop", "bars": k - index}
+            if take_dist and lo <= entry - take_dist:
+                return {"r": round(take_dist / risk, 4), "exit_kind": "take", "bars": k - index}
+    if end_limit <= index:
+        return None  # будущего ещё нет — дождёмся следующего цикла
+    cl = float(candles[end_limit].close)
+    return {
+        "r": round((cl - entry) * dirn / risk, 4),
+        "exit_kind": "time",
+        "bars": end_limit - index,
+        "incomplete": end_limit < index + max(1, int(max_bars)),
+    }
 
 
 def _forward_outcome(
