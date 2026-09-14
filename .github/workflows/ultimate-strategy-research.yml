@@ -15,6 +15,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - uses: actions/setup-python@v5
         with:
@@ -26,7 +28,7 @@ jobs:
           pip install pandas numpy
 
       - name: Run research
-        run: python research/ultimate_strategy.py
+        run: python research/ultimate_strategy_fixed.py
 
       - name: Show report
         run: cat research_ultimate_report.md
@@ -34,7 +36,7 @@ jobs:
       - name: Upload research results
         uses: actions/upload-artifact@v4
         with:
-          name: ultimate-strategy-results
+          name: ultimate-strategy-results-v2
           path: |
             research_ultimate_report.md
             research_ultimate_all_results.csv
