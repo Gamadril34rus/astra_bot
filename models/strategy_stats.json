@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-14T04:03:49.606019+00:00",
+  "updated": "2026-09-14T04:11:46.596107+00:00",
   "buckets": {
     "scalp5m|UNKNOWN|": {
       "sample_size": 1,
@@ -1130,16 +1130,16 @@
       "last_updated": "2026-09-10T05:02:16.675968+00:00"
     },
     "expanding_triangle|ANY|5m": {
-      "sample_size": 4,
+      "sample_size": 5,
       "wins": 1,
-      "losses": 3,
-      "sum_r": -4.592825070188265,
+      "losses": 4,
+      "sum_r": -4.768721846562499,
       "wins_sum_r": 1.0432164509634052e-25,
-      "losses_sum_r": -4.592825070188265,
-      "sum_mfe_r": 1.1803656205516828,
-      "sum_mae_r": 5.423998292785513,
-      "sum_fees": 8.601715566293828,
-      "last_updated": "2026-09-14T03:43:48.061130+00:00"
+      "losses_sum_r": -4.768721846562499,
+      "sum_mfe_r": 1.6492032836808541,
+      "sum_mae_r": 5.522302964086791,
+      "sum_fees": 9.4515934992188,
+      "last_updated": "2026-09-14T04:11:46.596076+00:00"
     },
     "diamond|T:WEAK/V:LOW/L:STRESSED|5m": {
       "sample_size": 2,
@@ -1322,16 +1322,16 @@
       "last_updated": "2026-09-10T06:38:52.790438+00:00"
     },
     "expanding_triangle|LOW_VOLATILITY|5m": {
-      "sample_size": 1,
+      "sample_size": 2,
       "wins": 0,
-      "losses": 1,
-      "sum_r": -0.6569198023009363,
+      "losses": 2,
+      "sum_r": -0.8328165786751707,
       "wins_sum_r": 0.0,
-      "losses_sum_r": -0.6569198023009363,
-      "sum_mfe_r": -0.07283745593333917,
-      "sum_mae_r": 0.4734434635667045,
-      "sum_fees": 3.468780705487776,
-      "last_updated": "2026-09-10T06:38:52.790450+00:00"
+      "losses_sum_r": -0.8328165786751707,
+      "sum_mfe_r": 0.39600020719583207,
+      "sum_mae_r": 0.5717481348679824,
+      "sum_fees": 4.318658638412748,
+      "last_updated": "2026-09-14T04:11:46.596071+00:00"
     },
     "pennant|T:RANGE/V:VERY_LOW/L:NORMAL|5m": {
       "sample_size": 2,
@@ -2220,6 +2220,18 @@
       "sum_mae_r": 0.22879555482922045,
       "sum_fees": 0.8515440663138235,
       "last_updated": "2026-09-14T04:03:49.605978+00:00"
+    },
+    "expanding_triangle|T:RANGE/V:VERY_LOW/L:NORMAL|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -0.17589677637423445,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -0.17589677637423445,
+      "sum_mfe_r": 0.46883766312917124,
+      "sum_mae_r": 0.09830467130127783,
+      "sum_fees": 0.8498779329249719,
+      "last_updated": "2026-09-14T04:11:46.596060+00:00"
     }
   }
 }
