@@ -22,8 +22,8 @@
       "initial_quantity": "2408.25607225",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "0.3533",
+      "lowest_price": "0.3533",
       "strategy": "liquidity_sweep",
       "opened_at": 1789348540716,
       "notes": {
@@ -52,12 +52,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
-      "bars_held": 0,
+      "bars_held": 1,
       "leverage": "2",
       "margin_used": "425.538847966575",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.347879599999999920",
-      "plan_last_bar_ts": 0
+      "plan_last_bar_ts": 1789348500000
     }
   ],
   "realized_pnl": "-2102.530903935311085242829642",
