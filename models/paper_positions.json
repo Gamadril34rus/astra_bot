@@ -6,7 +6,7 @@
       "direction": "short",
       "entry_price": "0.3534",
       "quantity": "2408.25607225",
-      "stop_loss": "0.3558428571428571",
+      "stop_loss": "0.35555714285714285",
       "take_profits": [
         "0.35063979999999996",
         "0.347879599999999920"
@@ -23,7 +23,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "0.3545",
-      "lowest_price": "0.3528",
+      "lowest_price": "0.3524",
       "strategy": "liquidity_sweep",
       "opened_at": 1789348540716,
       "notes": {
@@ -52,7 +52,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
-      "bars_held": 4,
+      "bars_held": 5,
       "leverage": "2",
       "margin_used": "425.538847966575",
       "plan_variant": "STATIC_TP",
@@ -63,7 +63,6 @@
   "realized_pnl": "-2102.530903935311085242829642",
   "initial_capital": "36098.87",
   "cooldowns": {
-    "diamond|TIA-USDT|short": 1789349486251,
     "rectangle|BNB-USDT|long": 1789349824263
   }
 }
