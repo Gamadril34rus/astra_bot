@@ -23,7 +23,7 @@
       "trailing_activated": true,
       "trailing_distance": null,
       "highest_price": "0.14997",
-      "lowest_price": "0.14708",
+      "lowest_price": "0.14691",
       "strategy": "order_block",
       "opened_at": 1789495368377,
       "notes": {
@@ -52,12 +52,12 @@
       "regime": "RANGE",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:LOW/L:DEEP",
-      "bars_held": 2,
+      "bars_held": 3,
       "leverage": "1",
       "margin_used": "848.9206547957850",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.146043960",
-      "plan_last_bar_ts": 1789495500000
+      "plan_last_bar_ts": 1789495800000
     },
     {
       "id": "51ef514a-be87-412a-a889-64d4c3f011a3",
@@ -65,7 +65,7 @@
       "direction": "short",
       "entry_price": "0.10026",
       "quantity": "8468.09673925",
-      "stop_loss": "0.10106714285714286",
+      "stop_loss": "0.10105",
       "take_profits": [
         "0.09823922",
         "0.096218440"
@@ -111,12 +111,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:LOW/L:DEEP",
-      "bars_held": 1,
+      "bars_held": 2,
       "leverage": "1",
       "margin_used": "849.0113790772050",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.096218440",
-      "plan_last_bar_ts": 1789495500000
+      "plan_last_bar_ts": 1789495800000
     }
   ],
   "realized_pnl": "-2173.492164756061110853311318",
