@@ -6,7 +6,7 @@
       "direction": "long",
       "entry_price": "0.14251",
       "quantity": "4165.233844975",
-      "stop_loss": "0.1429386185025383061901321031",
+      "stop_loss": "0.1429387673220577589428681641",
       "take_profits": [
         "0.1453602",
         "0.1482420000000000000000000000"
@@ -22,7 +22,7 @@
       "initial_quantity": "5950.33406425",
       "trailing_activated": true,
       "trailing_distance": null,
-      "highest_price": "0.14687",
+      "highest_price": "0.14704",
       "lowest_price": "0.14030",
       "strategy": "mean_reversion_v2",
       "opened_at": 1789498025985,
@@ -52,12 +52,12 @@
       "regime": "RANGE",
       "timeframe": "5m",
       "regime_axes": "T:TRANSITION/V:NORMAL/L:DEEP",
-      "bars_held": 3,
+      "bars_held": 4,
       "leverage": "1",
       "margin_used": "847.9821074962675",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.1482420000000000000000000000",
-      "plan_last_bar_ts": 1789498200000
+      "plan_last_bar_ts": 1789498500000
     },
     {
       "id": "acc70a77-f8ce-4d6a-a1d1-01966b0fb4a5",
@@ -65,7 +65,7 @@
       "direction": "long",
       "entry_price": "0.07426",
       "quantity": "31968.756391600",
-      "stop_loss": "0.07477142857142857",
+      "stop_loss": "0.07504428571428572",
       "take_profits": [
         "0.0757452",
         "0.07748449999999998000000000000"
@@ -81,7 +81,7 @@
       "initial_quantity": "45669.65198800",
       "trailing_activated": true,
       "trailing_distance": null,
-      "highest_price": "0.07597",
+      "highest_price": "0.07632",
       "lowest_price": "0.07531",
       "strategy": "mean_reversion_v2",
       "opened_at": 1789498362645,
@@ -111,18 +111,76 @@
       "regime": "WEAK_BEAR_TREND",
       "timeframe": "5m",
       "regime_axes": "T:WEAK/V:LOW/L:DEEP",
-      "bars_held": 1,
+      "bars_held": 2,
       "leverage": "1",
       "margin_used": "3391.4283566288800",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.07748449999999998000000000000",
-      "plan_last_bar_ts": 1789498200000
+      "plan_last_bar_ts": 1789498500000
+    },
+    {
+      "id": "e129066c-d7e9-4d41-9815-cfed5da817d9",
+      "symbol": "UNI-USDT",
+      "direction": "short",
+      "entry_price": "6.383",
+      "quantity": "533.59421500",
+      "stop_loss": "6.5208571428571425",
+      "take_profits": [
+        "6.216851",
+        "6.0507020"
+      ],
+      "tp_filled": [
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.3,
+        0.7
+      ],
+      "initial_quantity": "533.59421500",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": "6.430",
+      "lowest_price": "6.372",
+      "strategy": "order_block",
+      "opened_at": 1789498980337,
+      "notes": {
+        "signal_bar_close": 6.396,
+        "effective_entry": 6.376617,
+        "initial_stop": 6.549149,
+        "initial_take": 6.133776500000001,
+        "stop_pct": 0.027056980213803025,
+        "confidence": 0.64122467914025,
+        "ml_probability": null,
+        "prior_r": 0.48780972522364396,
+        "costs_r": 0.11087711844759233,
+        "equity_before": 34025.25941160304,
+        "risk_budget": 340.25259411603037,
+        "binding_constraint": "none",
+        "score": 73.0,
+        "edge_pct": 52.3504,
+        "ev_r": 0.523504338452076,
+        "ev_confidence": 0.23076923076923078,
+        "rr": 1.499999999999994,
+        "leverage": 1
+      },
+      "fill_price": "6.376617",
+      "entry_fee_per_unit": "0.0031883085",
+      "risk_distance": "0.166149",
+      "regime": "RANGE",
+      "timeframe": "5m",
+      "regime_axes": "T:RANGE/V:LOW/L:DEEP",
+      "bars_held": 1,
+      "leverage": "1",
+      "margin_used": "3405.93187434500",
+      "plan_variant": "STATIC_TP",
+      "plan_take": "6.0507020",
+      "plan_last_bar_ts": 1789498500000
     }
   ],
   "realized_pnl": "-2130.623307049983797829674125",
   "initial_capital": "36098.87",
   "cooldowns": {
-    "momentum_v2|ARB-USDT|short": 1789499052112,
     "mean_reversion_v2|DOT-USDT|long": 1789499330021
   }
 }
