@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-15T22:02:47.586647+00:00",
+  "updated": "2026-09-15T22:27:24.438922+00:00",
   "buckets": {
     "scalp5m|UNKNOWN|": {
       "sample_size": 1,
@@ -1514,16 +1514,16 @@
       "last_updated": "2026-09-15T22:02:47.586615+00:00"
     },
     "order_block|ANY|5m": {
-      "sample_size": 13,
-      "wins": 3,
+      "sample_size": 14,
+      "wins": 4,
       "losses": 10,
-      "sum_r": -0.7196166859463883,
-      "wins_sum_r": 2.803178662756739,
+      "sum_r": -0.0228818383970536,
+      "wins_sum_r": 3.499913510306074,
       "losses_sum_r": -3.522795348703128,
-      "sum_mfe_r": 8.114667335412545,
-      "sum_mae_r": 3.8726145298713384,
-      "sum_fees": 36.44386974715326,
-      "last_updated": "2026-09-15T22:02:47.586618+00:00"
+      "sum_mfe_r": 9.179976184698427,
+      "sum_mae_r": 4.155493150868154,
+      "sum_fees": 39.813896294962476,
+      "last_updated": "2026-09-15T22:27:24.438891+00:00"
     },
     "order_block|T:RANGE/V:VERY_LOW/L:NORMAL|5m": {
       "sample_size": 1,
@@ -2306,28 +2306,28 @@
       "last_updated": "2026-09-14T13:38:55.544050+00:00"
     },
     "order_block|T:RANGE/V:LOW/L:DEEP|5m": {
-      "sample_size": 3,
-      "wins": 2,
+      "sample_size": 4,
+      "wins": 3,
       "losses": 1,
-      "sum_r": 2.247939421370759,
-      "wins_sum_r": 2.803086979381776,
+      "sum_r": 2.9446742689200933,
+      "wins_sum_r": 3.499821826931111,
       "losses_sum_r": -0.5551475580110173,
-      "sum_mfe_r": 5.289709869313989,
-      "sum_mae_r": 0.7467157133184186,
-      "sum_fees": 2.5280478567447666,
-      "last_updated": "2026-09-15T18:39:24.809956+00:00"
+      "sum_mfe_r": 6.3550187185998706,
+      "sum_mae_r": 1.0295943343152347,
+      "sum_fees": 5.898074404553983,
+      "last_updated": "2026-09-15T22:27:24.438876+00:00"
     },
     "order_block|RANGE|5m": {
-      "sample_size": 1,
-      "wins": 1,
+      "sample_size": 2,
+      "wins": 2,
       "losses": 0,
-      "sum_r": 1.4689625944907942,
-      "wins_sum_r": 1.4689625944907942,
+      "sum_r": 2.1656974420401287,
+      "wins_sum_r": 2.1656974420401287,
       "losses_sum_r": 0.0,
-      "sum_mfe_r": 2.709280194693763,
-      "sum_mae_r": 0.041601231396449334,
-      "sum_fees": 0.8396538237487803,
-      "last_updated": "2026-09-15T18:20:00.500039+00:00"
+      "sum_mfe_r": 3.774589043979645,
+      "sum_mae_r": 0.32447985239326543,
+      "sum_fees": 4.2096803715579965,
+      "last_updated": "2026-09-15T22:27:24.438886+00:00"
     },
     "momentum_v2|T:RANGE/V:NORMAL/L:DEEP|5m": {
       "sample_size": 1,
