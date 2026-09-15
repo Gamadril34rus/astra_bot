@@ -3,6 +3,7 @@ Detector smoke tests for 4h breakout onboarding family.
 Synthetic fixed candles — no network, no live config load.
 enabled=false is a config concern; detectors must still fire on fixtures.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -73,7 +74,10 @@ def test_new_registry_names_are_distinct():
 def test_pattern_type_enum_count():
     """Bonus: PatternType inventory from pattern_strategies (if importable)."""
     try:
-        from astra_bot.decision.strategies.pattern_strategies import PatternType, ALL_PATTERN_STRATEGIES
+        from astra_bot.decision.strategies.pattern_strategies import (
+            ALL_PATTERN_STRATEGIES,
+            PatternType,
+        )
     except Exception:
         pytest.skip("pattern_strategies not importable in this environment")
     types = [p for p in PatternType if p.name != "NONE"]
