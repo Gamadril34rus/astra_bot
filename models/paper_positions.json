@@ -6,7 +6,7 @@
       "direction": "short",
       "entry_price": "6.383",
       "quantity": "533.59421500",
-      "stop_loss": "6.297571428571429",
+      "stop_loss": "6.295857142857143",
       "take_profits": [
         "6.216851",
         "6.0507020"
@@ -52,12 +52,12 @@
       "regime": "RANGE",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:LOW/L:DEEP",
-      "bars_held": 30,
+      "bars_held": 31,
       "leverage": "1",
       "margin_used": "3405.93187434500",
       "plan_variant": "STATIC_TP",
       "plan_take": "6.0507020",
-      "plan_last_bar_ts": 1789507800000
+      "plan_last_bar_ts": 1789508100000
     },
     {
       "id": "4176365f-02df-4c9a-8c4f-49afb4eb921b",
@@ -81,7 +81,7 @@
       "initial_quantity": "471.73984700",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "7.199",
+      "highest_price": "7.200",
       "lowest_price": "7.164",
       "strategy": "order_block",
       "opened_at": 1789507362371,
@@ -111,12 +111,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 3,
+      "bars_held": 4,
       "leverage": "1",
       "margin_used": "3394.63993901200",
       "plan_variant": "STATIC_TP",
       "plan_take": "7.4543239999999980",
-      "plan_last_bar_ts": 1789507800000
+      "plan_last_bar_ts": 1789508100000
     },
     {
       "id": "5c5dade2-96cb-4ef7-8a4c-6175c8570842",
@@ -124,7 +124,7 @@
       "direction": "long",
       "entry_price": "96.956",
       "quantity": "34.733578",
-      "stop_loss": "96.317132",
+      "stop_loss": "96.358",
       "take_profits": [
         "98.38443800000001",
         "99.812876000000020"
@@ -141,7 +141,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "97.020",
-      "lowest_price": "96.699",
+      "lowest_price": "96.696",
       "strategy": "order_block",
       "opened_at": 1789507555957,
       "notes": {
@@ -170,18 +170,17 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 3,
+      "bars_held": 5,
       "leverage": "1",
       "margin_used": "3367.628788568",
       "plan_variant": "STATIC_TP",
       "plan_take": "99.812876000000020",
-      "plan_last_bar_ts": 1789507800000
+      "plan_last_bar_ts": 1789508100000
     }
   ],
   "realized_pnl": "-2193.642514303242216759591344",
   "initial_capital": "36098.87",
   "cooldowns": {
-    "order_block|HBAR-USDT|long": 1789508544183,
     "order_block|LINK-USDT|long": 1789508633769
   }
 }
