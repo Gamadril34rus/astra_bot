@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-15T22:27:24.438922+00:00",
+  "updated": "2026-09-15T23:23:00.748664+00:00",
   "buckets": {
     "scalp5m|UNKNOWN|": {
       "sample_size": 1,
@@ -830,16 +830,16 @@
       "last_updated": "2026-09-09T15:02:09.680124+00:00"
     },
     "mean_reversion_v2|ANY|5m": {
-      "sample_size": 7,
+      "sample_size": 8,
       "wins": 4,
-      "losses": 3,
-      "sum_r": 1.265837292048432,
+      "losses": 4,
+      "sum_r": 0.9110057148507475,
       "wins_sum_r": 2.696410324104609,
-      "losses_sum_r": -1.4305730320561774,
+      "losses_sum_r": -1.7854046092538618,
       "sum_mfe_r": 4.931484972448661,
-      "sum_mae_r": 2.2081340719148708,
-      "sum_fees": 13.74421856617762,
-      "last_updated": "2026-09-15T20:09:05.676342+00:00"
+      "sum_mae_r": 2.4420339627615886,
+      "sum_fees": 17.14883104642132,
+      "last_updated": "2026-09-15T23:23:00.748634+00:00"
     },
     "double_top_bottom|T:RANGE/V:VERY_LOW/L:DEEP|5m": {
       "sample_size": 7,
@@ -2390,16 +2390,16 @@
       "last_updated": "2026-09-15T18:52:41.615171+00:00"
     },
     "mean_reversion_v2|RANGE|5m": {
-      "sample_size": 2,
+      "sample_size": 3,
       "wins": 1,
-      "losses": 1,
-      "sum_r": 1.1986537340990986,
+      "losses": 2,
+      "sum_r": 0.8438221569014142,
       "wins_sum_r": 1.5548976860625279,
-      "losses_sum_r": -0.3562439519634293,
+      "losses_sum_r": -0.7110755291611137,
       "sum_mfe_r": 1.8698343315850912,
-      "sum_mae_r": 1.3948885800488793,
-      "sum_fees": 1.7084199624996177,
-      "last_updated": "2026-09-15T19:19:32.935784+00:00"
+      "sum_mae_r": 1.6287884708955969,
+      "sum_fees": 5.113032442743317,
+      "last_updated": "2026-09-15T23:23:00.748628+00:00"
     },
     "mean_reversion_v2|T:TRANSITION/V:NORMAL/L:DEEP|5m": {
       "sample_size": 1,
@@ -2472,6 +2472,18 @@
       "sum_mae_r": 1.4499563975826928,
       "sum_fees": 16.89180851676142,
       "last_updated": "2026-09-15T22:02:47.586602+00:00"
+    },
+    "mean_reversion_v2|T:TRANSITION/V:LOW/L:DEEP|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -0.3548315771976844,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -0.3548315771976844,
+      "sum_mfe_r": 0.0,
+      "sum_mae_r": 0.2338998908467176,
+      "sum_fees": 3.4046124802436992,
+      "last_updated": "2026-09-15T23:23:00.748617+00:00"
     }
   }
 }
