@@ -2,6 +2,10 @@ name: Track C deep history
 
 # Deep-history Zeus Track C (PR #77/#78). Research-only: no live trading.
 # Dispatch manually before owner slice 26–27.09. Artifacts retain OOS JSON.
+#
+# Symbols:
+#   * BTCUSDT 1h+4h — ALWAYS (Zeus setups are BTC-native; no BTC → incomplete verdict)
+#   * ETHUSDT + SOLUSDT — optional via input fetch_eth_sol (default on)
 
 on:
   workflow_dispatch:
@@ -11,7 +15,7 @@ on:
         required: false
         default: "20000"
       fetch_eth_sol:
-        description: "Also fetch ETH+SOL (1=yes)"
+        description: "Also fetch ETH+SOL in addition to mandatory BTC (1=yes, 0=BTC only)"
         required: false
         default: "1"
 
@@ -37,19 +41,21 @@ jobs:
           python scripts/track_c_replay.py --self-test | tee reports/track_c_self_test.json
           python -c "import json,sys; d=json.load(open('reports/track_c_self_test.json')); assert d.get('ready_for_data') is True; assert all(d['checks'].values()), d['checks']"
 
-      - name: Fetch klines (Binance Vision via fetch_klines.py)
+      - name: Fetch klines (BTC mandatory; ETH/SOL optional)
         env:
           FETCH_ETH_SOL: ${{ github.event.inputs.fetch_eth_sol }}
         run: |
           set -euo pipefail
           mkdir -p data data/track_c reports
           END=$(date -u +%Y-%m-%d)
-          for sym in BTCUSDT; do
-            for tf in 4h 1h; do
-              python scripts/fetch_klines.py --symbol "$sym" --timeframe "$tf" \
-                --start 2021-01-01 --end "$END" --out "data/${sym}_${tf}.csv"
-            done
+          # --- BTCUSDT always (required for Zeus Track C verdict) ---
+          for tf in 4h 1h; do
+            python scripts/fetch_klines.py --symbol BTCUSDT --timeframe "$tf" \
+              --start 2021-01-01 --end "$END" --out "data/BTCUSDT_${tf}.csv"
           done
+          test -s data/BTCUSDT_4h.csv && test -s data/BTCUSDT_1h.csv
+          echo "BTCUSDT 1h+4h OK (mandatory)"
+          # --- ETH/SOL optional ---
           if [ "${FETCH_ETH_SOL:-1}" = "1" ]; then
             for sym in ETHUSDT SOLUSDT; do
               for tf in 4h 1h; do
@@ -57,6 +63,8 @@ jobs:
                   --start 2021-01-01 --end "$END" --out "data/${sym}_${tf}.csv" || true
               done
             done
+          else
+            echo "fetch_eth_sol=0 → BTC only"
           fi
 
       - name: Convert CSVs to unofficial Track C feed names
@@ -67,9 +75,9 @@ jobs:
           import pandas as pd
           out = Path("data/track_c")
           out.mkdir(parents=True, exist_ok=True)
+          written = []
           for src in Path("data").glob("*USDT_*.csv"):
-              # BTCUSDT_4h.csv → Binance_BTCUSDT_4h.csv
-              name = src.name  # BTCUSDT_4h.csv
+              name = src.name
               parts = name.replace(".csv", "").split("_")
               if len(parts) < 2:
                   continue
@@ -77,7 +85,6 @@ jobs:
               df = pd.read_csv(src)
               col = "open_time" if "open_time" in df.columns else df.columns[0]
               ts = pd.to_numeric(df[col], errors="coerce")
-              # ms → ISO timestamp column expected by load()
               df2 = pd.DataFrame({
                   "timestamp": pd.to_datetime(ts, unit="ms", utc=True).astype(str),
                   "open": df["open"],
@@ -88,7 +95,14 @@ jobs:
               })
               dest = out / f"Binance_{sym}_{tf}.csv"
               df2.to_csv(dest, index=False)
+              written.append(dest.name)
               print("wrote", dest, len(df2))
+          # Fail hard if mandatory BTC missing after convert
+          need = {"Binance_BTCUSDT_4h.csv", "Binance_BTCUSDT_1h.csv"}
+          missing = need - set(written)
+          if missing:
+              raise SystemExit(f"mandatory BTC feeds missing: {missing}")
+          print("mandatory BTC feeds present:", sorted(need))
           PY
 
       - name: Track C replay (full deep history)
@@ -96,13 +110,12 @@ jobs:
           TRACK_C_RESAMPLES: ${{ github.event.inputs.resamples }}
         run: |
           set -euo pipefail
-          # Optional override of RESAMPLES without editing source: patch constant if input set
           if [ -n "${TRACK_C_RESAMPLES:-}" ]; then
             sed -i "s/^RESAMPLES = .*/RESAMPLES = ${TRACK_C_RESAMPLES}/" scripts/track_c_replay.py
           fi
           python -u scripts/track_c_replay.py \
             --data-dir data/track_c \
-            --provenance "Actions track-c-deep: fetch_klines Vision → unofficial feed; RESAMPLES=${TRACK_C_RESAMPLES:-20000}" \
+            --provenance "Actions track-c-deep: BTC mandatory + optional ETH/SOL; Vision fetch; RESAMPLES=${TRACK_C_RESAMPLES:-20000}" \
             | tee reports/track_c_deep_history_raw.json
 
       - name: Render OOS table into markdown report
@@ -124,6 +137,10 @@ jobs:
               f"**Source:** {d.get('source')}",
               f"**Seed / resamples:** {d.get('seed')} / {d.get('resamples')}",
               f"**Cost RT %:** {d.get('cost_round_trip_pct')}",
+              "",
+              "## Symbols",
+              "- **BTCUSDT** 1h+4h — mandatory (Zeus-native)",
+              "- ETHUSDT / SOLUSDT — if fetch_eth_sol=1",
               "",
               "## Self-test",
               "See artifact `track_c_self_test.json` (must be ready_for_data=true).",
