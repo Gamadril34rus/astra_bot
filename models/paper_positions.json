@@ -52,12 +52,12 @@
       "regime": "RANGE",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:LOW/L:DEEP",
-      "bars_held": 37,
+      "bars_held": 38,
       "leverage": "1",
       "margin_used": "3405.93187434500",
       "plan_variant": "STATIC_TP",
       "plan_take": "6.0507020",
-      "plan_last_bar_ts": 1789509300000
+      "plan_last_bar_ts": 1789509900000
     },
     {
       "id": "71e94482-70a3-4101-9cc2-00a444f964ca",
@@ -111,18 +111,17 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
-      "bars_held": 2,
+      "bars_held": 3,
       "leverage": "1",
       "margin_used": "3389.871264429600",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.19817040",
-      "plan_last_bar_ts": 1789509600000
+      "plan_last_bar_ts": 1789509900000
     }
   ],
   "realized_pnl": "-2228.724333536038761135474898",
   "initial_capital": "36098.87",
   "cooldowns": {
-    "order_block|ETC-USDT|long": 1789510475335,
     "order_block|SOL-USDT|long": 1789510967317
   }
 }
