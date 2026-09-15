@@ -23,7 +23,7 @@
       "trailing_activated": true,
       "trailing_distance": null,
       "highest_price": "0.07632",
-      "lowest_price": "0.07522",
+      "lowest_price": "0.07518",
       "strategy": "mean_reversion_v2",
       "opened_at": 1789498362645,
       "notes": {
@@ -52,12 +52,12 @@
       "regime": "WEAK_BEAR_TREND",
       "timeframe": "5m",
       "regime_axes": "T:WEAK/V:LOW/L:DEEP",
-      "bars_held": 7,
+      "bars_held": 8,
       "leverage": "1",
       "margin_used": "3391.4283566288800",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.07748449999999998000000000000",
-      "plan_last_bar_ts": 1789500000000
+      "plan_last_bar_ts": 1789500300000
     },
     {
       "id": "e129066c-d7e9-4d41-9815-cfed5da817d9",
@@ -111,12 +111,12 @@
       "regime": "RANGE",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:LOW/L:DEEP",
-      "bars_held": 6,
+      "bars_held": 7,
       "leverage": "1",
       "margin_used": "3405.93187434500",
       "plan_variant": "STATIC_TP",
       "plan_take": "6.0507020",
-      "plan_last_bar_ts": 1789500000000
+      "plan_last_bar_ts": 1789500300000
     },
     {
       "id": "33443310-b1ff-4f23-9608-5d7faa6f28ec",
@@ -141,7 +141,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "98.377",
-      "lowest_price": "97.840",
+      "lowest_price": "97.451",
       "strategy": "order_block",
       "opened_at": 1789500093900,
       "notes": {
@@ -170,12 +170,12 @@
       "regime": "WEAK_BEAR_TREND",
       "timeframe": "5m",
       "regime_axes": "T:WEAK/V:LOW/L:DEEP",
-      "bars_held": 2,
+      "bars_held": 3,
       "leverage": "1",
       "margin_used": "3395.63440911200",
       "plan_variant": "STATIC_TP",
       "plan_take": "103.113928000000020",
-      "plan_last_bar_ts": 1789500000000
+      "plan_last_bar_ts": 1789500300000
     }
   ],
   "realized_pnl": "-2108.569082389617174142220740",
