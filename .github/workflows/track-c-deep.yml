@@ -1,0 +1,186 @@
+name: Track C deep history
+
+# Deep-history Zeus Track C (PR #77/#78). Research-only: no live trading.
+# Dispatch manually before owner slice 26–27.09. Artifacts retain OOS JSON.
+
+on:
+  workflow_dispatch:
+    inputs:
+      resamples:
+        description: "Bootstrap resamples (canon 20000; lower only for debug)"
+        required: false
+        default: "20000"
+      fetch_eth_sol:
+        description: "Also fetch ETH+SOL (1=yes)"
+        required: false
+        default: "1"
+
+jobs:
+  track-c:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Self-test (must be 10/10)
+        run: |
+          set -euo pipefail
+          python scripts/track_c_replay.py --self-test | tee reports/track_c_self_test.json
+          python -c "import json,sys; d=json.load(open('reports/track_c_self_test.json')); assert d.get('ready_for_data') is True; assert all(d['checks'].values()), d['checks']"
+
+      - name: Fetch klines (Binance Vision via fetch_klines.py)
+        env:
+          FETCH_ETH_SOL: ${{ github.event.inputs.fetch_eth_sol }}
+        run: |
+          set -euo pipefail
+          mkdir -p data data/track_c reports
+          END=$(date -u +%Y-%m-%d)
+          for sym in BTCUSDT; do
+            for tf in 4h 1h; do
+              python scripts/fetch_klines.py --symbol "$sym" --timeframe "$tf" \
+                --start 2021-01-01 --end "$END" --out "data/${sym}_${tf}.csv"
+            done
+          done
+          if [ "${FETCH_ETH_SOL:-1}" = "1" ]; then
+            for sym in ETHUSDT SOLUSDT; do
+              for tf in 4h 1h; do
+                python scripts/fetch_klines.py --symbol "$sym" --timeframe "$tf" \
+                  --start 2021-01-01 --end "$END" --out "data/${sym}_${tf}.csv" || true
+              done
+            done
+          fi
+
+      - name: Convert CSVs to unofficial Track C feed names
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import pandas as pd
+          out = Path("data/track_c")
+          out.mkdir(parents=True, exist_ok=True)
+          for src in Path("data").glob("*USDT_*.csv"):
+              # BTCUSDT_4h.csv → Binance_BTCUSDT_4h.csv
+              name = src.name  # BTCUSDT_4h.csv
+              parts = name.replace(".csv", "").split("_")
+              if len(parts) < 2:
+                  continue
+              sym, tf = parts[0], parts[1]
+              df = pd.read_csv(src)
+              col = "open_time" if "open_time" in df.columns else df.columns[0]
+              ts = pd.to_numeric(df[col], errors="coerce")
+              # ms → ISO timestamp column expected by load()
+              df2 = pd.DataFrame({
+                  "timestamp": pd.to_datetime(ts, unit="ms", utc=True).astype(str),
+                  "open": df["open"],
+                  "high": df["high"],
+                  "low": df["low"],
+                  "close": df["close"],
+                  "volume": df["volume"],
+              })
+              dest = out / f"Binance_{sym}_{tf}.csv"
+              df2.to_csv(dest, index=False)
+              print("wrote", dest, len(df2))
+          PY
+
+      - name: Track C replay (full deep history)
+        env:
+          TRACK_C_RESAMPLES: ${{ github.event.inputs.resamples }}
+        run: |
+          set -euo pipefail
+          # Optional override of RESAMPLES without editing source: patch constant if input set
+          if [ -n "${TRACK_C_RESAMPLES:-}" ]; then
+            sed -i "s/^RESAMPLES = .*/RESAMPLES = ${TRACK_C_RESAMPLES}/" scripts/track_c_replay.py
+          fi
+          python -u scripts/track_c_replay.py \
+            --data-dir data/track_c \
+            --provenance "Actions track-c-deep: fetch_klines Vision → unofficial feed; RESAMPLES=${TRACK_C_RESAMPLES:-20000}" \
+            | tee reports/track_c_deep_history_raw.json
+
+      - name: Render OOS table into markdown report
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from datetime import datetime, timezone
+          raw = Path("reports/track_c_deep_history_raw.json")
+          if not raw.exists():
+              raise SystemExit("missing raw json")
+          d = json.loads(raw.read_text())
+          lines = [
+              "# Track C deep history — Actions run",
+              "",
+              f"**Generated (UTC):** {datetime.now(timezone.utc).isoformat()}",
+              f"**Provenance:** {d.get('provenance')}",
+              f"**Source:** {d.get('source')}",
+              f"**Seed / resamples:** {d.get('seed')} / {d.get('resamples')}",
+              f"**Cost RT %:** {d.get('cost_round_trip_pct')}",
+              "",
+              "## Self-test",
+              "See artifact `track_c_self_test.json` (must be ready_for_data=true).",
+              "",
+              "## Pooled OOS (primary decision table)",
+              "",
+              "| Window|Variant | n | mean_r | PF | CI low | CI high | verdict |",
+              "|-------|---------|--:|-------:|---:|-------:|--------:|---------|",
+          ]
+          pooled = d.get("pooled") or {}
+          for key in sorted(pooled):
+              if not key.startswith("out_of_sample"):
+                  continue
+              m = pooled[key]
+              name = key.split("|", 1)[-1]
+              lines.append(
+                  f"| OOS | {name} | {m.get('n')} | {m.get('mean_r')} | {m.get('pf')} | "
+                  f"{m.get('ci_low')} | {m.get('ci_high')} | {m.get('verdict', '')} |"
+              )
+          lines += ["", "## Per symbol/TF (htf_context_coverage for Z6)", ""]
+          for sk, sv in sorted((d.get("symbols") or {}).items()):
+              if not isinstance(sv, dict) or "out_of_sample" not in sv:
+                  lines.append(f"- `{sk}`: {sv}")
+                  continue
+              cov = sv.get("htf_context_coverage")
+              lines.append(f"### `{sk}` — htf_context_coverage={cov}")
+              lines.append("")
+              lines.append("| Variant | n | mean_r | PF | verdict |")
+              lines.append("|---------|--:|-------:|---:|---------|")
+              vo = sv.get("verdict_oos") or {}
+              for name, m in (sv.get("out_of_sample") or {}).items():
+                  lines.append(
+                      f"| {name} | {m.get('n')} | {m.get('mean_r')} | {m.get('pf')} | {vo.get(name)} |"
+                  )
+              lines.append("")
+          lines += [
+              "## Labels",
+              "- **strong** forbidden (PR #77)",
+              "- moderate / weak / none only",
+              "- Z6: no HTF context ≠ falsified — read htf_context_coverage",
+              "",
+              "## Short-window legacy (anecdote only)",
+              "| Setup | Short window |",
+              "|-------|--------------|",
+              "| Z3 | +0.39R @ n=8 |",
+              "| Z4 | +0.50R @ n=10 |",
+          ]
+          Path("reports/track_c_deep_history_2026-09-16.md").write_text("\n".join(lines) + "\n")
+          print("wrote reports/track_c_deep_history_2026-09-16.md")
+          PY
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: track-c-deep-history
+          path: |
+            reports/track_c_deep_history_raw.json
+            reports/track_c_deep_history_2026-09-16.md
+            reports/track_c_self_test.json
+          retention-days: 90
