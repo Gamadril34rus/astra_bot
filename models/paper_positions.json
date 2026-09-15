@@ -6,7 +6,7 @@
       "direction": "long",
       "entry_price": "0.14251",
       "quantity": "4165.233844975",
-      "stop_loss": "0.1429387673220577589428681641",
+      "stop_loss": "0.1429389161415772116956042252",
       "take_profits": [
         "0.1453602",
         "0.1482420000000000000000000000"
@@ -52,12 +52,12 @@
       "regime": "RANGE",
       "timeframe": "5m",
       "regime_axes": "T:TRANSITION/V:NORMAL/L:DEEP",
-      "bars_held": 4,
+      "bars_held": 5,
       "leverage": "1",
       "margin_used": "847.9821074962675",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.1482420000000000000000000000",
-      "plan_last_bar_ts": 1789498500000
+      "plan_last_bar_ts": 1789498800000
     },
     {
       "id": "acc70a77-f8ce-4d6a-a1d1-01966b0fb4a5",
@@ -111,12 +111,12 @@
       "regime": "WEAK_BEAR_TREND",
       "timeframe": "5m",
       "regime_axes": "T:WEAK/V:LOW/L:DEEP",
-      "bars_held": 2,
+      "bars_held": 3,
       "leverage": "1",
       "margin_used": "3391.4283566288800",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.07748449999999998000000000000",
-      "plan_last_bar_ts": 1789498500000
+      "plan_last_bar_ts": 1789498800000
     },
     {
       "id": "e129066c-d7e9-4d41-9815-cfed5da817d9",
@@ -124,7 +124,7 @@
       "direction": "short",
       "entry_price": "6.383",
       "quantity": "533.59421500",
-      "stop_loss": "6.5208571428571425",
+      "stop_loss": "6.515142857142857",
       "take_profits": [
         "6.216851",
         "6.0507020"
@@ -141,7 +141,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "6.430",
-      "lowest_price": "6.372",
+      "lowest_price": "6.364",
       "strategy": "order_block",
       "opened_at": 1789498980337,
       "notes": {
@@ -170,17 +170,15 @@
       "regime": "RANGE",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:LOW/L:DEEP",
-      "bars_held": 1,
+      "bars_held": 2,
       "leverage": "1",
       "margin_used": "3405.93187434500",
       "plan_variant": "STATIC_TP",
       "plan_take": "6.0507020",
-      "plan_last_bar_ts": 1789498500000
+      "plan_last_bar_ts": 1789498800000
     }
   ],
   "realized_pnl": "-2130.623307049983797829674125",
   "initial_capital": "36098.87",
-  "cooldowns": {
-    "mean_reversion_v2|DOT-USDT|long": 1789499330021
-  }
+  "cooldowns": {}
 }
