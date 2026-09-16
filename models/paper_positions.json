@@ -6,7 +6,7 @@
       "direction": "long",
       "entry_price": "0.1517",
       "quantity": "22255.32201500",
-      "stop_loss": "0.14927142857142855",
+      "stop_loss": "0.14944285714285716",
       "take_profits": [
         "0.15565510000000002",
         "0.159610200000000040"
@@ -22,7 +22,7 @@
       "initial_quantity": "22255.32201500",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.1527",
+      "highest_price": "0.1529",
       "lowest_price": "0.1504",
       "strategy": "order_block",
       "opened_at": 1789584158435,
@@ -52,12 +52,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
-      "bars_held": 3,
+      "bars_held": 4,
       "leverage": "1",
       "margin_used": "3376.132349675500",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.159610200000000040",
-      "plan_last_bar_ts": 1789584600000
+      "plan_last_bar_ts": 1789584900000
     },
     {
       "id": "eea7f628-698b-4a11-8130-6468ac11d338",
@@ -65,7 +65,7 @@
       "direction": "long",
       "entry_price": "7.218",
       "quantity": "467.75280300",
-      "stop_loss": "7.119714285714285",
+      "stop_loss": "7.127142857142857",
       "take_profits": [
         "7.377654",
         "7.5373080"
@@ -81,7 +81,7 @@
       "initial_quantity": "467.75280300",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "7.236",
+      "highest_price": "7.248",
       "lowest_price": "7.161",
       "strategy": "order_block",
       "opened_at": 1789584165252,
@@ -111,12 +111,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:LOW/L:DEEP",
-      "bars_held": 3,
+      "bars_held": 4,
       "leverage": "1",
       "margin_used": "3376.23973205400",
       "plan_variant": "STATIC_TP",
       "plan_take": "7.5373080",
-      "plan_last_bar_ts": 1789584600000
+      "plan_last_bar_ts": 1789584900000
     }
   ],
   "realized_pnl": "-2303.785179397649145944380781",
