@@ -6,7 +6,7 @@
       "direction": "short",
       "entry_price": "6.278",
       "quantity": "377.097784000",
-      "stop_loss": "6.259171712843940167778248738",
+      "stop_loss": "6.259161797495420621357652842",
       "take_profits": [
         "6.215344",
         "6.1526880"
@@ -23,7 +23,7 @@
       "trailing_activated": true,
       "trailing_distance": null,
       "highest_price": "6.252",
-      "lowest_price": "6.194",
+      "lowest_price": "6.180",
       "strategy": "order_block",
       "opened_at": 1789575750169,
       "notes": {
@@ -52,12 +52,12 @@
       "regime": "RANGE",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:LOW/L:DEEP",
-      "bars_held": 5,
+      "bars_held": 7,
       "leverage": "1",
       "margin_used": "3382.02841136000",
       "plan_variant": "STATIC_TP",
       "plan_take": "6.1526880",
-      "plan_last_bar_ts": 1789576200000
+      "plan_last_bar_ts": 1789576500000
     }
   ],
   "realized_pnl": "-2318.831216291769611572950117",
