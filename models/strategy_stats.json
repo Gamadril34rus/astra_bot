@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-16T02:18:57.157626+00:00",
+  "updated": "2026-09-16T09:28:55.659646+00:00",
   "buckets": {
     "scalp5m|UNKNOWN|": {
       "sample_size": 1,
@@ -830,16 +830,16 @@
       "last_updated": "2026-09-09T15:02:09.680124+00:00"
     },
     "mean_reversion_v2|ANY|5m": {
-      "sample_size": 8,
+      "sample_size": 9,
       "wins": 4,
-      "losses": 4,
-      "sum_r": 0.9110057148507475,
+      "losses": 5,
+      "sum_r": 0.5274073649626334,
       "wins_sum_r": 2.696410324104609,
-      "losses_sum_r": -1.7854046092538618,
-      "sum_mfe_r": 4.931484972448661,
-      "sum_mae_r": 2.4420339627615886,
-      "sum_fees": 17.14883104642132,
-      "last_updated": "2026-09-15T23:23:00.748634+00:00"
+      "losses_sum_r": -2.169002959141976,
+      "sum_mfe_r": 5.118828852548578,
+      "sum_mae_r": 2.6918258028948108,
+      "sum_fees": 20.54898824015435,
+      "last_updated": "2026-09-16T09:28:55.659616+00:00"
     },
     "double_top_bottom|T:RANGE/V:VERY_LOW/L:DEEP|5m": {
       "sample_size": 7,
@@ -1562,16 +1562,16 @@
       "last_updated": "2026-09-15T20:09:05.676326+00:00"
     },
     "mean_reversion_v2|WEAK_BULL_TREND|5m": {
-      "sample_size": 2,
+      "sample_size": 3,
       "wins": 2,
-      "losses": 0,
-      "sum_r": 0.4096046405201421,
+      "losses": 1,
+      "sum_r": 0.02600629063202803,
       "wins_sum_r": 0.4096046405201421,
-      "losses_sum_r": 0.0,
-      "sum_mfe_r": 1.3246837068241666,
-      "sum_mae_r": 0.2842929988687722,
-      "sum_fees": 4.26759026960519,
-      "last_updated": "2026-09-14T02:42:32.435496+00:00"
+      "losses_sum_r": -0.3835983498881141,
+      "sum_mfe_r": 1.5120275869240833,
+      "sum_mae_r": 0.5340848390019945,
+      "sum_fees": 7.66774746333822,
+      "last_updated": "2026-09-16T09:28:55.659611+00:00"
     },
     "descending_triangle|T:RANGE/V:VERY_LOW/L:DEEP|5m": {
       "sample_size": 4,
@@ -2354,16 +2354,16 @@
       "last_updated": "2026-09-15T18:44:12.368025+00:00"
     },
     "mean_reversion_v2|T:WEAK/V:LOW/L:NORMAL|5m": {
-      "sample_size": 1,
+      "sample_size": 2,
       "wins": 0,
-      "losses": 1,
-      "sum_r": -0.5300893802279875,
+      "losses": 2,
+      "sum_r": -0.9136877301161015,
       "wins_sum_r": 0.0,
-      "losses_sum_r": -0.5300893802279875,
-      "sum_mfe_r": 0.06813417190775681,
-      "sum_mae_r": 0.8176100628930818,
-      "sum_fees": 0.8449691884062801,
-      "last_updated": "2026-09-15T18:48:50.368140+00:00"
+      "losses_sum_r": -0.9136877301161015,
+      "sum_mfe_r": 0.25547805200767354,
+      "sum_mae_r": 1.0674019030263042,
+      "sum_fees": 4.2451263821393095,
+      "last_updated": "2026-09-16T09:28:55.659600+00:00"
     },
     "mean_reversion_v2|WEAK_BEAR_TREND|5m": {
       "sample_size": 2,
