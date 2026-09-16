@@ -1,8 +1,7 @@
 name: Track C deep history
 
 # Deep-history Zeus Track C. Research-only.
-# Fix vs first dispatch: 120m was not enough for BTC+ETH+SOL × 1h+4h × 20k bootstrap.
-# Strategy: BTC mandatory, default 4h only, matrix one symbol per job, then merge.
+# Fix: TIMEFRAMES must be a real tuple ("4h",) — bare ("4h") iterates chars.
 
 on:
   workflow_dispatch:
@@ -77,7 +76,6 @@ jobs:
           mkdir -p data data/track_c reports
           END=$(date -u +%Y-%m-%d)
           PAIR="${SYM}USDT"
-          # Parse timeframes
           IFS=',' read -ra TF_ARR <<< "${TFS:-4h}"
           for tf in "${TF_ARR[@]}"; do
             tf=$(echo "$tf" | tr -d ' ')
@@ -86,7 +84,6 @@ jobs:
               --start 2021-01-01 --end "$END" --out "data/${PAIR}_${tf}.csv"
             test -s "data/${PAIR}_${tf}.csv"
           done
-          # Convert to unofficial feed
           python - <<PY
           from pathlib import Path
           import pandas as pd
@@ -109,7 +106,6 @@ jobs:
               df2.to_csv(dest, index=False)
               print("wrote", dest, len(df2))
           PY
-          # Patch script: single symbol + selected timeframes + resamples
           python - <<PY
           from pathlib import Path
           import os, re
@@ -119,16 +115,34 @@ jobs:
           tfs = [x.strip() for x in os.environ.get("TFS", "4h").split(",") if x.strip()]
           res = os.environ.get("RES", "20000")
           t = re.sub(r"^SYMBOLS = .*$", f'SYMBOLS = ("{sym}",)', t, flags=re.M)
-          tf_tuple = ", ".join(f'"{x}"' for x in tfs)
+          # CRITICAL: single-element tuple needs trailing comma.
+          # ("4h") is a str → for tf in TIMEFRAMES iterates chars "4","h"
+          # → looks for Binance_*_4.csv / *_h.csv and reports empty OOS.
+          tf_tuple = ", ".join(f'"{x}"' for x in tfs) + ","
           t = re.sub(r"^TIMEFRAMES = .*$", f"TIMEFRAMES = ({tf_tuple})", t, flags=re.M)
           t = re.sub(r"^RESAMPLES = .*$", f"RESAMPLES = {res}", t, flags=re.M)
           p.write_text(t)
+          nt = re.search(r"^TIMEFRAMES = (.+)$", t, re.M)
           print("patched SYMBOLS", sym, "TIMEFRAMES", tfs, "RESAMPLES", res)
+          print("verify TIMEFRAMES", nt.group(1) if nt else None)
           PY
           python -u scripts/track_c_replay.py \
             --data-dir data/track_c \
             --provenance "Actions track-c matrix symbol=${SYM} tfs=${TFS} res=${RES}; BTC-mandatory design" \
             | tee "reports/track_c_${SYM}.json"
+          python - <<'CHK'
+          import json, sys, os
+          from pathlib import Path
+          p = Path(f"reports/track_c_{os.environ['SYM']}.json")
+          d = json.loads(p.read_text())
+          syms = d.get("symbols") or {}
+          ok = [k for k,v in syms.items() if isinstance(v, dict) and "out_of_sample" in v]
+          err = [k for k,v in syms.items() if isinstance(v, dict) and v.get("error")]
+          print("ok_keys", ok, "err_keys", err)
+          if not ok:
+              print("FATAL: no usable OOS data — check TIMEFRAMES tuple / feed filenames", file=sys.stderr)
+              sys.exit(1)
+          CHK
 
       - name: Upload per-symbol artifact
         if: steps.skip.outputs.run == '1'
@@ -177,7 +191,6 @@ jobs:
               "pooled": {},
               "note": "Merged from per-symbol Actions matrix; BTC mandatory",
           }
-          # pool trades metrics already in each file's pooled — re-aggregate n/mean carefully
           pool_acc = {}
           for p in files:
               d = json.loads(p.read_text())
@@ -185,20 +198,15 @@ jobs:
               for sk, sv in (d.get("symbols") or {}).items():
                   merged["symbols"][sk] = sv
               for pk, pm in (d.get("pooled") or {}).items():
-                  # keep list of part metrics; prefer summing n if structure allows
                   pool_acc.setdefault(pk, []).append(pm)
 
           def merge_metrics(parts):
-              # Weighted by n for mean_r if present; PF not linearly combinable — report parts
               ns = [p.get("n") or 0 for p in parts]
               n = sum(ns)
               if n <= 0:
                   return {"n": 0, "parts": parts}
-              mean = None
               means = [(p.get("mean_r"), p.get("n") or 0) for p in parts if p.get("mean_r") is not None]
-              if means:
-                  mean = sum(m * k for m, k in means) / sum(k for _, k in means)
-              # PF: use n-weighted approx only as display hint; flag combined=false
+              mean = sum(m * k for m, k in means) / sum(k for _, k in means) if means else None
               return {
                   "n": n,
                   "mean_r": mean,
@@ -209,6 +217,11 @@ jobs:
 
           for pk, parts in sorted(pool_acc.items()):
               merged["pooled"][pk] = merge_metrics(parts)
+
+          # Fail merge if everything is errors only
+          usable = [k for k,v in merged["symbols"].items() if isinstance(v, dict) and "out_of_sample" in v]
+          if not usable:
+              raise SystemExit("merge: no usable out_of_sample blocks — re-run after TIMEFRAMES tuple fix")
 
           Path("reports/track_c_deep_history_raw.json").write_text(
               json.dumps(merged, ensure_ascii=False, indent=2, allow_nan=False)
@@ -227,6 +240,10 @@ jobs:
           for sk, sv in sorted(merged["symbols"].items()):
               if not isinstance(sv, dict):
                   lines.append(f"- `{sk}`: {sv}")
+                  continue
+              if sv.get("error"):
+                  lines.append(f"### `{sk}` — ERROR: {sv.get('error')}")
+                  lines.append("")
                   continue
               cov = sv.get("htf_context_coverage")
               lines.append(f"### `{sk}` — htf_context_coverage={cov}")
@@ -259,7 +276,7 @@ jobs:
               "- Z6: no context ≠ falsified",
           ]
           Path("reports/track_c_deep_history_2026-09-16.md").write_text("\n".join(lines) + "\n")
-          print("merged", len(files), "files")
+          print("merged", len(files), "files", "usable", usable)
           PY
 
       - name: Upload merged artifacts
