@@ -119,6 +119,8 @@ flowchart TD
 | Дневной/недельный убыток | Входы блокируются сверх лимитов | `risk_engine.py` |
 | Системный HALT | 5 убыточных дней подряд / −3% за неделю → торговля стоп | `core/kill_switch.py` |
 
+При **недельном лимите** новые входы с размером **не** открываются; пайплайн по задумке может продолжать считать сигналы и писать тень/`no_trade` (observe-only). Исполненный PnL и «учёба на сделках» — только после сброса лимита.
+
 ---
 
 ## 💸 Издержки (пресет BingX perps)
@@ -144,7 +146,7 @@ flowchart TD
 |---|---:|---:|---|
 | 08–11.09 (до #70) | 123 | **−0.32** | лестница тейков, гэп-стопы, mae_cut −1.5R |
 | 11–12.09 (после #70) | 9 | **−0.21** | стоп-выходы все лучше −0.8R, ноль гэпов, лучший день −61 при старых −356/−989/−415 |
-| после 13.09 (#74–#77) | наблюдение | — | двухнедельное окно валидации |
+| после 13.09 (#74–#77) | наблюдение | — | двухнедельное окно валидации → срез **26–27.09** |
 
 ### Mean R по часу входа (МСК), 08–12.09
 
@@ -172,17 +174,59 @@ xychart-beta
 
 **Вердикт: кран капитала закрыт до PF > 1 на реальном счёте.** Честный kill-switch сохранил бы +14.9R, probation ×0.25 режет остаточный убыток выборки в 4 раза (−27.2R → −6.8R взвешенных).
 
-### Внешние стратегии (Track C, «уроки Зевса», Binance 4h/1h)
+### Внешние стратегии (Track C / «Зевс», deep history 2021–2026)
 
-| Гипотеза | OOS n | Mean R | Вердикт |
+Прогон Actions (BTC/ETH/SOL, **1h+4h**, bootstrap 20k). Короткое окно (#77: Z3 +0.39R @ n=8, Z4 +0.50R @ n=10) **не подтвердилось**.
+
+**Pooled OOS:**
+
+| Variant | n | mean R | Вердикт |
 |---|---:|---:|---|
-| Z1 ретест-вход вместо пробоя | 77 | −0.55 [−0.87; −0.19] | провалена |
-| Z2 RSI-дивергенция-фильтр | 9 | −0.02 | данных нет |
-| Z3 контр-вход после ложного пробоя | 8 | +0.39 | данных нет (кандидат на добор выборки) |
-| Z4 overshoot-триггер | 10 | +0.50 | данных нет (кандидат) |
-| Z5 вход от границы канала | 1 | — | данных нет |
+| Z1_retest (контроль) | 2100 | **−0.55** | none — ожидаемый провал |
+| Z2_divergence | 283 | −0.11 | none |
+| Z3_false_breakout | 343 | **−0.12** | none |
+| Z4_overshoot | 265 | **−0.17** | none |
+| Z5_channel_touch | 28 | −0.31 | none |
+| Z6_htf_gated_retest | 596 | **−0.47** | none (HTF coverage ≈ 0.36–0.41) |
+| Z7_zone_reaction | 252 | **−0.40** | none |
+| baseline_breakout | 723 | −0.04 | ≈0 |
 
-В боевой код не перенесено **ничего** — выживших нет. Подробности: `reports/track_c_zeus_setups.md`.
+Точечные плюсы (n≤6) — анекдот. В боевой код из Z-семьи **ничего** не переносится. Артефакт: Actions `track-c-deep-history`.
+
+> Дискреционный стиль уроков (фигуры/индикаторы «глазами» на разных масштабах) ≠ эти авто-детекторы и здесь не опровергается — в бот он не кодировался.
+
+### Research snapshot (до среза 26–27.09)
+
+| Гипотеза | Статус | Где цифры |
+|---|---|---|
+| 4h breakout-семья | шум с намёком; под 0.3% RT PF≈1.07–1.13 | `docs/research/WALKFORWARD_4H_BREAKOUT.md` |
+| tsm45 | **опровергнута** панелью (OOS PF≈0.85); узкая тень запрещена | `docs/research/TSM45_PANEL_32.md` |
+| Старые семейства на 4h | мертвы под нашими издержками | `docs/research/AB_PROXY_SWEEP_4H_OOS.md` |
+| entry_gates | shadow on / live off; include iff n≥30 и median(hypothetic_r)<0 | `docs/research/ENTRY_GATES_TELEMETRY_CHECK.md` |
+| Памятка среза | один документ = одна правда | [DECISION_MEMO_2026-09-26.md](docs/research/DECISION_MEMO_2026-09-26.md) |
+
+Онбординг 4h-ключей — только shadow → ×0.25 → promote при n≥5 и live PF≥1. Research-PR **не** трогает живой контур.
+
+### Книжные / research equity (честные минусы)
+
+Пробой→ретест «по книге» на BTC/USDT ~2 года — **не** edge (`docs/book_backtest_2y/summary.md`):
+
+| TF | Сделок | PF | PnL |
+|---|---:|---:|---:|
+| 1h | 160 | 0.80 | −9.3% |
+| 4h | 47 | 0.79 | −3.4% |
+
+<p align="center">
+  <img src="docs/book_backtest_2y/equity_1h.png" alt="Book breakout equity 1h — net negative" width="720"/>
+</p>
+
+<p align="center"><em>1h equity: пробой+ретест, риск 0.4%, издержки 0.2% RT — ниже нуля.</em></p>
+
+<p align="center">
+  <img src="docs/book_backtest_2y/equity_4h.png" alt="Book breakout equity 4h — net negative" width="720"/>
+</p>
+
+<p align="center"><em>4h equity: меньше сделок, тот же знак — PF&lt;1.</em></p>
 
 ---
 
@@ -192,15 +236,16 @@ xychart-beta
 |---|---|---|
 | D5 HTF-shadow | Записывает гипотетические запреты кандидатов против 4h-EMA20/50 тренда | `models/htf_shadow_bans.jsonl` |
 | Pattern-exit shadow | Фиксирует встречные разворотные паттерны по **открытым** позициям | `models/pattern_exit_shadow.jsonl` |
+| entry_gates shadow | «Не торгуй в шуме» + hypothetic_r в NO_TRADE; live off до среза | `models/no_trade_observations.jsonl` |
 
-Оба — append-only, best-effort, ошибками не роняют торговлю. Включаются в бой отдельным решением по накопленным данным.
+Append-only, best-effort, ошибками не роняют торговлю. Включение в бой — отдельным решением по накопленным данным.
 
 ---
 
 ## 📚 Честность данных (что делает результаты проверяемыми)
 
 - **Снапшот входа** в каждой строке сделки: `signal_bar_close, effective_entry, initial_stop/take, stop_pct, confidence, ml_probability, prior_r, costs_r, equity_before, risk_budget, binding_constraint` — 12 полей, аддитивно к старым строкам.
-- **Журнал отклонённых сигналов** (`rejection_stage=capacity/exposure/direction`) — можно ретроспективно ответить «а что если бы лимиты были шире».
+- **Журнал отклонённых сигналов** (`rejection_stage=capacity/exposure/direction/entry_gate`) — можно ретроспективно ответить «а что если бы лимиты были шире».
 - **Двойная запись**: `models/paper_ledger.jsonl` — каждая позиция = order/fill/fee-события, частичные выходы пишут свои события, replay сходится с брокером до копейки (fee живёт только в `kind="fee"`).
 - **Атомарный state** (tmp + `os.replace`), гейт размера `check_state_size.py`, ротация jsonl-журналов.
 
@@ -214,7 +259,7 @@ xychart-beta
 
 ## ⚙️ Эксплуатация
 
-- **CI**: `.github/workflows/bot.yml` — единственный workflow, правится **владельцем вручную** через веб (полным файлом).
+- **CI**: `.github/workflows/bot.yml` — единственный workflow живого бота, правится **владельцем вручную** через веб (полным файлом). Research-workflows (Track C, lab) — отдельные YAML, согласуются до коммита.
 - **Секреты**: `BINGX_API_KEY/SECRET`, `TELEGRAM_BOT_TOKEN/ADMIN_ID` — в Actions secrets, попадают в `.env` только внутри сессии.
 - **State-файлы** (коммитятся ботом в `chore(ci): bot state` каждые ~5 мин): позиции, сделки, ledger, статистика стратегий, тени, observations, budget. Рост ограничен гейтом и ротацией.
 
@@ -226,7 +271,7 @@ xychart-beta
 - **Выборки малы**: 130 позиций за 5 дней — мониторинг, не доказательство.
 - **Бэктестер** семантически оптимистичнее paper (текущий бар считается закрытым — B10, один тейк, нет funding): сравнивать можно только прогоны между собой. См. [docs/BACKTEST_VS_PAPER_SEMANTICS.md](docs/BACKTEST_VS_PAPER_SEMANTICS.md).
 - **Rate-limit**: основной клиент 5 qps + 4 прямых клиента стратегий со своими бакетами (до 20 qps burst) — консолидация в бэклоге.
-- **Track C-датасет** — неофициальный (правдоподобный Binance-export, 1000 баров/файл); выводы качественные.
+- **Track C deep history** — Actions + Binance Vision/`fetch_klines`, BTC обязателен; pooled OOS выше. Короткое окно #77 — только исторический анекдот.
 
 ---
 
@@ -242,9 +287,11 @@ xychart-beta
 | #74 | 12.09 | Ledger: частичные события; сайзинг по effective entry; README = код; поглощён PR #73 |
 | #75 | 13.09 | Частички 30/70 + безубыток; 24/7 в коде; тень паттерн-выходов; скрипт среза |
 | #76 | 13.09 | Честный kill-switch (ANY), probation ×0.25, round-trip costs, снапшоты входа, capacity-журнал |
-| #77 | 14.09 | Track C: суд внешней методике на истории (Z1 провалена, Z2–Z5 данных нет); герметизация тестов |
+| #77 | 14.09 | Track C: первый суд (короткое окно; Z1−, Z3/Z4 анекдот) |
+| #87–#89 | 15–16.09 | Research: 4h walk-forward, onboarding specs, tsm45 panel (закрыт), decision memo |
+| #90–#92 | 16.09 | Track C на Actions: workflow, timeout/matrix, fix `TIMEFRAMES=("4h",)` |
 
-Полный индекс документации — [docs/INDEX.md](docs/INDEX.md). Срез каждые 2 недели: `python scripts/measure_two_week_review.py`.
+Полный индекс документации — [docs/INDEX.md](docs/INDEX.md). Срез каждые 2 недели: `python scripts/measure_two_week_review.py`. Памятка владельца: [docs/research/DECISION_MEMO_2026-09-26.md](docs/research/DECISION_MEMO_2026-09-26.md).
 
 ---
 
