@@ -1,66 +1,8 @@
 {
-  "positions": [
-    {
-      "id": "0fb8e730-e67c-4909-be08-fafd6b96c302",
-      "symbol": "NEAR-USDT",
-      "direction": "short",
-      "entry_price": "2.424",
-      "quantity": "1398.36274700",
-      "stop_loss": "2.429142857142857",
-      "take_profits": [
-        "2.37552",
-        "2.327040"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "1398.36274700",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "2.432",
-      "lowest_price": "2.403",
-      "strategy": "mean_reversion_v2",
-      "opened_at": 1789552618831,
-      "notes": {
-        "signal_bar_close": 2.424,
-        "effective_entry": 2.421576,
-        "initial_stop": 2.47248,
-        "initial_take": 2.3702499999999995,
-        "stop_pct": 0.021021021021021023,
-        "confidence": 0.65,
-        "ml_probability": null,
-        "prior_r": 0.2206580033003346,
-        "costs_r": 0.1427142857142857,
-        "equity_before": 33862.41667643356,
-        "risk_budget": 338.6241667643356,
-        "binding_constraint": "none",
-        "score": 38.0,
-        "edge_pct": 15.1122,
-        "ev_r": 0.15112184846714413,
-        "ev_confidence": 0.09090909090909091,
-        "rr": 1.1087046204620565,
-        "leverage": 1
-      },
-      "fill_price": "2.421576",
-      "entry_fee_per_unit": "0.0012107880",
-      "risk_distance": "0.04848",
-      "regime": "STRONG_BULL_TREND",
-      "timeframe": "5m",
-      "regime_axes": "T:STRONG/V:LOW/L:NORMAL",
-      "bars_held": 9,
-      "leverage": "1",
-      "margin_used": "3389.63129872800",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "2.327040",
-      "plan_last_bar_ts": 1789554600000
-    }
-  ],
-  "realized_pnl": "-2236.453323566438118161764008",
+  "positions": [],
+  "realized_pnl": "-2252.610083795063637914448614",
   "initial_capital": "36098.87",
-  "cooldowns": {}
+  "cooldowns": {
+    "mean_reversion_v2|NEAR-USDT|short": 1789556643552
+  }
 }

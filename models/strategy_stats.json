@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-16T09:28:55.659646+00:00",
+  "updated": "2026-09-16T10:44:03.953746+00:00",
   "buckets": {
     "scalp5m|UNKNOWN|": {
       "sample_size": 1,
@@ -806,16 +806,16 @@
       "last_updated": "2026-09-14T06:42:39.743536+00:00"
     },
     "mean_reversion_v2|T:STRONG/V:LOW/L:NORMAL|5m": {
-      "sample_size": 1,
+      "sample_size": 2,
       "wins": 0,
-      "losses": 1,
-      "sum_r": -0.5442396998647606,
+      "losses": 2,
+      "sum_r": -0.7825659189241689,
       "wins_sum_r": 0.0,
-      "losses_sum_r": -0.5442396998647606,
-      "sum_mfe_r": 0.2818141787758697,
-      "sum_mae_r": 0.4183179216204315,
-      "sum_fees": 3.5018686819101754,
-      "last_updated": "2026-09-09T15:02:09.680114+00:00"
+      "losses_sum_r": -0.7825659189241689,
+      "sum_mfe_r": 0.7149824956075528,
+      "sum_mae_r": 0.5833344232705966,
+      "sum_fees": 6.894499468730491,
+      "last_updated": "2026-09-16T10:44:03.953709+00:00"
     },
     "mean_reversion_v2|STRONG_BEAR_TREND|5m": {
       "sample_size": 1,
@@ -830,16 +830,16 @@
       "last_updated": "2026-09-09T15:02:09.680124+00:00"
     },
     "mean_reversion_v2|ANY|5m": {
-      "sample_size": 9,
+      "sample_size": 10,
       "wins": 4,
-      "losses": 5,
-      "sum_r": 0.5274073649626334,
+      "losses": 6,
+      "sum_r": 0.2890811459032251,
       "wins_sum_r": 2.696410324104609,
-      "losses_sum_r": -2.169002959141976,
-      "sum_mfe_r": 5.118828852548578,
-      "sum_mae_r": 2.6918258028948108,
-      "sum_fees": 20.54898824015435,
-      "last_updated": "2026-09-16T09:28:55.659616+00:00"
+      "losses_sum_r": -2.407329178201384,
+      "sum_mfe_r": 5.551997169380261,
+      "sum_mae_r": 2.856842304544976,
+      "sum_fees": 23.941619026974667,
+      "last_updated": "2026-09-16T10:44:03.953721+00:00"
     },
     "double_top_bottom|T:RANGE/V:VERY_LOW/L:DEEP|5m": {
       "sample_size": 7,
@@ -2508,6 +2508,18 @@
       "sum_mae_r": 0.3203673545665697,
       "sum_fees": 0.8498047194711859,
       "last_updated": "2026-09-16T02:18:57.157579+00:00"
+    },
+    "mean_reversion_v2|STRONG_BULL_TREND|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -0.2383262190594083,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -0.2383262190594083,
+      "sum_mfe_r": 0.43316831683168316,
+      "sum_mae_r": 0.16501650165016502,
+      "sum_fees": 3.392630786820315,
+      "last_updated": "2026-09-16T10:44:03.953717+00:00"
     }
   }
 }
