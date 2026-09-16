@@ -23,7 +23,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "0.1527",
-      "lowest_price": "0.1512",
+      "lowest_price": "0.1504",
       "strategy": "order_block",
       "opened_at": 1789584158435,
       "notes": {
@@ -52,12 +52,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
-      "bars_held": 2,
+      "bars_held": 3,
       "leverage": "1",
       "margin_used": "3376.132349675500",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.159610200000000040",
-      "plan_last_bar_ts": 1789584300000
+      "plan_last_bar_ts": 1789584600000
     },
     {
       "id": "eea7f628-698b-4a11-8130-6468ac11d338",
@@ -82,7 +82,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "7.236",
-      "lowest_price": "7.180",
+      "lowest_price": "7.161",
       "strategy": "order_block",
       "opened_at": 1789584165252,
       "notes": {
@@ -111,12 +111,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:LOW/L:DEEP",
-      "bars_held": 2,
+      "bars_held": 3,
       "leverage": "1",
       "margin_used": "3376.23973205400",
       "plan_variant": "STATIC_TP",
       "plan_take": "7.5373080",
-      "plan_last_bar_ts": 1789584300000
+      "plan_last_bar_ts": 1789584600000
     }
   ],
   "realized_pnl": "-2303.785179397649145944380781",
