@@ -5,7 +5,6 @@ from __future__ import annotations
 from decimal import Decimal
 
 import pytest
-
 from astra_bot.core import models
 from astra_bot.strategies.zeus_wedge_retest import (
     ZeusWedgeRetestConfig,
