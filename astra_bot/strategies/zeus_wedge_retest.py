@@ -28,7 +28,7 @@ def _linreg_slope(ys: list[float]) -> tuple[float, float]:
     sx = sum(xs)
     sy = sum(ys)
     sxx = sum(x * x for x in xs)
-    sxy = sum(x * y for x, y in zip(xs, ys))
+    sxy = sum(x * y for x, y in zip(xs, ys, strict=True))
     denom = n * sxx - sx * sx
     if abs(denom) < 1e-12:
         return 0.0, sy / n
@@ -123,7 +123,7 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             is_falling = slope_hi < 0 and slope_lo < 0 and slope_lo >= slope_hi * 1.05
             if not (is_rising or is_falling):
                 # Soft fallback: still allow if boundaries converge enough
-                first_width = (intercept_hi - intercept_lo)
+                first_width = intercept_hi - intercept_lo
                 if first_width <= 0 or width >= first_width * 0.95:
                     return None
 
