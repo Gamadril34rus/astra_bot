@@ -1,0 +1,16 @@
+# Research draft — NOT loaded by production settings.yaml
+# Enable only after slice 26-27.09 via standard onboarding.
+
+zeus_wedge_retest_4h:
+  enabled: false
+  preferred_timeframe: "4h"
+  weight: 1.0
+  lookback: 24
+  min_touches: 3
+  max_width_pct: 0.08
+  min_width_pct: 0.008
+  breakout_buffer_pct: 0.001
+  retest_tolerance_pct: 0.003
+  stop_buffer_pct: 0.002
+  min_rr: 1.5
+  max_bars_outside: 6
