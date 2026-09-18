@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+from decimal import Decimal
 
+from astra_bot.core import models
 from astra_bot.decision.zeus_trade_log import ZeusTradeLog
+from astra_bot.strategies.zeus_wedge_retest import (
+    ZeusWedgeRetestConfig,
+    ZeusWedgeRetestStrategy,
+)
 
 
 def test_zeus_trade_log_entry_exit(tmp_path):
@@ -47,31 +54,22 @@ def test_zeus_trade_log_entry_exit(tmp_path):
     assert rows[2]["r_multiple"] == 1.0
 
 
-def test_zeus_signal_features_contain_reason():
-    """Стратегия кладёт zeus_reason в features (для журнала/пайплайна)."""
-    import asyncio
-    from decimal import Decimal
-
-    from astra_bot.core import models
-    from astra_bot.strategies.zeus_wedge_retest import (
-        ZeusWedgeRetestConfig,
-        ZeusWedgeRetestStrategy,
+def _c(i: int, o: float, h: float, l: float, cl: float) -> models.Candle:
+    return models.Candle(
+        exchange="bingx",
+        symbol="BTC-USDT",
+        timeframe="4h",
+        open_time=1_700_000_000_000 + i * 4 * 3600 * 1000,
+        open=Decimal(str(o)),
+        high=Decimal(str(h)),
+        low=Decimal(str(l)),
+        close=Decimal(str(cl)),
+        volume=Decimal("1000"),
+        quote_volume=Decimal("100000"),
     )
 
-    def _c(i, o, h, l, cl):
-        return models.Candle(
-            exchange="bingx",
-            symbol="BTC-USDT",
-            timeframe="4h",
-            open_time=1_700_000_000_000 + i * 4 * 3600 * 1000,
-            open=Decimal(str(o)),
-            high=Decimal(str(h)),
-            low=Decimal(str(l)),
-            close=Decimal(str(cl)),
-            volume=Decimal("1000"),
-            quote_volume=Decimal("100000"),
-        )
 
+def _rising_wedge_fixture() -> list[models.Candle]:
     candles = []
     base = 100.0
     for i in range(24):
@@ -86,13 +84,19 @@ def test_zeus_signal_features_contain_reason():
     candles.append(
         _c(26, upper_approx + 0.2, upper_approx + 0.4, upper_approx - 0.8, upper_approx - 0.3)
     )
+    return candles
 
-    strat = ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True))
-    res = asyncio.get_event_loop().run_until_complete(
-        strat.evaluate("BTC-USDT", candles)
-    )
+
+def test_zeus_signal_features_contain_reason():
+    """Стратегия кладёт zeus_reason в features (для журнала/пайплайна)."""
+
+    async def _run():
+        strat = ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True))
+        return await strat.evaluate("BTC-USDT", _rising_wedge_fixture())
+
+    res = asyncio.run(_run())
     assert res is not None
     assert res.features.get("zeus_pattern") == "false_break_up_retest_inside"
     assert "zeus_reason" in res.features
     assert res.features.get("stop_structure") == "beyond_false_break_extreme"
-    assert strat.preferred_timeframe == "4h"
+    assert ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True)).preferred_timeframe == "4h"
