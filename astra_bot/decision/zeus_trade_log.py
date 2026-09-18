@@ -1,7 +1,13 @@
-"""Журнал сделок Зевса: почему вход, где стоп, почему выход.
+"""Журнал сделок Зевса: почему вход, где стоп, почему выход, почему НЕ вошли.
 
 Append-only JSONL (paper/research). Не влияет на исполнение.
 Путь по умолчанию: models/zeus_trade_journal.jsonl
+
+События:
+  clock_start / tick / entry / stop_adjust / exit
+  reject          — нет входа + reason + snapshot структуры
+  structure_state — снимок клина на тике (есть/нет, границы)
+  ltf_impulse     — сильный 15m-импульс (память, не ордер)
 """
 
 from __future__ import annotations
@@ -104,5 +110,70 @@ class ZeusTradeLog:
                 "reason": reason,
                 "r_multiple": r_multiple,
                 "bars_held": bars_held,
+            }
+        )
+
+    def reject(
+        self,
+        *,
+        symbol: str,
+        reason: str,
+        stage: str = "pattern",
+        snapshot: dict[str, Any] | None = None,
+        strategy: str = "zeus_wedge_retest_4h",
+    ) -> bool:
+        """Почему НЕ вошли — память для разбора (не ордер)."""
+        return self._write(
+            {
+                "event": "reject",
+                "symbol": symbol,
+                "strategy": strategy,
+                "reason": reason,
+                "stage": stage,
+                "snapshot": snapshot or {},
+            }
+        )
+
+    def structure_state(
+        self,
+        *,
+        symbol: str,
+        snapshot: dict[str, Any],
+        strategy: str = "zeus_wedge_retest_4h",
+    ) -> bool:
+        """Снимок 4h-структуры на тике (клин есть/нет, границы)."""
+        return self._write(
+            {
+                "event": "structure_state",
+                "symbol": symbol,
+                "strategy": strategy,
+                "snapshot": snapshot,
+            }
+        )
+
+    def ltf_impulse(
+        self,
+        *,
+        symbol: str,
+        timeframe: str,
+        range_pct: float,
+        volume_ratio: float,
+        direction: str,
+        near_structure: bool = False,
+        note: str = "",
+        strategy: str = "zeus_wedge_retest_4h",
+    ) -> bool:
+        """Сильный импульс на младшем ТФ — только память, не вход."""
+        return self._write(
+            {
+                "event": "ltf_impulse",
+                "symbol": symbol,
+                "strategy": strategy,
+                "timeframe": timeframe,
+                "range_pct": round(range_pct, 6),
+                "volume_ratio": round(volume_ratio, 4),
+                "direction": direction,
+                "near_structure": near_structure,
+                "note": note or "observed; not an entry signal",
             }
         )

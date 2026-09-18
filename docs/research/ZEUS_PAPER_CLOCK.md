@@ -13,24 +13,28 @@
 +1R (MFE) → SMART BREAKEVEN
 дальше → structural_stop / trailing ATR
 журнал → models/zeus_trade_journal.jsonl
++ память: reject / structure_state / ltf_impulse (15m, не ордер)
 ```
 
 | Компонент | Где |
 |---|---|
-| Сигнал | `astra_bot/strategies/zeus_wedge_retest.py` |
+| Сигнал + diagnose | `astra_bot/strategies/zeus_wedge_retest.py` |
 | Paper runner | `scripts/run_paper_zeus.py` |
 | Профиль yaml | `config/paper_zeus_clock.yaml` (не prod) |
 | Журнал | `astra_bot/decision/zeus_trade_log.py` |
 | Сопровождение | `ExitController` SMART + `structural_stop` в TradingEngine |
+| CI | `.github/workflows/zeus-paper-clock.yml` каждые 5 мин |
 
 Prod default стратегии: **`enabled=False`**. Runner включает только у себя.
+
+Качество: `max_bars_outside=5` (жёстче) — меньше зависших ложных пробоев.
 
 ---
 
 ## Запуск
 
 ```bash
-# Один цикл (проверка связи / decide)
+# Один цикл (проверка связи / decide + memory)
 python scripts/run_paper_zeus.py --once
 
 # Непрерывный paper-clock (BTC-USDT, poll 300s)
@@ -47,9 +51,13 @@ python scripts/run_paper_zeus.py --symbol ETH-USDT --journal models/zeus_eth.jso
 ## Что писать в журнал (схема event)
 
 - `clock_start` — старт runner
+- `tick` — цикл step+observe завершён
 - `entry` — reason + features (pattern, upper/lower, width)
 - `stop_adjust` — why (breakeven / structure / trail)
 - `exit` — reason + r_multiple
+- `reject` — **почему НЕ вошли** + snapshot (stage, width, bars_outside)
+- `structure_state` — снимок клина на тике (has_wedge / would_signal)
+- `ltf_impulse` — сильный 15m ход (память; **не** вход). `near_structure` если у границы 4h-клина
 
 Сигнал Зевса кладёт в `Signal.features`:
 - `zeus_pattern`, `zeus_reason`
@@ -64,7 +72,8 @@ python scripts/run_paper_zeus.py --symbol ETH-USDT --journal models/zeus_eth.jso
 2. Нет параллельных mean_reversion / scalp в этом runner
 3. Стоп при входе за экстремумом пробоя (не «в воздухе»)
 4. После MFE≥~0.8R стоп уходит в нетто-БУ (SMART)
-5. n≥5 paper → смотреть PF; promote только post-slice по memo
+5. В journal есть reject/structure даже без сделок (память)
+6. n≥5 paper → смотреть PF; promote только post-slice по memo
 
 ---
 
@@ -74,3 +83,4 @@ python scripts/run_paper_zeus.py --symbol ETH-USDT --journal models/zeus_eth.jso
 - Не мешать 5m-статы с этим ключом
 - Не поднимать risk% ради частоты
 - Не крутить lookback/min_rr каждый день под последние 5 сделок
+- Не превращать `ltf_impulse` в самостоятельный вход
