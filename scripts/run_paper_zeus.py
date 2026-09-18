@@ -37,6 +37,8 @@ except ImportError:
 
 from astra_bot.adapters.bingx import BingXClient
 from astra_bot.core.logger import setup_logging
+from astra_bot.decision.config import DecisionConfig
+from astra_bot.decision.pipeline import DecisionPipeline
 from astra_bot.decision.trading_engine import TradingEngine, TradingEngineConfig
 from astra_bot.decision.zeus_trade_log import ZeusTradeLog
 from astra_bot.strategies.zeus_wedge_retest import (
@@ -89,34 +91,39 @@ async def amain(args: argparse.Namespace) -> int:
         poll_interval_seconds=args.interval,
         max_open_positions=2,
         structural_stop=True,
+        smart_exit_default=True,
     )
+
+    # ТОЛЬКО Зевс — изолированный pipeline, без 41 стратегии и kill-switch шума
+    zeus_cfg = ZeusWedgeRetestConfig(enabled=True)
+    zeus = ZeusWedgeRetestStrategy(zeus_cfg)
+    dcfg = DecisionConfig()
+    dcfg.min_rr = 1.5
+    dcfg.min_ml_probability = 0.0
+    dcfg.min_expected_edge_pct = 0.0
+    dcfg.min_ev_r = 0.0  # paper research: не режем по EV
+    pipeline = DecisionPipeline(config=dcfg, strategies=[zeus], model=None)
 
     engine = TradingEngine(
         exchange=bingx,
-        pipeline=None,
+        pipeline=pipeline,
         config=config,
         notifier=None,
     )
 
-    # ТОЛЬКО Зевс, явно enabled для paper-clock
-    zeus_cfg = ZeusWedgeRetestConfig(enabled=True)
-    zeus = ZeusWedgeRetestStrategy(zeus_cfg)
-    engine.pipeline.strategies = [zeus]
-
     journal = ZeusTradeLog(args.journal)
     logger.info(
         "Zeus paper-clock: symbol=%s tf=4h enabled=True journal=%s "
-        "(prod settings НЕ изменены)",
+        "(prod settings НЕ изменены, strategies=1)",
         args.symbol,
         args.journal,
     )
-    # Маркер старта в журнале
     journal._write(
         {
             "event": "clock_start",
             "symbol": args.symbol,
             "strategy": "zeus_wedge_retest_4h",
-            "note": "paper-only; live settings untouched",
+            "note": "paper-only; isolated pipeline; live settings untouched",
         }
     )
 
@@ -130,6 +137,15 @@ async def amain(args: argparse.Namespace) -> int:
 
     if args.once:
         await engine.step()
+        # tick-маркер: даже без сигнала видно, что цикл прошёл
+        journal._write(
+            {
+                "event": "tick",
+                "symbol": args.symbol,
+                "strategy": "zeus_wedge_retest_4h",
+                "note": "engine.step completed",
+            }
+        )
         logger.info("Один цикл Zeus paper-clock завершён.")
     else:
         task = asyncio.create_task(engine.run_forever())
