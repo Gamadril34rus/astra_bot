@@ -3,6 +3,9 @@
 Источник: 9 транскриптов `arena/01a08cde-astra-bot` (1.txt–9.txt) + 8 видео-уроков
 (X / Yandex). Live-контур **не** включаем до среза 26–27.09.
 
+**Сверка с диагнозом Кими / paper one-idea:** см. `ZEUS_DIAGNOSIS_RESPONSE.md`,
+`config/paper_one_idea.yaml`.
+
 ## Иерархия (главное сверху)
 
 | Ранг | Правило Зевса | Урок | Что в astra |
@@ -10,7 +13,7 @@
 | 1 | Риск 1–3% на сделку + стоп всегда | 7–8 | Risk engine / sizer (уже) |
 | 2 | Пауза 1–2 дня после убытка; no FOMO; не добивать | 8 | cooldown / kill-switch / entry_gates |
 | 3 | Partials + стоп в Б/У | 8 | production exit 30/70 + BE |
-| 4 | Сначала фаза рынка | 2 | HTF context / regime |
+| 4 | Сначала фаза рынка | 2 | HTF context / regime + **htf_shadow (D5 фаза 0, уже on)** |
 | 5 | Зоны спроса/предложения | 3 | structure / levels research |
 | 6 | Канал / клин: вход от границы | 5, 7 | channel logic |
 | 7 | Ложный выход из клина → ретест → закрепление внутри → разворот | **8** | **`zeus_wedge_retest_4h`** |
@@ -42,3 +45,4 @@ Z3/урок 8 близки по логике; deep-history OOS не доказа
 3. entry_gates — решение на срезе по median<0 при n≥30.
 4. Новые семьи только enabled=false → shadow → ×0.25.
 5. Universe: BTC/ETH/SOL важнее 35 размытых bucket-ов.
+6. Paper «одна идея»: выкл mean_reversion и дубли ts_* до доказательства edge (см. paper_one_idea.yaml).
