@@ -1,36 +1,27 @@
 # Zeus auto-shadow — проверка до среза без live-риска
 
-**Проблема:** идеи (Зевс и др.) лежали в коде, но основной бот их не гонял.
+**Проблема:** идеи лежали в коде, основной бот их не гонял.
 
-**Решение:** на каждом `TradingEngine.process_symbol` тень оценивает
-`zeus_wedge_retest_4h` на закрытых 4h-барах и пишет гипотетический сигнал
-в `models/zeus_signal_shadow.jsonl`. **Исполнения нет** (`would_execute: false`).
+**Решение:** `install_on_engine` вешается на `process_symbol` из:
+- `scripts/run_bot.py` (GitHub Actions каждые 5 мин)
+- `astra_bot/main.py` (AstraBot modern path)
 
-## Конфиг (default ON)
+На каждом тике: evaluate `zeus_wedge_retest_4h` на закрытых 4h →
+`models/zeus_signal_shadow.jsonl`. **`would_execute: false`** — в риск не идёт.
 
-```python
-zeus_signal_shadow_enabled: bool = True
-zeus_signal_shadow_path: str = "models/zeus_signal_shadow.jsonl"
-```
+## После merge
 
-Выключить: `TradingEngineConfig(zeus_signal_shadow_enabled=False)`.
+Каждая сессия `run_bot.py` пишет в state. Save-state в bot.yml сохранит
+jsonl в git — к срезу накопится n.
 
-## Что копится до 26–27.09
-
-- число срабатываний / день
-- direction long/short
-- entry / stop / tp / rr
-- features (pattern, границы клина)
-
-На срезе: если n≥5 и исходы (после обогащения ценой) дают PF≥1 → кандидат
-на probation ×0.25. Иначе — оставить research.
+На срезе 26–27.09: n≥5 + исходы → probation ×0.25 или оставить research.
 
 ## Не путать
 
-| Журнал | Что |
-|--------|-----|
+| Файл | Смысл |
+|------|--------|
+| `zeus_signal_shadow.jsonl` | гипотетические **входы** Зевса |
 | `htf_shadow_bans.jsonl` | запрет направления против 4h EMA |
-| `zeus_signal_shadow.jsonl` | **сигнал** клина Зевса (этот модуль) |
-| `zeus_trade_journal.jsonl` | paper-clock runner (`run_paper_zeus.py`) |
+| `zeus_trade_journal.jsonl` | отдельный paper-clock runner |
 
-Live / `settings.yaml` / `enabled` стратегии в prod — **без изменений**.
+`settings.yaml` / risk% / live — **без изменений**.

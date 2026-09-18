@@ -41,7 +41,6 @@ def _fixture() -> list[models.Candle]:
     candles.append(
         _c(26, upper_approx + 0.2, upper_approx + 0.4, upper_approx - 0.8, upper_approx - 0.3)
     )
-    # + forming bar (will be stripped by shadow)
     candles.append(_c(27, upper_approx, upper_approx + 0.1, upper_approx - 0.1, upper_approx))
     return candles
 
