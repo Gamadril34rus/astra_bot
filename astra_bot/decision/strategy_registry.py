@@ -102,7 +102,7 @@ STRATEGY_REGISTRY: dict[str, StrategyRegistryEntry] = {
         tier=TIER_AUDIT,
         execution_blocked_reason="Находится на этапе многолетнего бэктест-аудита.",
     ),
-    # Research-only концепции (без прямого фабpичного исполнения)
+    # Research-only концепции (без прямого фабричного исполнения)
     "livermore_pivot": StrategyRegistryEntry(
         key="livermore_pivot",
         name="Livermore Key Pivots & Confirmation",
@@ -130,6 +130,17 @@ STRATEGY_REGISTRY: dict[str, StrategyRegistryEntry] = {
         source="Paul Tudor Jones",
         tier=TIER_RESEARCH,
         execution_blocked_reason="Research-only: концептуальный макро-слой, не имеющий прямого фабричного кода.",
+    ),
+    "zeus_wedge_retest_4h": StrategyRegistryEntry(
+        key="zeus_wedge_retest_4h",
+        name="Zeus Wedge False-Break Retest (4h)",
+        source="Zeus lessons 7–8 (transcripts + video structure)",
+        tier=TIER_RESEARCH,
+        execution_blocked_reason=(
+            "Research-only until post-slice onboarding: enabled=false, "
+            "shadow → probation ×0.25 → promote only if n≥5 and live PF≥1. "
+            "Do not mix stats with 5m families."
+        ),
     ),
 }
 
