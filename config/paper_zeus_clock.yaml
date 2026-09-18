@@ -1,0 +1,52 @@
+# Zeus paper-clock profile — НЕ production settings.yaml
+# -----------------------------------------------------------------------------
+# Запуск: python scripts/run_paper_zeus.py
+# Стратегия в коде default enabled=false; runner включает явно.
+# Live / trading_enabled не трогаем до среза 26–27.09 + валидации.
+# -----------------------------------------------------------------------------
+
+system:
+  environment: "paper"
+  paper_trading: true
+  trading_enabled: false
+
+trading:
+  instruments:
+    - "BTC/USDT"
+
+  strategies:
+    zeus_wedge_retest_4h:
+      enabled: true          # только в этом paper-профиле / runner
+      preferred_timeframe: "4h"
+      weight: 1.0
+      lookback: 24
+      min_touches: 3
+      min_rr: 1.5
+      stop_buffer_pct: 0.002
+
+    # Всё остальное — выкл (одна идея)
+    momentum:
+      enabled: false
+    mean_reversion:
+      enabled: false
+    book_breakout:
+      enabled: false
+    ts_momentum:
+      enabled: false
+    ts_momentum_adx:
+      enabled: false
+    multicurrency_mtf:
+      enabled: false
+    adaptive_grid:
+      enabled: false
+
+risk:
+  risk_per_trade: 0.004
+  daily_loss_limit: 0.02
+  weekly_loss_limit: 0.04
+  max_open_positions: 2
+  max_exposure_pct: 0.20
+
+# Сопровождение (exit) — уже в движке при structural_stop=True + SMART:
+#   BREAKEVEN ~0.8R (нетто), TRAILING k*ATR, MAE_CUT, REGIME_EXIT
+# Журнал: models/zeus_trade_journal.jsonl

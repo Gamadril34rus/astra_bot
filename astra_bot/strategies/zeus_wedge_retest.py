@@ -1,10 +1,10 @@
 """
-Zeus Wedge False-Break + Retest (4h) — research-only.
+Zeus Wedge False-Break + Retest (4h) — research / paper-clock.
 
 Урок 8: ложный выход из клина → ретест границы → закрытие обратно внутрь
 → разворот в сторону возврата.
 
-enabled=False по умолчанию. Не включать до среза 26–27.09.
+enabled=False по умолчанию (live/prod). Paper-clock runner включает явно.
 """
 
 from __future__ import annotations
@@ -40,7 +40,8 @@ def _linreg_slope(ys: list[float]) -> tuple[float, float]:
 @dataclass
 class ZeusWedgeRetestConfig(StrategyConfig):
     name: str = "zeus_wedge_retest_4h"
-    enabled: bool = False  # research-only until post-slice onboarding
+    enabled: bool = False  # prod default off; paper-clock sets True
+    preferred_timeframe: str = "4h"
     lookback: int = 24
     min_touches: int = 3
     max_width_pct: float = 0.08
@@ -55,9 +56,14 @@ class ZeusWedgeRetestConfig(StrategyConfig):
 class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
     """Ложный пробой клина + ретест + закрытие внутрь → разворот."""
 
+    preferred_timeframe: str = "4h"
+
     def __init__(self, config: ZeusWedgeRetestConfig | None = None):
         super().__init__(config or ZeusWedgeRetestConfig())
         self.config: ZeusWedgeRetestConfig
+        self.preferred_timeframe = getattr(
+            self.config, "preferred_timeframe", "4h"
+        )
 
     async def evaluate(
         self,
@@ -77,15 +83,10 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             if not candles or len(candles) < min_need:
                 return None
 
-            # Formation window: last lookback closed bars before the tail
-            # that may contain breakout + retest + close-back-inside.
-            # Tail can be 1..max_bars_outside+1 bars.
             tail_max = c.max_bars_outside + 1
             if len(candles) < c.lookback + 1:
                 return None
 
-            # Use a dynamic split: formation = candles[-(lookback+tail): -tail]
-            # but keep enough for signal on last bar.
             tail_len = min(tail_max, max(1, len(candles) - c.lookback))
             formation = candles[-(c.lookback + tail_len) : -tail_len]
             if len(formation) < c.lookback:
@@ -97,12 +98,10 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             slope_hi, intercept_hi = _linreg_slope(highs)
             slope_lo, intercept_lo = _linreg_slope(lows)
 
-            # Endpoint boundaries at last formation bar (x = n-1)
             n = len(formation)
             upper_end = intercept_hi + slope_hi * (n - 1)
             lower_end = intercept_lo + slope_lo * (n - 1)
 
-            # Stabilize with recent swing extremes (last 3 formation bars)
             recent_hi = max(highs[-3:])
             recent_lo = min(lows[-3:])
             upper = max(upper_end, recent_hi * 0.999)
@@ -116,13 +115,9 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             if width_pct > c.max_width_pct or width_pct < c.min_width_pct:
                 return None
 
-            # Converging wedge proxy: |slope_hi - slope_lo| and opposing signs
-            # rising wedge: both slopes positive, upper flatter (slope_hi < slope_lo)
-            # falling wedge: both slopes negative, lower flatter
             is_rising = slope_lo > 0 and slope_hi > 0 and slope_hi <= slope_lo * 1.05
             is_falling = slope_hi < 0 and slope_lo < 0 and slope_lo >= slope_hi * 1.05
             if not (is_rising or is_falling):
-                # Soft fallback: still allow if boundaries converge enough
                 first_width = intercept_hi - intercept_lo
                 if first_width <= 0 or width >= first_width * 0.95:
                     return None
@@ -134,7 +129,6 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             buf = c.breakout_buffer_pct
             tol = c.retest_tolerance_pct
 
-            # Scan tail for: breakout → (optional bars outside) → close back inside
             broken_up = False
             broken_down = False
             extreme_hi = upper
@@ -164,7 +158,6 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             if breakout_idx < 0:
                 return None
 
-            # Last bar must close back inside after the breakout
             last = tail[-1]
             last_close = float(last.close)
             last_high = float(last.high)
@@ -177,11 +170,13 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             direction = None
             stop_price = 0.0
             target_price = 0.0
+            pattern = ""
 
             if broken_up:
-                # Retest: last bar touched near upper from outside, closed inside
                 retest_ok = last_high >= upper * (1.0 - tol)
-                closed_inside = last_close <= upper * (1.0 + tol * 0.5) and last_close >= lower
+                closed_inside = (
+                    last_close <= upper * (1.0 + tol * 0.5) and last_close >= lower
+                )
                 if retest_ok and closed_inside and last_close < upper:
                     direction = models.TradeDirection.SHORT
                     stop_price = extreme_hi * (1.0 + c.stop_buffer_pct)
@@ -189,10 +184,13 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                     if risk <= 0:
                         return None
                     target_price = price - risk * c.min_rr
+                    pattern = "false_break_up_retest_inside"
 
             elif broken_down:
                 retest_ok = last_low <= lower * (1.0 + tol)
-                closed_inside = last_close >= lower * (1.0 - tol * 0.5) and last_close <= upper
+                closed_inside = (
+                    last_close >= lower * (1.0 - tol * 0.5) and last_close <= upper
+                )
                 if retest_ok and closed_inside and last_close > lower:
                     direction = models.TradeDirection.LONG
                     stop_price = extreme_lo * (1.0 - c.stop_buffer_pct)
@@ -200,6 +198,7 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                     if risk <= 0:
                         return None
                     target_price = price + risk * c.min_rr
+                    pattern = "false_break_down_retest_inside"
 
             if direction is None:
                 return None
@@ -209,7 +208,27 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             if risk <= 0 or round(reward / risk, 4) < c.min_rr:
                 return None
 
-            confidence = min(0.8, max(0.5, 0.55 + 0.1 * (1.0 - width_pct / c.max_width_pct)))
+            confidence = min(
+                0.8, max(0.5, 0.55 + 0.1 * (1.0 - width_pct / c.max_width_pct))
+            )
+
+            features = {
+                "zeus_pattern": pattern,
+                "zeus_reason": (
+                    f"{pattern}: wedge upper={upper:.4f} lower={lower:.4f} "
+                    f"width_pct={width_pct:.4f} bars_outside={bars_after}"
+                ),
+                "wedge_upper": round(upper, 6),
+                "wedge_lower": round(lower, 6),
+                "width_pct": round(width_pct, 6),
+                "bars_outside": bars_after,
+                "slope_hi": round(slope_hi, 8),
+                "slope_lo": round(slope_lo, 8),
+                "is_rising_wedge": is_rising,
+                "is_falling_wedge": is_falling,
+                "stop_structure": "beyond_false_break_extreme",
+                "min_rr": c.min_rr,
+            }
 
             return Signal(
                 symbol=symbol,
@@ -223,6 +242,7 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                 risk_amount=Decimal("0"),
                 confidence=confidence,
                 market_regime=market_regime or "UNKNOWN",
+                features=features,
             )
         except Exception as exc:
             logger.warning("%s evaluate error: %s", self.name, exc)
