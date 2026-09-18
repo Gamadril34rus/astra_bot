@@ -2,13 +2,15 @@ name: Zeus paper-clock
 
 # Отдельный paper-only контур Зевса (wedge false-break retest 4h).
 # Live / settings.yaml / основные стратегии НЕ трогаем.
-# Каждые 10 мин — один цикл --once; журнал коммитится в models/.
-# Сигнал только на закрытом 4h; тик чаще → быстрее подхватываем после close.
+# Каждые 5 мин — один цикл --once:
+#   1) поиск входа по закрытым 4h
+#   2) сопровождение открытых: BE ~0.8R, structural stop, trailing ATR, exit
+# Журнал коммитится в models/zeus_trade_journal.jsonl
 
 on:
   schedule:
-    # Каждые 10 минут (крипта 24/7; 4h закрывается в :00 UTC)
-    - cron: "*/10 * * * *"
+    # Как основной bot.yml: каждые 5 мин — и вход, и подтяжка стопов
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 concurrency:
