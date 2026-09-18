@@ -1,0 +1,77 @@
+# Paper draft — «одна идея» (Зевс / Kimi diagnosis response)
+# -----------------------------------------------------------------------------
+# НЕ загружается production settings.yaml.
+# Назначение: paper/sim после среза 26–27.09 — убрать взаимное уничтожение
+# стратегий, оставить одну структурную линию + контекст.
+#
+# Применение (вручную, после решения владельца):
+#   cp config/paper_one_idea.yaml config/settings_sim.yaml   # или merge по ключам
+# Live / trading_enabled — только после валидации.
+# -----------------------------------------------------------------------------
+
+system:
+  environment: "paper"
+  paper_trading: true
+  trading_enabled: false
+
+trading:
+  instruments:
+    - "BTC/USDT"
+    # ETH/SOL — после PF>1.1 на BTC paper n≥30
+    # - "ETH/USDT"
+    # - "SOL/USDT"
+
+  strategies:
+    # --- ОДНА структурная линия (пробой/ретест / книга) ---
+    book_breakout:
+      enabled: true
+      weight: 1.0
+      # Предпочтительно оценивать на 4h, если стратегия это поддерживает
+
+    momentum:
+      enabled: true
+      weight: 0.5
+      # Снижен вес: не конкурировать с book на каждом баре
+
+    # --- КОНТРТРЕНД ВЫКЛ (главный конфликт с momentum/book) ---
+    mean_reversion:
+      enabled: false
+      weight: 0.0
+
+    # --- Одна импульсная обвязка, не две ---
+    ts_momentum:
+      enabled: true
+      weight: 0.4
+    ts_momentum_adx:
+      enabled: false
+      weight: 0.0
+
+    multicurrency_mtf:
+      enabled: false
+      weight: 0.0
+
+    adaptive_grid:
+      enabled: false
+      weight: 0.0
+
+    # --- Research 4h (shadow only, не в live-исполнение) ---
+    zeus_wedge_retest_4h:
+      enabled: false
+      weight: 0.0
+      preferred_timeframe: "4h"
+
+risk:
+  risk_per_trade: 0.004          # 0.4%
+  daily_loss_limit: 0.02         # 2% — стоп дня
+  weekly_loss_limit: 0.04
+  max_open_positions: 2          # было 5; Зевс: 1–2 позиции
+  soft_drawdown: 0.05
+  hard_drawdown: 0.08
+  emergency_drawdown: 0.10
+  max_exposure_pct: 0.20         # уже, пока edge не доказан
+
+# Напоминание (не поля движка — чеклист оператора):
+# - После 3–5 стопов подряд: пауза до следующего дня
+# - Пт вечер / выходные: без новых входов (ликвидность)
+# - Promote 4h research только: shadow → ×0.25 → n≥5 и live PF≥1
+# - Не смешивать 5m и 4h статистику
