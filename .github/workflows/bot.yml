@@ -91,7 +91,8 @@ jobs:
                    models/no_trade_outcomes.json \
                    models/research/hypotheses.json \
                    models/research/observations.jsonl \
-                   models/halt_alerts.json; do
+                   models/halt_alerts.json \
+                   models/zeus_trade_journal.jsonl; do
             [ -f "$f" ] && git add -f "$f" || true
           done
           git diff --cached --quiet || \
