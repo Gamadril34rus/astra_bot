@@ -2,14 +2,10 @@ name: Zeus paper-clock
 
 # Отдельный paper-only контур Зевса (wedge false-break retest 4h).
 # Live / settings.yaml / основные стратегии НЕ трогаем.
-# Каждые 5 мин — один цикл --once:
-#   1) поиск входа по закрытым 4h
-#   2) сопровождение открытых: BE ~0.8R, structural stop, trailing ATR, exit
-# Журнал коммитится в models/zeus_trade_journal.jsonl
+# Каждые 5 мин — step + journal + Telegram (важное / heartbeat 2ч).
 
 on:
   schedule:
-    # Как основной bot.yml: каждые 5 мин — и вход, и подтяжка стопов
     - cron: "*/5 * * * *"
   workflow_dispatch:
 
@@ -50,12 +46,16 @@ jobs:
         env:
           BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
           BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
         run: |
           {
             echo "ENVIRONMENT=paper"
             echo "PAPER_TRADING=true"
             echo "BINGX_API_KEY=$BINGX_API_KEY"
             echo "BINGX_API_SECRET=$BINGX_API_SECRET"
+            echo "TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN"
+            echo "TELEGRAM_ADMIN_ID=$TELEGRAM_ADMIN_ID"
           } > .env
           chmod 600 .env
 
@@ -63,10 +63,17 @@ jobs:
         run: python scripts/run_paper_zeus.py --once --symbol BTC-USDT --journal models/zeus_trade_journal.jsonl
         continue-on-error: true
 
-      - name: Save journal
+      - name: Telegram status (важное + heartbeat ≤2ч)
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
+        run: python scripts/zeus_telegram_status.py --journal models/zeus_trade_journal.jsonl
+        continue-on-error: true
+
+      - name: Save journal + notify state
         if: always()
         run: |
-          for f in models/zeus_trade_journal.jsonl; do
+          for f in models/zeus_trade_journal.jsonl models/zeus_tg_notify_state.json; do
             [ -f "$f" ] && git add -f "$f" || true
           done
           git diff --cached --quiet || \
