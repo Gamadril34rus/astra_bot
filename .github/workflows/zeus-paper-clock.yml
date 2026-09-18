@@ -1,0 +1,72 @@
+name: Zeus paper-clock
+
+# Отдельный paper-only контур Зевса (wedge false-break retest 4h).
+# Live / settings.yaml / основные стратегии НЕ трогаем.
+# Каждые 15 мин — один цикл --once; журнал коммитится в models/.
+# 4h-сигналы редкие, но тик частый → не пропускаем закрытие бара.
+
+on:
+  schedule:
+    # Каждые 15 минут (крипта 24/7, 4h закрывается в :00)
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: zeus-paper-clock
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt python-dotenv
+
+      - name: Restore state
+        run: |
+          git config user.name "astra-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git pull --no-rebase origin master || true
+
+      - name: Write .env
+        env:
+          BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
+          BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
+        run: |
+          {
+            echo "ENVIRONMENT=paper"
+            echo "PAPER_TRADING=true"
+            echo "BINGX_API_KEY=$BINGX_API_KEY"
+            echo "BINGX_API_SECRET=$BINGX_API_SECRET"
+          } > .env
+          chmod 600 .env
+
+      - name: Zeus paper-clock --once
+        run: python scripts/run_paper_zeus.py --once --symbol BTC-USDT --journal models/zeus_trade_journal.jsonl
+        continue-on-error: true
+
+      - name: Save journal
+        if: always()
+        run: |
+          for f in models/zeus_trade_journal.jsonl; do
+            [ -f "$f" ] && git add -f "$f" || true
+          done
+          git diff --cached --quiet || \
+            git commit -m "chore(ci): zeus paper journal $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push origin master || echo "push failed (will retry next run)"
