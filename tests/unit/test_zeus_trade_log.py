@@ -1,4 +1,4 @@
-"""Журнал Зевса: entry / stop_adjust / exit пишутся в JSONL."""
+"""Журнал Зевса: entry / reject / structure / ltf + diagnose."""
 
 from __future__ import annotations
 
@@ -43,15 +43,33 @@ def test_zeus_trade_log_entry_exit(tmp_path):
         r_multiple=1.0,
         bars_held=4,
     )
+    assert log.reject(
+        symbol="BTC-USDT",
+        reason="no_false_break",
+        stage="breakout",
+        snapshot={"has_wedge": True},
+    )
+    assert log.structure_state(
+        symbol="BTC-USDT",
+        snapshot={"has_wedge": False, "reject_reason": "not_converging_wedge"},
+    )
+    assert log.ltf_impulse(
+        symbol="BTC-USDT",
+        timeframe="15m",
+        range_pct=0.02,
+        volume_ratio=2.5,
+        direction="up",
+        near_structure=True,
+    )
 
     rows = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
-    assert len(rows) == 3
+    assert len(rows) == 6
     assert rows[0]["event"] == "entry"
-    assert rows[0]["reason"] == "false_break_up_retest_inside"
-    assert rows[1]["event"] == "stop_adjust"
-    assert rows[1]["why"] == "breakeven"
-    assert rows[2]["event"] == "exit"
-    assert rows[2]["r_multiple"] == 1.0
+    assert rows[3]["event"] == "reject"
+    assert rows[3]["reason"] == "no_false_break"
+    assert rows[4]["event"] == "structure_state"
+    assert rows[5]["event"] == "ltf_impulse"
+    assert rows[5]["near_structure"] is True
 
 
 def _c(i: int, o: float, h: float, l: float, cl: float) -> models.Candle:
@@ -88,8 +106,6 @@ def _rising_wedge_fixture() -> list[models.Candle]:
 
 
 def test_zeus_signal_features_contain_reason():
-    """Стратегия кладёт zeus_reason в features (для журнала/пайплайна)."""
-
     async def _run():
         strat = ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True))
         return await strat.evaluate("BTC-USDT", _rising_wedge_fixture())
@@ -100,3 +116,19 @@ def test_zeus_signal_features_contain_reason():
     assert "zeus_reason" in res.features
     assert res.features.get("stop_structure") == "beyond_false_break_extreme"
     assert ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True)).preferred_timeframe == "4h"
+
+
+def test_zeus_diagnose_would_signal_on_fixture():
+    strat = ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True))
+    diag = strat.diagnose(_rising_wedge_fixture())
+    assert diag.get("would_signal") is True
+    assert diag.get("direction") == "short"
+    assert diag.get("has_wedge") is True
+
+
+def test_zeus_diagnose_reject_on_flat():
+    strat = ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True))
+    flat = [_c(i, 100, 100.2, 99.8, 100.0) for i in range(30)]
+    diag = strat.diagnose(flat)
+    assert diag.get("would_signal") is False
+    assert diag.get("reject_reason")
