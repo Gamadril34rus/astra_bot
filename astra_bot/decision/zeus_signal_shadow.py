@@ -9,6 +9,9 @@
 
 Образец: D5 htf_shadow / pattern_exit_shadow — fail-open, best-effort,
 дедуп по (symbol, bar_time, direction).
+
+``install_on_engine`` — вешает тень на ``process_symbol`` из run_bot / AstraBot,
+чтобы Actions каждые 5 мин копили данные без правки risk-контура.
 """
 
 from __future__ import annotations
@@ -40,8 +43,6 @@ class ZeusSignalShadow:
                 ZeusWedgeRetestStrategy,
             )
 
-            # Тень всегда оценивает с enabled=True; в pipeline стратегия
-            # по-прежнему default False и не торгует.
             self._strategy = ZeusWedgeRetestStrategy(
                 ZeusWedgeRetestConfig(enabled=True)
             )
@@ -59,7 +60,6 @@ class ZeusSignalShadow:
         """Оценить Зевса на 4h; при сигнале дописать строку. True = записано."""
         if not candles_4h or len(candles_4h) < 28:
             return False
-        # А5: без формирующегося бара
         closed = list(candles_4h[:-1]) if len(candles_4h) > 1 else list(candles_4h)
         if len(closed) < 24:
             return False
@@ -112,3 +112,47 @@ class ZeusSignalShadow:
         except Exception as exc:
             logger.debug("zeus_signal_shadow write skipped: %s", exc)
             return False
+
+
+def install_on_engine(engine: Any) -> bool:
+    """Повесить тень Зевса на process_symbol.
+
+    Идемпотентно. Вызывается из run_bot / AstraBot — Actions каждые 5 мин
+    копят ``models/zeus_signal_shadow.jsonl`` без live-исполнения.
+    """
+    if getattr(engine, "_zeus_shadow_wrapped", False):
+        return False
+    cfg_on = bool(
+        getattr(getattr(engine, "config", None), "zeus_signal_shadow_enabled", True)
+    )
+    if not cfg_on:
+        engine.zeus_signal_shadow = None
+        return False
+    path = getattr(
+        getattr(engine, "config", None), "zeus_signal_shadow_path", DEFAULT_PATH
+    )
+    engine.zeus_signal_shadow = ZeusSignalShadow(path)
+    orig = engine.process_symbol
+
+    async def _wrapped(symbol: str):
+        result = await orig(symbol)
+        try:
+            shadow = engine.zeus_signal_shadow
+            if shadow is None:
+                return result
+            ctx = await engine.fetch_context(symbol)
+            c4 = (ctx.candles or {}).get("4h") or []
+            await shadow.observe(
+                symbol=symbol,
+                candles_4h=list(c4),
+                current_price=float(ctx.current_price),
+                market_regime=None,
+            )
+        except Exception as exc:
+            logger.debug("zeus_signal_shadow install hook: %s", exc)
+        return result
+
+    engine.process_symbol = _wrapped  # type: ignore[method-assign]
+    engine._zeus_shadow_wrapped = True
+    logger.info("Zeus signal shadow installed → %s", path)
+    return True
