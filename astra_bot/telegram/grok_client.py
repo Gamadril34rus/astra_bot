@@ -21,8 +21,8 @@ DEFAULT_MODEL = os.environ.get("XAI_MODEL", "grok-4")
 HISTORY_PATH = Path(
     os.environ.get("GROK_TG_HISTORY", "models/grok_tg_chat.jsonl")
 )
-MAX_HISTORY_TURNS = 12  # пар user/assistant
-MAX_REPLY_CHARS = 3500  # запас до лимита Telegram 4096
+MAX_HISTORY_TURNS = 12
+MAX_REPLY_CHARS = 3500
 
 SYSTEM_PROMPT = """Ты Grok (xAI), координатор research paper-бота astra (репозиторий владельца).
 Отвечай по-русски, кратко и по делу, удобно читать с телефона.
@@ -71,7 +71,6 @@ def _load_history(chat_id: int) -> list[dict[str, str]]:
     except Exception as exc:
         logger.debug("grok history load: %s", exc)
         return []
-    # последние N*2 сообщений
     return rows[-(MAX_HISTORY_TURNS * 2) :]
 
 
@@ -87,7 +86,7 @@ def _append_history(chat_id: int, role: str, content: str) -> None:
                 + "\n"
             )
     except Exception as exc:
-        logger.debug("grok history append: %s", exp if False else exc)
+        logger.debug("grok history append: %s", exc)
 
 
 async def chat(user_text: str, chat_id: int) -> str:
