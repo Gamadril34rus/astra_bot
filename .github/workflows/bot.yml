@@ -54,6 +54,7 @@ jobs:
           BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
         run: |
           {
             echo "ENVIRONMENT=paper"
@@ -63,6 +64,7 @@ jobs:
             echo "TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN"
             echo "TELEGRAM_ADMIN_ID=$TELEGRAM_ADMIN_ID"
             echo "TELEGRAM_USER_ID=$TELEGRAM_ADMIN_ID"
+            echo "XAI_API_KEY=$XAI_API_KEY"
           } > .env
           chmod 600 .env
 
@@ -92,7 +94,8 @@ jobs:
                    models/research/hypotheses.json \
                    models/research/observations.jsonl \
                    models/halt_alerts.json \
-                   models/zeus_trade_journal.jsonl; do
+                   models/zeus_trade_journal.jsonl \
+                   models/grok_tg_chat.jsonl; do
             [ -f "$f" ] && git add -f "$f" || true
           done
           git diff --cached --quiet || \
