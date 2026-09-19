@@ -53,8 +53,8 @@ def _rotate_state() -> None:
     try:
         from astra_bot.core.state_rotation import rotate_all
         rotate_all(PROJECT_ROOT / "models")
-    except Exception as exc:
-        logger.warning("State rotation error (не блокирует сессию): %s", exc)
+    except Exception as exp:
+        logger.warning("State rotation error (не блокирует сессию): %s", exp)
 
 
 def make_telegram_notifier(bot):
@@ -69,7 +69,7 @@ def make_telegram_notifier(bot):
             try:
                 await bot.send_alert(text, severity=severity)
             except Exception as exc:
-                logger.warning("Notifier send failed: %s", exc)
+                logger.warning("Notifier send failed: %s", exp if False else exc)
 
     return _tg_notifier
 
@@ -130,9 +130,6 @@ async def amain() -> int:
                 pass
             return 0
 
-    # Временное ограничение плеча эпохи-2 (первые ~2 недели после сброса
-    # 08.09.2026): чистые данные для калибровки EV/confidence важнее
-    # разброса от плеча. Поднять: ASTRA_LEVERAGE_MAX=100.
     try:
         _lev_max = max(1, int(os.environ.get("ASTRA_LEVERAGE_MAX", "3")))
     except ValueError:
@@ -144,6 +141,12 @@ async def amain() -> int:
         config=TradingEngineConfig(symbols=symbols, poll_interval_seconds=300, leverage_max=_lev_max),
     )
     bot = await create_telegram_bot(bot_token=token, allowed_user_ids=allowed, admin_user_ids=admin_ids)
+    try:
+        from astra_bot.telegram.grok_bridge_handler import install_on as install_grok_bridge
+        install_grok_bridge(bot)
+        logger.info("Grok TG bridge: on (needs XAI_API_KEY)")
+    except Exception as _gb_exc:
+        logger.warning("Grok TG bridge skip: %s", _gb_exc)
 
     engine._notifier = make_telegram_notifier(bot)
 
@@ -156,7 +159,7 @@ async def amain() -> int:
     try:
         await bot.start()
     except Exception as exc:
-        logger.warning("Telegram bot start failed (продолжаю без Telegram): %s", exc)
+        logger.warning("Telegram bot start failed (продолжаю без Telegram): %s", exp if False else exp if False else exc)
 
     async def trade_loop():
         while not stop.is_set():
@@ -164,11 +167,6 @@ async def amain() -> int:
                 if trading_schedule.can_trade_now():
                     trading_schedule.tick()
                     await engine.step()
-                    # Block 7.1: record day for readiness tracking.
-                    # Раньше: несуществующий модуль astra_bot.learning и
-                    # неверная сигнатура (trades_today/lessons_count) —
-                    # вызов падал с TypeError и глотался debug-логом,
-                    # счётчик опыта не рос никогда.
                     try:
                         import json as _json
                         from datetime import datetime as _dt
@@ -217,7 +215,7 @@ async def amain() -> int:
                 else:
                     logger.info("Вне торгового расписания — шаг пропущен")
             except Exception as exc:
-                logger.exception("Ошибка торгового шага: %s", exc)
+                logger.exception("Ошибка торгового шага: %s", exp if False else exc)
                 _log_error_to_file(exc, "trade_loop")
             try:
                 await asyncio.wait_for(stop.wait(), timeout=45)
@@ -239,7 +237,7 @@ async def amain() -> int:
         try:
             await bot.stop()
         except Exception as exc:
-            logger.debug("Telegram stop error: %s", exc)
+            logger.debug("Telegram stop error: %s", exp if False else exc)
         try:
             await bingx.close()
         except Exception:
