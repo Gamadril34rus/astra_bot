@@ -2,7 +2,8 @@ name: Zeus paper-clock
 
 # Отдельный paper-only контур Зевса (wedge false-break retest 4h).
 # Live / settings.yaml / основные стратегии НЕ трогаем.
-# Каждые 5 мин — step + journal + Telegram (важное / heartbeat 2ч).
+# Каждые 5 мин — step + journal entry/stop/exit + Telegram.
+# Позиции живут между тиками: models/zeus_paper_positions.json
 
 on:
   schedule:
@@ -42,7 +43,7 @@ jobs:
           git config user.email "bot@users.noreply.github.com"
           git pull --no-rebase origin master || true
 
-      - name: Write .env
+      - name: Write .env (paper only)
         env:
           BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
           BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
@@ -58,6 +59,9 @@ jobs:
             echo "TELEGRAM_ADMIN_ID=$TELEGRAM_ADMIN_ID"
           } > .env
           chmod 600 .env
+          # инвариант: live ордера невозможны в этом workflow
+          grep -q 'ENVIRONMENT=paper' .env
+          grep -q 'PAPER_TRADING=true' .env
 
       - name: Zeus paper-clock --once
         run: python scripts/run_paper_zeus.py --once --symbol BTC-USDT --journal models/zeus_trade_journal.jsonl
@@ -70,12 +74,20 @@ jobs:
         run: python scripts/zeus_telegram_status.py --journal models/zeus_trade_journal.jsonl
         continue-on-error: true
 
-      - name: Save journal + notify state
+      - name: Save Zeus state (positions survive next tick)
         if: always()
         run: |
-          for f in models/zeus_trade_journal.jsonl models/zeus_tg_notify_state.json; do
+          for f in \
+            models/zeus_trade_journal.jsonl \
+            models/zeus_tg_notify_state.json \
+            models/zeus_paper_positions.json \
+            models/zeus_paper_trades.jsonl \
+            models/zeus_strategy_stats.json \
+            models/zeus_no_trade_observations.jsonl \
+            models/zeus_halt_alerts.json
+          do
             [ -f "$f" ] && git add -f "$f" || true
           done
           git diff --cached --quiet || \
-            git commit -m "chore(ci): zeus paper journal $(date -u +%Y-%m-%dT%H:%MZ)"
+            git commit -m "chore(ci): zeus paper state $(date -u +%Y-%m-%dT%H:%MZ)"
           git push origin master || echo "push failed (will retry next run)"

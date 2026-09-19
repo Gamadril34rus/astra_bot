@@ -5,24 +5,26 @@
 Стратегия в коде по умолчанию enabled=False; здесь включаем явно для paper.
 
 После каждого step:
-  - structure_state / reject (почему нет входа)
-  - ltf_impulse на 15m (память сильного хода, не ордер)
+  - entry / stop_adjust / exit в zeus_trade_journal (из paper-брокера)
+  - structure_state / reject / ltf_impulse (память)
   - tick
 
-Журнал: models/zeus_trade_journal.jsonl
-Сопровождение: structural_stop + SMART BE/trail в TradingEngine.
+Изоляция state: все path-поля TradingEngineConfig → models/zeus_*
+(не пересекаются с основным paper_positions / paper_trades).
 """
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import os
 import signal
 import sys
 from pathlib import Path
 from statistics import median
+from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -48,10 +50,20 @@ from astra_bot.strategies.zeus_wedge_retest import (
 
 logger = logging.getLogger("paper_zeus")
 
-# 15m impulse: range vs median of last N bars, volume vs median
 LTF_IMPULSE_RANGE_MULT = 1.8
 LTF_IMPULSE_VOL_MULT = 1.6
 LTF_LOOKBACK = 24
+
+# Изолированные пути — ноль пересечений с основным ботом
+ZEUS_STATE_PATH = "models/zeus_paper_positions.json"
+ZEUS_TRADES_PATH = "models/zeus_paper_trades.jsonl"
+ZEUS_STATS_PATH = "models/zeus_strategy_stats.json"
+ZEUS_NO_TRADE_OBS = "models/zeus_no_trade_observations.jsonl"
+ZEUS_NO_TRADE_OUT = "models/zeus_no_trade_outcomes.json"
+ZEUS_PATTERN_EXIT = "models/zeus_pattern_exit_shadow.jsonl"
+ZEUS_HALT_ALERTS = "models/zeus_halt_alerts.json"
+ZEUS_HYPOTHESES = "models/zeus_hypotheses.json"
+ZEUS_KLINES_CACHE = "models/zeus_klines_cache"
 
 
 def parse_args() -> argparse.Namespace:
@@ -72,6 +84,173 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+def _snap_positions(engine: TradingEngine) -> dict[str, dict[str, Any]]:
+    """Снимок открытых позиций: id → stop/entry/direction/strategy."""
+    out: dict[str, dict[str, Any]] = {}
+    try:
+        for p in list(engine.broker.positions or []):
+            out[str(p.id)] = {
+                "symbol": p.symbol,
+                "direction": p.direction,
+                "entry_price": str(p.entry_price),
+                "stop_loss": str(p.stop_loss),
+                "take_profit": (
+                    str(p.plan_take)
+                    if getattr(p, "plan_take", None) is not None
+                    else (
+                        str(p.take_profits[0])
+                        if getattr(p, "take_profits", None)
+                        else ""
+                    )
+                ),
+                "strategy": getattr(p, "strategy", "") or "zeus_wedge_retest_4h",
+                "trailing": bool(getattr(p, "trailing_activated", False)),
+                "bars_held": int(getattr(p, "bars_held", 0) or 0),
+            }
+    except Exception as exc:
+        logger.debug("snap positions: %s", exc)
+    return out
+
+
+def _guess_stop_why(old_stop: float, new_stop: float, direction: str, trailing: bool) -> str:
+    if trailing:
+        return "trailing"
+    try:
+        # стоп ближе к входу / за BE
+        if direction == "long" and new_stop > old_stop:
+            return "breakeven_or_structure"
+        if direction == "short" and new_stop < old_stop:
+            return "breakeven_or_structure"
+    except Exception:
+        pass
+    return "structure"
+
+
+def sync_journal_from_broker(
+    *,
+    engine: TradingEngine,
+    journal: ZeusTradeLog,
+    before: dict[str, dict[str, Any]],
+    trades_path: Path,
+    known_trade_ids: set[str],
+) -> set[str]:
+    """Пишет entry / stop_adjust / exit по диффу брокера. Не ломает reject/*."""
+    after = _snap_positions(engine)
+
+    # Новые позиции → entry
+    for pid, meta in after.items():
+        if pid not in before:
+            journal.entry(
+                symbol=str(meta["symbol"]),
+                direction=str(meta["direction"]),
+                entry_price=meta["entry_price"],
+                stop_loss=meta["stop_loss"],
+                take_profit=meta.get("take_profit") or "",
+                reason="paper_open",
+                features={
+                    "position_id": pid,
+                    "strategy": meta.get("strategy"),
+                    "source": "zeus_paper_clock",
+                },
+                strategy=str(meta.get("strategy") or "zeus_wedge_retest_4h"),
+            )
+            logger.info(
+                "Zeus ENTRY %s %s @ %s SL %s",
+                meta["direction"],
+                meta["symbol"],
+                meta["entry_price"],
+                meta["stop_loss"],
+            )
+
+    # Изменение стопа → stop_adjust
+    for pid, meta in after.items():
+        if pid not in before:
+            continue
+        old = before[pid]
+        if str(old.get("stop_loss")) != str(meta.get("stop_loss")):
+            why = _guess_stop_why(
+                float(old["stop_loss"]),
+                float(meta["stop_loss"]),
+                str(meta["direction"]),
+                bool(meta.get("trailing")),
+            )
+            journal.stop_adjust(
+                symbol=str(meta["symbol"]),
+                direction=str(meta["direction"]),
+                old_stop=old["stop_loss"],
+                new_stop=meta["stop_loss"],
+                why=why,
+                mfe_r=None,
+            )
+            logger.info(
+                "Zeus STOP %s %s → %s (%s)",
+                meta["symbol"],
+                old["stop_loss"],
+                meta["stop_loss"],
+                why,
+            )
+
+    # Новые закрытия в zeus_paper_trades.jsonl → exit
+    if trades_path.exists():
+        try:
+            for line in trades_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                except Exception:
+                    continue
+                tid = str(row.get("id") or "")
+                if not tid or tid in known_trade_ids:
+                    continue
+                known_trade_ids.add(tid)
+                journal.exit(
+                    symbol=str(row.get("symbol") or ""),
+                    direction=str(row.get("direction") or ""),
+                    exit_price=row.get("exit_price", ""),
+                    reason=str(row.get("exit_reason") or "close"),
+                    r_multiple=(
+                        float(row["r_multiple"])
+                        if row.get("r_multiple") is not None
+                        else None
+                    ),
+                    bars_held=None,
+                )
+                logger.info(
+                    "Zeus EXIT %s %s @ %s R=%s reason=%s",
+                    row.get("direction"),
+                    row.get("symbol"),
+                    row.get("exit_price"),
+                    row.get("r_multiple"),
+                    row.get("exit_reason"),
+                )
+        except Exception as exc:
+            logger.warning("sync exits: %s", exc)
+
+    return known_trade_ids
+
+
+def _load_known_trade_ids(trades_path: Path) -> set[str]:
+    ids: set[str] = set()
+    if not trades_path.exists():
+        return ids
+    try:
+        for line in trades_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+                if row.get("id"):
+                    ids.add(str(row["id"]))
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return ids
+
+
 async def observe_zeus(
     *,
     bingx: BingXClient,
@@ -82,7 +261,6 @@ async def observe_zeus(
     """Память: структура 4h, reject, 15m impulse. Не открывает ордера."""
     try:
         candles_4h = await bingx.get_recent_candles(symbol, "4h", limit=80)
-        # закрытые бары для diagnose (как pipeline)
         closed_4h = candles_4h[:-1] if len(candles_4h) > 1 else list(candles_4h)
         diag = zeus.diagnose(closed_4h)
         journal.structure_state(symbol=symbol, snapshot=diag)
@@ -103,8 +281,9 @@ async def observe_zeus(
             )
             logger.info("Zeus reject: %s stage=%s", reason, diag.get("stage"))
 
-        # 15m impulse — только наблюдение
-        candles_15 = await bingx.get_recent_candles(symbol, "15m", limit=LTF_LOOKBACK + 5)
+        candles_15 = await bingx.get_recent_candles(
+            symbol, "15m", limit=LTF_LOOKBACK + 5
+        )
         if len(candles_15) >= 8:
             closed_15 = candles_15[:-1] if len(candles_15) > 1 else candles_15
             last = closed_15[-1]
@@ -138,11 +317,13 @@ async def observe_zeus(
                     upper = float(diag.get("wedge_upper") or 0)
                     lower = float(diag.get("wedge_lower") or 0)
                     if upper and lower:
-                        # близко к границе клина (±0.4%)
                         band = mid * 0.004
                         near = abs(cl - upper) <= band or abs(cl - lower) <= band
                         if near:
-                            note = "15m impulse near 4h wedge boundary; still not entry without full pattern"
+                            note = (
+                                "15m impulse near 4h wedge boundary; "
+                                "still not entry without full pattern"
+                            )
                 journal.ltf_impulse(
                     symbol=symbol,
                     timeframe="15m",
@@ -166,6 +347,18 @@ async def observe_zeus(
 async def amain(args: argparse.Namespace) -> int:
     setup_logging()
 
+    env = (os.environ.get("ENVIRONMENT") or "").strip().lower()
+    paper_flag = (os.environ.get("PAPER_TRADING") or "").strip().lower()
+    if env and env not in ("paper", "test", "dev"):
+        logger.error(
+            "ABORT: ENVIRONMENT=%s — Zeus paper-clock только paper", env
+        )
+        return 2
+    if not env:
+        os.environ["ENVIRONMENT"] = "paper"
+    if paper_flag not in ("1", "true", "yes"):
+        os.environ["PAPER_TRADING"] = "true"
+
     api_key = os.environ.get("BINGX_API_KEY", "")
     api_secret = os.environ.get("BINGX_API_SECRET", "")
     bingx = BingXClient(
@@ -187,6 +380,19 @@ async def amain(args: argparse.Namespace) -> int:
         max_open_positions=2,
         structural_stop=True,
         smart_exit_default=True,
+        # --- полная изоляция state от основного бота ---
+        state_path=ZEUS_STATE_PATH,
+        trades_path=ZEUS_TRADES_PATH,
+        stats_path=ZEUS_STATS_PATH,
+        no_trade_observations_path=ZEUS_NO_TRADE_OBS,
+        no_trade_outcomes_path=ZEUS_NO_TRADE_OUT,
+        pattern_exit_shadow_path=ZEUS_PATTERN_EXIT,
+        halt_alerts_path=ZEUS_HALT_ALERTS,
+        hypotheses_path=ZEUS_HYPOTHESES,
+        klines_cache_dir=ZEUS_KLINES_CACHE,
+        # тень entry_gates ок; живой блок выкл (как default)
+        entry_gates_enabled=False,
+        entry_gates_shadow_enabled=True,
     )
 
     zeus_cfg = ZeusWedgeRetestConfig(enabled=True)
@@ -206,18 +412,29 @@ async def amain(args: argparse.Namespace) -> int:
     )
 
     journal = ZeusTradeLog(args.journal)
+    trades_path = Path(ZEUS_TRADES_PATH)
+    known_ids = _load_known_trade_ids(trades_path)
+
     logger.info(
-        "Zeus paper-clock: symbol=%s tf=4h enabled=True journal=%s "
-        "(memory=reject+structure+ltf; prod НЕ изменены)",
+        "Zeus paper-clock: symbol=%s tf=4h state=%s trades=%s "
+        "ENVIRONMENT=%s PAPER_TRADING=%s (live paths NOT used)",
         args.symbol,
-        args.journal,
+        ZEUS_STATE_PATH,
+        ZEUS_TRADES_PATH,
+        os.environ.get("ENVIRONMENT"),
+        os.environ.get("PAPER_TRADING"),
     )
     journal._write(
         {
             "event": "clock_start",
             "symbol": args.symbol,
             "strategy": "zeus_wedge_retest_4h",
-            "note": "paper-only; memory layer on; live settings untouched",
+            "note": (
+                "paper-only; isolated zeus_* paths; "
+                "entry/stop/exit journal wired; live settings untouched"
+            ),
+            "state_path": ZEUS_STATE_PATH,
+            "trades_path": ZEUS_TRADES_PATH,
         }
     )
 
@@ -230,24 +447,37 @@ async def amain(args: argparse.Namespace) -> int:
             pass
 
     async def one_cycle() -> None:
+        nonlocal known_ids
+        before = _snap_positions(engine)
         await engine.step()
+        known_ids = sync_journal_from_broker(
+            engine=engine,
+            journal=journal,
+            before=before,
+            trades_path=trades_path,
+            known_trade_ids=known_ids,
+        )
         await observe_zeus(
             bingx=bingx, zeus=zeus, journal=journal, symbol=args.symbol
         )
+        n_open = len(engine.broker.positions or [])
         journal._write(
             {
                 "event": "tick",
                 "symbol": args.symbol,
                 "strategy": "zeus_wedge_retest_4h",
-                "note": "engine.step + observe completed",
+                "note": "engine.step + trade_sync + observe completed",
+                "open_positions": n_open,
             }
         )
 
     if args.once:
         await one_cycle()
-        logger.info("Один цикл Zeus paper-clock завершён.")
+        logger.info(
+            "Один цикл Zeus paper-clock завершён. open=%d",
+            len(engine.broker.positions or []),
+        )
     else:
-        # локальный forever: step + observe каждые interval
         while not stop.is_set():
             try:
                 await one_cycle()
