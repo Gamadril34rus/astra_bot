@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="520" height="320" font-family="system-ui,sans-serif">
+  <text x="16" y="28" font-size="16" font-weight="700">Zeus reject funnel (paper)</text>
+  <rect x="40" y="50" width="440" height="40" rx="6" fill="#3b82f6"/>
+  <text x="50" y="75" fill="#fff" font-size="14">structure snapshots: 15</text>
+  <rect x="60" y="105" width="293" height="40" rx="6" fill="#8b5cf6"/>
+  <text x="70" y="130" fill="#fff" font-size="14">has_wedge: 11 (73%)</text>
+  <rect x="80" y="160" width="40" height="40" rx="6" fill="#f59e0b"/>
+  <text x="90" y="185" fill="#111" font-size="14">would_signal: 1 (7%)</text>
+  <rect x="100" y="215" width="24" height="40" rx="6" fill="#22c55e"/>
+  <text x="110" y="240" fill="#111" font-size="14">entry: 0</text>
+  <text x="16" y="285" font-size="12" fill="#444">rejects: no_retest_close_inside=9, not_converging_wedge=4, no_false_break=1</text>
+  <text x="16" y="305" font-size="11" fill="#888">gap fixed: entry at signal-bar close (not live price)</text>
+</svg>
