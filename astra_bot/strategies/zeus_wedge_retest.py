@@ -1,8 +1,10 @@
 """
 Zeus Wedge False-Break + Retest (4h) — research / paper-clock.
 
-Урок 8: ложный выход из клина → ретест границы → закрытие обратно внутрь
-→ разворот в сторону возврата.
+Урок 8: ложный выход из клина → ретест → close inside → разворот.
+Уроки 5/7 + иерархия ТФ: 4h — основной ход структуры; если пробой
+**удержался снаружи** (true breakout) — вход по направлению пробоя,
+а не только short после возврата внутрь.
 
 enabled=False по умолчанию (live/prod). Paper-clock runner включает явно.
 
@@ -54,10 +56,14 @@ class ZeusWedgeRetestConfig(StrategyConfig):
     stop_buffer_pct: float = 0.002
     min_rr: float = 1.5
     max_bars_outside: int = 5
+    # True-breakout: пробой удержался снаружи → вход по тренду пробоя.
+    enable_true_breakout: bool = True
+    min_hold_bars_breakout: int = 2
+    max_bars_true_breakout: int = 6
 
 
 class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
-    """Ложный пробой клина + ретест + закрытие внутрь → разворот."""
+    """Клин 4h: false-break retest (разворот) + true-breakout hold (продолжение)."""
 
     preferred_timeframe: str = "4h"
 
@@ -73,10 +79,7 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
         candles: list[models.Candle],
         current_price: float | None = None,
     ) -> dict[str, Any]:
-        """Снимок 4h-структуры + reason, почему сигнала нет (research memory).
-
-        Не открывает позицию. Используется paper-clock journal.
-        """
+        """Снимок 4h-структуры + reason, почему сигнала нет (research memory)."""
         out: dict[str, Any] = {
             "has_wedge": False,
             "would_signal": False,
@@ -88,7 +91,10 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
         if not candles or len(candles) < min_need:
             return out
 
-        tail_max = c.max_bars_outside + 1
+        tail_max = max(
+            c.max_bars_outside + 1,
+            int(getattr(c, "max_bars_true_breakout", 6)) + 1,
+        )
         if len(candles) < c.lookback + 1:
             return out
 
@@ -191,12 +197,11 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
         out["broken_up"] = broken_up
         out["broken_down"] = broken_down
 
-        if bars_after < 0 or bars_after > c.max_bars_outside:
+        if bars_after < 0:
             out["reject_reason"] = "bars_outside_limit"
             out["stage"] = "breakout"
             return out
 
-        # Структура по close бара (не live) — иначе diagnose≠evaluate
         price = float(last_close)
 
         if broken_up:
@@ -204,9 +209,53 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             closed_inside = (
                 last_close <= upper * (1.0 + tol * 0.5) and last_close >= lower
             )
+            still_outside = last_close > upper * (1.0 + buf * 0.5)
+
+            # True breakout UP → LONG (4h основной ход)
+            if (
+                getattr(c, "enable_true_breakout", True)
+                and still_outside
+                and bars_after >= int(getattr(c, "min_hold_bars_breakout", 2))
+                and bars_after <= int(getattr(c, "max_bars_true_breakout", 6))
+            ):
+                stop_price = lower * (1.0 - c.stop_buffer_pct)
+                brk_low = min(
+                    float(b.low) for b in tail[breakout_idx : breakout_idx + 1]
+                )
+                stop_price = min(stop_price, brk_low * (1.0 - c.stop_buffer_pct))
+                risk = price - stop_price
+                if risk <= 0:
+                    out["reject_reason"] = "invalid_risk"
+                    out["stage"] = "risk"
+                    return out
+                target = price + risk * c.min_rr
+                rr = abs(target - price) / risk if risk else 0.0
+                if rr < c.min_rr:
+                    out["reject_reason"] = "rr_too_low"
+                    out["stage"] = "risk"
+                    return out
+                out["would_signal"] = True
+                out["reject_reason"] = ""
+                out["direction"] = "long"
+                out["pattern"] = "true_breakout_up_hold"
+                out["stage"] = "signal"
+                out["structure_role"] = "4h_main"
+                return out
+
+            # False-break UP → SHORT (урок 8)
+            if bars_after > c.max_bars_outside:
+                out["reject_reason"] = "bars_outside_limit"
+                out["stage"] = "breakout"
+                return out
             if not (retest_ok and closed_inside and last_close < upper):
-                out["reject_reason"] = "no_retest_close_inside"
-                out["stage"] = "retest"
+                if still_outside and bars_after < int(
+                    getattr(c, "min_hold_bars_breakout", 2)
+                ):
+                    out["reject_reason"] = "waiting_true_breakout_hold"
+                    out["stage"] = "breakout"
+                else:
+                    out["reject_reason"] = "no_retest_close_inside"
+                    out["stage"] = "retest"
                 return out
             stop_price = extreme_hi * (1.0 + c.stop_buffer_pct)
             risk = stop_price - price
@@ -231,9 +280,51 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             closed_inside = (
                 last_close >= lower * (1.0 - tol * 0.5) and last_close <= upper
             )
+            still_outside = last_close < lower * (1.0 - buf * 0.5)
+
+            if (
+                getattr(c, "enable_true_breakout", True)
+                and still_outside
+                and bars_after >= int(getattr(c, "min_hold_bars_breakout", 2))
+                and bars_after <= int(getattr(c, "max_bars_true_breakout", 6))
+            ):
+                stop_price = upper * (1.0 + c.stop_buffer_pct)
+                brk_hi = max(
+                    float(b.high) for b in tail[breakout_idx : breakout_idx + 1]
+                )
+                stop_price = max(stop_price, brk_hi * (1.0 + c.stop_buffer_pct))
+                risk = stop_price - price
+                if risk <= 0:
+                    out["reject_reason"] = "invalid_risk"
+                    out["stage"] = "risk"
+                    return out
+                target = price - risk * c.min_rr
+                rr = abs(target - price) / risk if risk else 0.0
+                if rr < c.min_rr:
+                    out["reject_reason"] = "rr_too_low"
+                    out["stage"] = "risk"
+                    return out
+                out["would_signal"] = True
+                out["reject_reason"] = ""
+                out["direction"] = "short"
+                out["pattern"] = "true_breakout_down_hold"
+                out["stage"] = "signal"
+                out["structure_role"] = "4h_main"
+                return out
+
+            if bars_after > c.max_bars_outside:
+                out["reject_reason"] = "bars_outside_limit"
+                out["stage"] = "breakout"
+                return out
             if not (retest_ok and closed_inside and last_close > lower):
-                out["reject_reason"] = "no_retest_close_inside"
-                out["stage"] = "retest"
+                if still_outside and bars_after < int(
+                    getattr(c, "min_hold_bars_breakout", 2)
+                ):
+                    out["reject_reason"] = "waiting_true_breakout_hold"
+                    out["stage"] = "breakout"
+                else:
+                    out["reject_reason"] = "no_retest_close_inside"
+                    out["stage"] = "retest"
                 return out
             stop_price = extreme_lo * (1.0 - c.stop_buffer_pct)
             risk = price - stop_price
@@ -274,7 +365,10 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                 return None
 
             c = self.config
-            tail_max = c.max_bars_outside + 1
+            tail_max = max(
+                c.max_bars_outside + 1,
+                int(getattr(c, "max_bars_true_breakout", 6)) + 1,
+            )
             tail_len = min(tail_max, max(1, len(candles) - c.lookback))
             formation = candles[-(c.lookback + tail_len) : -tail_len]
             highs = [float(x.high) for x in formation]
@@ -291,23 +385,26 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             width_pct = float(diag.get("width_pct") or 0.0)
             tail = candles[-tail_len:]
             last = tail[-1]
-            # Paper/structure entry: close сигнального (закрытого) бара.
-            # Живая current_price часто уже ушла за экстремум false-break →
-            # risk<=0 → evaluate=None при would_signal=True в diagnose (gap).
             price = float(last.close)
             pattern = str(diag.get("pattern") or "")
             bars_after = int(diag.get("bars_outside") or 0)
 
             if diag.get("direction") == "short":
                 direction = models.TradeDirection.SHORT
-                extreme_hi = max(float(b.high) for b in tail)
-                stop_price = extreme_hi * (1.0 + c.stop_buffer_pct)
+                if pattern.startswith("true_breakout"):
+                    stop_price = upper * (1.0 + c.stop_buffer_pct)
+                else:
+                    extreme_hi = max(float(b.high) for b in tail)
+                    stop_price = extreme_hi * (1.0 + c.stop_buffer_pct)
                 risk = stop_price - price
                 target_price = price - risk * c.min_rr
             else:
                 direction = models.TradeDirection.LONG
-                extreme_lo = min(float(b.low) for b in tail)
-                stop_price = extreme_lo * (1.0 - c.stop_buffer_pct)
+                if pattern.startswith("true_breakout"):
+                    stop_price = lower * (1.0 - c.stop_buffer_pct)
+                else:
+                    extreme_lo = min(float(b.low) for b in tail)
+                    stop_price = extreme_lo * (1.0 - c.stop_buffer_pct)
                 risk = price - stop_price
                 target_price = price + risk * c.min_rr
 
@@ -338,7 +435,12 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                 "slope_lo": round(slope_lo, 8),
                 "is_rising_wedge": bool(diag.get("is_rising_wedge")),
                 "is_falling_wedge": bool(diag.get("is_falling_wedge")),
-                "stop_structure": "beyond_false_break_extreme",
+                "structure_role": diag.get("structure_role") or "4h_main",
+                "stop_structure": (
+                    "beyond_breakout_extreme"
+                    if pattern.startswith("true_breakout")
+                    else "beyond_false_break_extreme"
+                ),
                 "min_rr": c.min_rr,
             }
 
