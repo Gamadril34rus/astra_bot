@@ -53,7 +53,6 @@ class ZeusWedgeRetestConfig(StrategyConfig):
     retest_tolerance_pct: float = 0.003
     stop_buffer_pct: float = 0.002
     min_rr: float = 1.5
-    # Чуть жёстче: меньше «зависших» ложных пробоев без быстрого возврата
     max_bars_outside: int = 5
 
 
@@ -197,7 +196,8 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             out["stage"] = "breakout"
             return out
 
-        price = float(current_price or last_close)
+        # Структура по close бара (не live) — иначе diagnose≠evaluate
+        price = float(last_close)
 
         if broken_up:
             retest_ok = last_high >= upper * (1.0 - tol)
@@ -274,8 +274,6 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                 return None
 
             c = self.config
-            # Повтор для уровней стопа/тейка из diagnose-контекста
-            # (evaluate остаётся источником Signal для пайплайна).
             tail_max = c.max_bars_outside + 1
             tail_len = min(tail_max, max(1, len(candles) - c.lookback))
             formation = candles[-(c.lookback + tail_len) : -tail_len]
@@ -293,13 +291,15 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             width_pct = float(diag.get("width_pct") or 0.0)
             tail = candles[-tail_len:]
             last = tail[-1]
-            price = float(current_price or last.close)
+            # Paper/structure entry: close сигнального (закрытого) бара.
+            # Живая current_price часто уже ушла за экстремум false-break →
+            # risk<=0 → evaluate=None при would_signal=True в diagnose (gap).
+            price = float(last.close)
             pattern = str(diag.get("pattern") or "")
             bars_after = int(diag.get("bars_outside") or 0)
 
             if diag.get("direction") == "short":
                 direction = models.TradeDirection.SHORT
-                # extreme из tail
                 extreme_hi = max(float(b.high) for b in tail)
                 stop_price = extreme_hi * (1.0 + c.stop_buffer_pct)
                 risk = stop_price - price
@@ -312,6 +312,12 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                 target_price = price + risk * c.min_rr
 
             if risk <= 0:
+                logger.info(
+                    "%s: would_signal but risk<=0 at signal close=%.4f stop=%.4f",
+                    self.name,
+                    price,
+                    stop_price,
+                )
                 return None
 
             confidence = min(
