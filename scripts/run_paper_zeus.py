@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Zeus paper-clock: BTC 4h wedge research, isolated state, no live.
+"""Zeus paper-clock: multi-symbol 4h wedge research, isolated, no live.
 
-Стратегия enabled=False по умолчанию; здесь включаем для paper.
+Default: BTC ETH SOL BNB XRP. Paper-only.
 """
 
 from __future__ import annotations
@@ -52,15 +52,35 @@ ZEUS_HALT_ALERTS = "models/zeus_halt_alerts.json"
 ZEUS_HYPOTHESES = "models/zeus_hypotheses.json"
 ZEUS_KLINES_CACHE = "models/zeus_klines_cache"
 
+DEFAULT_SYMBOLS = (
+    "BTC-USDT",
+    "ETH-USDT",
+    "SOL-USDT",
+    "BNB-USDT",
+    "XRP-USDT",
+)
+
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Zeus paper-clock")
-    p.add_argument("--symbol", default="BTC-USDT")
+    p = argparse.ArgumentParser(description="Zeus paper-clock multi-symbol")
+    p.add_argument("--symbol", default="", help="Single symbol (legacy)")
+    p.add_argument(
+        "--symbols",
+        default=",".join(DEFAULT_SYMBOLS),
+        help="Comma-separated BingX swap symbols",
+    )
     p.add_argument("--interval", type=int, default=300)
     p.add_argument("--capital", type=float, default=2000.0)
     p.add_argument("--once", action="store_true")
     p.add_argument("--journal", default="models/zeus_trade_journal.jsonl")
     return p.parse_args()
+
+
+def resolve_symbols(args: argparse.Namespace) -> tuple[str, ...]:
+    if (args.symbol or "").strip():
+        return (args.symbol.strip().upper(),)
+    parts = [s.strip().upper() for s in (args.symbols or "").split(",") if s.strip()]
+    return tuple(parts) if parts else DEFAULT_SYMBOLS
 
 
 def _snap_positions(engine: TradingEngine) -> dict[str, dict[str, Any]]:
@@ -72,6 +92,7 @@ def _snap_positions(engine: TradingEngine) -> dict[str, dict[str, Any]]:
                 "entry_price": str(p.entry_price),
                 "direction": p.direction,
                 "quantity": str(p.quantity),
+                "symbol": getattr(p, "symbol", "") or "",
                 "strategy": getattr(p, "strategy", "") or "zeus_wedge_retest_4h",
             }
     except Exception as exc:
@@ -109,7 +130,7 @@ def sync_journal_from_broker(
     for pid, meta in after.items():
         if pid not in before:
             journal.entry(
-                symbol="BTC-USDT",
+                symbol=str(meta.get("symbol") or "BTC-USDT"),
                 direction=meta["direction"],
                 entry_price=meta["entry_price"],
                 stop_loss=meta["stop_loss"],
@@ -119,7 +140,7 @@ def sync_journal_from_broker(
             )
         elif before[pid].get("stop_loss") != meta.get("stop_loss"):
             journal.stop_adjust(
-                symbol="BTC-USDT",
+                symbol=str(meta.get("symbol") or "BTC-USDT"),
                 position_id=pid,
                 old_stop=before[pid].get("stop_loss"),
                 new_stop=meta.get("stop_loss"),
@@ -200,6 +221,8 @@ async def observe_zeus(
 
 async def amain(args: argparse.Namespace) -> int:
     setup_logging()
+    symbols = resolve_symbols(args)
+    logger.info("Zeus symbols: %s", ",".join(symbols))
     env = (os.environ.get("ENVIRONMENT") or "").strip().lower()
     paper_flag = (os.environ.get("PAPER_TRADING") or "").strip().lower()
     if env and env not in ("paper", "test", "dev"):
@@ -220,7 +243,7 @@ async def amain(args: argparse.Namespace) -> int:
         logger.info("BINGX_API_KEY not set — public data")
 
     config = TradingEngineConfig(
-        symbols=(args.symbol,),
+        symbols=symbols,
         poll_interval_seconds=args.interval,
         max_open_positions=2,
         structural_stop=True,
@@ -274,9 +297,9 @@ async def amain(args: argparse.Namespace) -> int:
     journal._write(
         {
             "event": "clock_start",
-            "symbol": args.symbol,
+            "symbol": ",".join(symbols),
             "strategy": "zeus_wedge_retest_4h",
-            "note": "paper-only; capital fixed; capital=" + str(args.capital),
+            "note": "paper multi; capital=" + str(args.capital) + " symbols=" + ",".join(symbols),
         }
     )
 
@@ -299,15 +322,19 @@ async def amain(args: argparse.Namespace) -> int:
             trades_path=trades_path,
             known_trade_ids=known_ids,
         )
-        await observe_zeus(bingx=bingx, zeus=zeus, journal=journal, symbol=args.symbol)
+        for sym in symbols:
+            await observe_zeus(
+                bingx=bingx, zeus=zeus, journal=journal, symbol=sym
+            )
         n_open = len(engine.broker.positions or [])
         journal._write(
             {
                 "event": "tick",
-                "symbol": args.symbol,
+                "symbol": ",".join(symbols),
                 "strategy": "zeus_wedge_retest_4h",
-                "note": "cycle done",
+                "note": "cycle done multi-symbol",
                 "open_positions": n_open,
+                "symbols": list(symbols),
             }
         )
 
