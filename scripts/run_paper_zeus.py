@@ -217,7 +217,7 @@ async def observe_zeus(
         except Exception as ltf_exc:
             logger.debug("ltf observe: %s", ltf_exc)
     except Exception as exc:
-        logger.warning("observe_zeus skipped: %s", exc)
+        logger.warning("observe_zeus skipped: %s", exp)
 
 
 async def amain(args: argparse.Namespace) -> int:
@@ -285,26 +285,35 @@ async def amain(args: argparse.Namespace) -> int:
 
     from decimal import Decimal as _Dec
 
+    # Paper-research: НИКОГДА не брать капитал с BingX API (без ключей = 0 →
+    # size=0 → вход пропускается при would_signal). Всегда args.capital.
     _cap = _Dec(str(args.capital))
     if _cap <= 0:
         _cap = _Dec("2000")
     try:
         br = engine.broker
-        cur = getattr(br, "initial_capital", None)
-        if cur is None or _Dec(str(cur)) <= 0:
-            br.initial_capital = _cap
-            if hasattr(engine, "risk") and hasattr(engine.risk, "set_capital"):
-                engine.risk.set_capital(_cap, _cap)
-            elif hasattr(engine, "risk"):
-                try:
-                    engine.risk.initial_capital = _cap
-                except Exception:
-                    pass
-            br.save()
-            logger.info("Zeus paper capital restored to %s (was %s)", _cap, cur)
+        old_cap = getattr(br, "initial_capital", None)
+        br.initial_capital = _cap
+        if hasattr(engine, "risk") and hasattr(engine.risk, "set_capital"):
+            engine.risk.set_capital(_cap, _cap)
+        elif hasattr(engine, "risk"):
+            try:
+                engine.risk.initial_capital = _cap
+            except Exception:
+                pass
+        # Блокируем sync_capital() внутри step(): иначе BingX=0 затирает _cap.
         engine._capital_synced = True
+        try:
+            br.save()
+        except Exception:
+            pass
+        logger.info(
+            "Zeus paper capital fixed to %s (broker was %s; exchange sync disabled)",
+            _cap,
+            old_cap,
+        )
     except Exception as _cap_exc:
-        logger.warning("capital restore skipped: %s", _cap_exc)
+        logger.warning("capital fix skipped: %s", _cap_exc)
 
     journal = ZeusTradeLog(args.journal)
     trades_path = Path(ZEUS_TRADES_PATH)
@@ -325,8 +334,8 @@ async def amain(args: argparse.Namespace) -> int:
             "symbol": args.symbol,
             "strategy": "zeus_wedge_retest_4h",
             "note": (
-                "paper-only; isolated zeus_* paths; "
-                "REGIME not blocking paper; capital=" + str(args.capital)
+                "paper-only; capital fixed; REGIME not blocking; capital="
+                + str(args.capital)
             ),
             "state_path": ZEUS_STATE_PATH,
             "trades_path": ZEUS_TRADES_PATH,
