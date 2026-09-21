@@ -131,7 +131,6 @@ def sync_journal_from_broker(
     trades_path: Path,
     known_trade_ids: set[str],
 ) -> set[str]:
-    """Sync paper positions/trades into ZeusTradeLog (API-aligned)."""
     after = _snap_positions(engine)
     for pid, meta in after.items():
         if pid not in before:
@@ -151,7 +150,7 @@ def sync_journal_from_broker(
                     strategy=str(meta.get("strategy") or "zeus_channel_boundary_4h"),
                 )
             except Exception as exc:
-                logger.warning("journal.entry failed: %s", exc)
+                logger.warning("journal.entry failed: %s", exp)
         elif before[pid].get("stop_loss") != meta.get("stop_loss"):
             try:
                 journal.stop_adjust(
@@ -166,7 +165,7 @@ def sync_journal_from_broker(
                     why=f"stop_sync position_id={pid}",
                 )
             except Exception as exc:
-                logger.warning("journal.stop_adjust failed: %s", exc)
+                logger.warning("journal.stop_adjust failed: %s", exp)
     if trades_path.exists():
         import json as _json
 
@@ -189,11 +188,9 @@ def sync_journal_from_broker(
                         reason=str(
                             row.get("exit_reason") or row.get("reason") or "closed"
                         ),
-                        r_multiple=None,
-                        bars_held=None,
                     )
                 except Exception as exc:
-                    logger.warning("journal.exit failed: %s", exc)
+                    logger.warning("journal.exit failed: %s", exp)
         except Exception as exc:
             logger.warning("exit sync: %s", exp)
     return known_trade_ids
@@ -243,11 +240,10 @@ async def observe_zeus(
                 avg_v = sum(vols[:-1]) / max(len(vols) - 1, 1)
                 last_r, last_v = ranges[-1], vols[-1]
                 if avg_r > 0 and last_r >= avg_r * LTF_IMPULSE_RANGE_MULT:
-                    note = "15m impulse; not entry alone"
                     journal.ltf_impulse(
                         symbol=symbol,
                         timeframe="15m",
-                        note=note,
+                        note="15m impulse; not entry alone",
                         range_mult=round(last_r / avg_r, 3) if avg_r else None,
                         vol_mult=round(last_v / avg_v, 3) if avg_v else None,
                     )
@@ -274,7 +270,12 @@ async def amain(args: argparse.Namespace) -> int:
     api_key = os.environ.get("BINGX_API_KEY", "")
     api_secret = os.environ.get("BINGX_API_SECRET", "")
     bingx = BingXClient(
-        {"api_key": api_key, "api_secret": api_secret, "enabled": True, "rate_limit_qps": 5}
+        {
+            "api_key": api_key,
+            "api_secret": api_secret,
+            "enabled": True,
+            "rate_limit_qps": 5,
+        }
     )
     await bingx.initialize()
 
@@ -299,7 +300,9 @@ async def amain(args: argparse.Namespace) -> int:
     )
 
     zeus = ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True))
-    zeus_channel = ZeusChannelBoundaryStrategy(ZeusChannelBoundaryConfig(enabled=True))
+    zeus_channel = ZeusChannelBoundaryStrategy(
+        ZeusChannelBoundaryConfig(enabled=True)
+    )
     dcfg = DecisionConfig()
     dcfg.min_rr = 1.5
     dcfg.min_ml_probability = 0.0
@@ -308,7 +311,9 @@ async def amain(args: argparse.Namespace) -> int:
     pipeline = DecisionPipeline(
         config=dcfg, strategies=[zeus, zeus_channel], model=None
     )
-    engine = TradingEngine(exchange=bingx, pipeline=pipeline, config=config, notifier=None)
+    engine = TradingEngine(
+        exchange=bingx, pipeline=pipeline, config=config, notifier=None
+    )
 
     from decimal import Decimal as _Dec
 
@@ -342,7 +347,6 @@ async def amain(args: argparse.Namespace) -> int:
         }
     )
 
-    # Backfill journal entry for positions already open (missed due to API mismatch)
     for pid, meta in _snap_positions(engine).items():
         try:
             journal.entry(
@@ -402,7 +406,9 @@ async def amain(args: argparse.Namespace) -> int:
 
     if args.once:
         await one_cycle()
-        logger.info("Zeus cycle done open=%d", len(engine.broker.positions or []))
+        logger.info(
+            "Zeus cycle done open=%d", len(engine.broker.positions or [])
+        )
     else:
         while not stop.is_set():
             try:
