@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""Zeus paper-clock: multi-symbol 4h wedge research, isolated, no live.
-
-Default: BTC ETH SOL BNB XRP. Paper-only.
-"""
+"""Zeus paper-clock: wedge + channel (lessons), multi-symbol, paper-only."""
 
 from __future__ import annotations
 
@@ -21,6 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv(PROJECT_ROOT / ".env")
 except ImportError:
     pass
@@ -31,6 +29,10 @@ from astra_bot.decision.config import DecisionConfig
 from astra_bot.decision.pipeline import DecisionPipeline
 from astra_bot.decision.trading_engine import TradingEngine, TradingEngineConfig
 from astra_bot.decision.zeus_trade_log import ZeusTradeLog
+from astra_bot.strategies.zeus_channel_boundary import (
+    ZeusChannelBoundaryConfig,
+    ZeusChannelBoundaryStrategy,
+)
 from astra_bot.strategies.zeus_wedge_retest import (
     ZeusWedgeRetestConfig,
     ZeusWedgeRetestStrategy,
@@ -62,13 +64,9 @@ DEFAULT_SYMBOLS = (
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Zeus paper-clock multi-symbol")
-    p.add_argument("--symbol", default="", help="Single symbol (legacy)")
-    p.add_argument(
-        "--symbols",
-        default=",".join(DEFAULT_SYMBOLS),
-        help="Comma-separated BingX swap symbols",
-    )
+    p = argparse.ArgumentParser(description="Zeus paper multi-symbol")
+    p.add_argument("--symbol", default="")
+    p.add_argument("--symbols", default=",".join(DEFAULT_SYMBOLS))
     p.add_argument("--interval", type=int, default=300)
     p.add_argument("--capital", type=float, default=2000.0)
     p.add_argument("--once", action="store_true")
@@ -93,7 +91,7 @@ def _snap_positions(engine: TradingEngine) -> dict[str, dict[str, Any]]:
                 "direction": p.direction,
                 "quantity": str(p.quantity),
                 "symbol": getattr(p, "symbol", "") or "",
-                "strategy": getattr(p, "strategy", "") or "zeus_wedge_retest_4h",
+                "strategy": getattr(p, "strategy", "") or "",
             }
     except Exception as exc:
         logger.debug("snap: %s", exp)
@@ -106,6 +104,7 @@ def _load_known_trade_ids(trades_path: Path) -> set[str]:
         return known
     try:
         import json as _json
+
         for line in trades_path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
@@ -136,7 +135,7 @@ def sync_journal_from_broker(
                 stop_loss=meta["stop_loss"],
                 quantity=meta.get("quantity"),
                 notes={"position_id": pid, "source": "zeus_paper_clock"},
-                strategy=str(meta.get("strategy") or "zeus_wedge_retest_4h"),
+                strategy=str(meta.get("strategy") or ""),
             )
         elif before[pid].get("stop_loss") != meta.get("stop_loss"):
             journal.stop_adjust(
@@ -148,6 +147,7 @@ def sync_journal_from_broker(
             )
     if trades_path.exists():
         import json as _json
+
         try:
             for line in trades_path.read_text(encoding="utf-8").splitlines():
                 if not line.strip():
@@ -177,6 +177,7 @@ async def observe_zeus(
     zeus: ZeusWedgeRetestStrategy,
     journal: ZeusTradeLog,
     symbol: str,
+    zeus_channel: ZeusChannelBoundaryStrategy | None = None,
 ) -> None:
     try:
         klines = await bingx.get_candles(symbol, "4h", limit=80)
@@ -192,6 +193,18 @@ async def observe_zeus(
                 stage=str(diag.get("stage") or ""),
                 snapshot=diag,
             )
+        if zeus_channel is not None:
+            diag_ch = zeus_channel.diagnose(closed_4h)
+            snap = dict(diag_ch)
+            snap["structure"] = "channel"
+            journal.structure_state(symbol=symbol, snapshot=snap)
+            if not diag_ch.get("would_signal") and diag_ch.get("reject_reason"):
+                journal.reject(
+                    symbol=symbol,
+                    reason="channel:" + str(diag_ch.get("reject_reason") or ""),
+                    stage=str(diag_ch.get("stage") or ""),
+                    snapshot=snap,
+                )
         try:
             k15 = await bingx.get_candles(symbol, "15m", limit=40)
             if k15 and len(k15) >= LTF_LOOKBACK:
@@ -200,12 +213,9 @@ async def observe_zeus(
                 vols = [float(getattr(c, "volume", 0) or 0) for c in tail]
                 avg_r = sum(ranges[:-1]) / max(len(ranges) - 1, 1)
                 avg_v = sum(vols[:-1]) / max(len(vols) - 1, 1)
-                last_r = ranges[-1]
-                last_v = vols[-1]
+                last_r, last_v = ranges[-1], vols[-1]
                 if avg_r > 0 and last_r >= avg_r * LTF_IMPULSE_RANGE_MULT:
-                    note = "15m impulse observed; not an entry"
-                    if avg_v > 0 and last_v >= avg_v * LTF_IMPULSE_VOL_MULT:
-                        note = "15m impulse+volume; not entry without pattern"
+                    note = "15m impulse; not entry alone"
                     journal.ltf_impulse(
                         symbol=symbol,
                         timeframe="15m",
@@ -239,13 +249,11 @@ async def amain(args: argparse.Namespace) -> int:
         {"api_key": api_key, "api_secret": api_secret, "enabled": True, "rate_limit_qps": 5}
     )
     await bingx.initialize()
-    if not api_key:
-        logger.info("BINGX_API_KEY not set — public data")
 
     config = TradingEngineConfig(
         symbols=symbols,
         poll_interval_seconds=args.interval,
-        max_open_positions=2,
+        max_open_positions=5,
         structural_stop=True,
         smart_exit_default=True,
         state_path=ZEUS_STATE_PATH,
@@ -263,12 +271,15 @@ async def amain(args: argparse.Namespace) -> int:
     )
 
     zeus = ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True))
+    zeus_channel = ZeusChannelBoundaryStrategy(ZeusChannelBoundaryConfig(enabled=True))
     dcfg = DecisionConfig()
     dcfg.min_rr = 1.5
     dcfg.min_ml_probability = 0.0
     dcfg.min_expected_edge_pct = 0.0
     dcfg.min_ev_r = 0.0
-    pipeline = DecisionPipeline(config=dcfg, strategies=[zeus], model=None)
+    pipeline = DecisionPipeline(
+        config=dcfg, strategies=[zeus, zeus_channel], model=None
+    )
     engine = TradingEngine(exchange=bingx, pipeline=pipeline, config=config, notifier=None)
 
     from decimal import Decimal as _Dec
@@ -287,7 +298,7 @@ async def amain(args: argparse.Namespace) -> int:
             br.save()
         except Exception:
             pass
-        logger.info("Zeus paper capital fixed to %s (was %s; exchange sync off)", _cap, old_cap)
+        logger.info("Zeus capital fixed to %s (was %s)", _cap, old_cap)
     except Exception as _cap_exc:
         logger.warning("capital fix skipped: %s", _cap_exc)
 
@@ -298,8 +309,8 @@ async def amain(args: argparse.Namespace) -> int:
         {
             "event": "clock_start",
             "symbol": ",".join(symbols),
-            "strategy": "zeus_wedge_retest_4h",
-            "note": "paper multi; capital=" + str(args.capital) + " symbols=" + ",".join(symbols),
+            "strategy": "zeus_wedge+channel",
+            "note": "paper; wedge+channel lessons; capital=" + str(args.capital),
         }
     )
 
@@ -324,17 +335,20 @@ async def amain(args: argparse.Namespace) -> int:
         )
         for sym in symbols:
             await observe_zeus(
-                bingx=bingx, zeus=zeus, journal=journal, symbol=sym
+                bingx=bingx,
+                zeus=zeus,
+                zeus_channel=zeus_channel,
+                journal=journal,
+                symbol=sym,
             )
         n_open = len(engine.broker.positions or [])
         journal._write(
             {
                 "event": "tick",
                 "symbol": ",".join(symbols),
-                "strategy": "zeus_wedge_retest_4h",
-                "note": "cycle done multi-symbol",
+                "strategy": "zeus_wedge+channel",
+                "note": "cycle multi wedge+channel",
                 "open_positions": n_open,
-                "symbols": list(symbols),
             }
         )
 
