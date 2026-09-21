@@ -88,3 +88,4 @@
 {"event": "tick", "symbol": "BTC-USDT", "strategy": "zeus_wedge_retest_4h", "note": "engine.step + trade_sync + observe completed", "open_positions": 0, "ts": 1789954631841}
 {"event": "clock_start", "symbol": "BTC-USDT", "strategy": "zeus_wedge_retest_4h", "note": "paper-only; isolated zeus_* paths; REGIME not blocking paper; capital=2000.0", "state_path": "models/zeus_paper_positions.json", "trades_path": "models/zeus_paper_trades.jsonl", "ts": 1789973140439}
 {"event": "tick", "symbol": "BTC-USDT", "strategy": "zeus_wedge_retest_4h", "note": "engine.step + trade_sync + observe completed", "open_positions": 0, "ts": 1789973142324}
+{"event": "clock_start", "symbol": "BTC-USDT", "strategy": "zeus_wedge_retest_4h", "note": "paper-only; capital fixed; REGIME not blocking; capital=2000.0", "state_path": "models/zeus_paper_positions.json", "trades_path": "models/zeus_paper_trades.jsonl", "ts": 1789973285273}
