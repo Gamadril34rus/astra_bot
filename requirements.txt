@@ -31,11 +31,11 @@ python-telegram-bot>=22.8
 
 # Configuration
 pyyaml>=6.0.3
-python-dotenv>=1.0
+python-dotenv>=1.2.3
 
 # FastAPI for Render Web Service
 fastapi>=0.100.0
-uvicorn>=0.52.4
+uvicorn>=0.53.0
 
 # Monitoring
 prometheus-client>=0.19
