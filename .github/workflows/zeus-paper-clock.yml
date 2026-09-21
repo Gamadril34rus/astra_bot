@@ -1,9 +1,7 @@
 name: Zeus paper-clock
 
-# Отдельный paper-only контур Зевса (wedge false-break retest 4h).
-# Live / settings.yaml / основные стратегии НЕ трогаем.
-# Каждые 5 мин — BTC ETH SOL BNB XRP 4h paper + journal + Telegram.
-# Позиции живут между тиками: models/zeus_paper_positions.json
+# Paper-only Zeus 4h wedge. ~30 liquid USDT pairs.
+# Live / settings.yaml not touched.
 
 on:
   schedule:
@@ -20,7 +18,7 @@ permissions:
 jobs:
   tick:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,17 +61,17 @@ jobs:
           grep -q 'PAPER_TRADING=true' .env
 
       - name: Zeus paper-clock --once multi-symbol
-        run: python scripts/run_paper_zeus.py --once --symbols BTC-USDT,ETH-USDT,SOL-USDT,BNB-USDT,XRP-USDT --journal models/zeus_trade_journal.jsonl
+        run: python scripts/run_paper_zeus.py --once --symbols BTC-USDT,ETH-USDT,SOL-USDT,BNB-USDT,XRP-USDT,DOGE-USDT,ADA-USDT,AVAX-USDT,DOT-USDT,LINK-USDT,LTC-USDT,BCH-USDT,NEAR-USDT,APT-USDT,SUI-USDT,ARB-USDT,OP-USDT,UNI-USDT,AAVE-USDT,FIL-USDT,ATOM-USDT,INJ-USDT,TIA-USDT,WLD-USDT,TAO-USDT,HYPE-USDT,1000PEPE-USDT,WIF-USDT,ENA-USDT,PENDLE-USDT --journal models/zeus_trade_journal.jsonl
         continue-on-error: true
 
-      - name: Telegram status (важное + heartbeat ≤2ч)
+      - name: Telegram status
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
         run: python scripts/zeus_telegram_status.py --journal models/zeus_trade_journal.jsonl
         continue-on-error: true
 
-      - name: Save Zeus state (positions survive next tick)
+      - name: Save Zeus state
         if: always()
         run: |
           for f in \
