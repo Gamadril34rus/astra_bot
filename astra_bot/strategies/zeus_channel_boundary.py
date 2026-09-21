@@ -6,12 +6,15 @@ Paper research. enabled=False by default.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
 from ..core import models
 from .base import BaseStrategy, Signal, SignalType, StrategyConfig
+
+logger = logging.getLogger(__name__)
 
 
 def _linreg(ys: list[float]) -> tuple[float, float]:
@@ -71,12 +74,12 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
             "strategy": c.name,
         }
         n = int(c.lookback)
-        if len(candles) < n + 2:
+        if len(candles) < n:
             out["reject_reason"] = "not_enough_bars"
             out["stage"] = "data"
             return out
 
-        window = candles[-(n + 1) : -1]
+        window = candles[-n:]
         highs = [float(x.high) for x in window]
         lows = [float(x.low) for x in window]
         last = window[-1]
@@ -132,24 +135,31 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
                 bars_out += 1
             else:
                 break
+        out["bars_outside"] = bars_out
 
         if c.enable_breakout_hold and c.min_hold_bars <= bars_out <= c.max_hold_bars:
             if price > upper:
+                stop = lower * (1 - c.stop_buffer_pct)
+                target = price + (price - stop) * c.min_rr
                 out.update(
                     would_signal=True,
                     direction="long",
                     pattern="channel_breakout_up_hold",
                     entry=price,
-                    stop=lower * (1 - c.stop_buffer_pct),
+                    stop=stop,
+                    target=target,
                 )
                 return out
             if price < lower:
+                stop = upper * (1 + c.stop_buffer_pct)
+                target = price - (stop - price) * c.min_rr
                 out.update(
                     would_signal=True,
                     direction="short",
                     pattern="channel_breakout_down_hold",
                     entry=price,
-                    stop=upper * (1 + c.stop_buffer_pct),
+                    stop=stop,
+                    target=target,
                 )
                 return out
 
@@ -160,14 +170,15 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
         if near_lo:
             stop = lower * (1 - c.stop_buffer_pct)
             risk = price - stop
-            if risk > 0 and (upper - price) / risk >= c.min_rr:
+            target = upper
+            if risk > 0 and (target - price) / risk >= c.min_rr:
                 out.update(
                     would_signal=True,
                     direction="long",
                     pattern="channel_bounce_lower",
                     entry=price,
                     stop=stop,
-                    target=upper,
+                    target=target,
                 )
                 return out
             out["reject_reason"] = "rr_fail_long"
@@ -176,14 +187,15 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
         if near_hi:
             stop = upper * (1 + c.stop_buffer_pct)
             risk = stop - price
-            if risk > 0 and (price - lower) / risk >= c.min_rr:
+            target = lower
+            if risk > 0 and (price - target) / risk >= c.min_rr:
                 out.update(
                     would_signal=True,
                     direction="short",
                     pattern="channel_bounce_upper",
                     entry=price,
                     stop=stop,
-                    target=lower,
+                    target=target,
                 )
                 return out
             out["reject_reason"] = "rr_fail_short"
@@ -196,35 +208,62 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
         self,
         symbol: str,
         candles: list[models.Candle],
+        orderbook=None,
         current_price: float | None = None,
+        market_regime: str | None = None,
         **kwargs: Any,
     ) -> Signal | None:
         if not self.config.enabled:
             return None
-        closed = list(candles)
-        if len(closed) >= 2:
-            closed = closed[:-1]
-        price = float(current_price) if current_price is not None else (
-            float(closed[-1].close) if closed else 0.0
-        )
-        diag = self.diagnose(closed, current_price=price)
-        if not diag.get("would_signal"):
+        try:
+            # pipeline already closed bars — do not strip again
+            price = float(current_price) if current_price is not None else (
+                float(candles[-1].close) if candles else 0.0
+            )
+            diag = self.diagnose(candles, current_price=price)
+            if not diag.get("would_signal"):
+                return None
+
+            entry = float(diag.get("entry") or price)
+            stop = float(diag.get("stop") or 0)
+            target = float(diag.get("target") or 0)
+            if entry <= 0 or stop <= 0:
+                return None
+            if target <= 0:
+                risk = abs(entry - stop)
+                if diag.get("direction") == "long":
+                    target = entry + risk * float(self.config.min_rr)
+                else:
+                    target = entry - risk * float(self.config.min_rr)
+
+            direction = (
+                models.TradeDirection.LONG
+                if diag.get("direction") == "long"
+                else models.TradeDirection.SHORT
+            )
+            pattern = str(diag.get("pattern") or "channel")
+            return Signal(
+                symbol=symbol,
+                strategy_name=self.name,
+                signal_type=SignalType.MEAN_REVERSION,
+                direction=direction,
+                entry_price=Decimal(str(entry)),
+                stop_loss=Decimal(str(stop)),
+                take_profit=Decimal(str(target)),
+                position_size=Decimal("0"),
+                risk_amount=Decimal("0"),
+                confidence=0.55,
+                market_regime=market_regime or "UNKNOWN",
+                features={
+                    "zeus_pattern": pattern,
+                    "upper": diag.get("upper"),
+                    "lower": diag.get("lower"),
+                    "width_pct": diag.get("width_pct"),
+                },
+            )
+        except Exception as exc:
+            logger.warning("%s evaluate error: %s", self.name, exc)
             return None
-        entry = float(diag.get("entry") or price)
-        stop = float(diag.get("stop") or 0)
-        if entry <= 0 or stop <= 0:
-            return None
-        pattern = str(diag.get("pattern") or "channel")
-        side = SignalType.LONG if diag.get("direction") == "long" else SignalType.SHORT
-        return Signal(
-            symbol=symbol,
-            signal_type=side,
-            strategy=self.config.name,
-            entry_price=Decimal(str(entry)),
-            stop_loss=Decimal(str(stop)),
-            confidence=0.55,
-            metadata={"zeus_pattern": pattern, "reason": f"{pattern} channel"},
-        )
 
     def calculate_stop_loss(
         self,
