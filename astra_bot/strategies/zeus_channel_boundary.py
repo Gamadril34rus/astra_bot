@@ -225,3 +225,19 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
             confidence=0.55,
             metadata={"zeus_pattern": pattern, "reason": f"{pattern} channel"},
         )
+
+    def calculate_stop_loss(
+        self,
+        entry_price: Decimal,
+        candles: list[models.Candle],
+        atr: float | None = None,
+    ) -> Decimal:
+        return entry_price * Decimal("0.995")
+
+    def calculate_take_profit(
+        self,
+        entry_price: Decimal,
+        stop_loss: Decimal,
+        candles: list[models.Candle],
+    ) -> list[dict]:
+        return [{"price": entry_price * Decimal("1.01"), "fraction": 1.0}]
