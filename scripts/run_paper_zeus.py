@@ -85,16 +85,26 @@ def _snap_positions(engine: TradingEngine) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
     try:
         for p in engine.broker.positions or []:
+            tps = getattr(p, "take_profits", None) or []
+            tp0 = ""
+            if tps:
+                first = tps[0]
+                tp0 = (
+                    str(first)
+                    if not isinstance(first, dict)
+                    else str(first.get("price", ""))
+                )
             out[str(p.id)] = {
                 "stop_loss": str(p.stop_loss),
                 "entry_price": str(p.entry_price),
-                "direction": p.direction,
+                "direction": str(getattr(p, "direction", "") or ""),
                 "quantity": str(p.quantity),
                 "symbol": getattr(p, "symbol", "") or "",
                 "strategy": getattr(p, "strategy", "") or "",
+                "take_profit": tp0,
             }
     except Exception as exc:
-        logger.debug("snap: %s", exp)
+        logger.debug("snap: %s", exc)
     return out
 
 
@@ -113,7 +123,7 @@ def _load_known_trade_ids(trades_path: Path) -> set[str]:
             if tid:
                 known.add(tid)
     except Exception as exc:
-        logger.debug("known ids: %s", exp)
+        logger.debug("known ids: %s", exc)
     return known
 
 
@@ -128,23 +138,40 @@ def sync_journal_from_broker(
     after = _snap_positions(engine)
     for pid, meta in after.items():
         if pid not in before:
-            journal.entry(
-                symbol=str(meta.get("symbol") or "BTC-USDT"),
-                direction=meta["direction"],
-                entry_price=meta["entry_price"],
-                stop_loss=meta["stop_loss"],
-                quantity=meta.get("quantity"),
-                notes={"position_id": pid, "source": "zeus_paper_clock"},
-                strategy=str(meta.get("strategy") or ""),
-            )
+            try:
+                journal.entry(
+                    symbol=str(meta.get("symbol") or "BTC-USDT"),
+                    direction=str(meta.get("direction") or ""),
+                    entry_price=meta.get("entry_price") or "0",
+                    stop_loss=meta.get("stop_loss") or "0",
+                    take_profit=str(meta.get("take_profit") or "0"),
+                    reason=f"paper_entry position_id={pid}",
+                    features={
+                        "position_id": pid,
+                        "quantity": str(meta.get("quantity") or ""),
+                        "source": "zeus_paper_clock",
+                    },
+                    strategy=str(
+                        meta.get("strategy") or "zeus_channel_boundary_4h"
+                    ),
+                )
+            except Exception as exc:
+                logger.warning("journal.entry failed: %s", exc)
         elif before[pid].get("stop_loss") != meta.get("stop_loss"):
-            journal.stop_adjust(
-                symbol=str(meta.get("symbol") or "BTC-USDT"),
-                position_id=pid,
-                old_stop=before[pid].get("stop_loss"),
-                new_stop=meta.get("stop_loss"),
-                entry_price=meta["entry_price"],
-            )
+            try:
+                journal.stop_adjust(
+                    symbol=str(meta.get("symbol") or "BTC-USDT"),
+                    direction=str(
+                        meta.get("direction")
+                        or before[pid].get("direction")
+                        or ""
+                    ),
+                    old_stop=before[pid].get("stop_loss") or "0",
+                    new_stop=meta.get("stop_loss") or "0",
+                    why=f"stop_sync position_id={pid}",
+                )
+            except Exception as exc:
+                logger.warning("journal.stop_adjust failed: %s", exc)
     if trades_path.exists():
         import json as _json
 
@@ -157,17 +184,23 @@ def sync_journal_from_broker(
                 if not tid or tid in known_trade_ids:
                     continue
                 known_trade_ids.add(tid)
-                journal.exit(
-                    symbol=str(row.get("symbol") or "BTC-USDT"),
-                    direction=str(row.get("direction") or ""),
-                    entry_price=row.get("entry_price"),
-                    exit_price=row.get("exit_price") or row.get("close_price"),
-                    pnl=row.get("pnl") or row.get("realized_pnl"),
-                    reason=str(row.get("exit_reason") or row.get("reason") or ""),
-                    notes={"trade_id": tid},
-                )
+                try:
+                    journal.exit(
+                        symbol=str(row.get("symbol") or "BTC-USDT"),
+                        direction=str(row.get("direction") or ""),
+                        exit_price=row.get("exit_price")
+                        or row.get("close_price")
+                        or "0",
+                        reason=str(
+                            row.get("exit_reason")
+                            or row.get("reason")
+                            or "closed"
+                        ),
+                    )
+                except Exception as exc:
+                    logger.warning("journal.exit failed: %s", exp)
         except Exception as exc:
-            logger.debug("exit sync: %s", exp)
+            logger.warning("exit sync: %s", exp)
     return known_trade_ids
 
 
@@ -215,11 +248,10 @@ async def observe_zeus(
                 avg_v = sum(vols[:-1]) / max(len(vols) - 1, 1)
                 last_r, last_v = ranges[-1], vols[-1]
                 if avg_r > 0 and last_r >= avg_r * LTF_IMPULSE_RANGE_MULT:
-                    note = "15m impulse; not entry alone"
                     journal.ltf_impulse(
                         symbol=symbol,
                         timeframe="15m",
-                        note=note,
+                        note="15m impulse; not entry alone",
                         range_mult=round(last_r / avg_r, 3) if avg_r else None,
                         vol_mult=round(last_v / avg_v, 3) if avg_v else None,
                     )
@@ -246,7 +278,12 @@ async def amain(args: argparse.Namespace) -> int:
     api_key = os.environ.get("BINGX_API_KEY", "")
     api_secret = os.environ.get("BINGX_API_SECRET", "")
     bingx = BingXClient(
-        {"api_key": api_key, "api_secret": api_secret, "enabled": True, "rate_limit_qps": 5}
+        {
+            "api_key": api_key,
+            "api_secret": api_secret,
+            "enabled": True,
+            "rate_limit_qps": 5,
+        }
     )
     await bingx.initialize()
 
@@ -271,7 +308,9 @@ async def amain(args: argparse.Namespace) -> int:
     )
 
     zeus = ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True))
-    zeus_channel = ZeusChannelBoundaryStrategy(ZeusChannelBoundaryConfig(enabled=True))
+    zeus_channel = ZeusChannelBoundaryStrategy(
+        ZeusChannelBoundaryConfig(enabled=True)
+    )
     dcfg = DecisionConfig()
     dcfg.min_rr = 1.5
     dcfg.min_ml_probability = 0.0
@@ -280,7 +319,9 @@ async def amain(args: argparse.Namespace) -> int:
     pipeline = DecisionPipeline(
         config=dcfg, strategies=[zeus, zeus_channel], model=None
     )
-    engine = TradingEngine(exchange=bingx, pipeline=pipeline, config=config, notifier=None)
+    engine = TradingEngine(
+        exchange=bingx, pipeline=pipeline, config=config, notifier=None
+    )
 
     from decimal import Decimal as _Dec
 
@@ -310,9 +351,29 @@ async def amain(args: argparse.Namespace) -> int:
             "event": "clock_start",
             "symbol": ",".join(symbols),
             "strategy": "zeus_wedge+channel",
-            "note": "paper; wedge+channel lessons; capital=" + str(args.capital),
+            "note": "paper; wedge+channel lessons; capital="
+            + str(args.capital),
         }
     )
+
+    for pid, meta in _snap_positions(engine).items():
+        try:
+            journal.entry(
+                symbol=str(meta.get("symbol") or "BTC-USDT"),
+                direction=str(meta.get("direction") or ""),
+                entry_price=meta.get("entry_price") or "0",
+                stop_loss=meta.get("stop_loss") or "0",
+                take_profit=str(meta.get("take_profit") or "0"),
+                reason=f"backfill_open position_id={pid}",
+                features={
+                    "position_id": pid,
+                    "quantity": str(meta.get("quantity") or ""),
+                    "source": "backfill",
+                },
+                strategy=str(meta.get("strategy") or ""),
+            )
+        except Exception as exc:
+            logger.warning("backfill entry failed: %s", exp)
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -354,7 +415,9 @@ async def amain(args: argparse.Namespace) -> int:
 
     if args.once:
         await one_cycle()
-        logger.info("Zeus cycle done open=%d", len(engine.broker.positions or []))
+        logger.info(
+            "Zeus cycle done open=%d", len(engine.broker.positions or [])
+        )
     else:
         while not stop.is_set():
             try:
