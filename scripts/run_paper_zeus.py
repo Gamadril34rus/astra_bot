@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
 """Zeus paper-clock: BTC 4h wedge research, isolated state, no live.
 
-Стратегия в коде по умолчанию enabled=False; здесь включаем явно для paper.
-Полный цикл сделки:
-  - entry / stop_adjust / exit в zeus_trade_journal (из paper-брокера)
-  - observe_zeus: structure_state / reject / ltf_impulse
-
-Изоляция state: все path-поля TradingEngineConfig → models/zeus_*
+Стратегия enabled=False по умолчанию; здесь включаем для paper.
 """
 
 from __future__ import annotations
@@ -26,7 +21,6 @@ if str(PROJECT_ROOT) not in sys.path:
 
 try:
     from dotenv import load_dotenv
-
     load_dotenv(PROJECT_ROOT / ".env")
 except ImportError:
     pass
@@ -60,16 +54,12 @@ ZEUS_KLINES_CACHE = "models/zeus_klines_cache"
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Zeus paper-clock (BTC 4h, no live)")
-    p.add_argument("--symbol", default="BTC-USDT", help="BingX swap symbol")
-    p.add_argument("--interval", type=int, default=300, help="poll seconds")
+    p = argparse.ArgumentParser(description="Zeus paper-clock")
+    p.add_argument("--symbol", default="BTC-USDT")
+    p.add_argument("--interval", type=int, default=300)
     p.add_argument("--capital", type=float, default=2000.0)
-    p.add_argument("--once", action="store_true", help="Один цикл decide/step и выход")
-    p.add_argument(
-        "--journal",
-        default="models/zeus_trade_journal.jsonl",
-        help="Путь журнала Зевса",
-    )
+    p.add_argument("--once", action="store_true")
+    p.add_argument("--journal", default="models/zeus_trade_journal.jsonl")
     return p.parse_args()
 
 
@@ -85,7 +75,7 @@ def _snap_positions(engine: TradingEngine) -> dict[str, dict[str, Any]]:
                 "strategy": getattr(p, "strategy", "") or "zeus_wedge_retest_4h",
             }
     except Exception as exc:
-        logger.debug("snap positions: %s", exc)
+        logger.debug("snap: %s", exp)
     return out
 
 
@@ -94,17 +84,16 @@ def _load_known_trade_ids(trades_path: Path) -> set[str]:
     if not trades_path.exists():
         return known
     try:
+        import json as _json
         for line in trades_path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
-            import json as _json
-
             row = _json.loads(line)
             tid = str(row.get("id") or row.get("trade_id") or "")
             if tid:
                 known.add(tid)
     except Exception as exc:
-        logger.debug("known trade ids: %s", exc)
+        logger.debug("known ids: %s", exp)
     return known
 
 
@@ -125,27 +114,19 @@ def sync_journal_from_broker(
                 entry_price=meta["entry_price"],
                 stop_loss=meta["stop_loss"],
                 quantity=meta.get("quantity"),
-                notes={
-                    "position_id": pid,
-                    "strategy": meta.get("strategy"),
-                    "source": "zeus_paper_clock",
-                },
+                notes={"position_id": pid, "source": "zeus_paper_clock"},
                 strategy=str(meta.get("strategy") or "zeus_wedge_retest_4h"),
             )
-        else:
-            old_sl = before[pid].get("stop_loss")
-            new_sl = meta.get("stop_loss")
-            if old_sl != new_sl:
-                journal.stop_adjust(
-                    symbol="BTC-USDT",
-                    position_id=pid,
-                    old_stop=old_sl,
-                    new_stop=new_sl,
-                    entry_price=meta["entry_price"],
-                )
+        elif before[pid].get("stop_loss") != meta.get("stop_loss"):
+            journal.stop_adjust(
+                symbol="BTC-USDT",
+                position_id=pid,
+                old_stop=before[pid].get("stop_loss"),
+                new_stop=meta.get("stop_loss"),
+                entry_price=meta["entry_price"],
+            )
     if trades_path.exists():
         import json as _json
-
         try:
             for line in trades_path.read_text(encoding="utf-8").splitlines():
                 if not line.strip():
@@ -162,7 +143,7 @@ def sync_journal_from_broker(
                     exit_price=row.get("exit_price") or row.get("close_price"),
                     pnl=row.get("pnl") or row.get("realized_pnl"),
                     reason=str(row.get("exit_reason") or row.get("reason") or ""),
-                    notes={"trade_id": tid, "source": "zeus_paper_clock"},
+                    notes={"trade_id": tid},
                 )
         except Exception as exc:
             logger.debug("exit sync: %s", exp)
@@ -177,7 +158,7 @@ async def observe_zeus(
     symbol: str,
 ) -> None:
     try:
-        klines = await bingx.get_klines(symbol, interval="4h", limit=80)
+        klines = await bingx.get_candles(symbol, "4h", limit=80)
         closed_4h = list(klines) if klines else []
         if len(closed_4h) >= 2:
             closed_4h = closed_4h[:-1]
@@ -191,7 +172,7 @@ async def observe_zeus(
                 snapshot=diag,
             )
         try:
-            k15 = await bingx.get_klines(symbol, interval="15m", limit=40)
+            k15 = await bingx.get_candles(symbol, "15m", limit=40)
             if k15 and len(k15) >= LTF_LOOKBACK:
                 tail = k15[-LTF_LOOKBACK:]
                 ranges = [float(c.high) - float(c.low) for c in tail]
@@ -203,10 +184,7 @@ async def observe_zeus(
                 if avg_r > 0 and last_r >= avg_r * LTF_IMPULSE_RANGE_MULT:
                     note = "15m impulse observed; not an entry"
                     if avg_v > 0 and last_v >= avg_v * LTF_IMPULSE_VOL_MULT:
-                        note = (
-                            "15m impulse+volume observed; "
-                            "still not entry without full pattern"
-                        )
+                        note = "15m impulse+volume; not entry without pattern"
                     journal.ltf_impulse(
                         symbol=symbol,
                         timeframe="15m",
@@ -215,7 +193,7 @@ async def observe_zeus(
                         vol_mult=round(last_v / avg_v, 3) if avg_v else None,
                     )
         except Exception as ltf_exc:
-            logger.debug("ltf observe: %s", ltf_exc)
+            logger.debug("ltf: %s", ltf_exc)
     except Exception as exc:
         logger.warning("observe_zeus skipped: %s", exp)
 
@@ -225,7 +203,7 @@ async def amain(args: argparse.Namespace) -> int:
     env = (os.environ.get("ENVIRONMENT") or "").strip().lower()
     paper_flag = (os.environ.get("PAPER_TRADING") or "").strip().lower()
     if env and env not in ("paper", "test", "dev"):
-        logger.error("ABORT: ENVIRONMENT=%s — Zeus paper-clock только paper", env)
+        logger.error("ABORT: ENVIRONMENT=%s", env)
         return 2
     if not env:
         os.environ["ENVIRONMENT"] = "paper"
@@ -235,17 +213,11 @@ async def amain(args: argparse.Namespace) -> int:
     api_key = os.environ.get("BINGX_API_KEY", "")
     api_secret = os.environ.get("BINGX_API_SECRET", "")
     bingx = BingXClient(
-        {
-            "api_key": api_key,
-            "api_secret": api_secret,
-            "enabled": True,
-            "rate_limit_qps": 5,
-        }
+        {"api_key": api_key, "api_secret": api_secret, "enabled": True, "rate_limit_qps": 5}
     )
     await bingx.initialize()
-
     if not api_key:
-        logger.info("BINGX_API_KEY не задан — публичные данные BingX")
+        logger.info("BINGX_API_KEY not set — public data")
 
     config = TradingEngineConfig(
         symbols=(args.symbol,),
@@ -267,26 +239,17 @@ async def amain(args: argparse.Namespace) -> int:
         entry_gate_block_regimes=frozenset(),
     )
 
-    zeus_cfg = ZeusWedgeRetestConfig(enabled=True)
-    zeus = ZeusWedgeRetestStrategy(zeus_cfg)
+    zeus = ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True))
     dcfg = DecisionConfig()
     dcfg.min_rr = 1.5
     dcfg.min_ml_probability = 0.0
     dcfg.min_expected_edge_pct = 0.0
     dcfg.min_ev_r = 0.0
     pipeline = DecisionPipeline(config=dcfg, strategies=[zeus], model=None)
-
-    engine = TradingEngine(
-        exchange=bingx,
-        pipeline=pipeline,
-        config=config,
-        notifier=None,
-    )
+    engine = TradingEngine(exchange=bingx, pipeline=pipeline, config=config, notifier=None)
 
     from decimal import Decimal as _Dec
 
-    # Paper-research: НИКОГДА не брать капитал с BingX API (без ключей = 0 →
-    # size=0 → вход пропускается при would_signal). Всегда args.capital.
     _cap = _Dec(str(args.capital))
     if _cap <= 0:
         _cap = _Dec("2000")
@@ -296,49 +259,24 @@ async def amain(args: argparse.Namespace) -> int:
         br.initial_capital = _cap
         if hasattr(engine, "risk") and hasattr(engine.risk, "set_capital"):
             engine.risk.set_capital(_cap, _cap)
-        elif hasattr(engine, "risk"):
-            try:
-                engine.risk.initial_capital = _cap
-            except Exception:
-                pass
-        # Блокируем sync_capital() внутри step(): иначе BingX=0 затирает _cap.
         engine._capital_synced = True
         try:
             br.save()
         except Exception:
             pass
-        logger.info(
-            "Zeus paper capital fixed to %s (broker was %s; exchange sync disabled)",
-            _cap,
-            old_cap,
-        )
+        logger.info("Zeus paper capital fixed to %s (was %s; exchange sync off)", _cap, old_cap)
     except Exception as _cap_exc:
         logger.warning("capital fix skipped: %s", _cap_exc)
 
     journal = ZeusTradeLog(args.journal)
     trades_path = Path(ZEUS_TRADES_PATH)
     known_ids = _load_known_trade_ids(trades_path)
-
-    logger.info(
-        "Zeus paper-clock: symbol=%s tf=4h state=%s trades=%s "
-        "ENVIRONMENT=%s PAPER_TRADING=%s (live paths NOT used)",
-        args.symbol,
-        ZEUS_STATE_PATH,
-        ZEUS_TRADES_PATH,
-        os.environ.get("ENVIRONMENT"),
-        os.environ.get("PAPER_TRADING"),
-    )
     journal._write(
         {
             "event": "clock_start",
             "symbol": args.symbol,
             "strategy": "zeus_wedge_retest_4h",
-            "note": (
-                "paper-only; capital fixed; REGIME not blocking; capital="
-                + str(args.capital)
-            ),
-            "state_path": ZEUS_STATE_PATH,
-            "trades_path": ZEUS_TRADES_PATH,
+            "note": "paper-only; capital fixed; capital=" + str(args.capital),
         }
     )
 
@@ -361,26 +299,21 @@ async def amain(args: argparse.Namespace) -> int:
             trades_path=trades_path,
             known_trade_ids=known_ids,
         )
-        await observe_zeus(
-            bingx=bingx, zeus=zeus, journal=journal, symbol=args.symbol
-        )
+        await observe_zeus(bingx=bingx, zeus=zeus, journal=journal, symbol=args.symbol)
         n_open = len(engine.broker.positions or [])
         journal._write(
             {
                 "event": "tick",
                 "symbol": args.symbol,
                 "strategy": "zeus_wedge_retest_4h",
-                "note": "engine.step + trade_sync + observe completed",
+                "note": "cycle done",
                 "open_positions": n_open,
             }
         )
 
     if args.once:
         await one_cycle()
-        logger.info(
-            "Один цикл Zeus paper-clock завершён. open=%d",
-            len(engine.broker.positions or []),
-        )
+        logger.info("Zeus cycle done open=%d", len(engine.broker.positions or []))
     else:
         while not stop.is_set():
             try:
