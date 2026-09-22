@@ -267,87 +267,16 @@ async def zeus_trail_open_positions(
     journal: ZeusTradeLog,
     bingx: BingXClient,
 ) -> None:
-    """Zeus-only: BE at +1R MFE, lock ~1R at +1.5R; never loosen stop."""
-    from decimal import Decimal as _D
+    """Delegate to zeus_trail_helpers (sanitize + safe R)."""
+    import sys as _sys
+    from pathlib import Path as _P
 
-    positions = list(getattr(engine.broker, "positions", None) or [])
-    for pos in positions:
-        try:
-            symbol = getattr(pos, "symbol", "") or ""
-            direction = str(getattr(pos, "direction", "") or "").lower()
-            entry = float(pos.entry_price)
-            stop = float(pos.stop_loss)
-            risk = abs(entry - stop)
-            if risk <= 0 or not symbol:
-                continue
-            mark = entry
-            try:
-                k15 = await bingx.get_candles(symbol, "15m", limit=3)
-                if k15:
-                    mark = float(k15[-1].close)
-            except Exception:
-                hi = getattr(pos, "highest_price", None)
-                lo = getattr(pos, "lowest_price", None)
-                if direction == "long" and hi is not None:
-                    mark = float(hi)
-                elif direction == "short" and lo is not None:
-                    mark = float(lo)
-            if direction == "long":
-                mfe_r = (mark - entry) / risk
-            else:
-                mfe_r = (entry - mark) / risk
-            new_stop = stop
-            why = ""
-            if mfe_r >= 1.5:
-                if direction == "long":
-                    cand = entry + 1.0 * risk
-                    if cand > stop:
-                        new_stop = cand
-                        why = f"trail_lock_1R mfe={mfe_r:.2f}"
-                else:
-                    cand = entry - 1.0 * risk
-                    if cand < stop:
-                        new_stop = cand
-                        why = f"trail_lock_1R mfe={mfe_r:.2f}"
-            elif mfe_r >= 1.0:
-                buf = risk * 0.05
-                if direction == "long":
-                    cand = entry + buf
-                    if cand > stop:
-                        new_stop = cand
-                        why = f"trail_be mfe={mfe_r:.2f}"
-                else:
-                    cand = entry - buf
-                    if cand < stop:
-                        new_stop = cand
-                        why = f"trail_be mfe={mfe_r:.2f}"
-            if why and abs(new_stop - stop) / max(entry, 1e-12) > 1e-8:
-                old = stop
-                pos.stop_loss = _D(str(new_stop))
-                try:
-                    engine.broker.save()
-                except Exception:
-                    pass
-                try:
-                    journal.stop_adjust(
-                        symbol=symbol,
-                        direction=direction,
-                        old_stop=str(old),
-                        new_stop=str(new_stop),
-                        why=why,
-                    )
-                except Exception as exc:
-                    logger.warning("trail journal: %s", exc)
-                logger.info(
-                    "Zeus trail %s %s stop %s -> %s (%s)",
-                    symbol,
-                    direction,
-                    old,
-                    new_stop,
-                    why,
-                )
-        except Exception as exc:
-            logger.debug("trail skip: %s", exc)
+    _scripts = str(_P(__file__).resolve().parent)
+    if _scripts not in _sys.path:
+        _sys.path.insert(0, _scripts)
+    from zeus_trail_helpers import zeus_trail_open_positions as _trail
+
+    await _trail(engine=engine, journal=journal, bingx=bingx)
 
 
 async def amain(args: argparse.Namespace) -> int:
