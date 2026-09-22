@@ -1,71 +1,12 @@
 {
   "positions": [
     {
-      "id": "81904854-786d-4cfd-b2ef-6ffa654be871",
-      "symbol": "WLD-USDT",
-      "direction": "short",
-      "entry_price": "0.4606",
-      "quantity": "76.056698900",
-      "stop_loss": "0.4592432427842023044421845022",
-      "take_profits": [
-        "0.4573299716129033",
-        "0.45307893470967759"
-      ],
-      "tp_filled": [
-        true,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "108.65242700",
-      "trailing_activated": true,
-      "trailing_distance": null,
-      "highest_price": "0.4579",
-      "lowest_price": "0.4572",
-      "strategy": "zeus_channel_boundary_4h",
-      "opened_at": 1790023021321,
-      "notes": {
-        "signal_bar_close": 0.459,
-        "effective_entry": 0.4601394,
-        "initial_stop": 0.4638700283870967,
-        "initial_take": 0.4438234408602153,
-        "stop_pct": 0.008107604754334665,
-        "confidence": 0.55,
-        "ml_probability": null,
-        "prior_r": 1.949155786487571,
-        "costs_r": 0.37002297113658317,
-        "equity_before": 1999.8105011780194,
-        "risk_budget": 19.998105011780194,
-        "binding_constraint": "probation",
-        "score": 34.0,
-        "edge_pct": 187.5975,
-        "ev_r": 1.8759754732695486,
-        "ev_confidence": 0.0625,
-        "rr": 5.130401682744961,
-        "leverage": 3
-      },
-      "fill_price": "0.4601394",
-      "entry_fee_per_unit": "0.00023006970",
-      "risk_distance": "0.0032700283870967",
-      "regime": "RANGE",
-      "timeframe": "4h",
-      "regime_axes": "T:TRANSITION/V:LOW/L:NORMAL",
-      "bars_held": 1,
-      "leverage": "3",
-      "margin_used": "16.68176929206666666666666667",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "0.45307893470967759",
-      "plan_last_bar_ts": 1790006400000
-    },
-    {
       "id": "363979ce-cb7d-473f-8799-3d74b8f68dc8",
       "symbol": "BNB-USDT",
       "direction": "long",
       "entry_price": "801.24",
       "quantity": "0.06233675",
-      "stop_loss": "775.4629121720432",
+      "stop_loss": "785.2528571428571",
       "take_profits": [
         "827.0170878279568",
         "852.79417565591360"
@@ -81,8 +22,8 @@
       "initial_quantity": "0.06233675",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "787.48",
+      "lowest_price": "787.47",
       "strategy": "zeus_channel_boundary_4h",
       "opened_at": 1790030420746,
       "notes": {
@@ -111,12 +52,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "4h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 0,
+      "bars_held": 1,
       "leverage": "1",
       "margin_used": "49.9466975700",
       "plan_variant": "STATIC_TP",
       "plan_take": "852.79417565591360",
-      "plan_last_bar_ts": 0
+      "plan_last_bar_ts": 1790049600000
     },
     {
       "id": "36719d43-ebe1-4fc9-a312-04e4b0b3a992",
@@ -124,7 +65,7 @@
       "direction": "short",
       "entry_price": "0.20936",
       "quantity": "94.76775875",
-      "stop_loss": "0.23470273337634415",
+      "stop_loss": "0.21252714285714286",
       "take_profits": [
         "0.18401726662365585",
         "0.158674533247311700"
@@ -140,8 +81,8 @@
       "initial_quantity": "94.76775875",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "0.21016",
+      "lowest_price": "0.20986",
       "strategy": "zeus_channel_boundary_4h",
       "opened_at": 1790030474435,
       "notes": {
@@ -170,17 +111,74 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "4h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 0,
+      "bars_held": 1,
       "leverage": "1",
       "margin_used": "19.8405779719000",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.158674533247311700",
+      "plan_last_bar_ts": 1790049600000
+    },
+    {
+      "id": "d39d943c-ced2-4c95-8638-318233619391",
+      "symbol": "ETH-USDT",
+      "direction": "long",
+      "entry_price": "2725.44",
+      "quantity": "0.01469875",
+      "stop_loss": "2563.8384571799998",
+      "take_profits": [
+        "2887.0415428200002",
+        "3097.12354848600046"
+      ],
+      "tp_filled": [
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.3,
+        0.7
+      ],
+      "initial_quantity": "0.01469875",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "zeus_wedge_retest_4h",
+      "opened_at": 1790077515089,
+      "notes": {
+        "signal_bar_close": 2744.78,
+        "effective_entry": 2728.16544,
+        "initial_stop": 2563.8384571799998,
+        "initial_take": 3210.244628460001,
+        "stop_pct": 0.06023351091933787,
+        "confidence": 0.546205,
+        "ml_probability": null,
+        "prior_r": 1.134224443439583,
+        "costs_r": 0.04980616195555115,
+        "equity_before": 1999.5378860297333,
+        "risk_budget": 19.995378860297333,
+        "binding_constraint": "probation",
+        "score": 67.0,
+        "edge_pct": 113.4224,
+        "ev_r": 1.134224443439583,
+        "ev_confidence": 0.0,
+        "rr": 3.0000000000000027,
+        "leverage": 2
+      },
+      "fill_price": "2728.16544",
+      "entry_fee_per_unit": "1.364082720",
+      "risk_distance": "161.6015428200002",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "4h",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
+      "bars_held": 0,
+      "leverage": "2",
+      "margin_used": "20.0302806000",
+      "plan_variant": "STATIC_TP",
+      "plan_take": "3097.12354848600046",
       "plan_last_bar_ts": 0
     }
   ],
-  "realized_pnl": "-0.4621139702667081769344823556",
+  "realized_pnl": "0.0091762768773361459361158141",
   "initial_capital": "2000.0",
-  "cooldowns": {
-    "zeus_channel_boundary_4h|BCH-USDT|short": 1790031638046
-  }
+  "cooldowns": {}
 }
