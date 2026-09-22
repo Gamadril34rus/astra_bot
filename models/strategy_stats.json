@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-20T03:22:27.802869+00:00",
+  "updated": "2026-09-22T17:04:55.006624+00:00",
   "buckets": {
     "scalp5m|UNKNOWN|": {
       "sample_size": 1,
@@ -2532,6 +2532,42 @@
       "sum_mae_r": 0.5585012858493288,
       "sum_fees": 1.687056658840946,
       "last_updated": "2026-09-20T03:22:27.802819+00:00"
+    },
+    "funding_rate_contrarian|T:RANGE/V:VERY_LOW/L:DEEP|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -0.20583551496283273,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -0.20583551496283273,
+      "sum_mfe_r": 0.26469809711478764,
+      "sum_mae_r": 0.005882179935884169,
+      "sum_fees": 0.8417782876523758,
+      "last_updated": "2026-09-22T17:04:55.006576+00:00"
+    },
+    "funding_rate_contrarian|LOW_VOLATILITY|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -0.20583551496283273,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -0.20583551496283273,
+      "sum_mfe_r": 0.26469809711478764,
+      "sum_mae_r": 0.005882179935884169,
+      "sum_fees": 0.8417782876523758,
+      "last_updated": "2026-09-22T17:04:55.006587+00:00"
+    },
+    "funding_rate_contrarian|ANY|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -0.20583551496283273,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -0.20583551496283273,
+      "sum_mfe_r": 0.26469809711478764,
+      "sum_mae_r": 0.005882179935884169,
+      "sum_fees": 0.8417782876523758,
+      "last_updated": "2026-09-22T17:04:55.006592+00:00"
     }
   }
 }
