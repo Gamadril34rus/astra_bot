@@ -139,7 +139,7 @@ async def zeus_trail_open_positions(
                         why=why,
                     )
                 except Exception as exc:
-                    logger.warning("trail journal: %s", exp)
+                    logger.warning("trail journal: %s", exc)
                 logger.info(
                     "Zeus trail %s %s stop %s -> %s (%s)",
                     symbol,
@@ -149,4 +149,4 @@ async def zeus_trail_open_positions(
                     why,
                 )
         except Exception as exc:
-            logger.debug("trail skip: %s", exp)
+            logger.debug("trail skip: %s", exc)
