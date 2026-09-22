@@ -171,7 +171,7 @@ def sync_journal_from_broker(
                     why=f"stop_sync position_id={pid}",
                 )
             except Exception as exc:
-                logger.warning("journal.stop_adjust failed: %s", exp)
+                logger.warning("journal.stop_adjust failed: %s", exc)
     if trades_path.exists():
         import json as _json
 
@@ -198,9 +198,9 @@ def sync_journal_from_broker(
                         ),
                     )
                 except Exception as exc:
-                    logger.warning("journal.exit failed: %s", exp)
-        except Exception as exp:
-            logger.warning("exit sync: %s", exp)
+                    logger.warning("journal.exit failed: %s", exc)
+        except Exception as exc:
+            logger.warning("exit sync: %s", exc)
     return known_trade_ids
 
 
@@ -257,8 +257,8 @@ async def observe_zeus(
                     )
         except Exception as ltf_exc:
             logger.debug("ltf: %s", ltf_exc)
-    except Exception as exp:
-        logger.warning("observe_zeus skipped: %s", exp)
+    except Exception as exc:
+        logger.warning("observe_zeus skipped: %s", exc)
 
 
 async def zeus_trail_open_positions(
@@ -390,8 +390,8 @@ async def amain(args: argparse.Namespace) -> int:
                 },
                 strategy=str(meta.get("strategy") or ""),
             )
-        except Exception as exp:
-            logger.warning("backfill entry failed: %s", exp)
+        except Exception as exc:
+            logger.warning("backfill entry failed: %s", exc)
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -446,8 +446,8 @@ async def amain(args: argparse.Namespace) -> int:
         while not stop.is_set():
             try:
                 await one_cycle()
-            except Exception as exp:
-                logger.exception("cycle error: %s", exp)
+            except Exception as exc:
+                logger.exception("cycle error: %s", exc)
             try:
                 await asyncio.wait_for(stop.wait(), timeout=args.interval)
             except TimeoutError:
