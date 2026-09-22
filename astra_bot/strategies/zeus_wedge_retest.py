@@ -24,6 +24,34 @@ from .base import BaseStrategy, Signal, SignalType, StrategyConfig
 logger = logging.getLogger(__name__)
 
 
+def _htf_bias_closes(closes: list[float]) -> str:
+    if len(closes) < 8:
+        return "neutral"
+
+    def ema(vals: list[float], n: int) -> float:
+        k = 2.0 / (n + 1)
+        e = vals[0]
+        for v in vals[1:]:
+            e = v * k + e * (1 - k)
+        return e
+
+    fast = ema(closes, 8)
+    slow = ema(closes, min(21, len(closes)))
+    if fast > slow * 1.001:
+        return "up"
+    if fast < slow * 0.999:
+        return "down"
+    return "neutral"
+
+
+def _enforce_min_stop(direction: str, price: float, stop: float, min_stop_pct: float) -> float:
+    if price <= 0 or min_stop_pct <= 0:
+        return stop
+    if direction == "long":
+        return min(stop, price * (1.0 - min_stop_pct))
+    return max(stop, price * (1.0 + min_stop_pct))
+
+
 def _linreg_slope(ys: list[float]) -> tuple[float, float]:
     """Simple OLS slope + intercept for y ~ a + b*x, x = 0..n-1."""
     n = len(ys)
@@ -59,7 +87,13 @@ class ZeusWedgeRetestConfig(StrategyConfig):
     # True-breakout: пробой удержался снаружи → вход по тренду пробоя.
     enable_true_breakout: bool = True
     min_hold_bars_breakout: int = 2
-    max_bars_true_breakout: int = 6
+    max_bars_true_breakout: int = 8
+    min_stop_pct: float = 0.008
+    require_htf_bias: bool = True
+    tp1_rr: float = 1.5
+    tp2_rr: float = 3.0
+    tp1_fraction: float = 0.4
+    tp2_fraction: float = 0.6
 
 
 class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
@@ -211,7 +245,6 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             )
             still_outside = last_close > upper * (1.0 + buf * 0.5)
 
-            # True breakout UP → LONG (4h основной ход)
             if (
                 getattr(c, "enable_true_breakout", True)
                 and still_outside
@@ -223,9 +256,23 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                     float(b.low) for b in tail[breakout_idx : breakout_idx + 1]
                 )
                 stop_price = min(stop_price, brk_low * (1.0 - c.stop_buffer_pct))
+                stop_price = _enforce_min_stop(
+                    "long", price, stop_price, float(getattr(c, "min_stop_pct", 0.008))
+                )
+                closes_all = [float(x.close) for x in candles[-(c.lookback + tail_len) :]]
+                bias = _htf_bias_closes(closes_all)
+                out["htf_bias"] = bias
+                if getattr(c, "require_htf_bias", True) and bias == "down":
+                    out["reject_reason"] = "counter_trend_true_breakout_up"
+                    out["stage"] = "bias"
+                    return out
                 risk = price - stop_price
                 if risk <= 0:
                     out["reject_reason"] = "invalid_risk"
+                    out["stage"] = "risk"
+                    return out
+                if risk / price < float(getattr(c, "min_stop_pct", 0.008)) * 0.95:
+                    out["reject_reason"] = "stop_too_tight"
                     out["stage"] = "risk"
                     return out
                 target = price + risk * c.min_rr
@@ -240,9 +287,11 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                 out["pattern"] = "true_breakout_up_hold"
                 out["stage"] = "signal"
                 out["structure_role"] = "4h_main"
+                out["entry"] = price
+                out["stop"] = stop_price
+                out["target"] = target
                 return out
 
-            # False-break UP → SHORT (урок 8)
             if bars_after > c.max_bars_outside:
                 out["reject_reason"] = "bars_outside_limit"
                 out["stage"] = "breakout"
@@ -258,6 +307,9 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                     out["stage"] = "retest"
                 return out
             stop_price = extreme_hi * (1.0 + c.stop_buffer_pct)
+            stop_price = _enforce_min_stop(
+                "short", price, stop_price, float(getattr(c, "min_stop_pct", 0.008))
+            )
             risk = stop_price - price
             if risk <= 0:
                 out["reject_reason"] = "invalid_risk"
@@ -293,9 +345,23 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                     float(b.high) for b in tail[breakout_idx : breakout_idx + 1]
                 )
                 stop_price = max(stop_price, brk_hi * (1.0 + c.stop_buffer_pct))
+                stop_price = _enforce_min_stop(
+                    "short", price, stop_price, float(getattr(c, "min_stop_pct", 0.008))
+                )
+                closes_all = [float(x.close) for x in candles[-(c.lookback + tail_len) :]]
+                bias = _htf_bias_closes(closes_all)
+                out["htf_bias"] = bias
+                if getattr(c, "require_htf_bias", True) and bias == "up":
+                    out["reject_reason"] = "counter_trend_true_breakout_down"
+                    out["stage"] = "bias"
+                    return out
                 risk = stop_price - price
                 if risk <= 0:
                     out["reject_reason"] = "invalid_risk"
+                    out["stage"] = "risk"
+                    return out
+                if risk / price < float(getattr(c, "min_stop_pct", 0.008)) * 0.95:
+                    out["reject_reason"] = "stop_too_tight"
                     out["stage"] = "risk"
                     return out
                 target = price - risk * c.min_rr
@@ -310,6 +376,9 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                 out["pattern"] = "true_breakout_down_hold"
                 out["stage"] = "signal"
                 out["structure_role"] = "4h_main"
+                out["entry"] = price
+                out["stop"] = stop_price
+                out["target"] = target
                 return out
 
             if bars_after > c.max_bars_outside:
@@ -327,6 +396,9 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                     out["stage"] = "retest"
                 return out
             stop_price = extreme_lo * (1.0 - c.stop_buffer_pct)
+            stop_price = _enforce_min_stop(
+                "long", price, stop_price, float(getattr(c, "min_stop_pct", 0.008))
+            )
             risk = price - stop_price
             if risk <= 0:
                 out["reject_reason"] = "invalid_risk"
@@ -444,6 +516,29 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                 "min_rr": c.min_rr,
             }
 
+            stop_price = _enforce_min_stop(
+                "long" if direction == models.TradeDirection.LONG else "short",
+                price,
+                stop_price,
+                float(getattr(c, "min_stop_pct", 0.008)),
+            )
+            risk = abs(price - stop_price)
+            if risk <= 0 or risk / price < float(getattr(c, "min_stop_pct", 0.008)) * 0.95:
+                return None
+            if direction == models.TradeDirection.LONG:
+                target_price = price + risk * float(getattr(c, "tp2_rr", c.min_rr))
+                tp1 = price + risk * float(getattr(c, "tp1_rr", 1.5))
+                tp2 = target_price
+            else:
+                target_price = price - risk * float(getattr(c, "tp2_rr", c.min_rr))
+                tp1 = price - risk * float(getattr(c, "tp1_rr", 1.5))
+                tp2 = target_price
+            features["zeus_tp_levels"] = [tp1, tp2]
+            features["zeus_tp_fractions"] = [
+                float(getattr(c, "tp1_fraction", 0.4)),
+                float(getattr(c, "tp2_fraction", 0.6)),
+            ]
+            features["min_stop_pct"] = float(getattr(c, "min_stop_pct", 0.008))
             return Signal(
                 symbol=symbol,
                 strategy_name=self.name,
