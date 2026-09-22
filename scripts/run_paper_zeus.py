@@ -238,6 +238,20 @@ async def observe_zeus(
                     stage=str(diag_ch.get("stage") or ""),
                     snapshot=snap,
                 )
+        # Shadow: liquidity sweep (journal only — no entries).
+        # Rollback: delete this block + scripts/zeus_liquidity_shadow.py
+        try:
+            import sys as _sys
+            from pathlib import Path as _P
+
+            _scripts = str(_P(__file__).resolve().parent)
+            if _scripts not in _sys.path:
+                _sys.path.insert(0, _scripts)
+            from zeus_liquidity_shadow import log_liquidity_sweep
+
+            log_liquidity_sweep(journal=journal, symbol=symbol, bars=closed_4h)
+        except Exception as _sw_exc:
+            logger.debug("liquidity_sweep: %s", _sw_exc)
         try:
             k15 = await bingx.get_candles(symbol, "15m", limit=40)
             if k15 and len(k15) >= LTF_LOOKBACK:
