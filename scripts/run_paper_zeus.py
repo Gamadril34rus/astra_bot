@@ -198,9 +198,9 @@ def sync_journal_from_broker(
                         ),
                     )
                 except Exception as exc:
-                    logger.warning("journal.exit failed: %s", exp)
+                    logger.warning("journal.exit failed: %s", exc)
         except Exception as exc:
-            logger.warning("exit sync: %s", exp)
+            logger.warning("exit sync: %s", exc)
     return known_trade_ids
 
 
@@ -258,7 +258,96 @@ async def observe_zeus(
         except Exception as ltf_exc:
             logger.debug("ltf: %s", ltf_exc)
     except Exception as exc:
-        logger.warning("observe_zeus skipped: %s", exp)
+        logger.warning("observe_zeus skipped: %s", exc)
+
+
+async def zeus_trail_open_positions(
+    *,
+    engine: TradingEngine,
+    journal: ZeusTradeLog,
+    bingx: BingXClient,
+) -> None:
+    """Zeus-only: BE at +1R MFE, lock ~1R at +1.5R; never loosen stop."""
+    from decimal import Decimal as _D
+
+    positions = list(getattr(engine.broker, "positions", None) or [])
+    for pos in positions:
+        try:
+            symbol = getattr(pos, "symbol", "") or ""
+            direction = str(getattr(pos, "direction", "") or "").lower()
+            entry = float(pos.entry_price)
+            stop = float(pos.stop_loss)
+            risk = abs(entry - stop)
+            if risk <= 0 or not symbol:
+                continue
+            mark = entry
+            try:
+                k15 = await bingx.get_candles(symbol, "15m", limit=3)
+                if k15:
+                    mark = float(k15[-1].close)
+            except Exception:
+                hi = getattr(pos, "highest_price", None)
+                lo = getattr(pos, "lowest_price", None)
+                if direction == "long" and hi is not None:
+                    mark = float(hi)
+                elif direction == "short" and lo is not None:
+                    mark = float(lo)
+            if direction == "long":
+                mfe_r = (mark - entry) / risk
+            else:
+                mfe_r = (entry - mark) / risk
+            new_stop = stop
+            why = ""
+            if mfe_r >= 1.5:
+                if direction == "long":
+                    cand = entry + 1.0 * risk
+                    if cand > stop:
+                        new_stop = cand
+                        why = f"trail_lock_1R mfe={mfe_r:.2f}"
+                else:
+                    cand = entry - 1.0 * risk
+                    if cand < stop:
+                        new_stop = cand
+                        why = f"trail_lock_1R mfe={mfe_r:.2f}"
+            elif mfe_r >= 1.0:
+                buf = risk * 0.05
+                if direction == "long":
+                    cand = entry + buf
+                    if cand > stop:
+                        new_stop = cand
+                        why = f"trail_be mfe={mfe_r:.2f}"
+                else:
+                    cand = entry - buf
+                    if cand < stop:
+                        new_stop = cand
+                        why = f"trail_be mfe={mfe_r:.2f}"
+            if why and abs(new_stop - stop) / max(entry, 1e-12) > 1e-8:
+                old = stop
+                pos.stop_loss = _D(str(new_stop))
+                try:
+                    engine.broker.save()
+                except Exception:
+                    pass
+                try:
+                    journal.stop_adjust(
+                        symbol=symbol,
+                        direction=direction,
+                        old_stop=str(old),
+                        new_stop=str(new_stop),
+                        why=why,
+                    )
+                except Exception as exc:
+                    logger.warning("trail journal: %s", exc)
+                logger.info(
+                    "Zeus trail %s %s stop %s -> %s (%s)",
+                    symbol,
+                    direction,
+                    old,
+                    new_stop,
+                    why,
+                )
+        except Exception as exc:
+            logger.debug("trail skip: %s", exc)
 
 
 async def amain(args: argparse.Namespace) -> int:
@@ -373,7 +462,7 @@ async def amain(args: argparse.Namespace) -> int:
                 strategy=str(meta.get("strategy") or ""),
             )
         except Exception as exc:
-            logger.warning("backfill entry failed: %s", exp)
+            logger.warning("backfill entry failed: %s", exc)
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -394,6 +483,12 @@ async def amain(args: argparse.Namespace) -> int:
             trades_path=trades_path,
             known_trade_ids=known_ids,
         )
+        try:
+            await zeus_trail_open_positions(
+                engine=engine, journal=journal, bingx=bingx
+            )
+        except Exception as trail_exc:
+            logger.warning("zeus trail: %s", trail_exc)
         for sym in symbols:
             await observe_zeus(
                 bingx=bingx,
@@ -423,7 +518,7 @@ async def amain(args: argparse.Namespace) -> int:
             try:
                 await one_cycle()
             except Exception as exc:
-                logger.exception("cycle error: %s", exp)
+                logger.exception("cycle error: %s", exc)
             try:
                 await asyncio.wait_for(stop.wait(), timeout=args.interval)
             except TimeoutError:
