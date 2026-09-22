@@ -2,6 +2,11 @@
 
 Parallel channel: entry from boundary (not mid).
 Paper research. enabled=False by default.
+
+Zeus fixes (paper-only):
+- min_stop_pct: no micro-stops
+- HTF bias: mean-reversion only with trend, breakouts allowed with trend
+- multi-level TP (partial + runner)
 """
 
 from __future__ import annotations
@@ -33,6 +38,39 @@ def _linreg(ys: list[float]) -> tuple[float, float]:
     return b, a
 
 
+def _htf_bias(closes: list[float]) -> str:
+    """Simple 4h bias from EMA8 vs EMA21 on channel window."""
+    if len(closes) < 8:
+        return "neutral"
+
+    def ema(vals: list[float], n: int) -> float:
+        k = 2.0 / (n + 1)
+        e = vals[0]
+        for v in vals[1:]:
+            e = v * k + e * (1 - k)
+        return e
+
+    fast = ema(closes, 8)
+    slow = ema(closes, min(21, len(closes)))
+    if fast > slow * 1.001:
+        return "up"
+    if fast < slow * 0.999:
+        return "down"
+    return "neutral"
+
+
+def _enforce_min_stop(
+    direction: str, price: float, stop: float, min_stop_pct: float
+) -> float:
+    if price <= 0 or min_stop_pct <= 0:
+        return stop
+    if direction == "long":
+        floor = price * (1.0 - min_stop_pct)
+        return min(stop, floor)
+    ceil = price * (1.0 + min_stop_pct)
+    return max(stop, ceil)
+
+
 @dataclass
 class ZeusChannelBoundaryConfig(StrategyConfig):
     name: str = "zeus_channel_boundary_4h"
@@ -48,7 +86,14 @@ class ZeusChannelBoundaryConfig(StrategyConfig):
     min_rr: float = 1.5
     enable_breakout_hold: bool = True
     min_hold_bars: int = 2
-    max_hold_bars: int = 6
+    max_hold_bars: int = 8
+    # Zeus paper fixes
+    min_stop_pct: float = 0.008  # 0.8% floor — kill micro-stops
+    require_htf_bias: bool = True
+    tp1_rr: float = 1.5
+    tp2_rr: float = 3.0
+    tp1_fraction: float = 0.4
+    tp2_fraction: float = 0.6
 
 
 class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
@@ -82,8 +127,11 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
         window = candles[-n:]
         highs = [float(x.high) for x in window]
         lows = [float(x.low) for x in window]
+        closes = [float(x.close) for x in window]
         last = window[-1]
         price = float(current_price) if current_price is not None else float(last.close)
+        bias = _htf_bias(closes)
+        out["htf_bias"] = bias
 
         slope_h, int_h = _linreg(highs)
         slope_l, int_l = _linreg(lows)
@@ -139,8 +187,18 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
 
         if c.enable_breakout_hold and c.min_hold_bars <= bars_out <= c.max_hold_bars:
             if price > upper:
-                stop = lower * (1 - c.stop_buffer_pct)
-                target = price + (price - stop) * c.min_rr
+                if c.require_htf_bias and bias == "down":
+                    out["reject_reason"] = "counter_trend_breakout_up"
+                    out["stage"] = "bias"
+                    return out
+                stop = _enforce_min_stop(
+                    "long", price, lower * (1 - c.stop_buffer_pct), c.min_stop_pct
+                )
+                risk = price - stop
+                if risk <= 0:
+                    out["reject_reason"] = "invalid_risk"
+                    return out
+                target = price + risk * c.min_rr
                 out.update(
                     would_signal=True,
                     direction="long",
@@ -151,8 +209,18 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
                 )
                 return out
             if price < lower:
-                stop = upper * (1 + c.stop_buffer_pct)
-                target = price - (stop - price) * c.min_rr
+                if c.require_htf_bias and bias == "up":
+                    out["reject_reason"] = "counter_trend_breakout_down"
+                    out["stage"] = "bias"
+                    return out
+                stop = _enforce_min_stop(
+                    "short", price, upper * (1 + c.stop_buffer_pct), c.min_stop_pct
+                )
+                risk = stop - price
+                if risk <= 0:
+                    out["reject_reason"] = "invalid_risk"
+                    return out
+                target = price - risk * c.min_rr
                 out.update(
                     would_signal=True,
                     direction="short",
@@ -168,7 +236,13 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
             return out
 
         if near_lo:
-            stop = lower * (1 - c.stop_buffer_pct)
+            if c.require_htf_bias and bias == "down":
+                out["reject_reason"] = "counter_trend_long_bias"
+                out["stage"] = "bias"
+                return out
+            stop = _enforce_min_stop(
+                "long", price, lower * (1 - c.stop_buffer_pct), c.min_stop_pct
+            )
             risk = price - stop
             target = upper
             if risk > 0 and (target - price) / risk >= c.min_rr:
@@ -185,7 +259,13 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
             return out
 
         if near_hi:
-            stop = upper * (1 + c.stop_buffer_pct)
+            if c.require_htf_bias and bias == "up":
+                out["reject_reason"] = "counter_trend_short_bias"
+                out["stage"] = "bias"
+                return out
+            stop = _enforce_min_stop(
+                "short", price, upper * (1 + c.stop_buffer_pct), c.min_stop_pct
+            )
             risk = stop - price
             target = lower
             if risk > 0 and (price - target) / risk >= c.min_rr:
@@ -216,7 +296,6 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
         if not self.config.enabled:
             return None
         try:
-            # pipeline already closed bars — do not strip again
             price = float(current_price) if current_price is not None else (
                 float(candles[-1].close) if candles else 0.0
             )
@@ -229,12 +308,15 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
             target = float(diag.get("target") or 0)
             if entry <= 0 or stop <= 0:
                 return None
+            c = self.config
+            risk = abs(entry - stop)
+            if risk / entry < c.min_stop_pct * 0.95:
+                return None
             if target <= 0:
-                risk = abs(entry - stop)
                 if diag.get("direction") == "long":
-                    target = entry + risk * float(self.config.min_rr)
+                    target = entry + risk * float(c.min_rr)
                 else:
-                    target = entry - risk * float(self.config.min_rr)
+                    target = entry - risk * float(c.min_rr)
 
             direction = (
                 models.TradeDirection.LONG
@@ -242,6 +324,12 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
                 else models.TradeDirection.SHORT
             )
             pattern = str(diag.get("pattern") or "channel")
+            if direction == models.TradeDirection.LONG:
+                tp1 = entry + risk * float(c.tp1_rr)
+                tp2 = entry + risk * float(c.tp2_rr)
+            else:
+                tp1 = entry - risk * float(c.tp1_rr)
+                tp2 = entry - risk * float(c.tp2_rr)
             return Signal(
                 symbol=symbol,
                 strategy_name=self.name,
@@ -249,7 +337,7 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
                 direction=direction,
                 entry_price=Decimal(str(entry)),
                 stop_loss=Decimal(str(stop)),
-                take_profit=Decimal(str(target)),
+                take_profit=Decimal(str(tp2)),
                 position_size=Decimal("0"),
                 risk_amount=Decimal("0"),
                 confidence=0.55,
@@ -259,6 +347,10 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
                     "upper": diag.get("upper"),
                     "lower": diag.get("lower"),
                     "width_pct": diag.get("width_pct"),
+                    "htf_bias": diag.get("htf_bias"),
+                    "zeus_tp_levels": [tp1, tp2],
+                    "zeus_tp_fractions": [c.tp1_fraction, c.tp2_fraction],
+                    "min_stop_pct": c.min_stop_pct,
                 },
             )
         except Exception as exc:
@@ -271,7 +363,8 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
         candles: list[models.Candle],
         atr: float | None = None,
     ) -> Decimal:
-        return entry_price * Decimal("0.995")
+        pct = Decimal(str(self.config.min_stop_pct or 0.008))
+        return entry_price * (Decimal("1") - pct)
 
     def calculate_take_profit(
         self,
@@ -279,4 +372,11 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
         stop_loss: Decimal,
         candles: list[models.Candle],
     ) -> list[dict]:
-        return [{"price": entry_price * Decimal("1.01"), "fraction": 1.0}]
+        risk = abs(entry_price - stop_loss)
+        c = self.config
+        tp1 = entry_price + risk * Decimal(str(c.tp1_rr))
+        tp2 = entry_price + risk * Decimal(str(c.tp2_rr))
+        return [
+            {"price": tp1, "fraction": float(c.tp1_fraction)},
+            {"price": tp2, "fraction": float(c.tp2_fraction)},
+        ]
