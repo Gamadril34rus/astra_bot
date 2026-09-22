@@ -151,5 +151,5 @@ async def zeus_trail_open_positions(
                     new_stop,
                     why,
                 )
-        except Exception as exc:
+        except Exception as exp:
             logger.debug("trail skip: %s", exp)
