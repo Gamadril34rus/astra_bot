@@ -1,7 +1,7 @@
 name: sprint-restore-engine
 on:
   push:
-    branches: [feat/zeus-activation-sprint]
+    branches: [feat/min-rr-2.0-memo-process]
     paths:
       - "scripts/TRIGGER_RESTORE"
   workflow_dispatch:
@@ -13,15 +13,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: feat/zeus-activation-sprint
+          ref: feat/min-rr-2.0-memo-process
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Apply sprint ruff fix on trading_engine
+      - name: Restore engine min_rr=2.0
         run: |
           set -euo pipefail
-          python3 scripts/fix_ruff_sprint.py
+          git fetch origin master
+          python3 scripts/restore_engine_minrr20.py
           git config user.name "astra-sprint-bot"
           git config user.email "bot@users.noreply.github.com"
           git add astra_bot/decision/trading_engine.py
-          git commit -m "fix(ruff): trading_engine UTC alias (UP017)" || echo "nothing to commit"
-          git push origin HEAD:feat/zeus-activation-sprint
+          git commit -m "fix: restore trading_engine + min_rr=2.0 (owner align clamp)" || echo "nothing"
+          git push origin HEAD:feat/min-rr-2.0-memo-process
