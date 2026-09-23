@@ -14,7 +14,7 @@ async def zeus_trail_open_positions(
     journal: Any,
     bingx: Any,
 ) -> None:
-    """BE at +1R MFE, lock 0.8R at +1.5R; sanitize inverted/tight stops."""
+    """Late trail: BE at +2R MFE, lock 1.5R at +2.5R; sanitize inverted/tight."""
     positions = list(getattr(engine.broker, "positions", None) or [])
     for pos in positions:
         try:
@@ -96,29 +96,30 @@ async def zeus_trail_open_positions(
                 mfe_r = (entry - mark) / risk
             new_stop = stop
             why = ""
-            if mfe_r >= 1.5:
+            # Late trail (research): early BE@1R hurt PF. BE@2R, lock 1.5R @2.5R.
+            if mfe_r >= 2.5:
                 if direction == "long":
-                    cand = entry + 0.8 * risk
+                    cand = entry + 1.5 * risk
                     if cand > stop:
                         new_stop = cand
-                        why = f"trail_lock_0.8R mfe={mfe_r:.2f}"
+                        why = f"trail_lock_1.5R mfe={mfe_r:.2f}"
                 else:
-                    cand = entry - 0.8 * risk
+                    cand = entry - 1.5 * risk
                     if cand < stop:
                         new_stop = cand
-                        why = f"trail_lock_0.8R mfe={mfe_r:.2f}"
-            elif mfe_r >= 1.0:
+                        why = f"trail_lock_1.5R mfe={mfe_r:.2f}"
+            elif mfe_r >= 2.0:
                 buf = max(risk * 0.05, entry * 0.0005)
                 if direction == "long":
                     cand = entry + buf
                     if cand > stop:
                         new_stop = cand
-                        why = f"trail_be mfe={mfe_r:.2f}"
+                        why = f"trail_be_2R mfe={mfe_r:.2f}"
                 else:
                     cand = entry - buf
                     if cand < stop:
                         new_stop = cand
-                        why = f"trail_be mfe={mfe_r:.2f}"
+                        why = f"trail_be_2R mfe={mfe_r:.2f}"
             if direction == "long" and new_stop < stop:
                 continue
             if direction == "short" and new_stop > stop:
