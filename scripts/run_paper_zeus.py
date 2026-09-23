@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Zeus paper-clock: matched wedge research, multi-symbol, paper-only."""
+"""Zeus paper-clock: channel capital + matched wedge + confidence leverage."""
 
 from __future__ import annotations
 
@@ -152,7 +152,7 @@ def sync_journal_from_broker(
                         "source": "zeus_paper_clock",
                     },
                     strategy=str(
-                        meta.get("strategy") or "zeus_wedge_retest_4h"
+                        meta.get("strategy") or "zeus_channel_boundary_4h"
                     ),
                 )
             except Exception as exc:
@@ -339,29 +339,44 @@ async def amain(args: argparse.Namespace) -> int:
         entry_gate_block_regimes=frozenset(),
     )
 
-    # Research 2026-09: 30-sym ~2y matched shape long+short (PF~1.14)
+    # Capital path: channel TP2 density + matched wedge quality.
+    # Leverage ladder: confidence→2..20x (env ASTRA_LEVERAGE_MAX); risk $ still 1%.
     import sys as _sys
     from pathlib import Path as _P
 
     _scripts = str(_P(__file__).resolve().parent)
     if _scripts not in _sys.path:
         _sys.path.insert(0, _scripts)
-    from zeus_research_wrap import ZeusMatchedResearchStrategy, research_config
+    from zeus_research_wrap import (
+        ZeusMatchedResearchStrategy,
+        research_config,
+        ZeusChannelCapitalStrategy,
+        channel_capital_config,
+    )
 
     zeus = ZeusMatchedResearchStrategy(research_config())
-    zeus_channel = ZeusChannelBoundaryStrategy(
-        ZeusChannelBoundaryConfig(enabled=False)
-    )
+    zeus_channel = ZeusChannelCapitalStrategy(channel_capital_config())
     dcfg = DecisionConfig()
-    dcfg.min_rr = 3.5
+    dcfg.min_rr = 2.0
     dcfg.min_ml_probability = 0.0
     dcfg.min_expected_edge_pct = 0.0
     dcfg.min_ev_r = 0.0
     pipeline = DecisionPipeline(
-        config=dcfg, strategies=[zeus, zeus_channel], model=None
+        config=dcfg, strategies=[zeus_channel, zeus], model=None
     )
+    _lev_max = int(os.environ.get("ASTRA_LEVERAGE_MAX", "20") or "20")
+    _lev_max = max(1, min(_lev_max, 50))
+    config.leverage_max = _lev_max
+    config.leverage_min_ev_r = 1.0
+    from decimal import Decimal as _DRisk
+
+    config.risk_per_trade_pct = _DRisk("0.01")
+    config.max_open_positions = 3
     engine = TradingEngine(
         exchange=bingx, pipeline=pipeline, config=config, notifier=None
+    )
+    logger.info(
+        "Zeus paper leverage_max=%s (conf ladder; risk_pct=1%%)", _lev_max
     )
 
     from decimal import Decimal as _Dec
@@ -391,8 +406,8 @@ async def amain(args: argparse.Namespace) -> int:
         {
             "event": "clock_start",
             "symbol": ",".join(symbols),
-            "strategy": "zeus_matched_research",
-            "note": "paper; matched LB36 hold4-6 TP3.5R long+short; capital="
+            "strategy": "zeus_channel+wedge",
+            "note": "paper; channel TP2 + matched wedge; lev_conf max20; capital="
             + str(args.capital),
         }
     )
@@ -454,8 +469,8 @@ async def amain(args: argparse.Namespace) -> int:
             {
                 "event": "tick",
                 "symbol": ",".join(symbols),
-                "strategy": "zeus_matched_research",
-                "note": "cycle matched research",
+                "strategy": "zeus_channel+wedge",
+                "note": "cycle channel+wedge lev_conf",
                 "open_positions": n_open,
             }
         )
