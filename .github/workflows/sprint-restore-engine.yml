@@ -16,13 +16,12 @@ jobs:
           ref: feat/zeus-activation-sprint
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Fetch master and restore engine
+      - name: Apply sprint ruff fix on trading_engine
         run: |
           set -euo pipefail
-          git fetch origin master
-          python3 scripts/restore_engine_sprint.py
+          python3 scripts/fix_ruff_sprint.py
           git config user.name "astra-sprint-bot"
           git config user.email "bot@users.noreply.github.com"
           git add astra_bot/decision/trading_engine.py
-          git commit -m "fix(sprint): restore trading_engine from master + sprint patches" || echo "nothing to commit"
+          git commit -m "fix(ruff): trading_engine UTC alias (UP017)" || echo "nothing to commit"
           git push origin HEAD:feat/zeus-activation-sprint
