@@ -496,6 +496,10 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                     f"{pattern}: wedge upper={upper:.4f} lower={lower:.4f} "
                     f"width_pct={width_pct:.4f} bars_outside={bars_after}"
                 ),
+                "zeus_reason": (
+                    f"{pattern}: wedge upper={upper:.4f} lower={lower:.4f} "
+                    f"width_pct={width_pct:.4f} bars_outside={bars_after}"
+                ),
                 "wedge_upper": round(upper, 6),
                 "wedge_lower": round(lower, 6),
                 "width_pct": round(width_pct, 6),
