@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -166,35 +166,51 @@ class SymbolLossGuard:
 
     After ``max_consecutive`` losses on a symbol, pause new entries for
     ``pause_hours``. Does not touch global kill-switch / HALT.
+
+    API (tests/unit/test_p_win_calibration.py):
+      is_paused(symbol, now=None) -> bool
+      record(symbol, pnl, now=None)  # pnl < 0 counts as loss
     """
 
     max_consecutive: int = 3
     pause_hours: float = 4.0
     _losses: dict[str, int] = field(default_factory=dict)
-    _pause_until: dict[str, float] = field(default_factory=dict)
+    _pause_until: dict[str, datetime] = field(default_factory=dict)
 
-    def is_paused(self, symbol: str) -> bool:
+    def is_paused(self, symbol: str, now: datetime | None = None) -> bool:
         until = self._pause_until.get(symbol)
         if until is None:
             return False
-        import time
-        if time.time() >= until:
+        ts = now if now is not None else datetime.now(UTC)
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=UTC)
+        until_aware = until if until.tzinfo is not None else until.replace(tzinfo=UTC)
+        if ts >= until_aware:
             self._pause_until.pop(symbol, None)
             self._losses[symbol] = 0
             return False
         return True
 
-    def record_loss(self, symbol: str) -> None:
-        import time
+    def record(self, symbol: str, pnl: float, now: datetime | None = None) -> None:
+        ts = now if now is not None else datetime.now(UTC)
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=UTC)
+        if pnl >= 0:
+            self._losses[symbol] = 0
+            self._pause_until.pop(symbol, None)
+            return
         n = self._losses.get(symbol, 0) + 1
         self._losses[symbol] = n
         if n >= self.max_consecutive:
-            self._pause_until[symbol] = time.time() + self.pause_hours * 3600.0
+            self._pause_until[symbol] = ts + timedelta(hours=self.pause_hours)
             logger.warning(
                 "SYMBOL_COOLDOWN %s: %d consecutive losses -> pause %.1fh",
                 symbol, n, self.pause_hours,
             )
 
+    # Back-compat aliases used by trading_engine sprint patches
+    def record_loss(self, symbol: str) -> None:
+        self.record(symbol, -1.0)
+
     def record_win(self, symbol: str) -> None:
-        self._losses[symbol] = 0
-        self._pause_until.pop(symbol, None)
+        self.record(symbol, 1.0)
