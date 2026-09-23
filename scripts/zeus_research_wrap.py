@@ -1,4 +1,4 @@
-"""Paper research filters for Zeus wedge (30-sym ~2y matched shape)."""
+"""Paper research: matched wedge + channel capital + confidence for leverage."""
 from __future__ import annotations
 
 from typing import Any
@@ -7,6 +7,12 @@ from astra_bot.strategies.zeus_wedge_retest import (
     ZeusWedgeRetestConfig,
     ZeusWedgeRetestStrategy,
 )
+from astra_bot.strategies.zeus_channel_boundary import (
+    ZeusChannelBoundaryConfig,
+    ZeusChannelBoundaryStrategy,
+)
+
+from zeus_confidence import confidence_from_diag
 
 
 def research_config() -> ZeusWedgeRetestConfig:
@@ -76,3 +82,82 @@ class ZeusMatchedResearchStrategy(ZeusWedgeRetestStrategy):
                 return d
 
         return d
+
+    async def evaluate(
+        self, symbol, candles, orderbook=None, current_price=None, market_regime=None, **kwargs
+    ):
+        sig = await super().evaluate(
+            symbol,
+            candles,
+            orderbook=orderbook,
+            current_price=current_price,
+            market_regime=market_regime,
+            **kwargs,
+        )
+        if sig is None:
+            return None
+        try:
+            diag = self.diagnose(candles, current_price=current_price)
+            conf = confidence_from_diag(diag, kind="wedge")
+            sig.confidence = conf
+            feats = dict(sig.features or {})
+            feats["zeus_confidence"] = conf
+            feats["leverage_eligible"] = True
+            sig.features = feats
+        except Exception:
+            pass
+        return sig
+
+
+def channel_capital_config() -> ZeusChannelBoundaryConfig:
+    """Capital research: TP2.0R, hold 2-5, width band for density."""
+    return ZeusChannelBoundaryConfig(
+        enabled=True,
+        lookback=40,
+        min_width_pct=0.01,
+        max_width_pct=0.12,
+        min_rr=2.0,
+        enable_breakout_hold=True,
+        min_hold_bars=2,
+        max_hold_bars=5,
+        min_stop_pct=0.008,
+        require_htf_bias=True,
+        tp1_rr=1.5,
+        tp2_rr=2.0,
+        tp1_fraction=0.4,
+        tp2_fraction=0.6,
+    )
+
+
+class ZeusChannelCapitalStrategy(ZeusChannelBoundaryStrategy):
+    """Channel break for capital density + confidence for leverage ladder."""
+
+    async def evaluate(
+        self, symbol, candles, orderbook=None, current_price=None, market_regime=None, **kwargs
+    ):
+        sig = await super().evaluate(
+            symbol,
+            candles,
+            orderbook=orderbook,
+            current_price=current_price,
+            market_regime=market_regime,
+            **kwargs,
+        )
+        if sig is None:
+            return None
+        try:
+            price = (
+                float(current_price)
+                if current_price is not None
+                else float(candles[-1].close)
+            )
+            diag = self.diagnose(candles, current_price=price)
+            conf = confidence_from_diag(diag, kind="channel")
+            sig.confidence = conf
+            feats = dict(sig.features or {})
+            feats["zeus_confidence"] = conf
+            feats["leverage_eligible"] = True
+            sig.features = feats
+        except Exception:
+            pass
+        return sig
