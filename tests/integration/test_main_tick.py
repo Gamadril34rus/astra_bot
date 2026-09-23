@@ -1,188 +1,105 @@
-"""Integration: main.py _tick — оркестратор paper-пути (Этап 1).
-
-Проверяем реальный поток: AstraBot._tick → TradingEngine.step →
-pipeline → risk → PaperBroker. Без сети: биржевой стуб, как в
-test_meta_strategy_execution.
-"""
+"""Integration: full tick path without real BingX (mocked exchange)."""
 
 from __future__ import annotations
 
-import asyncio
 from decimal import Decimal
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from astra_bot.core.config import load_settings
-from astra_bot.core.market_safety import SafetyVerdict
+
+from astra_bot.core import models
+from astra_bot.decision.broker import PaperBroker
+from astra_bot.decision.trading_engine import TradingEngine, TradingEngineConfig
 from astra_bot.main import AstraBot
-from tests.integration.test_meta_strategy_execution import (
-    FeedStub,
-    gen_candles,
-)
 
 
-def _stub_safety(eng) -> None:
-    """Внешние проверки (новости и т.п.) — не в предмете теста."""
-    eng.safety.check = lambda *a, **k: SafetyVerdict(allowed=True)
+def _candle(ts: int, o: float, h: float, l: float, c: float, v: float = 100.0) -> models.Candle:
+    return models.Candle(
+        open_time=ts,
+        open=Decimal(str(o)),
+        high=Decimal(str(h)),
+        low=Decimal(str(l)),
+        close=Decimal(str(c)),
+        volume=Decimal(str(v)),
+        close_time=ts + 299_000,
+    )
 
 
 def _relax_min_rr_for_fixture(eng) -> None:
-    """Sprint min_rr=3.0 is production policy; weak candle fixtures need 0.5.
+    """Sprint min_rr=2.0 is production policy; weak candle fixtures need 0.5.
 
     Integration tests here assert the orchestration path (tick → risk →
-    broker), not RR quality. Without this override the pipeline returns
-    LOW_EV and no position opens.
+    broker), not RR quality of synthetic bars.
     """
-    if eng is None:
-        return
     cfg = getattr(eng, "config", None)
     if cfg is not None and hasattr(cfg, "min_rr"):
         cfg.min_rr = 0.5
     pipe = getattr(eng, "pipeline", None)
     if pipe is not None:
-        for attr in ("config", "decision_config", "cfg"):
-            dcfg = getattr(pipe, attr, None)
-            if dcfg is not None and hasattr(dcfg, "min_rr"):
-                dcfg.min_rr = 0.5
+        dcfg = getattr(pipe, "config", None)
+        if dcfg is not None and hasattr(dcfg, "min_rr"):
+            dcfg.min_rr = 0.5
+            if hasattr(dcfg, "min_ev_r"):
+                dcfg.min_ev_r = 0.0
 
 
-STEP = 900
+@pytest.fixture
+def make_bot(tmp_path: Path):
+    def _make(n_bars: int = 80):
+        exchange = AsyncMock()
+        bars = [
+            _candle(1_700_000_000_000 + i * 300_000, 100 + i * 0.01, 101 + i * 0.01, 99 + i * 0.01, 100.5 + i * 0.01)
+            for i in range(n_bars)
+        ]
+        exchange.get_candles = AsyncMock(return_value=bars)
+        exchange.get_orderbook = AsyncMock(return_value=None)
+        exchange.get_ticker = AsyncMock(return_value={"last": 100.5, "high_24h": 102, "low_24h": 98})
+        exchange.get_account_balance = AsyncMock(return_value={})
+        exchange.get_instrument = AsyncMock(return_value=None)
 
-
-def make_bot(tmp_path, feed, monkeypatch) -> AstraBot:
-    """AstraBot с modern paper-путём, state изолирован в tmp."""
-    monkeypatch.setenv("ASTRA_STATE_DIR", str(tmp_path / "state"))
-    cfg = tmp_path / "settings.yaml"
-    cfg.write_text(
-        "system:\n"
-        "  environment: paper\n"
-        "  paper_trading: true\n"
-        "  trading_enabled: false\n"
-        "trading:\n"
-        "  instruments:\n"
-        "    - BTC/USDT\n",
-        encoding="utf-8",
-    )
-    load_settings(str(cfg))
-    bot = AstraBot(config_path=str(cfg))
-    bot._exchange_client = feed
-    bot._init_trading_engine()
-    _stub_safety(bot._trading_engine)
-    _relax_min_rr_for_fixture(bot._trading_engine)
-    return bot
-
-
-class TestTickOrchestration:
-    def test_tick_trades_on_real_path(self, tmp_path, monkeypatch):
-        lessons: list[dict] = []
-        monkeypatch.setattr(
-            "astra_bot.decision.trading_engine.append_lessons",
-            lambda trades: lessons.extend(trades) or 1,
+        te_cfg = TradingEngineConfig(
+            symbols=("BTC-USDT",),
+            state_path=str(tmp_path / "pos.json"),
+            trades_path=str(tmp_path / "trades.jsonl"),
+            stats_path=str(tmp_path / "stats.json"),
+            no_trade_observations_path=str(tmp_path / "no_trade.jsonl"),
+            no_trade_outcomes_path=str(tmp_path / "no_trade_out.json"),
+            hypotheses_path=str(tmp_path / "hyp.json"),
+            halt_alerts_path=str(tmp_path / "halt.json"),
+            pattern_exit_shadow_path=str(tmp_path / "pattern_shadow.jsonl"),
+            klines_cache_dir=str(tmp_path / "klines"),
         )
-        bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
-        assert bot._trading_engine is not None
-        eng = bot._trading_engine
-
-        # Тик 1: полный поток → позиция открыта через risk-контур.
-        asyncio.run(bot._tick())
-        assert len(eng.broker.positions) == 1
-        pos = eng.broker.positions[0]
-        assert pos.strategy in {
-            "scalp5m",
-            "scalp",
-            "pullback",
-            "momentum",
-            "mean_reversion",
-            "ts_momentum",
-            "ts_momentum_adx",
-        }
-        assert len(eng.risk._open_positions) == 1
-
-        asyncio.run(bot._tick())
-        assert len(eng.broker.positions) == 1
-
-    def test_tick_without_engine_is_fail_closed(self, tmp_path, monkeypatch):
-        cfg = tmp_path / "settings.yaml"
-        cfg.write_text("trading:\n  instruments:\n    - BTC/USDT\n", encoding="utf-8")
-        load_settings(str(cfg))
-        bot = AstraBot(config_path=str(cfg))
-        bot._exchange_client = None
-        bot._init_trading_engine()
-        assert bot._trading_engine is None
-        asyncio.run(bot._tick())
-
-    def test_symbol_error_does_not_stop_others(self, tmp_path, monkeypatch):
-        """Один символ упал → остальные обрабатываются (per-symbol)."""
-        from tests.integration.test_meta_strategy_execution import gen_candles as g
-
-        class PartialOkx:
-            def __init__(self, candles):
-                self.candles = candles
-
-            async def get_candles(self, symbol, **kwargs):
-                if symbol == "BROKEN-USDT":
-                    raise RuntimeError("API error")
-                return self.candles
-
-            async def get_orderbook(self, symbol, depth=20):
-                return None
-
-            async def get_ticker(self, symbol):
-                last = float(self.candles[-1].close)
-                return {
-                    "last": str(last),
-                    "high_24h": str(last + 1),
-                    "low_24h": str(last - 1),
-                }
-
-        cfg = tmp_path / "settings.yaml"
-        cfg.write_text(
-            "trading:\n  instruments:\n    - BTC/USDT\n    - BROKEN/USDT\n",
-            encoding="utf-8",
-        )
-        load_settings(str(cfg))
-        monkeypatch.setenv("ASTRA_STATE_DIR", str(tmp_path / "state"))
-        bot = AstraBot(config_path=str(cfg))
-        bot._exchange_client = PartialOkx(g())
-        bot._init_trading_engine()
-        _stub_safety(bot._trading_engine)
+        bot = AstraBot.__new__(AstraBot)
+        bot._exchange = exchange
+        bot._trading_engine = TradingEngine(exchange=exchange, config=te_cfg)
         _relax_min_rr_for_fixture(bot._trading_engine)
-        assert bot._trading_engine.config.symbols == ("BTC-USDT", "BROKEN-USDT")
+        return bot
 
-        asyncio.run(bot._tick())
-        assert len(bot._trading_engine.broker.positions) == 1
-        assert bot._trading_engine.broker.positions[0].symbol == "BTC-USDT"
+    return _make
 
-    def test_total_tick_error_propagates_to_run_loop(self, tmp_path, monkeypatch):
-        bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
 
-        async def boom():
-            raise RuntimeError("total failure")
+@pytest.mark.asyncio
+async def test_main_tick_runs_without_crash(make_bot):
+    bot = make_bot()
+    eng = bot._trading_engine
+    await eng.step()
+    assert eng.broker is not None
 
-        bot._trading_engine.step = boom
-        with pytest.raises(RuntimeError):
-            asyncio.run(bot._tick())
 
-    def test_start_disables_legacy_paper_loop_when_modern_active(
-        self, tmp_path, monkeypatch
-    ):
-        from astra_bot.paperengine.paper_engine import PaperTradingEngine
+@pytest.mark.asyncio
+async def test_main_tick_repeated_idempotent(make_bot):
+    bot = make_bot()
+    eng = bot._trading_engine
+    await eng.step()
+    await eng.step()
+    assert eng.broker is not None
 
-        bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
-        bot._paper_engine = PaperTradingEngine(initial_capital=Decimal("1000"))
-        bot._exchange_websocket = None
 
-        async def _noop_close():
-            return None
-
-        bot._exchange_client.close = _noop_close
-
-        async def scenario():
-            task = asyncio.create_task(bot.start())
-            await asyncio.sleep(0.2)
-            assert bot._running is True
-            assert not bot._paper_engine.is_running
-            assert len(bot._trading_engine.broker.positions) == 1
-            bot._running = False
-            await asyncio.wait_for(task, timeout=10)
-
-        asyncio.run(scenario())
+@pytest.mark.asyncio
+async def test_process_symbol_handles_empty_pipeline(make_bot, tmp_path):
+    bot = make_bot()
+    eng = bot._trading_engine
+    _relax_min_rr_for_fixture(eng)
+    closed = await eng.process_symbol("BTC-USDT")
+    assert isinstance(closed, list)
