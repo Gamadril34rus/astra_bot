@@ -437,21 +437,82 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                 return None
 
             c = self.config
-            price = float(diag.get("entry") or 0)
-            stop_price = float(diag.get("stop") or 0)
+            tail_max = max(
+                c.max_bars_outside + 1,
+                int(getattr(c, "max_bars_true_breakout", 6)) + 1,
+            )
+            tail_len = min(tail_max, max(1, len(candles) - c.lookback))
+            formation = candles[-(c.lookback + tail_len) : -tail_len]
+            highs = [float(x.high) for x in formation]
+            lows = [float(x.low) for x in formation]
+            slope_hi, intercept_hi = _linreg_slope(highs)
+            slope_lo, intercept_lo = _linreg_slope(lows)
+            n = len(formation)
+            upper = max(
+                intercept_hi + slope_hi * (n - 1), max(highs[-3:]) * 0.999
+            )
+            lower = min(
+                intercept_lo + slope_lo * (n - 1), min(lows[-3:]) * 1.001
+            )
+            width_pct = float(diag.get("width_pct") or 0.0)
+            tail = candles[-tail_len:]
+            last = tail[-1]
+            price = float(last.close)
             pattern = str(diag.get("pattern") or "")
-            direction_s = str(diag.get("direction") or "long")
-            if price <= 0 or stop_price <= 0:
-                return None
+            bars_after = int(diag.get("bars_outside") or 0)
 
-            if direction_s == "short":
+            if diag.get("direction") == "short":
                 direction = models.TradeDirection.SHORT
+                if pattern.startswith("true_breakout"):
+                    stop_price = upper * (1.0 + c.stop_buffer_pct)
+                else:
+                    extreme_hi = max(float(b.high) for b in tail)
+                    stop_price = extreme_hi * (1.0 + c.stop_buffer_pct)
+                risk = stop_price - price
+                target_price = price - risk * c.min_rr
             else:
                 direction = models.TradeDirection.LONG
+                if pattern.startswith("true_breakout"):
+                    stop_price = lower * (1.0 - c.stop_buffer_pct)
+                else:
+                    extreme_lo = min(float(b.low) for b in tail)
+                    stop_price = extreme_lo * (1.0 - c.stop_buffer_pct)
+                risk = price - stop_price
+                target_price = price + risk * c.min_rr
 
-            risk = abs(price - stop_price)
             if risk <= 0:
+                logger.warning(
+                    "%s: would_signal but risk<=0 at signal close=%.4f stop=%.4f",
+                    self.name,
+                    price,
+                    stop_price,
+                )
                 return None
+
+            confidence = min(0.85, 0.55 + width_pct * 2.0)
+            features = {
+                "zeus_pattern": pattern,
+                "reason": (
+                    f"{pattern}: wedge upper={upper:.4f} lower={lower:.4f} "
+                    f"width_pct={width_pct:.4f} bars_outside={bars_after}"
+                ),
+                "wedge_upper": round(upper, 6),
+                "wedge_lower": round(lower, 6),
+                "width_pct": round(width_pct, 6),
+                "bars_outside": bars_after,
+                "slope_hi": round(slope_hi, 8),
+                "slope_lo": round(slope_lo, 8),
+                "is_rising_wedge": bool(diag.get("is_rising_wedge")),
+                "is_falling_wedge": bool(diag.get("is_falling_wedge")),
+                "structure_role": diag.get("structure_role") or "4h_main",
+                "stop_structure": (
+                    "beyond_breakout_extreme"
+                    if pattern.startswith("true_breakout")
+                    else "beyond_false_break_extreme"
+                ),
+                "min_rr": c.min_rr,
+            }
+
             stop_price = _enforce_min_stop(
                 "long" if direction == models.TradeDirection.LONG else "short",
                 price,
@@ -461,7 +522,6 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             risk = abs(price - stop_price)
             if risk <= 0 or risk / price < float(getattr(c, "min_stop_pct", 0.008)) * 0.95:
                 return None
-
             if direction == models.TradeDirection.LONG:
                 target_price = price + risk * float(getattr(c, "tp2_rr", c.min_rr))
                 tp1 = price + risk * float(getattr(c, "tp1_rr", 1.5))
@@ -470,18 +530,12 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                 target_price = price - risk * float(getattr(c, "tp2_rr", c.min_rr))
                 tp1 = price - risk * float(getattr(c, "tp1_rr", 1.5))
                 tp2 = target_price
-
-            features = {
-                "zeus_pattern": pattern,
-                "reason": f"{pattern} research/paper",
-                "zeus_tp_levels": [tp1, tp2],
-                "zeus_tp_fractions": [
-                    float(getattr(c, "tp1_fraction", 0.4)),
-                    float(getattr(c, "tp2_fraction", 0.6)),
-                ],
-                "min_stop_pct": float(getattr(c, "min_stop_pct", 0.008)),
-                "min_rr": c.min_rr,
-            }
+            features["zeus_tp_levels"] = [tp1, tp2]
+            features["zeus_tp_fractions"] = [
+                float(getattr(c, "tp1_fraction", 0.4)),
+                float(getattr(c, "tp2_fraction", 0.6)),
+            ]
+            features["min_stop_pct"] = float(getattr(c, "min_stop_pct", 0.008))
             return Signal(
                 symbol=symbol,
                 strategy_name=self.name,
@@ -492,7 +546,7 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                 take_profit=Decimal(str(target_price)),
                 position_size=Decimal("0"),
                 risk_amount=Decimal("0"),
-                confidence=0.6,
+                confidence=confidence,
                 market_regime=market_regime or "UNKNOWN",
                 features=features,
             )
@@ -500,8 +554,8 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             logger.warning("%s evaluate error: %s", self.name, exc)
             return None
 
-    def calculate_stop_loss(self, *args, **kwargs):
+    def calculate_stop_loss(self, entry_price, direction, atr_value=None, **kwargs):
         return None
 
-    def calculate_take_profit(self, *args, **kwargs):
+    def calculate_take_profit(self, entry_price, stop_loss, direction, **kwargs):
         return None
