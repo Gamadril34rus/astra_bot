@@ -1216,8 +1216,7 @@ class TradingEngine:
         if getattr(self, "symbol_guard", None) is not None and self.symbol_guard.is_paused(symbol):
             logger.info("SYMBOL_COOLDOWN skip %s", symbol)
             return []
-        from datetime import datetime, timezone
-        _today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        _today = datetime.now(UTC).strftime("%Y-%m-%d")
         if getattr(self, "_trades_today_date", "") != _today:
             self._trades_today_date = _today
             self._daily_trade_count = 0
