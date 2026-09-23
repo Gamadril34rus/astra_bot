@@ -1,5 +1,4 @@
 name: sprint-restore-engine
-# Dispatch-only: do not auto-run on push (avoids races with manual fixes).
 on:
   workflow_dispatch:
 jobs:
@@ -13,8 +12,78 @@ jobs:
           ref: feat/zeus-activation-sprint
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Restore trading_engine from master and patch
+      - name: Restore trading_engine from master and apply sprint patches
         run: |
           set -euo pipefail
-          echo "Manual restore disabled after successful fix commit. No-op."
-          exit 0
+          git fetch origin master
+          git show origin/master:astra_bot/decision/trading_engine.py > astra_bot/decision/trading_engine.py
+          python3 << 'PY'
+          from pathlib import Path
+          t = Path("astra_bot/decision/trading_engine.py").read_text()
+          t = t.replace("cfg.min_rr = 0.7", "cfg.min_rr = 3.0  # Sprint 2026-09-23", 1)
+          anchor = "    entry_gate_max_costs_r: float = 0.25\n"
+          insert = """    entry_gate_max_costs_r: float = 0.25
+    max_trades_per_day: int = 6  # Sprint 2026-09-23
+    symbol_loss_cooldown_enabled: bool = True
+    htf_hard_gate_enabled: bool = False  # shadow until data
+    disabled_strategy_names: frozenset[str] = frozenset({
+        "zscore_mean_reversion", "liquidity_sweep", "fair_value_gap",
+        "open_interest_divergence", "expanding_triangle", "ascending_triangle",
+        "breakout", "BreakoutStrategyV2", "ExpandingTriangleStrategy",
+        "AscendingTriangleStrategy",
+    })
+"""
+          if "max_trades_per_day" not in t:
+              t = t.replace(anchor, insert, 1)
+          a = "        self.entry_gates = EntryGateConfig.from_engine_config(self.config)\n"
+          b = a + """        from ..core.kill_switch import SymbolLossGuard
+        self.symbol_guard = SymbolLossGuard() if getattr(self.config, "symbol_loss_cooldown_enabled", True) else None
+        self._daily_trade_count = 0
+        self._trades_today_date = ""
+"""
+          if "self.symbol_guard" not in t:
+              t = t.replace(a, b, 1)
+          m = "        if not primary:\n            return []\n"
+          e = """        if not primary:
+            return []
+        if getattr(self, "symbol_guard", None) is not None and self.symbol_guard.is_paused(symbol):
+            logger.info("SYMBOL_COOLDOWN skip %s", symbol)
+            return []
+        from datetime import datetime, timezone
+        _today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        if getattr(self, "_trades_today_date", "") != _today:
+            self._trades_today_date = _today
+            self._daily_trade_count = 0
+        if getattr(self, "_daily_trade_count", 0) >= int(getattr(self.config, "max_trades_per_day", 6)):
+            logger.info("DAILY_LIMIT reached (%d), skip %s", self._daily_trade_count, symbol)
+            return []
+"""
+          if "DAILY_LIMIT reached" not in t:
+              t = t.replace(m, e, 1)
+          m2 = "        cand = decision.candidate\n"
+          e2 = """        cand = decision.candidate
+        _sname = str(getattr(cand, "strategy_name", "") or getattr(cand, "strategy", "") or "")
+        _dis = getattr(self.config, "disabled_strategy_names", frozenset())
+        if _sname and (_sname in _dis or any(d.lower() in _sname.lower() for d in _dis)):
+            logger.info("%s: strategy disabled by sprint denylist: %s", symbol, _sname)
+            return closed
+"""
+          if "sprint denylist" not in t:
+              t = t.replace(m2, e2, 1)
+          marker = "            pos = self.broker.open_position(\n"
+          inc = "            self._daily_trade_count = getattr(self, \"_daily_trade_count\", 0) + 1\n"
+          if "self._daily_trade_count = getattr" not in t and marker in t:
+              t = t.replace(marker, inc + marker, 1)
+          Path("astra_bot/decision/trading_engine.py").write_text(t)
+          import ast
+          ast.parse(t)
+          assert "class TradingEngine" in t
+          assert "cfg.min_rr = 3.0" in t
+          print("OK lines", len(t.splitlines()))
+          PY
+          git config user.name "astra-sprint-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add astra_bot/decision/trading_engine.py
+          git status
+          git commit -m "fix(sprint): restore trading_engine from master + sprint patches" || echo "nothing to commit"
+          git push origin HEAD:feat/zeus-activation-sprint
