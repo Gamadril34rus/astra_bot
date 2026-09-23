@@ -7,13 +7,12 @@ Kill-switch убыточного контура (TZ P2-3).
 
 Пороги задаются конфигом. HALT переживает рестарт (сохраняется в state).
 """
-
 from __future__ import annotations
 
 import json
 import logging
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -25,11 +24,8 @@ DEFAULT_STATE_PATH = Path("models/kill_switch_state.json")
 @dataclass
 class KillSwitchConfig:
     """Пороги kill-switch."""
-    # Максимальное количество дней подряд с убытком до HALT.
     max_consecutive_loss_days: int = 5
-    # Максимальный недельный убыток (% equity) до HALT.
     max_weekly_loss_pct: float = 3.0
-    # Включён ли kill-switch.
     enabled: bool = True
 
 
@@ -40,7 +36,7 @@ class KillSwitchState:
     halt_reason: str = ""
     halted_at: str = ""
     consecutive_loss_days: int = 0
-    last_pnl_day: str = ""  # ISO date
+    last_pnl_day: str = ""
     daily_pnl_history: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -59,10 +55,7 @@ class KillSwitchState:
 
 
 class KillSwitch:
-    """Kill-switch: авто-HALT при серии убыточных дней.
-
-    Используется в trading_engine для проверки перед открытием новых позиций.
-    """
+    """Kill-switch: авто-HALT при серии убыточных дней."""
 
     def __init__(
         self,
@@ -93,52 +86,34 @@ class KillSwitch:
         tmp.replace(self.state_path)
 
     def record_daily_pnl(self, day_pnl: float, equity: float, day: str | None = None) -> None:
-        """Записать дневной PnL и проверить пороги.
-
-        Вызывается в конце каждого торгового дня (или в morning report).
-        ``day`` — ISO-дата (для тестов); по умолчанию = сегодня.
-        """
         if not self.config.enabled:
             return
-
         today = day or date.today().isoformat()
         if self.state.last_pnl_day == today:
-            # Уже записано за сегодня — обновляем.
             self.state.daily_pnl_history = [
                 d for d in self.state.daily_pnl_history if d["date"] != today
             ]
-
         self.state.daily_pnl_history.append({
             "date": today,
             "pnl": day_pnl,
             "equity": equity,
         })
         self.state.last_pnl_day = today
-
-        # Keep only last 30 days
         self.state.daily_pnl_history = self.state.daily_pnl_history[-30:]
-
-        # Check consecutive loss days
         self._check_consecutive_losses()
-        # Check weekly loss
         self._check_weekly_loss(equity)
-
         self._save_state()
 
     def _check_consecutive_losses(self) -> None:
-        """Проверить N дней подряд убытка."""
         if self.state.is_halted:
             return
-
         consecutive = 0
         for day in reversed(self.state.daily_pnl_history):
             if day["pnl"] < 0:
                 consecutive += 1
             else:
                 break
-
         self.state.consecutive_loss_days = consecutive
-
         if consecutive >= self.config.max_consecutive_loss_days:
             self.state.is_halted = True
             self.state.halt_reason = (
@@ -149,15 +124,11 @@ class KillSwitch:
             logger.critical("KILL-SWITCH HALT: %s", self.state.halt_reason)
 
     def _check_weekly_loss(self, equity: float) -> None:
-        """Проверить недельный убыток > X% equity."""
         if self.state.is_halted or equity <= 0:
             return
-
-        # Sum last 7 days
         last_7 = self.state.daily_pnl_history[-7:]
         weekly_pnl = sum(d["pnl"] for d in last_7)
         weekly_loss_pct = abs(weekly_pnl) / equity * 100 if weekly_pnl < 0 else 0
-
         if weekly_loss_pct >= self.config.max_weekly_loss_pct:
             self.state.is_halted = True
             self.state.halt_reason = (
@@ -168,11 +139,9 @@ class KillSwitch:
             logger.critical("KILL-SWITCH HALT: %s", self.state.halt_reason)
 
     def is_halted(self) -> bool:
-        """True если система на HALT."""
         return self.state.is_halted
 
     def reset(self) -> None:
-        """Сбросить HALT (только ручное действие оператора)."""
         self.state.is_halted = False
         self.state.halt_reason = ""
         self.state.halted_at = ""
@@ -181,7 +150,6 @@ class KillSwitch:
         logger.info("Kill-switch reset by operator")
 
     def status(self) -> dict[str, Any]:
-        """Текущий статус kill-switch."""
         return {
             "is_halted": self.state.is_halted,
             "halt_reason": self.state.halt_reason,
@@ -190,3 +158,59 @@ class KillSwitch:
             "max_weekly_loss_pct": self.config.max_weekly_loss_pct,
             "enabled": self.config.enabled,
         }
+
+
+@dataclass
+class SymbolLossGuard:
+    """Per-symbol consecutive loss cooldown (Sprint 2026-09-23).
+
+    After ``max_consecutive`` losses on a symbol, pause new entries for
+    ``pause_hours``. Does not touch global kill-switch / HALT.
+
+    API (tests/unit/test_p_win_calibration.py):
+      is_paused(symbol, now=None) -> bool
+      record(symbol, pnl, now=None)  # pnl < 0 counts as loss
+    """
+
+    max_consecutive: int = 3
+    pause_hours: float = 4.0
+    _losses: dict[str, int] = field(default_factory=dict)
+    _pause_until: dict[str, datetime] = field(default_factory=dict)
+
+    def is_paused(self, symbol: str, now: datetime | None = None) -> bool:
+        until = self._pause_until.get(symbol)
+        if until is None:
+            return False
+        ts = now if now is not None else datetime.now(UTC)
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=UTC)
+        until_aware = until if until.tzinfo is not None else until.replace(tzinfo=UTC)
+        if ts >= until_aware:
+            self._pause_until.pop(symbol, None)
+            self._losses[symbol] = 0
+            return False
+        return True
+
+    def record(self, symbol: str, pnl: float, now: datetime | None = None) -> None:
+        ts = now if now is not None else datetime.now(UTC)
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=UTC)
+        if pnl >= 0:
+            self._losses[symbol] = 0
+            self._pause_until.pop(symbol, None)
+            return
+        n = self._losses.get(symbol, 0) + 1
+        self._losses[symbol] = n
+        if n >= self.max_consecutive:
+            self._pause_until[symbol] = ts + timedelta(hours=self.pause_hours)
+            logger.warning(
+                "SYMBOL_COOLDOWN %s: %d consecutive losses -> pause %.1fh",
+                symbol, n, self.pause_hours,
+            )
+
+    # Back-compat aliases used by trading_engine sprint patches
+    def record_loss(self, symbol: str) -> None:
+        self.record(symbol, -1.0)
+
+    def record_win(self, symbol: str) -> None:
+        self.record(symbol, 1.0)

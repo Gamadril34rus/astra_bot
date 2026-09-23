@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
 
 
@@ -29,8 +29,6 @@ class DecisionConfig:
     adx_strong_threshold: float = 40.0
     ema_fast: int = 20
     ema_mid: int = 50
-    # Лента дневных гейтов (п.7.4): 20/50/100/200 — 100 добавлена к
-    # существующим 20/50/200 (поправка владельца).
     ema_band: int = 100
     ema_slow: int = 200
 
@@ -53,8 +51,6 @@ class DecisionConfig:
     # Стакан/ликвидность.
     min_book_depth: float = 5000.0
     max_spread_pct: float = 0.15
-    # ЕДИНИЦЫ (аудит A5): ПРОЦЕНТЫ (0.05 = 0.05% цены), не доли.
-    # CostModel.slippage_pct — в долях (0.001 = 0.1%); это разные шкалы.
     slippage_buffer_pct: float = 0.05
 
     # Risk.
@@ -63,24 +59,16 @@ class DecisionConfig:
     max_correlation_exposure: int = 3
     max_daily_loss_pct: float = 3.0
     max_drawdown_pct: float = 15.0
-    min_rr: float = 1.5
+    min_rr: float = 3.0
 
     # D5 фаза 0: HTF directional-фильтр — SHADOW
-    # (docs/HTF_DIRECTIONAL_FILTER_PLAN.md, решение владельца 12.09.2026).
-    # Входы НЕ блокирует; пишет гипотетические запреты в журнал.
-    # Флип-стратегии исключены списком имён (план §2.4).
     htf_shadow_enabled: bool = True
     htf_shadow_tf: str = "4h"
     htf_shadow_min_closed_bars: int = 60
     htf_shadow_log_path: str = "models/htf_shadow_bans.jsonl"
-    # ---- Набор индикаторов владельца (п.7, 12.09): дневные ЖИВЫЕ гейты.
-    # Режут кандидатов (не тень, как D5) — решение владельца.
     htf_gate_enabled: bool = True
     htf_gate_tf: str = "1d"
     htf_gate_min_bars: int = 200
-    # Список гейтуемых бакетов — В КОНФИГЕ (поправка 3 владельца), не
-    # константой: расширение на остальные фигуры — отдельное решение по
-    # данным HTF_GATE через 2 недели.
     htf_gate_strategies: frozenset[str] = frozenset(
         {"ob_swing", "breaker_block", "maicross", "rounded_top", "rounded_bottom"}
     )
@@ -94,31 +82,19 @@ class DecisionConfig:
 
     # ML/EV.
     min_ml_probability: float = 0.60
-    min_expected_edge_pct: float = 0.4  # %
+    min_expected_edge_pct: float = 0.4
 
     # Meta-Strategy: выбор стратегии по EV в текущем режиме (TZ §5/§6).
-    # min_ev_r — минимальный shrunken EV (в R); отрицательный EV всегда
-    # блокирует. min_ev_confidence — порог надёжности при достаточной
-    # выборке. min_ev_samples — от какой выборки включается confidence-гейт.
-    # ev_shrinkage_k — сила bayesian shrinkage к prior (n/(n+k) вес).
-    min_ev_r: float = 0.05
-    min_ev_confidence: float = 0.3
-    min_ev_samples: int = 30
-    ev_shrinkage_k: float = 30.0
+    min_ev_r: float = 0.0
+    min_ev_samples: int = 20
+    min_ev_confidence: float = 0.55
+    ev_shrinkage_k: float = 20.0
 
-    # Веса для скоров.
-    score_weights: dict[str, float] = field(
-        default_factory=lambda: {
-            "trend": 18,
-            "momentum": 12,
-            "volume": 10,
-            "structure": 15,
-            "liquidity": 10,
-            "order_book": 5,
-            "news": 8,
-            "onchain": 4,
-            "derivatives": 3,
-            "correlation": 7,
-            "ml": 12,
-        }
-    )
+    # Веса скоринга.
+    weight_trend: float = 0.25
+    weight_structure: float = 0.20
+    weight_momentum: float = 0.15
+    weight_volume: float = 0.10
+    weight_volatility: float = 0.10
+    weight_orderbook: float = 0.10
+    weight_ml: float = 0.10

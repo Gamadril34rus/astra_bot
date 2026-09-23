@@ -1,0 +1,27 @@
+name: sprint-restore-engine
+on:
+  push:
+    branches: [feat/zeus-activation-sprint]
+    paths:
+      - "scripts/TRIGGER_RESTORE"
+  workflow_dispatch:
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/zeus-activation-sprint
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Apply sprint ruff fix on trading_engine
+        run: |
+          set -euo pipefail
+          python3 scripts/fix_ruff_sprint.py
+          git config user.name "astra-sprint-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add astra_bot/decision/trading_engine.py
+          git commit -m "fix(ruff): trading_engine UTC alias (UP017)" || echo "nothing to commit"
+          git push origin HEAD:feat/zeus-activation-sprint

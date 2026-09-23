@@ -190,6 +190,15 @@ class TradingEngineConfig:
     entry_gate_block_regimes: frozenset[str] = frozenset({"LOW_VOLATILITY"})
     # Гейт B (vola-floor): не входить, если round-trip стоит >= этой доли R.
     entry_gate_max_costs_r: float = 0.25
+    max_trades_per_day: int = 6  # Sprint 2026-09-23
+    symbol_loss_cooldown_enabled: bool = True
+    htf_hard_gate_enabled: bool = False
+    disabled_strategy_names: frozenset[str] = frozenset({
+        "zscore_mean_reversion", "liquidity_sweep", "fair_value_gap",
+        "open_interest_divergence", "expanding_triangle", "ascending_triangle",
+        "breakout", "BreakoutStrategyV2", "ExpandingTriangleStrategy",
+        "AscendingTriangleStrategy",
+    })
     # ---- Кэш реальных баров (PR #78, часть 4): чистая телеметрия ----------
     # Склеенные из no_trade_outcomes серии (медиана 31 бар) не дают мерить
     # мультисуточные горизонты. Кэш дописывает каждый закрытый бар один раз.
@@ -235,7 +244,7 @@ class TradingEngine:
             # вариант с ADX-подтверждением (оба проверены walk-forward'ом
             # в scripts/strategy_lab.py).
             cfg = DecisionConfig()
-            cfg.min_rr = 0.7
+            cfg.min_rr = 3.0  # Sprint 2026-09-23
             cfg.min_ml_probability = 0.0
             cfg.min_expected_edge_pct = 0.0
             cfg.max_spread_pct = 0.30
@@ -454,6 +463,10 @@ class TradingEngine:
         # Гейты входа «не торгуй в шуме» (PR #78, часть 3). Живой режим выключен
         # по умолчанию; тень пишет счётчик и гипотетический R в NO_TRADE-журнал.
         self.entry_gates = EntryGateConfig.from_engine_config(self.config)
+        from ..core.kill_switch import SymbolLossGuard
+        self.symbol_guard = SymbolLossGuard() if getattr(self.config, "symbol_loss_cooldown_enabled", True) else None
+        self._daily_trade_count = 0
+        self._trades_today_date = ""
         self.entry_gate_stats: dict[str, int] = {}
         from ..data.klines_cache import KlineCache, KlineCacheConfig
 
@@ -1200,6 +1213,16 @@ class TradingEngine:
         primary = ctx.candles.get("5m") or ctx.candles.get("1h") or []
         if not primary:
             return []
+        if getattr(self, "symbol_guard", None) is not None and self.symbol_guard.is_paused(symbol):
+            logger.info("SYMBOL_COOLDOWN skip %s", symbol)
+            return []
+        _today = datetime.now(UTC).strftime("%Y-%m-%d")
+        if getattr(self, "_trades_today_date", "") != _today:
+            self._trades_today_date = _today
+            self._daily_trade_count = 0
+        if getattr(self, "_daily_trade_count", 0) >= int(getattr(self.config, "max_trades_per_day", 6)):
+            logger.info("DAILY_LIMIT reached (%d), skip %s", self._daily_trade_count, symbol)
+            return []
 
         # BTC PANIC (Этап 4): это ВЫХОД, а не вход — работает независимо
         # от risk-состояния (HALT не отменяет обязательные выходы).
@@ -1405,6 +1428,11 @@ class TradingEngine:
             return closed
 
         cand = decision.candidate
+        _sname = str(getattr(cand, "strategy_name", "") or getattr(cand, "strategy", "") or "")
+        _dis = getattr(self.config, "disabled_strategy_names", frozenset())
+        if _sname and (_sname in _dis or any(d.lower() in _sname.lower() for d in _dis)):
+            logger.info("%s: strategy disabled by sprint denylist: %s", symbol, _sname)
+            return closed
 
         # ---- Гейты входа «не торгуй в шуме» (PR #78, часть 3) ------------------
         # Вычисляются ВСЕГДА, когда активна хотя бы тень: решение и гипотетический
@@ -1592,6 +1620,7 @@ class TradingEngine:
                 # _plan_take — хвост (кламп), пишется в pos.plan_take.
                 _take_levels = [_tp1, _plan_take]
                 _tp_fractions = list(PLAN_TP_FRACTIONS)
+            self._daily_trade_count = getattr(self, "_daily_trade_count", 0) + 1
             pos = self.broker.open_position(
                 symbol=symbol,
                 direction=_dir,

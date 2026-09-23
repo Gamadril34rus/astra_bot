@@ -25,6 +25,26 @@ def _stub_safety(eng) -> None:
     eng.safety.check = lambda *a, **k: SafetyVerdict(allowed=True)
 
 
+def _relax_min_rr_for_fixture(eng) -> None:
+    """Sprint min_rr=3.0 is production policy; weak candle fixtures need 0.5.
+
+    Integration tests here assert the orchestration path (tick → risk →
+    broker), not RR quality. Without this override the pipeline returns
+    LOW_EV and no position opens.
+    """
+    if eng is None:
+        return
+    cfg = getattr(eng, "config", None)
+    if cfg is not None and hasattr(cfg, "min_rr"):
+        cfg.min_rr = 0.5
+    pipe = getattr(eng, "pipeline", None)
+    if pipe is not None:
+        for attr in ("config", "decision_config", "cfg"):
+            dcfg = getattr(pipe, attr, None)
+            if dcfg is not None and hasattr(dcfg, "min_rr"):
+                dcfg.min_rr = 0.5
+
+
 STEP = 900
 
 
@@ -47,6 +67,7 @@ def make_bot(tmp_path, feed, monkeypatch) -> AstraBot:
     bot._exchange_client = feed
     bot._init_trading_engine()
     _stub_safety(bot._trading_engine)
+    _relax_min_rr_for_fixture(bot._trading_engine)
     return bot
 
 
@@ -65,11 +86,6 @@ class TestTickOrchestration:
         asyncio.run(bot._tick())
         assert len(eng.broker.positions) == 1
         pos = eng.broker.positions[0]
-        # Раньше здесь жёстко ожидался "scalp": это выполнялось только
-        # потому, что momentum был сломан (режимный гейт всегда OFF и
-        # невыполнимая проверка R:R). Теперь meta-выбор легитимно может
-        # выбрать momentum — инвариант в том, что позиция открыта одной
-        # из живых стратегий пайплайна.
         assert pos.strategy in {
             "scalp5m",
             "scalp",
@@ -79,12 +95,9 @@ class TestTickOrchestration:
             "ts_momentum",
             "ts_momentum_adx",
         }
-        # Риск-слой учёл позицию (независимый контур).
         assert len(eng.risk._open_positions) == 1
 
-        # Тик 2 сразу после: троттлинг (tick_interval_seconds).
         asyncio.run(bot._tick())
-        # Позиция та же — повторного входа на том же баре нет.
         assert len(eng.broker.positions) == 1
 
     def test_tick_without_engine_is_fail_closed(self, tmp_path, monkeypatch):
@@ -95,7 +108,6 @@ class TestTickOrchestration:
         bot._exchange_client = None
         bot._init_trading_engine()
         assert bot._trading_engine is None
-        # Не падает и ничего не делает.
         asyncio.run(bot._tick())
 
     def test_symbol_error_does_not_stop_others(self, tmp_path, monkeypatch):
@@ -103,8 +115,6 @@ class TestTickOrchestration:
         from tests.integration.test_meta_strategy_execution import gen_candles as g
 
         class PartialOkx:
-            """Второй символ падает с ошибкой API, первый работает."""
-
             def __init__(self, candles):
                 self.candles = candles
 
@@ -118,8 +128,11 @@ class TestTickOrchestration:
 
             async def get_ticker(self, symbol):
                 last = float(self.candles[-1].close)
-                return {"last": str(last), "high_24h": str(last + 1),
-                        "low_24h": str(last - 1)}
+                return {
+                    "last": str(last),
+                    "high_24h": str(last + 1),
+                    "low_24h": str(last - 1),
+                }
 
         cfg = tmp_path / "settings.yaml"
         cfg.write_text(
@@ -132,15 +145,14 @@ class TestTickOrchestration:
         bot._exchange_client = PartialOkx(g())
         bot._init_trading_engine()
         _stub_safety(bot._trading_engine)
+        _relax_min_rr_for_fixture(bot._trading_engine)
         assert bot._trading_engine.config.symbols == ("BTC-USDT", "BROKEN-USDT")
 
-        # Тик не падает, BTC обработан (позиция открыта).
         asyncio.run(bot._tick())
         assert len(bot._trading_engine.broker.positions) == 1
         assert bot._trading_engine.broker.positions[0].symbol == "BTC-USDT"
 
     def test_total_tick_error_propagates_to_run_loop(self, tmp_path, monkeypatch):
-        """Ошибку всего тика _run ловит и не роняет бота."""
         bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
 
         async def boom():
@@ -168,9 +180,7 @@ class TestTickOrchestration:
             task = asyncio.create_task(bot.start())
             await asyncio.sleep(0.2)
             assert bot._running is True
-            # Legacy-цикл НЕ запущен: современный путь активен.
             assert not bot._paper_engine.is_running
-            # _tick отработал (позиция по scalp-фикстуре).
             assert len(bot._trading_engine.broker.positions) == 1
             bot._running = False
             await asyncio.wait_for(task, timeout=10)
