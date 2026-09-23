@@ -48,8 +48,9 @@ def test_trading_engine_paper_literals():
     assert te.max_same_direction == 2
     assert te.leverage_max == 100
     src = Path("astra_bot/decision/trading_engine.py").read_text(encoding="utf-8")
-    assert "cfg.min_rr = 0.7" in src
-    assert DecisionConfig().min_rr == 1.5
+    # Sprint 2026-09-23: production min_rr raised 0.7 → 3.0 (costs/slippage filter).
+    assert "cfg.min_rr = 3.0" in src
+    assert DecisionConfig().min_rr == 3.0
 
 
 def test_position_sizer_d2_cap():
