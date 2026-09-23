@@ -1,5 +1,9 @@
 name: sprint-restore-engine
 on:
+  push:
+    branches: [feat/zeus-activation-sprint]
+    paths:
+      - 'scripts/TRIGGER_RESTORE'
   workflow_dispatch:
 jobs:
   restore:
@@ -25,7 +29,7 @@ jobs:
           insert = """    entry_gate_max_costs_r: float = 0.25
     max_trades_per_day: int = 6  # Sprint 2026-09-23
     symbol_loss_cooldown_enabled: bool = True
-    htf_hard_gate_enabled: bool = False  # shadow until data
+    htf_hard_gate_enabled: bool = False
     disabled_strategy_names: frozenset[str] = frozenset({
         "zscore_mean_reversion", "liquidity_sweep", "fair_value_gap",
         "open_interest_divergence", "expanding_triangle", "ascending_triangle",
@@ -84,6 +88,5 @@ jobs:
           git config user.name "astra-sprint-bot"
           git config user.email "bot@users.noreply.github.com"
           git add astra_bot/decision/trading_engine.py
-          git status
           git commit -m "fix(sprint): restore trading_engine from master + sprint patches" || echo "nothing to commit"
           git push origin HEAD:feat/zeus-activation-sprint
