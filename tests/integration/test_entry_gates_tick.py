@@ -21,22 +21,16 @@ def _engine(tmp_path, monkeypatch, **gate_cfg) -> TradingEngine:
     bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
     assert bot._trading_engine is not None
     eng = bot._trading_engine
-    # Sprint 2026-09-23: production min_rr=3.0 rejects the weak fixture signal
-    # (LOW_EV). These tests isolate entry_gates behaviour, not RR quality —
-    # force a permissive min_rr so the harness still opens a position when
-    # gates are off / shadow-only.
-    if "min_rr" not in gate_cfg:
-        gate_cfg = {**gate_cfg, "min_rr": 0.5}
+    # Sprint min_rr=3.0 is already relaxed inside make_bot; allow explicit overrides.
     for key, value in gate_cfg.items():
-        setattr(eng.config, key, value)
-    # Pipeline DecisionConfig may also hold min_rr — keep in sync if present.
+        if hasattr(eng.config, key):
+            setattr(eng.config, key, value)
     pipe = getattr(eng, "pipeline", None)
-    if pipe is not None:
-        dcfg = getattr(pipe, "config", None) or getattr(pipe, "decision_config", None)
-        if dcfg is not None and hasattr(dcfg, "min_rr"):
-            setattr(dcfg, "min_rr", float(gate_cfg.get("min_rr", 0.5)))
+    if pipe is not None and hasattr(pipe, "config"):
+        for key, value in gate_cfg.items():
+            if hasattr(pipe.config, key):
+                setattr(pipe.config, key, value)
     eng.entry_gates = type(eng.entry_gates).from_engine_config(eng.config)
-    # Журнал наблюдений — в tmp, тест не имеет права трогать models/
     eng.obs_log = NoTradeObservationLog(
         observations_path=tmp_path / "obs.jsonl",
         outcomes_path=tmp_path / "outcomes.json",
@@ -45,19 +39,20 @@ def _engine(tmp_path, monkeypatch, **gate_cfg) -> TradingEngine:
 
 
 def test_all_gates_off_changes_nothing(tmp_path, monkeypatch) -> None:
-    eng = _engine(tmp_path, monkeypatch)  # дефолт: живой выключен, тень включена
+    eng = _engine(tmp_path, monkeypatch)
     assert eng.config.entry_gates_enabled is False
     asyncio.run(eng.step())
     assert len(eng.broker.positions) == 1
-    # тень ничего не блокирует: счётчик может считать, вход — нет
     assert all(not k.endswith(":live") for k in eng.entry_gate_stats)
 
 
 def test_shadow_counts_and_records_without_blocking(tmp_path, monkeypatch) -> None:
     eng = _engine(
-        tmp_path, monkeypatch,
-        entry_gates_enabled=False, entry_gates_shadow_enabled=True,
-        entry_gate_max_costs_r=0.0,  # любое положительное costs_r = «дорогой вход»
+        tmp_path,
+        monkeypatch,
+        entry_gates_enabled=False,
+        entry_gates_shadow_enabled=True,
+        entry_gate_max_costs_r=0.0,
     )
     asyncio.run(eng.step())
     assert len(eng.broker.positions) == 1, "тень не имеет права снимать вход"
@@ -76,8 +71,10 @@ def test_shadow_counts_and_records_without_blocking(tmp_path, monkeypatch) -> No
 
 def test_live_gate_removes_the_entry_only(tmp_path, monkeypatch) -> None:
     eng = _engine(
-        tmp_path, monkeypatch,
-        entry_gates_enabled=True, entry_gates_shadow_enabled=True,
+        tmp_path,
+        monkeypatch,
+        entry_gates_enabled=True,
+        entry_gates_shadow_enabled=True,
         entry_gate_max_costs_r=0.0,
     )
     asyncio.run(eng.step())
@@ -89,9 +86,9 @@ def test_live_gate_removes_the_entry_only(tmp_path, monkeypatch) -> None:
         for line in (tmp_path / "obs.jsonl").read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    assert [r for r in rows if r.get("rejection_stage") == "entry_gate"], \
+    assert [r for r in rows if r.get("rejection_stage") == "entry_gate"], (
         "блокировка пишется в тот же журнал с гипотетическим R"
-    # журнал сделок пуст: снятый вход не обязан нигде «всплывать» сделкой
+    )
     trades = tmp_path / "state" / "models" / "paper_trades.jsonl"
     if trades.exists():
         assert trades.read_text(encoding="utf-8").strip() == ""
