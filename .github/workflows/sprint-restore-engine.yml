@@ -1,0 +1,124 @@
+name: sprint-restore-engine
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/zeus-activation-sprint]
+    paths:
+      - '.github/workflows/sprint-restore-engine.yml'
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/zeus-activation-sprint
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Restore trading_engine from master and patch
+        run: |
+          set -euo pipefail
+          git fetch origin master
+          git show origin/master:astra_bot/decision/trading_engine.py > astra_bot/decision/trading_engine.py
+          python3 << 'PY'
+          from pathlib import Path
+          t = Path('astra_bot/decision/trading_engine.py').read_text()
+          t = t.replace('cfg.min_rr = 0.7', 'cfg.min_rr = 3.0  # Sprint 2026-09-23', 1)
+          anchor = '    entry_gate_max_costs_r: float = 0.25\n'
+          insert = '''    entry_gate_max_costs_r: float = 0.25
+    max_trades_per_day: int = 6
+    symbol_loss_cooldown_enabled: bool = True
+    htf_hard_gate_enabled: bool = False
+    disabled_strategy_names: frozenset[str] = frozenset({
+        "zscore_mean_reversion", "liquidity_sweep", "fair_value_gap",
+        "open_interest_divergence", "expanding_triangle", "ascending_triangle",
+        "breakout", "BreakoutStrategyV2", "ExpandingTriangleStrategy",
+        "AscendingTriangleStrategy",
+    })
+'''
+          if 'max_trades_per_day' not in t:
+              t = t.replace(anchor, insert, 1)
+          a = '        self.entry_gates = EntryGateConfig.from_engine_config(self.config)\n'
+          b = a + '''        from ..core.kill_switch import SymbolLossGuard
+        self.symbol_guard = SymbolLossGuard() if getattr(self.config, "symbol_loss_cooldown_enabled", True) else None
+        self._daily_trade_count = 0
+        self._trades_today_date = ""
+'''
+          if 'self.symbol_guard' not in t:
+              t = t.replace(a, b, 1)
+          m = '        if not primary:\n            return []\n'
+          e = '''        if not primary:
+            return []
+        if getattr(self, "symbol_guard", None) is not None and self.symbol_guard.is_paused(symbol):
+            logger.info("SYMBOL_COOLDOWN skip %s", symbol)
+            return []
+        from datetime import datetime, timezone
+        _today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        if getattr(self, "_trades_today_date", "") != _today:
+            self._trades_today_date = _today
+            self._daily_trade_count = 0
+        if getattr(self, "_daily_trade_count", 0) >= int(getattr(self.config, "max_trades_per_day", 6)):
+            logger.info("DAILY_LIMIT reached (%d), skip %s", self._daily_trade_count, symbol)
+            return []
+'''
+          if 'DAILY_LIMIT reached' not in t:
+              t = t.replace(m, e, 1)
+          m2 = '        cand = decision.candidate\n'
+          e2 = '''        cand = decision.candidate
+        _sname = str(getattr(cand, "strategy_name", "") or getattr(cand, "strategy", "") or "")
+        _dis = getattr(self.config, "disabled_strategy_names", frozenset())
+        if _sname and (_sname in _dis or any(d.lower() in _sname.lower() for d in _dis)):
+            logger.info("%s: strategy disabled by sprint denylist: %s", symbol, _sname)
+            return closed
+'''
+          if 'sprint denylist' not in t:
+              t = t.replace(m2, e2, 1)
+          if 'self._daily_trade_count += 1' not in t:
+              idx = t.find('pos = self.broker.open_position(')
+              if idx > 0:
+                  i = t.find('(', idx)
+                  depth = 0
+                  end = None
+                  for k in range(i, len(t)):
+                      if t[k] == '(':
+                          depth += 1
+                      elif t[k] == ')':
+                          depth -= 1
+                          if depth == 0:
+                              end = k
+                              break
+                  line_start = t.rfind('\n', 0, idx) + 1
+                  indent = t[line_start:idx]
+                  t = t[: end + 1] + f"\n{indent}self._daily_trade_count += 1" + t[end + 1 :]
+          if 'symbol_guard.record' not in t:
+              marker = 'def _record_closed(self, closed: list) -> None:\n'
+              pos = t.find(marker)
+              doc = t.find('"""', pos)
+              doc_end = t.find('"""', doc + 3)
+              doc_end = t.find('\n', doc_end) + 1
+              guard = '''        try:
+            if getattr(self, "symbol_guard", None) is not None and closed:
+                for _c in (closed if isinstance(closed, list) else [closed]):
+                    _pnl = float(getattr(_c, "pnl", 0) or getattr(_c, "realized_pnl", 0) or 0)
+                    _sym = str(getattr(_c, "symbol", "") or "")
+                    if _sym:
+                        self.symbol_guard.record(_sym, _pnl)
+        except Exception as _sg_exc:
+            logger.debug("symbol_guard: %s", _sg_exc)
+'''
+              t = t[:doc_end] + guard + t[doc_end:]
+          Path('astra_bot/decision/trading_engine.py').write_text(t)
+          compile(t, 'te', 'exec')
+          print('patched ok', len(t))
+          PY
+          # also restore config from master with min_rr
+          git show origin/master:astra_bot/decision/config.py > astra_bot/decision/config.py
+          sed -i 's/min_rr: float = 1.5/min_rr: float = 3.0/' astra_bot/decision/config.py
+          # remove this workflow after run
+          rm -f .github/workflows/sprint-restore-engine.yml
+          git config user.name astra-bot
+          git config user.email bot@users.noreply.github.com
+          git add -A
+          git commit -m "fix(sprint): restore trading_engine+config, apply min_rr/daily/cooldown/denylist" || echo nochange
+          git push origin feat/zeus-activation-sprint
