@@ -21,8 +21,20 @@ def _engine(tmp_path, monkeypatch, **gate_cfg) -> TradingEngine:
     bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
     assert bot._trading_engine is not None
     eng = bot._trading_engine
+    # Sprint 2026-09-23: production min_rr=3.0 rejects the weak fixture signal
+    # (LOW_EV). These tests isolate entry_gates behaviour, not RR quality —
+    # force a permissive min_rr so the harness still opens a position when
+    # gates are off / shadow-only.
+    if "min_rr" not in gate_cfg:
+        gate_cfg = {**gate_cfg, "min_rr": 0.5}
     for key, value in gate_cfg.items():
         setattr(eng.config, key, value)
+    # Pipeline DecisionConfig may also hold min_rr — keep in sync if present.
+    pipe = getattr(eng, "pipeline", None)
+    if pipe is not None:
+        dcfg = getattr(pipe, "config", None) or getattr(pipe, "decision_config", None)
+        if dcfg is not None and hasattr(dcfg, "min_rr"):
+            setattr(dcfg, "min_rr", float(gate_cfg.get("min_rr", 0.5)))
     eng.entry_gates = type(eng.entry_gates).from_engine_config(eng.config)
     # Журнал наблюдений — в tmp, тест не имеет права трогать models/
     eng.obs_log = NoTradeObservationLog(
