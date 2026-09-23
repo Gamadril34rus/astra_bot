@@ -1,2 +1,2 @@
-# See commit message - content loaded from patch
-# RESTORE_REQUIRED
+# TEMP placeholder - will be replaced
+# RESTORE_IN_PROGRESS
