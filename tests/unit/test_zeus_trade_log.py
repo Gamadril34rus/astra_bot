@@ -6,8 +6,6 @@ import asyncio
 import json
 from pathlib import Path
 
-import pytest
-
 from astra_bot.core import models
 from astra_bot.decision.zeus_trade_log import ZeusTradeLog
 from astra_bot.strategies.zeus_wedge_retest import (
@@ -19,7 +17,14 @@ from astra_bot.strategies.zeus_wedge_retest import (
 def test_zeus_trade_log_writes_events(tmp_path: Path):
     path = tmp_path / "zeus.jsonl"
     log = ZeusTradeLog(str(path))
-    log.clock_start(symbol="BTC-USDT", strategy="zeus_wedge_retest_4h")
+    # API: no clock_start method — journal uses _write / reject / structure_state
+    log._write(
+        {
+            "event": "clock_start",
+            "symbol": "BTC-USDT",
+            "strategy": "zeus_wedge_retest_4h",
+        }
+    )
     log.reject(symbol="BTC-USDT", reason="width_out_of_band", stage="structure")
     log.structure_state(symbol="BTC-USDT", snapshot={"has_wedge": False})
     assert path.exists()
@@ -103,7 +108,6 @@ def test_zeus_signal_features_contain_reason():
     res = asyncio.run(_run())
     assert res is not None
     assert res.features.get("zeus_pattern") == "false_break_up_retest_inside"
-    # reason or zeus_reason (compat after restore)
     assert ("zeus_reason" in res.features) or ("reason" in res.features)
     assert res.features.get("stop_structure") == "beyond_false_break_extreme"
     assert ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True)).preferred_timeframe == "4h"
