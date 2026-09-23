@@ -40,6 +40,42 @@ class ZeusTradeLog:
             logger.debug("zeus_trade_log write skipped: %s", exc)
             return False
 
+    def clock_start(
+        self,
+        *,
+        symbol: str = "",
+        strategy: str = "zeus_wedge_retest_4h",
+        note: str = "",
+    ) -> bool:
+        """Старт цикла paper-clock (публичный API журнала)."""
+        row: dict[str, Any] = {
+            "event": "clock_start",
+            "symbol": symbol,
+            "strategy": strategy,
+        }
+        if note:
+            row["note"] = note
+        return self._write(row)
+
+    def tick(
+        self,
+        *,
+        symbol: str = "",
+        strategy: str = "zeus_wedge_retest_4h",
+        note: str = "",
+        open_positions: int | None = None,
+    ) -> bool:
+        row: dict[str, Any] = {
+            "event": "tick",
+            "symbol": symbol,
+            "strategy": strategy,
+        }
+        if note:
+            row["note"] = note
+        if open_positions is not None:
+            row["open_positions"] = open_positions
+        return self._write(row)
+
     def entry(
         self,
         *,
@@ -48,22 +84,21 @@ class ZeusTradeLog:
         entry_price: float | str,
         stop_loss: float | str,
         take_profit: float | str,
-        reason: str,
+        reason: str = "",
         features: dict[str, Any] | None = None,
         strategy: str = "zeus_wedge_retest_4h",
     ) -> bool:
-        """Запись входа: причина + уровни."""
         return self._write(
             {
                 "event": "entry",
                 "symbol": symbol,
-                "strategy": strategy,
                 "direction": direction,
-                "entry_price": str(entry_price),
-                "stop_loss": str(stop_loss),
-                "take_profit": str(take_profit),
+                "entry_price": entry_price,
+                "stop_loss": stop_loss,
+                "take_profit": take_profit,
                 "reason": reason,
                 "features": features or {},
+                "strategy": strategy,
             }
         )
 
@@ -74,19 +109,16 @@ class ZeusTradeLog:
         direction: str,
         old_stop: float | str,
         new_stop: float | str,
-        why: str,
-        mfe_r: float | None = None,
+        why: str = "",
     ) -> bool:
-        """Подтяжка стопа (БУ / структура / трейл)."""
         return self._write(
             {
                 "event": "stop_adjust",
                 "symbol": symbol,
                 "direction": direction,
-                "old_stop": str(old_stop),
-                "new_stop": str(new_stop),
+                "old_stop": old_stop,
+                "new_stop": new_stop,
                 "why": why,
-                "mfe_r": mfe_r,
             }
         )
 
@@ -96,20 +128,15 @@ class ZeusTradeLog:
         symbol: str,
         direction: str,
         exit_price: float | str,
-        reason: str,
-        r_multiple: float | None = None,
-        bars_held: int | None = None,
+        reason: str = "",
     ) -> bool:
-        """Выход: причина и R."""
         return self._write(
             {
                 "event": "exit",
                 "symbol": symbol,
                 "direction": direction,
-                "exit_price": str(exit_price),
+                "exit_price": exit_price,
                 "reason": reason,
-                "r_multiple": r_multiple,
-                "bars_held": bars_held,
             }
         )
 
@@ -118,16 +145,13 @@ class ZeusTradeLog:
         *,
         symbol: str,
         reason: str,
-        stage: str = "pattern",
+        stage: str = "",
         snapshot: dict[str, Any] | None = None,
-        strategy: str = "zeus_wedge_retest_4h",
     ) -> bool:
-        """Почему НЕ вошли — память для разбора (не ордер)."""
         return self._write(
             {
                 "event": "reject",
                 "symbol": symbol,
-                "strategy": strategy,
                 "reason": reason,
                 "stage": stage,
                 "snapshot": snapshot or {},
@@ -139,14 +163,11 @@ class ZeusTradeLog:
         *,
         symbol: str,
         snapshot: dict[str, Any],
-        strategy: str = "zeus_wedge_retest_4h",
     ) -> bool:
-        """Снимок 4h-структуры на тике (клин есть/нет, границы)."""
         return self._write(
             {
                 "event": "structure_state",
                 "symbol": symbol,
-                "strategy": strategy,
                 "snapshot": snapshot,
             }
         )
@@ -155,25 +176,19 @@ class ZeusTradeLog:
         self,
         *,
         symbol: str,
-        timeframe: str,
-        range_pct: float,
-        volume_ratio: float,
-        direction: str,
-        near_structure: bool = False,
+        timeframe: str = "15m",
         note: str = "",
-        strategy: str = "zeus_wedge_retest_4h",
+        range_mult: float | None = None,
+        vol_mult: float | None = None,
     ) -> bool:
-        """Сильный импульс на младшем ТФ — только память, не вход."""
-        return self._write(
-            {
-                "event": "ltf_impulse",
-                "symbol": symbol,
-                "strategy": strategy,
-                "timeframe": timeframe,
-                "range_pct": round(range_pct, 6),
-                "volume_ratio": round(volume_ratio, 4),
-                "direction": direction,
-                "near_structure": near_structure,
-                "note": note or "observed; not an entry signal",
-            }
-        )
+        row: dict[str, Any] = {
+            "event": "ltf_impulse",
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "note": note,
+        }
+        if range_mult is not None:
+            row["range_mult"] = range_mult
+        if vol_mult is not None:
+            row["vol_mult"] = vol_mult
+        return self._write(row)
