@@ -59,7 +59,7 @@ class DecisionConfig:
     max_correlation_exposure: int = 3
     max_daily_loss_pct: float = 3.0
     max_drawdown_pct: float = 15.0
-    min_rr: float = 3.0
+    min_rr: float = 2.0  # Owner 24.09: align with clamp_take_rr 2.0–2.3
 
     # D5 фаза 0: HTF directional-фильтр — SHADOW
     htf_shadow_enabled: bool = True

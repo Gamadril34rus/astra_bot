@@ -48,9 +48,10 @@ def test_trading_engine_paper_literals():
     assert te.max_same_direction == 2
     assert te.leverage_max == 100
     src = Path("astra_bot/decision/trading_engine.py").read_text(encoding="utf-8")
-    # Sprint 2026-09-23: production min_rr raised 0.7 → 3.0 (costs/slippage filter).
-    assert "cfg.min_rr = 3.0" in src
-    assert DecisionConfig().min_rr == 3.0
+    # Owner 24.09: min_rr=2.0 aligned with clamp_take_rr [2.0, 2.3].
+    # 0.7 was a bug; 3.0 was uncoordinated with the take clamp.
+    assert "cfg.min_rr = 2.0" in src
+    assert DecisionConfig().min_rr == 2.0
 
 
 def test_position_sizer_d2_cap():
@@ -70,14 +71,8 @@ def test_drawdown_adaptation_ladder():
 
 
 def test_readme_universe_guard_follows_trading_universe():
-    # 1) Мёртвый конфиг SystemConfig.instruments: прод-контур его не использует,
-    #    но он имеет свой канон — фиксируем неизменность.
     instruments = SystemConfig().instruments
     assert instruments == EXPECTED_INSTRUMENTS
-    # 2) Живой юниверс: README не должен расходиться с TRADING_UNIVERSE
-    #    (core/instruments.py, его берёт scripts/run_bot.py в CI). Требуем
-    #    упоминания каждого тикера хотя бы по одному разу — точное форматирование
-    #    строки в README не фиксируем, чтобы документ мог переформатироваться.
     readme = Path("README.md").read_text(encoding="utf-8")
     tickers = [symbol.split("/")[0] for symbol in TRADING_UNIVERSE]
     assert len(set(tickers)) == len(tickers), "дубли тикеров в TRADING_UNIVERSE"

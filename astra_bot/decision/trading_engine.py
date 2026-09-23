@@ -244,7 +244,7 @@ class TradingEngine:
             # вариант с ADX-подтверждением (оба проверены walk-forward'ом
             # в scripts/strategy_lab.py).
             cfg = DecisionConfig()
-            cfg.min_rr = 3.0  # Sprint 2026-09-23
+            cfg.min_rr = 2.0  # Owner 24.09: align with clamp_take_rr 2.0–2.3
             cfg.min_ml_probability = 0.0
             cfg.min_expected_edge_pct = 0.0
             cfg.max_spread_pct = 0.30

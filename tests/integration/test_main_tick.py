@@ -26,7 +26,7 @@ def _stub_safety(eng) -> None:
 
 
 def _relax_min_rr_for_fixture(eng) -> None:
-    """Sprint min_rr=3.0 is production policy; weak candle fixtures need 0.5.
+    """Sprint min_rr=2.0 is production policy; weak candle fixtures need 0.5.
 
     Integration tests here assert the orchestration path (tick → risk →
     broker), not RR quality. Without this override the pipeline returns
