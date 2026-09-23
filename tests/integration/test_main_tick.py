@@ -25,6 +25,26 @@ def _stub_safety(eng) -> None:
     eng.safety.check = lambda *a, **k: SafetyVerdict(allowed=True)
 
 
+def _relax_min_rr_for_fixture(eng) -> None:
+    """Sprint min_rr=3.0 is production policy; weak candle fixtures need 0.5.
+
+    Integration tests here assert the orchestration path (tick → risk →
+    broker), not RR quality. Without this override the pipeline returns
+    LOW_EV and no position opens.
+    """
+    if eng is None:
+        return
+    for obj in (getattr(eng, "config", None),):
+        if obj is not None and hasattr(obj, "min_rr"):
+            setattr(obj, "min_rr", 0.5)
+    pipe = getattr(eng, "pipeline", None)
+    if pipe is not None:
+        for attr in ("config", "decision_config", "cfg"):
+            dcfg = getattr(pipe, attr, None)
+            if dcfg is not None and hasattr(dcfg, "min_rr"):
+                setattr(dcfg, "min_rr", 0.5)
+
+
 STEP = 900
 
 
@@ -47,6 +67,7 @@ def make_bot(tmp_path, feed, monkeypatch) -> AstraBot:
     bot._exchange_client = feed
     bot._init_trading_engine()
     _stub_safety(bot._trading_engine)
+    _relax_min_rr_for_fixture(bot._trading_engine)
     return bot
 
 
@@ -132,6 +153,7 @@ class TestTickOrchestration:
         bot._exchange_client = PartialOkx(g())
         bot._init_trading_engine()
         _stub_safety(bot._trading_engine)
+        _relax_min_rr_for_fixture(bot._trading_engine)
         assert bot._trading_engine.config.symbols == ("BTC-USDT", "BROKEN-USDT")
 
         # Тик не падает, BTC обработан (позиция открыта).
