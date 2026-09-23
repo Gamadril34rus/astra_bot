@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Zeus paper-clock: wedge + channel (lessons), multi-symbol, paper-only."""
+"""Zeus paper-clock: matched wedge research, multi-symbol, paper-only."""
 
 from __future__ import annotations
 
@@ -152,7 +152,7 @@ def sync_journal_from_broker(
                         "source": "zeus_paper_clock",
                     },
                     strategy=str(
-                        meta.get("strategy") or "zeus_channel_boundary_4h"
+                        meta.get("strategy") or "zeus_wedge_retest_4h"
                     ),
                 )
             except Exception as exc:
@@ -226,7 +226,9 @@ async def observe_zeus(
                 stage=str(diag.get("stage") or ""),
                 snapshot=diag,
             )
-        if zeus_channel is not None:
+        if zeus_channel is not None and getattr(
+            getattr(zeus_channel, "config", None), "enabled", False
+        ):
             diag_ch = zeus_channel.diagnose(closed_4h)
             snap = dict(diag_ch)
             snap["structure"] = "channel"
@@ -238,8 +240,6 @@ async def observe_zeus(
                     stage=str(diag_ch.get("stage") or ""),
                     snapshot=snap,
                 )
-        # Shadow: liquidity sweep (journal only — no entries).
-        # Rollback: delete this block + scripts/zeus_liquidity_shadow.py
         try:
             import sys as _sys
             from pathlib import Path as _P
@@ -281,7 +281,7 @@ async def zeus_trail_open_positions(
     journal: ZeusTradeLog,
     bingx: BingXClient,
 ) -> None:
-    """Delegate to zeus_trail_helpers (sanitize + safe R)."""
+    """Delegate to zeus_trail_helpers (sanitize + late trail)."""
     import sys as _sys
     from pathlib import Path as _P
 
@@ -339,12 +339,21 @@ async def amain(args: argparse.Namespace) -> int:
         entry_gate_block_regimes=frozenset(),
     )
 
-    zeus = ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True))
+    # Research 2026-09: 30-sym ~2y matched shape long+short (PF~1.14)
+    import sys as _sys
+    from pathlib import Path as _P
+
+    _scripts = str(_P(__file__).resolve().parent)
+    if _scripts not in _sys.path:
+        _sys.path.insert(0, _scripts)
+    from zeus_research_wrap import ZeusMatchedResearchStrategy, research_config
+
+    zeus = ZeusMatchedResearchStrategy(research_config())
     zeus_channel = ZeusChannelBoundaryStrategy(
-        ZeusChannelBoundaryConfig(enabled=True)
+        ZeusChannelBoundaryConfig(enabled=False)
     )
     dcfg = DecisionConfig()
-    dcfg.min_rr = 1.5
+    dcfg.min_rr = 3.5
     dcfg.min_ml_probability = 0.0
     dcfg.min_expected_edge_pct = 0.0
     dcfg.min_ev_r = 0.0
@@ -382,8 +391,8 @@ async def amain(args: argparse.Namespace) -> int:
         {
             "event": "clock_start",
             "symbol": ",".join(symbols),
-            "strategy": "zeus_wedge+channel",
-            "note": "paper; wedge+channel lessons; capital="
+            "strategy": "zeus_matched_research",
+            "note": "paper; matched LB36 hold4-6 TP3.5R long+short; capital="
             + str(args.capital),
         }
     )
@@ -445,8 +454,8 @@ async def amain(args: argparse.Namespace) -> int:
             {
                 "event": "tick",
                 "symbol": ",".join(symbols),
-                "strategy": "zeus_wedge+channel",
-                "note": "cycle multi wedge+channel",
+                "strategy": "zeus_matched_research",
+                "note": "cycle matched research",
                 "open_positions": n_open,
             }
         )
