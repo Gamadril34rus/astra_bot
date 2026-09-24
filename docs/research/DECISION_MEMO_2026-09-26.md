@@ -69,7 +69,8 @@
 
 ## ZEUS vs MAIN (collect, no judgment until slice)
 
-Template report: `reports/zeus_vs_main_2026-09-24.md`.
+Template report: `reports/zeus_vs_main_2026-09-24.md`.  
+Decomposition: `reports/zeus_vs_main_decomposition_2026-09-24.md` (#138).
 
 | Metric (24.09 snapshot) | MAIN | ZEUS |
 |-------------------------|-----:|-----:|
@@ -80,6 +81,44 @@ Template report: `reports/zeus_vs_main_2026-09-24.md`.
 | costs_r median | 0.20 | 0.33 |
 
 Zeus hygiene: raw entry 47 → **unique ~23** (5‑min collapse); stop_adjust=21; realized_pnl = sum(closed pnl). Recompute at slice with larger n.
+
+---
+
+## Единая гипотеза издержек (зафиксировано 24.09, Arena → #138)
+
+Полный текст: `docs/research/UNIFIED_COST_HYPOTHESIS.md`.
+
+> **Круг ≈ 0.3% / stop_pct решает всё.**  
+> corr(costs_r, 1/stop_pct) = **+0.99** на ZEUS.  
+> Одна формула для MAIN, channel_boundary и wedge_retest.  
+> Узкий channel-стоп (med 0.71%) → costs_r med 0.37; широкий wedge (med 5.93%) → costs_r med 0.05.
+
+Это не отдельный «фактор», а **единая теория проекта**.
+
+---
+
+## Пререгистрация к срезу (24.09, **до данных**, не в бой)
+
+1. **Зевс судится ПОСТРАТЕГИЙНО**  
+   - `zeus_wedge_retest_4h` — отдельно  
+   - `zeus_channel_boundary_4h` — отдельно  
+   - n мал → важен **знак** meanR/PF, не значимость.
+
+2. **Гипотеза «узкий стоп канала»** (не enabled)  
+   - Сейчас: stop = граница + сжатый буфер → stop_pct часто ≪ 1%.  
+   - Лечение (research): стоп на **противоположной границе канала** или **структурный экстремум + буфер**, ширина **≥ 2%**.  
+   - Ретро-сим по закрытым channel с широким стопом (та же точка входа / signal-bar): **не выполнен** — в ledger нет геометрии канала (opposite boundary / width), klines-кэш не даёт готовый opposite без пересчёта structure.  
+   - **В memo только гипотеза.** Тест — на новом окне **после** среза (или отдельный research-PR с structure replay).
+
+3. **В slice-таблице Zeus vs Main — строка «Zeus wedge-only»**  
+   - Чистый урок Зевса без примеси channel.  
+   - Шаблон обновлён в `reports/zeus_vs_main_2026-09-24.md`.
+
+---
+
+## Открытый риск (24.09)
+
+~**3%** aggregate (LINK/BNB/ENA по ~1% equity, probation). Профиль честный. **Сделки не форсировать.** Календарь без изменений.
 
 ---
 
@@ -97,6 +136,8 @@ Zeus hygiene: raw entry 47 → **unique ~23** (5‑min collapse); stop_adjust=21
 | H-entry-gates | ждёт / риск голода (arrival≈0); судьба по arrival на срезе |
 | H-tp-geometry | research+ C 0.70R |
 | H-track-C Z* | ждёт |
+| **H-unified-cost** | **зафиксировано** — costs_r ≈ 0.3%/stop_pct |
+| **H-channel-wide-stop** | пререг; тест после среза |
 
 ---
 
@@ -111,4 +152,4 @@ Zeus hygiene: raw entry 47 → **unique ~23** (5‑min collapse); stop_adjust=21
 
 ## One-liner
 
-> Режим 23.09 держим; TP=C (+A) в бандле с gates только если тень+arrival; иначе gates=страховка; Zeus P1 OK; Zeus vs Main — collect до среза; live только PR + «одобряю».
+> Режим 23.09 держим; единая гипотеза издержек = 0.3%/stop; Zeus судить по стратегиям + wedge-only row; channel wide-stop — гипотеза, не бой; open risk ~3% ok; live только PR + «одобряю».
