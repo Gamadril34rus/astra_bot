@@ -49,102 +49,66 @@
 | DROP | B — нога 0.28R | На уровне круглых издержек, не робастна |
 | baseline | CURRENT clamp 2.0–2.3 | MFE≥1.8R ≈ 2.5% сделок — недостижим как массовая цель |
 
-Оптимистичный сим (`mfe≥TP` → credit) и пессимистичный (stop-first при mae≈1R) **не меняют ранжирование**: C лучший по PF среди устойчивых.
-
-**Настоящий кандидат среза = БАНДЛ:**
-
-> `entry_gates` ON (**только если 30.09 shadow PASS**: n≥30 и median(hypothetic_r)<0) **+ план C**.  
-> По отдельности: гейты без достижимого тейка / тейк без гейтов — **не лечат**.
+**Настоящий кандидат среза = БАНДЛ:** `entry_gates` ON (только если PASS + arrival) **+ план C**. По отдельности не лечат.
 
 ---
 
 ## Воронка и arrival rate (entry_gates) — зафиксировано 24.09
 
-`entry_gates` стоит **в конце** конвейера: считается только когда кандидат дошёл до `process_symbol` (после pipeline / meta EV / safety / denylist).
+`entry_gates` в конце конвейера. 23–24.09: ARRIVAL на стадию entry_gate **≈ 0 / сутки**. Тень голодает от пустого притока.
 
-### Замер 23.09 → 24.09 (~1.5 сут, main paper)
-
-| Ступень | n / rate |
-|---------|----------|
-| NO_TRADE ticks (23–24.09) | ≈5031 |
-| с полем `candidate` (в осн. LOW_EV) | 258 за 23.09; **0** за 24.09 |
-| `rejection_stage=entry_gate` / `ENTRY_GATE_*` / hypothetic_r | **n=0** |
-| Paper opens после 23.09 | **n=0** |
-| **ARRIVAL RATE на стадию entry_gate** | **≈ 0 / сутки** (< 1/сутки) |
-
-Счётчик `ENTRY_GATE_TOTAL` (Prometheus) согласуется с нулём записей в NO_TRADE: до гейта **не долетают**. Тень голодает не из‑за «гейт плохой», а из‑за **пустого притока**.
-
-### Правило судьбы гейта (заранее, к срезу 06–07.10)
-
-Это **не отмена** критерия n≥30 & median(hypothetic_r)<0, а честный потолок ожидания:
-
-- Если к срезу **06–07.10** всё ещё **n<30** **и** arrival rate **< 1 кандидат/сутки** на стадию entry_gate → вердикт:  
-  **«гейт избыточен при текущих фильтрах; остаётся в тени как страховка»** — не «ждём n бесконечно».
-- Если arrival ≥1/сутки, но n<30 к срезу — продлить только тень, решение live отложить с явной причиной «мало притока, не провал критерия».
-- 30.09 — повторный замер (n, median hypothetic_r, arrival/сутки).
+**Правило судьбы:** к срезу 06–07.10 если n<30 **и** arrival < 1/сут → «гейт избыточен при текущих фильтрах; тень как страховка» — не ждать бесконечно. 30.09 — повтор (n, median, arrival/сут).
 
 ---
 
 ## Zeus P1 — приёмка цикла (24.09)
 
-`models/zeus_trade_journal.jsonl`: **entry=47**, **stop_adjust=21**, exit=15; открыты 3 paper (LINK/BNB/ENA).  
-Полный цикл «сигнал → entry → (stop_adjust) → journal» на месте — **P1 закрыт**.
+`zeus_trade_journal.jsonl`: entry=47, stop_adjust=21, exit=15; 3 open paper. P1 закрыт.
+
+---
+
+## ZEUS vs MAIN (collect, no judgment until slice)
+
+Template report: `reports/zeus_vs_main_2026-09-24.md`.
+
+| Metric (24.09 snapshot) | MAIN | ZEUS |
+|-------------------------|-----:|-----:|
+| n closed | 240 | 18 |
+| meanR net | −0.27 | −0.21 |
+| PF | 0.28 | 0.59 |
+| hold median (h) | 0.35 | 3.9 |
+| costs_r median | 0.20 | 0.33 |
+
+Zeus hygiene: raw entry 47 → **unique ~23** (5‑min collapse); stop_adjust=21; realized_pnl = sum(closed pnl). Recompute at slice with larger n.
 
 ---
 
 ## Процесс (навсегда)
 
-1. Правки живого контура — только обычные PR. Запрещены one-shot workflows / `TRIGGER_*` / CI-хирургия.  
-2. Ритуал: 3 строки (что / почему / что наблюдаем) + **«одобряю» ДО мержа**.
+1. Правки живого контура — только обычные PR.  
+2. Ритуал: 3 строки + **«одобряю» ДО мержа**.
 
 ---
 
 ## Hypotheses (срез, не сброшены)
 
-| ID | Hypothesis | Status | Why |
-|----|------------|--------|-----|
-| H-tsm45 | TSM45 multi-pair edge | **ОПРОВЕРГНУТА** | Panel 32 OOS PF 0.85 |
-| H-family-A / B | old 4h families | **ОПРОВЕРГНУТА (proxy)** | PF<1 under costs |
-| H-entry-gates | median(hypothetic_r)<0, n≥30 | **ждёт / риск голода** | 24.09: arrival≈0/сут, hypothetic n=0; судьба по arrival на срезе; 30.09 повтор |
-| H-tp-geometry | nearer take (C 0.70R) improves PF | **research+** | PF↑ vs CURRENT, meanR всё ещё <0 без гейтов |
-| H-track-C Z* | Zeus deep history | **ждёт** | не в бой без OOS |
-| H-cooldown-A2 / 5m | — | **только живые данные** | срез 06–07.10 |
+| ID | Status |
+|----|--------|
+| H-entry-gates | ждёт / риск голода (arrival≈0); судьба по arrival на срезе |
+| H-tp-geometry | research+ C 0.70R |
+| H-track-C Z* | ждёт |
 
 ---
 
-## P3 — HTF-тень (в пакет среза)
+## P3 / P5 / Toggles / Calendar
 
-| Элемент | Статус 24.09 |
-|---------|----------------|
-| `htf_shadow_enabled` | **True** |
-| `htf_hard_gate_enabled` | **False** |
-| Журнал | `models/htf_shadow_bans.jsonl` ≈ 5000 (в основном scalp5m vs 4h bias) |
-| На срезе | «запрещённые бы» vs факт PnL; hard ON только если окно 23.09–06.10 не обнуляет edge; отдельно scalp5m |
-
----
-
-## P5 — пакет среза (~06–07.10)
-
-1. Синхронизация этого memo (воронка + TP C/A + бандл + продление окна + судьба gates по arrival).  
-2. Решения: **бандл entry_gates+C** (или gates=shadow insurance) / HTF hard / cooldown-A2 / 5m / denylist / stats / риск.  
-3. Метрики + `measure_two_week_review.py`.  
-4. Повтор entry_gate-тени **30.09** (n, median, arrival/сут).
-
----
-
-## Toggles (на срезе)
-
-| Toggle | Рекомендация |
-|--------|----------------|
-| `entry_gates_enabled` | PASS 30.09 **и** arrival≥1/сут; иначе тень-страховка |
-| TP geometry | PRIMARY **C 0.70R**; BACKUP A; не B |
-| `htf_hard_gate_enabled` | только по живым данным P3 |
-| `min_rr` | **2.0** — не менять в окне замера |
-| Group B / tsm45 | **OFF** |
-| Stats reset / risk raise | **нет** |
-
----
+- P3 HTF: ~5000 bans, hard=False; на срезе сверка + scalp5m  
+- P5: memo + measure_two_week_review + Zeus vs Main  
+- 26–27.09: n<10 → extend window  
+- 30.09: gates shadow  
+- 06–07.10: slice  
+- Live: не трогать до среза  
 
 ## One-liner
 
-> Режим 23.09 держим (n<10 к 26–27.09 → длиннее окно, не третий ретюн); TP=C (+backup A) в бандле с entry_gates **только если** тень наберёт n и arrival≥1/сут — иначе гейт остаётся страховкой в тени; Zeus P1 OK; P3/P5 в пакете среза; live только PR + «одобряю».
+> Режим 23.09 держим; TP=C (+A) в бандле с gates только если тень+arrival; иначе gates=страховка; Zeus P1 OK; Zeus vs Main — collect до среза; live только PR + «одобряю».
