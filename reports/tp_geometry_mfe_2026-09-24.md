@@ -2,14 +2,14 @@
 
 **Research-only.** Live contour not changed. Decision at owner slice.
 
-Generated: 2026-09-24. Source: `models/paper_trades.jsonl` (n=240 closed).
-Zeus paper closed (separate): n=18 — appendix only.
+Generated: 2026-09-24 (rev2 — path-order + ranking). Source: `models/paper_trades.jsonl` (n=240 closed).
+Zeus paper closed (appendix): n=18.
 
 ## 0. Diagnosis (owner brief)
 
-- Clamp tail **2.0–2.3R** is rarely reachable (historical MFE≥1.8R ≈ 0–2%).
-- Profile: small winners, larger losers; costs 0.14–0.27R on thin 5m stops.
-- TRX 22.09 LOW_VOL + costs_r 0.273 would pass both entry gates if live — argument for enable ~30.09 **if** shadow criterion holds.
+- Clamp tail **2.0–2.3R** is rarely reachable (MFE≥1.8R = **6/240 ≈ 2.5%**).
+- Profile CURRENT: winners mean **+0.44R** (med +0.31), losers mean **−0.49R** (med −0.36).
+- Costs 0.14–0.27R on thin 5m stops; TRX 22.09 LOW_VOL + costs_r 0.273 is qualitative support for entry_gates, not a substitute for n≥30.
 
 ## 1. MFE / MAE by epoch
 
@@ -20,91 +20,120 @@ Epoch cuts (UTC): pre-#70 <11.09; #70→#76 11–13.09; #76→sprint 13–23.09;
 | pre_#70 | 122 | 0.3701 | 0.2814 | 0.5599 | 0.8805 | 1.5911 | 5% | 0% | 0% | 0.2252 | 0.8295 |
 | #70_to_#76 | 10 | 0.4181 | 0.2926 | 0.7067 | 0.9067 | 0.9368 | 0% | 0% | 0% | 0.2051 | 0.3475 |
 | #76_to_sprint | 108 | 0.5234 | 0.2831 | 0.8529 | 1.3287 | 3.186 | 23% | 6% | 5% | 0.2817 | 0.8153 |
-| post_sprint | 0 | — | — | — | — | — | — | — | — | — | — |
+| post_sprint | **0** | — | — | — | — | — | — | — | — | — | — |
 | **ALL** | 240 | 0.4411 | 0.2814 | 0.6959 | 1.0434 | 3.186 | 13% | 2% | 2% | 0.2488 | 0.8147 |
-
-ALL MFE≥1.8R count: **6 / 240** (owner note 0/123 was early window; full ledger still ≈2.5%).
 
 ## 2. Pre-registered TP plans (fixed BEFORE sim)
 
-Derived from **full-ledger MFE** percentiles only (no peek at plan PFs):
-- Full-sample MFE p50=**0.28**, p75=**0.7**, p90=**1.04**
+Full-sample MFE: p50=**0.28**, p75=**0.70**, p90=**1.04**
 
-| Plan ID | Geometry | Rationale |
-|---------|----------|-----------|
-| CURRENT_clamp_2.0_2.3 | actual `r_multiple` under live single take ~2.0–2.3R | baseline |
-| A_split_0.70_1.40 | 50% @ **0.70R** + 50% @ **1.40R** | owner example; near + stretch |
-| B_split_p50_p75 | 50% @ **0.28R** + 50% @ **0.7R** | match empirical center/upper quartile |
-| C_single_p75 | 100% @ **0.7R** | single reachable take (no 2R fantasy) |
-| D_split_p50_p90 | 50% @ **0.28R** + 50% @ **1.04R** | keep a tail without requiring 2R |
+| Plan ID | Geometry | Status for slice |
+|---------|----------|------------------|
+| CURRENT_clamp_2.0_2.3 | actual `r_multiple` | baseline |
+| A_split_0.70_1.40 | 50% @ 0.70R + 50% @ 1.40R | **BACKUP** |
+| B_split_p50_p75 | 50% @ 0.28R + 50% @ 0.70R | **DROPPED** — 0.28R leg ≈ round-trip costs, not robust |
+| C_single_p75 | 100% @ **0.70R** | **PRIMARY** |
+| D_split_p50_p90 | 50% @ 0.28R + 50% @ 1.04R | tail undervalued by truncation; not primary |
 
-Simulation rule (same family as `scripts/measure_rr_reach.py`): if MFE touched a leg, credit that leg’s R×fraction; **unfilled residual keeps actual realized R** (stops/safety as lived). Path order unknown → not a claim of fill certainty, comparative only.
+### 2.1 Path-order assumption (optimistic vs pessimistic)
 
-## 3. Retrospective: plans vs CURRENT
+Only MFE/MAE/final R are observed — **intrabar path order is unknown**.
 
-### 3.1 Full ledger
+| Assumption | Rule |
+|------------|------|
+| **Optimistic (rev1)** | if `mfe ≥ TP_leg` → credit that leg; residual keeps actual R |
+| **Pessimistic (mirror)** | if `mae_r ≥ 0.99` or `r ≤ −0.95` → treat as **stop-first**, **no TP rewrite** (keep actual R) |
 
-| Plan | n | meanR | medianR | PF | WR | sumR |
-|------|---|-------|---------|----|----|------|
-| CURRENT_clamp_2.0_2.3 | 240 | -0.2699 | -0.2822 | 0.277 | 23.8% | -64.78 |
-| A_split_0.70_1.40 | 240 | -0.2258 | -0.2786 | 0.387 | 28.8% | -54.20 |
-| B_split_p50_p75 | 240 | -0.1640 | -0.1316 | 0.448 | 39.2% | -39.36 |
-| C_single_p75 | 240 | -0.1945 | -0.2786 | 0.472 | 28.8% | -46.68 |
-| D_split_p50_p90 | 240 | -0.1813 | -0.1329 | 0.392 | 38.3% | -43.52 |
+Result on full ledger (n=240):
 
-### 3.2 By epoch (meanR / PF)
+| Plan | OPT meanR / PF | PESS meanR / PF |
+|------|----------------|-----------------|
+| CURRENT | −0.270 / 0.277 | −0.270 / 0.277 |
+| A 0.70/1.40 | −0.226 / 0.387 | −0.226 / 0.387 |
+| B p50/p75 | −0.164 / 0.448 | −0.180 / 0.426 |
+| **C single 0.70** | **−0.195 / 0.472** | **−0.195 / 0.472** |
+| D p50/p90 | −0.181 / 0.392 | −0.197 / 0.372 |
 
-| Epoch | n | CURRENT | A_0.70_1.40 | B_p50_p75 | C_single_p75 | D_p50_p90 |
-|-------|---|---------|-------------|-----------|--------------|-----------|
-| pre_#70 | 122 | -0.323/0.152 | -0.266/0.264 | -0.156/0.408 | -0.213/0.394 | -0.196/0.284 |
-| #70_to_#76 | 10 | -0.275/0.185 | -0.239/0.291 | -0.178/0.361 | -0.233/0.336 | -0.195/0.312 |
-| #76_to_sprint | 108 | -0.210/0.463 | -0.180/0.535 | -0.172/0.478 | -0.171/0.557 | -0.163/0.505 |
-| post_sprint | 0 | — | — | — | — | — |
+**Ranking unchanged under both assumptions:** C ≥ B ≥ A/D ≥ CURRENT by PF. Question closed.
 
-### 3.3 After costs note
+### 2.2 Truncation bias (MFE censored by current exits)
 
-Paper `r_multiple` is already **net of fees/funding** in broker close. Costs_r at entry (0.14–0.27R on thin stops) is embedded in realized R, not subtracted again. Plans that bank 0.5–0.7R more often reduce the share of paths where costs dominate the whole R budget.
+MFE is measured under the **live** exit plan (early stop / safety / current take). Tail legs (A’s 1.40R, D’s 1.04R) are **underestimated**: paths that would have continued after a nearer bank are cut. Therefore:
 
-### 3.4 Realized profile (CURRENT)
+- Prefer **C** (single 0.70R) — less sensitive to missing tail path.
+- Keep **A** as backup only if post-sprint window still favors a stretch leg.
+- Drop **B**: near-field 0.28R sits on the cost floor.
 
-- Winners: n=57, mean=+0.436R, median=+0.306R
-- Losers: n=183, mean=-0.490R, median=-0.359R
+## 3. Retrospective summary
 
-### 3.5 Zeus paper closed (appendix)
+| Plan | n | meanR | PF | WR | sumR |
+|------|---|-------|----|----|------|
+| CURRENT | 240 | −0.270 | 0.28 | 24% | −65 |
+| A | 240 | −0.226 | 0.39 | 29% | −54 |
+| B (dropped) | 240 | −0.164 | 0.45 | 39% | −39 |
+| **C PRIMARY** | 240 | −0.195 | **0.47** | 29% | −47 |
+| D | 240 | −0.181 | 0.39 | 38% | −44 |
 
-n=18, MFE p50=0.205 p75=1.050 p90=4.885
+All plans still **negative expectancy** on this sample. TP reshape without entry filter compresses the loss; it does not create edge.
 
-| Plan | meanR | PF | WR |
-|------|-------|----|----|
-| CURRENT_clamp_2.0_2.3 | -0.214 | 0.587 | 39% |
-| A_split_0.70_1.40 | -0.144 | 0.696 | 50% |
-| B_split_p50_p75 | -0.261 | 0.431 | 50% |
-| C_single_p75 | -0.195 | 0.589 | 50% |
-| D_split_p50_p90 | -0.236 | 0.485 | 50% |
+### 3.1 True slice candidate = BUNDLE
 
-## 4. entry_gates shadow status (as of 2026-09-24)
+> **PRIMARY bundle = `entry_gates` ON (only if 30.09 shadow PASS) + plan C (single 0.70R).**  
+> Either piece alone does not fix the system: gates without reachable take still leave cost-dominated R; nearer take without gates still enters LOW_VOL / dead keys.
 
-- Observations with `rejection_stage=entry_gate` / `ENTRY_GATE_*`: **n=0**
-- hypothetic_r sample size: **n=0**
-- Criterion: **NOT YET** — no hypothetic_r rows in current NO_TRADE file.
-- Note: `entry_gates_shadow_enabled=True` but gate only runs when a **candidate exists** past pipeline; most NO_TRADE are `NO_VALID_SETUP` / `LOW_EV` before gate. Need candidates that reach `process_symbol` entry-gate hook to accumulate hypothetic_r.
-- Action: keep shadow on; re-check **2026-09-30** (n + median hypothetic_r). TRX-style LOW_VOL + high costs_r is exactly gate A/B payload once candidates flow.
+## 4. Bot health 23–24.09 (not silent breakage)
 
-Config still: `entry_gates_enabled=False`, block_regimes includes `LOW_VOLATILITY`, `entry_gate_max_costs_r=0.25`.
+| Check | Result |
+|-------|--------|
+| State commits on master | yes (chore(ci) every ~5m through 24.09 04:05Z) |
+| Paper closed trades after 23.09 | **n=0** |
+| NO_TRADE observations 23–24.09 | **n=5031** (bot ticking) |
+| Breakdown | `no_strategy_signal` ~3985; `LOW_EV` ~841; `rr_too_low` ~444 (min_rr=2.0 filter); `LOW_LIQUIDITY` ~153 |
+| Open paper positions | 0 |
+| Zeus journal | rejects / structure_state / ticks active; 3 open zeus paper positions |
+| halt_alerts | weekly loss mark 15.09 only — not a full halt |
 
-## 5. Slice recommendations (not enabled)
+**Conclusion:** no silent crash. Zero post-sprint closes = **filters working** (min_rr, denylist, EV, no signal) + sparse setups, not a dead process.
 
-1. **Do not** put 2.0–2.3R single take as the only success metric — MFE distribution does not support it.
-2. Candidate geometry for slice discussion: **A_split_0.70_1.40** or **C_single_p75** — compare PF/meanR in §3; pick only if post-sprint live window still agrees.
-3. **entry_gates live** — only if 30.09 shadow report PASSes; TRX 22.09 is qualitative support, not a substitute for n≥30 median<0.
-4. Entry quality still dominates TP geometry: LOW_VOL + weak strategy keys (see prior analysis). TP reshape without entry filter = smaller losses, not edge.
+## 5. entry_gates shadow (24.09) — re-check **30.09**
 
-## 6. Repro
+| Metric | Value |
+|--------|-------|
+| `rejection_stage=entry_gate` / hypothetic_r | **n=0** |
+| Criterion n≥30 & median(hypothetic_r)<0 | **NOT YET** |
+| Why empty | gate runs only when a **candidate** reaches `process_symbol`; most NO_TRADE die earlier (`NO_VALID_SETUP` / `LOW_EV`) |
+
+Owner enables live only after 30.09 report PASSes.
+
+## 6. P3 — HTF shadow (package)
+
+| Item | Status |
+|------|--------|
+| `htf_shadow_enabled` | True |
+| `htf_hard_gate_enabled` | **False** |
+| Journal | `models/htf_shadow_bans.jsonl` ≈ **5000** rows |
+| Mix | mostly `scalp5m` counter-HTF (~4840); also ob_swing, funding_rate_contrarian, … |
+| Slice ask | compare «would have banned» vs actual PnL of those candidates; enable hard only if window 23.09–06.10 does not zero remaining edge |
+
+## 7. P5 — slice package checklist
+
+1. This report + DECISION_MEMO sync (windows, TP geometry rank, no third mode flip).  
+2. Decisions: entry_gates (30.09) / TP plan C vs A / HTF hard / cooldown-A2 / 5m leg / denylist stay / stats / risk.  
+3. `scripts/measure_two_week_review.py` on 13–23.09 vs 23.09–slice.  
+4. post-sprint n rule (below).
+
+## 8. Post-sprint n=0 — pre-registered window rule
+
+**Fixed in advance (2026-09-24):**
+
+- If by **26–27.09** closed trades in mode-23.09 still **n<10** → **extend measurement window to ~06–07.10 without changing rules**.  
+- **Third mode change in one month = nullifies conclusions** — do not retune min_rr / denylist / gates mid-window just to force n.
+
+## 9. Repro
 
 ```bash
 python scripts/measure_rr_reach.py models/paper_trades.jsonl
-# this report: research one-shot; logic mirrored above
 ```
 
 ---
-*No production toggle changed. Owner decision at slice ~06–07.10.*
+*No production toggle changed. Owner decision at slice ~06–07.10; entry_gates call at 30.09 shadow re-measure.*
