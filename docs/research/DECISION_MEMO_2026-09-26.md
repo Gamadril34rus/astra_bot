@@ -58,6 +58,40 @@
 
 ---
 
+## Воронка и arrival rate (entry_gates) — зафиксировано 24.09
+
+`entry_gates` стоит **в конце** конвейера: считается только когда кандидат дошёл до `process_symbol` (после pipeline / meta EV / safety / denylist).
+
+### Замер 23.09 → 24.09 (~1.5 сут, main paper)
+
+| Ступень | n / rate |
+|---------|----------|
+| NO_TRADE ticks (23–24.09) | ≈5031 |
+| с полем `candidate` (в осн. LOW_EV) | 258 за 23.09; **0** за 24.09 |
+| `rejection_stage=entry_gate` / `ENTRY_GATE_*` / hypothetic_r | **n=0** |
+| Paper opens после 23.09 | **n=0** |
+| **ARRIVAL RATE на стадию entry_gate** | **≈ 0 / сутки** (< 1/сутки) |
+
+Счётчик `ENTRY_GATE_TOTAL` (Prometheus) согласуется с нулём записей в NO_TRADE: до гейта **не долетают**. Тень голодает не из‑за «гейт плохой», а из‑за **пустого притока**.
+
+### Правило судьбы гейта (заранее, к срезу 06–07.10)
+
+Это **не отмена** критерия n≥30 & median(hypothetic_r)<0, а честный потолок ожидания:
+
+- Если к срезу **06–07.10** всё ещё **n<30** **и** arrival rate **< 1 кандидат/сутки** на стадию entry_gate → вердикт:  
+  **«гейт избыточен при текущих фильтрах; остаётся в тени как страховка»** — не «ждём n бесконечно».
+- Если arrival ≥1/сутки, но n<30 к срезу — продлить только тень, решение live отложить с явной причиной «мало притока, не провал критерия».
+- 30.09 — повторный замер (n, median hypothetic_r, arrival/сутки).
+
+---
+
+## Zeus P1 — приёмка цикла (24.09)
+
+`models/zeus_trade_journal.jsonl`: **entry=47**, **stop_adjust=21**, exit=15; открыты 3 paper (LINK/BNB/ENA).  
+Полный цикл «сигнал → entry → (stop_adjust) → journal» на месте — **P1 закрыт**.
+
+---
+
 ## Процесс (навсегда)
 
 1. Правки живого контура — только обычные PR. Запрещены one-shot workflows / `TRIGGER_*` / CI-хирургия.  
@@ -71,7 +105,7 @@
 |----|------------|--------|-----|
 | H-tsm45 | TSM45 multi-pair edge | **ОПРОВЕРГНУТА** | Panel 32 OOS PF 0.85 |
 | H-family-A / B | old 4h families | **ОПРОВЕРГНУТА (proxy)** | PF<1 under costs |
-| H-entry-gates | median(hypothetic_r)<0, n≥30 | **ждёт данных** | 24.09: hypothetic_r n=0; повтор **30.09** |
+| H-entry-gates | median(hypothetic_r)<0, n≥30 | **ждёт / риск голода** | 24.09: arrival≈0/сут, hypothetic n=0; судьба по arrival на срезе; 30.09 повтор |
 | H-tp-geometry | nearer take (C 0.70R) improves PF | **research+** | PF↑ vs CURRENT, meanR всё ещё <0 без гейтов |
 | H-track-C Z* | Zeus deep history | **ждёт** | не в бой без OOS |
 | H-cooldown-A2 / 5m | — | **только живые данные** | срез 06–07.10 |
@@ -85,16 +119,16 @@
 | `htf_shadow_enabled` | **True** |
 | `htf_hard_gate_enabled` | **False** |
 | Журнал | `models/htf_shadow_bans.jsonl` ≈ 5000 (в основном scalp5m vs 4h bias) |
-| На срезе | «запрещённые бы» vs факт PnL; hard ON только если окно 23.09–06.10 не обнуляет edge |
+| На срезе | «запрещённые бы» vs факт PnL; hard ON только если окно 23.09–06.10 не обнуляет edge; отдельно scalp5m |
 
 ---
 
 ## P5 — пакет среза (~06–07.10)
 
-1. Синхронизация этого memo (историю 13–23.09 не обнулять).  
-2. Решения: **бандл entry_gates+C** / HTF hard / cooldown-A2 / 5m / denylist / stats / риск.  
-3. Метрики после среза + `measure_two_week_review.py`.  
-4. Повтор entry_gate-тени **30.09** → owner include/exclude.
+1. Синхронизация этого memo (воронка + TP C/A + бандл + продление окна + судьба gates по arrival).  
+2. Решения: **бандл entry_gates+C** (или gates=shadow insurance) / HTF hard / cooldown-A2 / 5m / denylist / stats / риск.  
+3. Метрики + `measure_two_week_review.py`.  
+4. Повтор entry_gate-тени **30.09** (n, median, arrival/сут).
 
 ---
 
@@ -102,7 +136,7 @@
 
 | Toggle | Рекомендация |
 |--------|----------------|
-| `entry_gates_enabled` | только если 30.09 PASS |
+| `entry_gates_enabled` | PASS 30.09 **и** arrival≥1/сут; иначе тень-страховка |
 | TP geometry | PRIMARY **C 0.70R**; BACKUP A; не B |
 | `htf_hard_gate_enabled` | только по живым данным P3 |
 | `min_rr` | **2.0** — не менять в окне замера |
@@ -113,4 +147,4 @@
 
 ## One-liner
 
-> Режим 23.09 держим до среза (при n<10 к 26–27.09 — просто длиннее окно, не третий ретюн); TP-кандидат = **C 0.70R** в бандле с entry_gates после PASS 30.09; P3/P5 в том же пакете; live только PR + «одобряю».
+> Режим 23.09 держим (n<10 к 26–27.09 → длиннее окно, не третий ретюн); TP=C (+backup A) в бандле с entry_gates **только если** тень наберёт n и arrival≥1/сут — иначе гейт остаётся страховкой в тени; Zeus P1 OK; P3/P5 в пакете среза; live только PR + «одобряю».
