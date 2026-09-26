@@ -160,12 +160,18 @@ class KillSwitch:
         }
 
 
+DEFAULT_SYMBOL_GUARD_PATH = Path("models/symbol_loss_guard.json")
+
+
 @dataclass
 class SymbolLossGuard:
     """Per-symbol consecutive loss cooldown (Sprint 2026-09-23).
 
     After ``max_consecutive`` losses on a symbol, pause new entries for
     ``pause_hours``. Does not touch global kill-switch / HALT.
+
+    State (``_losses`` / ``_pause_until``) survives process restart via
+    ``state_path`` JSON — CI bot sessions restart ~every 5 min.
 
     API (tests/unit/test_p_win_calibration.py):
       is_paused(symbol, now=None) -> bool
@@ -174,8 +180,98 @@ class SymbolLossGuard:
 
     max_consecutive: int = 3
     pause_hours: float = 4.0
+    state_path: Path | None = None
     _losses: dict[str, int] = field(default_factory=dict)
     _pause_until: dict[str, datetime] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.state_path is None:
+            self.state_path = DEFAULT_SYMBOL_GUARD_PATH
+        else:
+            self.state_path = Path(self.state_path)
+        self._load()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "max_consecutive": self.max_consecutive,
+            "pause_hours": self.pause_hours,
+            "losses": {str(k): int(v) for k, v in self._losses.items()},
+            "pause_until": {
+                str(k): (v.isoformat() if hasattr(v, "isoformat") else str(v))
+                for k, v in self._pause_until.items()
+            },
+        }
+
+    @classmethod
+    def from_dict(
+        cls,
+        data: dict[str, Any],
+        state_path: Path | None = None,
+    ) -> SymbolLossGuard:
+        """Build guard from persisted dict without re-reading disk in __post_init__."""
+        guard = cls(
+            max_consecutive=int(data.get("max_consecutive", 3)),
+            pause_hours=float(data.get("pause_hours", 4.0)),
+            state_path=state_path,
+        )
+        # __post_init__ already loaded disk; overlay explicit dict (tests / restore).
+        losses_raw = data.get("losses") or {}
+        guard._losses = {str(k): int(v) for k, v in losses_raw.items()}
+        pause_raw = data.get("pause_until") or {}
+        parsed: dict[str, datetime] = {}
+        for k, v in pause_raw.items():
+            if isinstance(v, datetime):
+                parsed[str(k)] = v if v.tzinfo else v.replace(tzinfo=UTC)
+                continue
+            try:
+                dt = datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=UTC)
+                parsed[str(k)] = dt
+            except Exception:
+                continue
+        guard._pause_until = parsed
+        return guard
+
+    def _load(self) -> None:
+        path = self.state_path
+        if path is None or not path.exists():
+            return
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                return
+            losses_raw = data.get("losses") or {}
+            self._losses = {str(k): int(v) for k, v in losses_raw.items()}
+            pause_raw = data.get("pause_until") or {}
+            parsed: dict[str, datetime] = {}
+            for k, v in pause_raw.items():
+                try:
+                    dt = datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=UTC)
+                    parsed[str(k)] = dt
+                except Exception:
+                    continue
+            self._pause_until = parsed
+        except Exception as exc:
+            logger.warning("symbol_loss_guard: load failed: %s", exc)
+
+    def save(self) -> None:
+        """Persist counters/pauses. Safe no-op if path unset."""
+        path = self.state_path
+        if path is None:
+            return
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(
+                json.dumps(self.to_dict(), ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            tmp.replace(path)
+        except Exception as exc:
+            logger.warning("symbol_loss_guard: save failed: %s", exc)
 
     def is_paused(self, symbol: str, now: datetime | None = None) -> bool:
         until = self._pause_until.get(symbol)
@@ -188,6 +284,7 @@ class SymbolLossGuard:
         if ts >= until_aware:
             self._pause_until.pop(symbol, None)
             self._losses[symbol] = 0
+            self.save()
             return False
         return True
 
@@ -198,6 +295,7 @@ class SymbolLossGuard:
         if pnl >= 0:
             self._losses[symbol] = 0
             self._pause_until.pop(symbol, None)
+            self.save()
             return
         n = self._losses.get(symbol, 0) + 1
         self._losses[symbol] = n
@@ -207,6 +305,7 @@ class SymbolLossGuard:
                 "SYMBOL_COOLDOWN %s: %d consecutive losses -> pause %.1fh",
                 symbol, n, self.pause_hours,
             )
+        self.save()
 
     # Back-compat aliases used by trading_engine sprint patches
     def record_loss(self, symbol: str) -> None:
