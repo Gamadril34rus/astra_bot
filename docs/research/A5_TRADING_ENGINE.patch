@@ -1,0 +1,42 @@
+--- a/astra_bot/decision/trading_engine.py
++++ b/astra_bot/decision/trading_engine.py
+@@ -192,6 +192,7 @@
+     entry_gate_max_costs_r: float = 0.25
+     max_trades_per_day: int = 6  # Sprint 2026-09-23
+     symbol_loss_cooldown_enabled: bool = True
++    symbol_loss_guard_path: str = "models/symbol_loss_guard.json"
+     htf_hard_gate_enabled: bool = False
+     disabled_strategy_names: frozenset[str] = frozenset({
+         "zscore_mean_reversion", "liquidity_sweep", "fair_value_gap",
+@@ -464,7 +465,13 @@
+         # по умолчанию; тень пишет счётчик и гипотетический R в NO_TRADE-журнал.
+         self.entry_gates = EntryGateConfig.from_engine_config(self.config)
+         from ..core.kill_switch import SymbolLossGuard
+-        self.symbol_guard = SymbolLossGuard() if getattr(self.config, "symbol_loss_cooldown_enabled", True) else None
++        if getattr(self.config, "symbol_loss_cooldown_enabled", True):
++            _sg_path = getattr(
++                self.config, "symbol_loss_guard_path", "models/symbol_loss_guard.json"
++            )
++            self.symbol_guard = SymbolLossGuard(state_path=Path(_sg_path))
++        else:
++            self.symbol_guard = None
+         self._daily_trade_count = 0
+         self._trades_today_date = ""
+         self.entry_gate_stats: dict[str, int] = {}
+@@ -2002,6 +2009,16 @@
+                 self.broker.save()
+         except Exception as exc:
+             logger.debug("cooldown register skipped: %s", exc)
++        # SymbolLossGuard: consecutive losses per symbol (persist across CI restarts).
++        if getattr(self, "symbol_guard", None) is not None:
++            try:
++                for d in trades:
++                    sym = str(d.get("symbol") or "")
++                    if not sym:
++                        continue
++                    self.symbol_guard.record(sym, float(d.get("pnl") or 0.0))
++            except Exception as exc:
++                logger.debug("symbol_loss_guard record skipped: %s", exc)
+         # Block 2.1 & 7.1: Save to data/trades.db and data/state.json via StateManager
+         try:
+             from ..data.state_manager import get_state_manager
