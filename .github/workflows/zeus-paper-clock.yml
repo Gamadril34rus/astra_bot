@@ -81,7 +81,8 @@ jobs:
             models/zeus_paper_trades.jsonl \
             models/zeus_strategy_stats.json \
             models/zeus_no_trade_observations.jsonl \
-            models/zeus_halt_alerts.json
+            models/zeus_halt_alerts.json \
+            models/symbol_loss_guard.json
           do
             [ -f "$f" ] && git add -f "$f" || true
           done
