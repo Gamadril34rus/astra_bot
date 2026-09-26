@@ -72,8 +72,8 @@ class KillSwitch:
         try:
             data = json.loads(self.state_path.read_text(encoding="utf-8"))
             return KillSwitchState.from_dict(data)
-        except Exception as exc:
-            logger.warning("kill_switch: failed to load state: %s", exp)
+        except Exception as e:
+            logger.warning("kill_switch: failed to load state: %s", e)
             return KillSwitchState()
 
     def _save_state(self) -> None:
@@ -256,8 +256,8 @@ class SymbolLossGuard:
                 except Exception:
                     continue
             self._pause_until = parsed
-        except Exception as exp:
-            logger.warning("symbol_loss_guard: load failed (fail-open): %s", exp)
+        except Exception as e:
+            logger.warning("symbol_loss_guard: load failed (fail-open): %s", e)
 
     def save(self) -> None:
         """Atomic write (tmp + replace). No-op if state_path is None."""
@@ -272,8 +272,8 @@ class SymbolLossGuard:
                 encoding="utf-8",
             )
             tmp.replace(path)
-        except Exception as exp:
-            logger.warning("symbol_loss_guard: save failed: %s", exp)
+        except Exception as e:
+            logger.warning("symbol_loss_guard: save failed: %s", e)
 
     def is_paused(self, symbol: str, now: datetime | None = None) -> bool:
         until = self._pause_until.get(symbol)
