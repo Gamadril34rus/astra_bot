@@ -92,6 +92,7 @@ jobs:
                    models/research/hypotheses.json \
                    models/research/observations.jsonl \
                    models/halt_alerts.json \
+                   models/symbol_loss_guard.json \
                    models/zeus_trade_journal.jsonl; do
             [ -f "$f" ] && git add -f "$f" || true
           done
