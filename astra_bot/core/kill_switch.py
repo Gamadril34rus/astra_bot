@@ -257,7 +257,7 @@ class SymbolLossGuard:
                     continue
             self._pause_until = parsed
         except Exception as exc:
-            logger.warning("symbol_loss_guard: load failed (fail-open): %s", exc)
+            logger.warning("symbol_loss_guard: load failed (fail-open): %s", exp)
 
     def save(self) -> None:
         """Atomic write (tmp + replace). No-op if state_path is None."""
@@ -273,7 +273,7 @@ class SymbolLossGuard:
             )
             tmp.replace(path)
         except Exception as exc:
-            logger.warning("symbol_loss_guard: save failed: %s", exp)
+            logger.warning("symbol_loss_guard: save failed: %s", exc)
 
     def is_paused(self, symbol: str, now: datetime | None = None) -> bool:
         until = self._pause_until.get(symbol)
@@ -309,7 +309,6 @@ class SymbolLossGuard:
             )
         self.save()
 
-    # Back-compat aliases used by trading_engine sprint patches
     def record_loss(self, symbol: str) -> None:
         self.record(symbol, -1.0)
 
