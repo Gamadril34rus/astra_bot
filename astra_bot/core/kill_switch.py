@@ -73,7 +73,7 @@ class KillSwitch:
             data = json.loads(self.state_path.read_text(encoding="utf-8"))
             return KillSwitchState.from_dict(data)
         except Exception as exc:
-            logger.warning("kill_switch: failed to load state: %s", exc)
+            logger.warning("kill_switch: failed to load state: %s", exp)
             return KillSwitchState()
 
     def _save_state(self) -> None:
@@ -211,7 +211,7 @@ class SymbolLossGuard:
         guard = cls(
             max_consecutive=int(data.get("max_consecutive", 3)),
             pause_hours=float(data.get("pause_hours", 4.0)),
-            state_path=None,  # avoid disk load; overlay dict below
+            state_path=None,
         )
         if state_path is not None:
             guard.state_path = Path(state_path)
@@ -309,7 +309,6 @@ class SymbolLossGuard:
             )
         self.save()
 
-    # Back-compat aliases used by trading_engine sprint patches
     def record_loss(self, symbol: str) -> None:
         self.record(symbol, -1.0)
 
