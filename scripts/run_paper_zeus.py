@@ -51,6 +51,7 @@ ZEUS_NO_TRADE_OBS = "models/zeus_no_trade_observations.jsonl"
 ZEUS_NO_TRADE_OUT = "models/zeus_no_trade_outcomes.json"
 ZEUS_PATTERN_EXIT = "models/zeus_pattern_exit_shadow.jsonl"
 ZEUS_HALT_ALERTS = "models/zeus_halt_alerts.json"
+ZEUS_SYMBOL_LOSS_GUARD = "models/zeus_symbol_loss_guard.json"
 ZEUS_HYPOTHESES = "models/zeus_hypotheses.json"
 ZEUS_KLINES_CACHE = "models/zeus_klines_cache"
 
@@ -332,6 +333,7 @@ async def amain(args: argparse.Namespace) -> int:
         no_trade_outcomes_path=ZEUS_NO_TRADE_OUT,
         pattern_exit_shadow_path=ZEUS_PATTERN_EXIT,
         halt_alerts_path=ZEUS_HALT_ALERTS,
+        symbol_loss_guard_path=ZEUS_SYMBOL_LOSS_GUARD,
         hypotheses_path=ZEUS_HYPOTHESES,
         klines_cache_dir=ZEUS_KLINES_CACHE,
         entry_gates_enabled=False,

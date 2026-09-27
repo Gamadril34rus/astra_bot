@@ -43,3 +43,27 @@ def _isolate_error_log(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """
     monkeypatch.setenv("ASTRA_ERROR_LOG", str(tmp_path / "errors.log"))
     yield
+
+
+@pytest.fixture(autouse=True)
+def _isolate_symbol_guard(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A5: state per-symbol guard — в tmp, не в models/ репозитория.
+
+    Путь по умолчанию в TradingEngineConfig CWD-относительный; фикс A5
+    сделал guard персистентным, и без изоляции счётчики протекают между
+    тестами одной сессии (SYMBOL_COOLDOWN на первом тике реплей-тестов).
+    ВАЖНО: setattr на классе не работает — dataclass печатает дефолт
+    в __init__, инстанс перекрывает атрибут класса.
+    """
+    from astra_bot.decision.trading_engine import TradingEngineConfig
+
+    guard_path = str(tmp_path / "symbol_loss_guard.json")
+    monkeypatch.setattr(TradingEngineConfig, "symbol_loss_guard_path", guard_path)
+    orig_init = TradingEngineConfig.__init__
+
+    def _init(self, *args, **kwargs):
+        orig_init(self, *args, **kwargs)
+        self.symbol_loss_guard_path = guard_path
+
+    monkeypatch.setattr(TradingEngineConfig, "__init__", _init)
+    yield
