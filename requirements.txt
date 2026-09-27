@@ -4,7 +4,7 @@ pydantic>=2.0
 # Database
 sqlalchemy[asyncio]>=2.0.54
 asyncpg>=0.28
-psycopg2-binary>=2.9.12
+psycopg2-binary>=2.9.13
 
 # Redis
 redis>=5.0
