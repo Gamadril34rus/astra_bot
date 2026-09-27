@@ -1241,11 +1241,34 @@ class TradingEngine:
                 self._record_closed(panic)
             return panic
 
-        # Обновляем уже открытые позиции по последнему бару.
-        # Экстремумы обновляем до решения: Exit Controller скорректирует
-        # стопы ДО проверки срабатывания на этом же баре (TZ §16).
+        # B6: доигрываем update_extremes по ВСЕМ closed-барам новее
+        # последнего обработанного open_time (gap между CI-сессиями
+        # иначе занижает MFE/MAE — позиция жила, бары не учлись).
+        # Посев экстремумов ценой входа НЕ возвращаем (снят намеренно).
+        # Экстремумы — до решения: Exit Controller скорректирует стопы
+        # ДО проверки срабатывания на этом же баре (TZ §16).
+        last_ts = self.broker._last_extremes_bar.get(symbol)
+        bars_to_apply: list = []
+        for bar in primary:
+            bar_ts = getattr(bar, "open_time", None)
+            if bar_ts is None:
+                continue
+            if last_ts is not None and bar_ts <= last_ts:
+                continue
+            bars_to_apply.append(bar)
+        if not bars_to_apply and primary:
+            bars_to_apply = [primary[-1]]
+        for bar in bars_to_apply:
+            if not getattr(bar, "symbol", None):
+                try:
+                    object.__setattr__(bar, "symbol", symbol)
+                except Exception:
+                    try:
+                        bar.symbol = symbol  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+            self.broker.update_extremes(bar)
         last_bar = primary[-1]
-        self.broker.update_extremes(last_bar)
 
         # Решение по стратегиям — вычисляем до обработки выходов и
         # проверки «есть ли позиция», чтобы флип-стратегии (ts_momentum)

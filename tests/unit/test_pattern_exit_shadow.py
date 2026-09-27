@@ -210,6 +210,11 @@ def _engine(tmp_path: Path, monkeypatch) -> TradingEngine:
 def test_engine_hook_observes_survivor_without_affecting(tmp_path, monkeypatch):
     eng = _engine(tmp_path, monkeypatch)
     assert eng.pattern_exit_shadow is not None
+    # B6: gap-replay — бары между тиками доигрываются: окно даёт MFE для
+    # smart-стопов (D1/BE/трейлинг), они закрыли бы позицию до тени.
+    # Здесь тема — тень наблюдает survivor'а: стопы глушим
+    # (покрыты отдельными тестами ExitController).
+    eng.exit_controller.smart_default = False
     eng.broker.open_position(
         symbol=SYMBOL, direction="long", entry_price=Decimal("100"),
         stop_loss=Decimal("99"), take_profit=Decimal("105"),
