@@ -1,1 +1,1 @@
-SEE_FILE_/home/workdir/artifacts/te_surgical.txt
+WILL_BE_REPLACED_BY_FULL_CONTENT
