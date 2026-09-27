@@ -1,1 +1,1 @@
-PLACEHOLDER_WILL_REPLACE
+SEE_FILE_/home/workdir/artifacts/te_surgical.txt
