@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -221,6 +222,10 @@ class TradingEngine:
     ):
         # Колбэк для уведомлений в Telegram: notifier(text, severity).
         self._notifier = notifier
+        # TG-карточки сделок (этап 4): выключено по умолчанию, включает
+        # только run_bot.py (основной контур). Zeus-раннер не включает.
+        self._trade_cards_enabled = False
+        self._trade_card_keys: set[str] = set()
         self.exchange = exchange
         self.config = config or TradingEngineConfig()
         # HALT-алерты: dedup в пределах сессии (set) + персистентный файл
@@ -1731,9 +1736,10 @@ class TradingEngine:
             float(cand_features.get("ev_confidence") or 0.0),
             pos.quantity,
         )
-        # Уведомления по каждой сделке отключены: шлём только утренний
-        # отчёт и отвечаем на команды из меню.
+        # Этап 4 (решение владельца 28.09): карточки сделок снова уходят
+        # в Telegram (по-русски, дедуп СТОП; см. _trade_cards_enabled).
         logger.info("OPEN %s %s entry=%s", pos.direction, pos.symbol, pos.entry_price)
+        self._send_trade_card(self._card_entry_text(pos), f"entry:{pos.id}")
         return closed
 
     def _record_entry_gate_rejection(
@@ -2041,6 +2047,12 @@ class TradingEngine:
                     if not sym:
                         continue
                     self.symbol_guard.record(sym, float(d.get("pnl") or 0.0))
+                    _card_key = (
+                        f"stop:{d.get('symbol')}:{d.get('exit_price')}"
+                        if str(d.get("exit_reason")) == "stop_loss"
+                        else f"exit:{d.get('id') or ''}"
+                    )
+                    self._send_trade_card(self._card_exit_text(d), _card_key)
             except Exception as exc:
                 logger.debug("symbol_loss_guard record skipped: %s", exc)
         # Block 2.1 & 7.1: Save to data/trades.db and data/state.json via StateManager
@@ -2152,6 +2164,61 @@ class TradingEngine:
                 "HYPOTHESIS %s DEGRADED: ACTIVE -> WEAKENING (live expectancy %.3fR)",
                 hid, bucket.expectancy_r,
             )
+
+    # — TG-карточки сделок (этап 4, решение владельца 28.09) —
+
+    _CARD_DIR_RU = {"long": "ЛОНГ", "short": "ШОРТ"}
+    _CARD_EXIT_RU = {
+        "stop_loss": "сработал стоп",
+        "take_profit": "сработал тейк",
+        "time_stop": "лимит времени в позиции",
+        "max_hold": "максимальное время удержания",
+        "panic": "аварийное закрытие",
+        "flat": "по сигналу выхода",
+    }
+
+    def _card_label(self) -> str:
+        env = (os.getenv("ENVIRONMENT") or "").strip().lower()
+        return "(live)" if env == "live" else "(paper)"
+
+    def _card_dir(self, value: object) -> str:
+        v = str(value or "").lower()
+        return self._CARD_DIR_RU.get(v, v or "—")
+
+    def _card_exit_reason(self, code: object) -> str:
+        s_code = str(code or "—")
+        return self._CARD_EXIT_RU.get(s_code, s_code)
+
+    def _card_entry_text(self, pos: Any) -> str:
+        tps = getattr(pos, "take_profits", None) or []
+        tp = tps[0] if tps else getattr(pos, "take_profit", "")
+        if isinstance(tp, dict):
+            tp = tp.get("price", "")
+        return (
+            f"🟢 Вход {pos.symbol} {self._card_dir(pos.direction)} "
+            f"по ${pos.entry_price} {self._card_label()}\n"
+            f"стоп ${getattr(pos, 'stop_loss', '—')} · тейк ${tp}\n"
+            f"стратегия: {getattr(pos, 'strategy', '—')}"
+        )
+
+    def _card_exit_text(self, d: dict) -> str:
+        r = d.get("r_multiple")
+        r_part = f"{float(r):+.2f}R · " if r is not None else ""
+        return (
+            f"🏁 Выход {d.get('symbol')} {self._card_dir(d.get('direction'))} "
+            f"по ${d.get('exit_price')} {self._card_label()}\n"
+            f"итог: {r_part}{self._card_exit_reason(d.get('exit_reason'))}\n"
+            f"стратегия: {d.get('strategy') or '—'}"
+        )
+
+    def _send_trade_card(self, text: str, key: str) -> None:
+        if not getattr(self, "_trade_cards_enabled", False):
+            return
+        if key in self._trade_card_keys:
+            # Дедуп: повторный одинаковый ключ (СТОП и др.) не отправляем.
+            return
+        self._trade_card_keys.add(key)
+        self._notify(text)
 
     def _notify(self, text: str, severity: str = "info") -> None:
         if self._notifier is None:
