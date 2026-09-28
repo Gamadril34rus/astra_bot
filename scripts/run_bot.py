@@ -146,6 +146,7 @@ async def amain() -> int:
     bot = await create_telegram_bot(bot_token=token, allowed_user_ids=allowed, admin_user_ids=admin_ids)
 
     engine._notifier = make_telegram_notifier(bot)
+    engine._trade_cards_enabled = True  # Этап 4: карточки сделок (осн. контур)
 
     stop = asyncio.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
