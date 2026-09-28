@@ -256,6 +256,17 @@ class TestExitControllerLive:
         asyncio.run(eng.process_symbol("BTC-USDT"))
         assert len(eng.broker.positions) == 1
 
+        # B6: gap-replay — бары между тиками доигрываются: первый тик после
+        # входа засчитывает всё окно 5m (>= 3 баров), поэтому TIME_STOP
+        # {bars: 3} срабатывает на первом плоском баре, а не на третьем.
+        # Вход сразу после форса (сигнал ещё свежий) — не тема теста
+        # (решения здесь не проверяются): глушим пайплайн.
+        from astra_bot.decision.pipeline import Decision
+
+        async def _no_trade(ctx):
+            return Decision("NO_TRADE", ctx.symbol, ["b6_gap_replay"])
+
+        monkeypatch.setattr(eng.pipeline, "decide", _no_trade)
         # 3 плоских бара внутри стопа/тейка.
         closed = []
         for _ in range(3):
@@ -263,7 +274,7 @@ class TestExitControllerLive:
             o = float(last.close)
             flat = _bar_after(last, o, o + 0.01, o - 0.01, o)
             eng.exchange.candles = [*eng.exchange.candles, flat]
-            closed = asyncio.run(eng.process_symbol("BTC-USDT"))
+            closed += asyncio.run(eng.process_symbol("BTC-USDT"))
         assert len(closed) == 1
         assert closed[0].exit_reason == "time_stop"
         assert closed[0].r_multiple == pytest.approx(0.0, abs=0.02)

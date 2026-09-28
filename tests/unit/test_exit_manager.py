@@ -209,6 +209,11 @@ class TestEngineIntegration:
         )
         bot = make_bot(tmp_path, FeedStub(gen_candles()), monkeypatch)
         eng = bot._trading_engine
+        # B6: gap-replay — бары между тиками доигрываются: окно даёт MFE
+        # для smart-стопов (D1/BE/трейлинг), и позицию закрыл бы стоп,
+        # а не safety MAX_HOLD. Здесь тема — MAX_HOLD через движок:
+        # стопы глушим (покрыты отдельными тестами).
+        eng.exit_controller.smart_default = False
         asyncio.run(bot._tick())
         pos = eng.broker.positions[0]
         pos_id = pos.id
