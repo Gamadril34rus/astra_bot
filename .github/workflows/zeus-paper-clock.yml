@@ -39,7 +39,7 @@ jobs:
         run: |
           git config user.name "astra-bot"
           git config user.email "bot@users.noreply.github.com"
-          git pull --no-rebase origin master || true
+          git pull --no-rebase origin master
 
       - name: Write .env (paper only)
         env:
@@ -82,7 +82,10 @@ jobs:
             models/zeus_strategy_stats.json \
             models/zeus_no_trade_observations.jsonl \
             models/zeus_halt_alerts.json \
-            models/zeus_symbol_loss_guard.json
+            models/zeus_symbol_loss_guard.json \
+            models/zeus_no_trade_outcomes.json \
+            models/zeus_pattern_exit_shadow.jsonl \
+            models/zeus_hypotheses.json
           do
             [ -f "$f" ] && git add -f "$f" || true
           done

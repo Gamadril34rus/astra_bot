@@ -46,7 +46,7 @@ jobs:
         run: |
           git config user.name "astra-bot"
           git config user.email "bot@users.noreply.github.com"
-          git pull --no-rebase origin master || true
+          git pull --no-rebase origin master
 
       - name: Write .env
         env:
