@@ -29,6 +29,48 @@ HEARTBEAT_SEC = 2 * 3600  # не чаще раза в 2 часа, если ти�
 STATE_PATH = Path("models/zeus_tg_notify_state.json")
 JOURNAL_DEFAULT = Path("models/zeus_trade_journal.jsonl")
 
+DIR_RU = {"long": "ЛОНГ", "short": "ШОРТ"}
+STAGE_RU = {
+    "retest": "ретест",
+    "breakout": "пробой",
+    "risk": "риск",
+    "signal": "сигнал",
+    "structure": "структура",
+    "pattern": "паттерн",
+    "data": "данные",
+}
+REJECT_REASONS_RU = {
+    "no_retest_close_inside": "нет закрытия внутри клина после ретеста",
+    "bars_outside_limit": "цена слишком долго держалась вне клина",
+    "rr_too_low": "риск/прибыль ниже минимума",
+    "no_false_break": "ложного пробоя не было",
+}
+EXIT_REASONS_RU = {
+    "stop_loss": "сработал стоп",
+    "take_profit": "сработал тейк",
+    "time_stop": "лимит времени в позиции",
+    "max_hold": "максимальное время удержания",
+    "panic": "аварийное закрытие",
+    "closed": "закрыто",
+}
+
+
+def _ru(code: object, table: dict[str, str]) -> str:
+    code_s = str(code or "—")
+    return table.get(code_s, code_s)
+
+
+def _ru_dir(code: object) -> str:
+    code_s = str(code or "").lower()
+    return DIR_RU.get(code_s, code_s or "—")
+
+
+def _pct(fraction: object) -> str:
+    try:
+        return f"{float(fraction) * 100:.2f}%"
+    except (TypeError, ValueError):
+        return "—"
+
 
 def _load_state() -> dict:
     if not STATE_PATH.exists():
@@ -73,31 +115,40 @@ def _format_important(rows: list[dict], since_ts: int) -> list[str]:
         ev = r.get("event")
         if ev == "entry":
             msgs.append(
-                f"🟢 ENTRY {r.get('direction')} @ {r.get('entry_price')}\n"
-                f"reason: {r.get('reason')}\n"
-                f"SL {r.get('stop_loss')} TP {r.get('take_profit')}"
+                f"🟢 Вход {r.get('symbol')} {_ru_dir(r.get('direction'))} "
+                f"по ${r.get('entry_price')}\n"
+                f"причина: {r.get('reason')}\n"
+                f"стоп ${r.get('stop_loss')} · тейк ${r.get('take_profit')}"
             )
         elif ev == "exit":
+            r_mult = r.get("r_multiple")
+            r_part = f"{float(r_mult):+.2f}R · " if r_mult is not None else ""
             msgs.append(
-                f"🏁 EXIT {r.get('direction')} @ {r.get('exit_price')}\n"
-                f"R={r.get('r_multiple')} reason={r.get('reason')}"
+                f"🏁 Выход {r.get('symbol')} {_ru_dir(r.get('direction'))} "
+                f"по ${r.get('exit_price')}\n"
+                f"итог: {r_part}{_ru(r.get('reason'), EXIT_REASONS_RU)}"
             )
         elif ev == "stop_adjust":
+            mfe = r.get("mfe_r")
+            mfe_part = f" · MFE {float(mfe):+.2f}R" if mfe is not None else ""
             msgs.append(
-                f"🔧 STOP {r.get('why')}: {r.get('old_stop')} → {r.get('new_stop')} "
-                f"(MFE_R={r.get('mfe_r')})"
+                f"🔧 Стоп {r.get('symbol')}: ${r.get('old_stop')} → "
+                f"${r.get('new_stop')}{mfe_part}"
             )
         elif ev == "ltf_impulse" and r.get("near_structure"):
             msgs.append(
-                f"⚡ 15m impulse near 4h wedge ({r.get('direction')})\n"
-                f"range={r.get('range_pct')} vol_x={r.get('volume_ratio')}\n"
+                f"⚡ Импульс на 15м {r.get('symbol')} "
+                f"({_ru_dir(r.get('direction'))})\n"
+                f"диапазон {_pct(r.get('range_pct'))} · "
+                f"объём ×{r.get('volume_ratio')}\n"
                 f"(память, не вход)"
             )
         elif ev == "structure_state" and r.get("snapshot", {}).get("would_signal"):
             snap = r.get("snapshot") or {}
             msgs.append(
-                f"📌 WOULD SIGNAL {snap.get('direction')} {snap.get('pattern')}\n"
-                f"(paper step решает исполнение)"
+                f"📌 Сигнал готов (пока не сделка): {r.get('symbol')} "
+                f"{_ru_dir(snap.get('direction'))} {snap.get('pattern') or ''}\n"
+                f"(решение — на шаге paper-исполнения)"
             )
         elif ev == "reject":
             stage = r.get("stage")
@@ -112,9 +163,10 @@ def _format_important(rows: list[dict], since_ts: int) -> list[str]:
                     "no_false_break",
                 ) or snap.get("has_wedge"):
                     msgs.append(
-                        f"⏸ reject [{stage}] {reason}\n"
-                        f"wedge={snap.get('has_wedge')} "
-                        f"width={snap.get('width_pct')}"
+                        f"⏸ Сигнал отфильтрован ({_ru(stage, STAGE_RU)}): "
+                        f"{_ru(reason, REJECT_REASONS_RU)}\n"
+                        f"клин: {'есть' if snap.get('has_wedge') else 'нет'} · "
+                        f"ширина {_pct(snap.get('width_pct'))}"
                     )
     # дедуп одинаковых подряд
     out: list[str] = []
@@ -131,11 +183,11 @@ def _heartbeat_text(rows: list[dict]) -> str:
     rejects = [r for r in rows if r.get("event") == "reject"]
     last_rej = rejects[-1] if rejects else {}
     return (
-        "🤖 Zeus paper-clock OK (research)\n"
-        f"last_event={last.get('event', '—')}\n"
-        f"last_reject={last_rej.get('reason', '—')} "
-        f"[{last_rej.get('stage', '—')}]\n"
-        "live не включён · risk% не трогаем"
+        "📊 Zeus paper (research): всё тихо\n"
+        f"последнее событие: {last.get('event', '—')}\n"
+        f"последний фильтр: {_ru(last_rej.get('reason'), REJECT_REASONS_RU)} "
+        f"[{_ru(last_rej.get('stage'), STAGE_RU)}]\n"
+        "live не включён · риск не трогаем"
     )
 
 
@@ -177,7 +229,7 @@ async def amain(journal: Path, force_heartbeat: bool) -> int:
     sent_any = False
 
     if important:
-        body = "📊 Zeus paper\n\n" + "\n\n".join(important)
+        body = "📊 Zeus paper (research)\n\n" + "\n\n".join(important)
         if await _send(body):
             sent_any = True
             # max ts among new rows
