@@ -394,6 +394,19 @@ def run_rule(
     atr_values: pd.Series | None = None,
 ) -> RunOutcome:
     """Event-цикл: сигнал закрытия бара i исполняется открытием бара i+1."""
+    if len(df) == 0:  # lab-fix: пустое окно — нейтральный исход вместо IndexError
+        print("WARNING run_rule: пустое окно данных — нейтральный исход")
+        return RunOutcome(
+            trades=0,
+            wins=0,
+            win_rate=0.0,
+            profit_factor=0.0,
+            net_usdt=0.0,
+            ret_pct=0.0,
+            max_dd_pct=0.0,
+            avg_trade_usdt=0.0,
+            by_reason={},
+        )
     o = df["open"].values
     h = df["high"].values
     l = df["low"].values
@@ -617,10 +630,14 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--years", type=float, default=2.0)
     parser.add_argument("--capital", type=float, default=10000.0)
-    parser.add_argument("--end", default="2026-08-20")
+    parser.add_argument("--end", default=None)
     parser.add_argument("--data-dir", default=str(PROJECT_ROOT / "data"))
     parser.add_argument("--out-dir", default=str(PROJECT_ROOT / "reports" / "free_strategies"))
     args = parser.parse_args()
+
+    if args.end is None:
+
+        args.end = datetime.now(UTC).strftime("%Y-%m-%d")
 
     data_dir = Path(args.data_dir)
     out_dir = Path(args.out_dir)
@@ -662,7 +679,11 @@ def main() -> int:
         df = df.drop_duplicates(subset=["open_time"]).sort_values("open_time").reset_index(drop=True)
 
         w = df[(df["open_time"] >= int(start_dt.timestamp() * 1000)) & (df["open_time"] < int(end_dt.timestamp() * 1000))]
-        bh_pct = float(w["close"].iloc[-1] / w["close"].iloc[0] - 1) * 100
+        if w.empty:  # lab-fix: пустое окно — бейслайн 0, окно уйдёт в evaluate (там guard)
+            print(f"WARNING main: пустое окно {timeframe} ({start_dt.date()} → {end_dt.date()}) — бейслайн 0%")
+            bh_pct = 0.0
+        else:
+            bh_pct = float(w["close"].iloc[-1] / w["close"].iloc[0] - 1) * 100
 
         tf_report = {}
         for mode, long_only in (("long+short", False), ("long-only", True)):
