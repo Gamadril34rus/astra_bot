@@ -262,8 +262,8 @@ class TestFundingPayment:
     def test_funding_accrued_on_close(self, tmp_path):
         """Фандинг перпов за время удержания попадает в сделку и уменьшает PnL.
 
-        Ставка 0.01% за 8ч на нотионал: 24 бара × 1h = 3 интервала →
-        100.1 * 0.0001 * 3 = 0.03003.
+        Ставка 0.01% за 8ч на нотионал: 24 первичных 5m-бара = 2ч =
+        0.25 интервала → 100.1 * 0.0001 * 0.25 = 0.0025025 (R2-02).
         """
         b = _mk_broker(tmp_path, funding_rate=Decimal("0.0001"))
         pos = b.open_position(
@@ -272,16 +272,17 @@ class TestFundingPayment:
             take_profit=Decimal("106"), quantity=Decimal("1"),
             leverage=2,
         )
-        # Время удержания — детерминированное: 24 бара по 1h.
-        pos.timeframe = "1h"
+        # Время удержания — детерминированное: 24 первичных 5m-бара
+        # (timeframe="4h" на платёж больше не влияет — регрессия R2-02).
+        pos.timeframe = "4h"
         pos.bars_held = 24
         trade = b.close_position(pos.id, Decimal("101"), "TP")
         assert trade is not None
-        # Фандинг = 100.1 * 0.0001 * 3 = 0.03003 (отдельно от комиссий).
-        assert trade.funding == pytest.approx(0.03003, abs=1e-9)
+        # Фандинг = 100.1 * 0.0001 * 0.25 = 0.0025025 (отдельно от комиссий).
+        assert trade.funding == pytest.approx(0.0025025, abs=1e-9)
         assert trade.fees > 0  # комиссии сделки — отдельно
         # PnL нетто: gross = (101*0.999 - 100.1)*1 ≈ 0.799; минус издержки
-        assert trade.pnl == pytest.approx(0.799 - trade.fees - 0.03003, abs=1e-9)
+        assert trade.pnl == pytest.approx(0.799 - trade.fees - 0.0025025, abs=1e-9)
         assert trade.pnl < 0.799  # издержки вычтены
 
     def test_short_receives_funding(self, tmp_path):
@@ -293,8 +294,8 @@ class TestFundingPayment:
             take_profit=Decimal("94"), quantity=Decimal("1"),
             leverage=2,
         )
-        pos.timeframe = "1h"
-        pos.bars_held = 8  # 1 интервал фандинга
+        pos.timeframe = "4h"
+        pos.bars_held = 96  # 96 × 5m = 8ч = 1 интервал фандинга (R2-02)
         trade = b.close_position(pos.id, Decimal("99"), "TP")
         assert trade is not None
         # fill(short) = 99.9; funding = -(99.9 * 0.0001 * 1) = -0.00999
