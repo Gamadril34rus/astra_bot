@@ -1210,6 +1210,77 @@ class TradingEngine:
             return size
         return size
 
+    async def _process_exits_only(self, symbol: str, ctx: Any, primary: list) -> list:
+        """Обязательные выходы без решения/входов (R2-04, аудит 28.09).
+
+        Символ на паузе SymbolLossGuard или дневном лимите НЕ должен
+        терять стопы/тейки/ликвидации. Копия выходной части
+        process_symbol в порядке main-контура: BTC-panic -> реплей
+        закрытых баров (B6) -> adjust_stops -> check_exits ->
+        mark/фандинг/ликвидации -> forced-правила -> _record_closed.
+        REGIME_EXIT здесь не оценивается (regime вычисляет decision,
+        который в этом режиме не вызывается); все жёсткие выходы
+        (стоп/тейк/ликвидация/TIME_STOP/MAE_CUT/MAX_HOLD/
+        VOL_EXPANSION/BTC_PANIC) работают. При изменении выходной
+        части process_symbol синхронизируй этот метод.
+        """
+        closed: list = []
+        if self.exit_manager.btc_panic:
+            panic = self.exit_manager.flatten_symbol(
+                symbol, float(ctx.current_price)
+            )
+            if panic:
+                self._record_closed(panic)
+            return panic
+        last_ts = self.broker._last_extremes_bar.get(symbol)
+        bars_to_apply: list = []
+        for bar in primary:
+            bar_ts = getattr(bar, "open_time", None)
+            if bar_ts is None:
+                continue
+            if last_ts is not None and bar_ts <= last_ts:
+                continue
+            bars_to_apply.append(bar)
+        if not bars_to_apply and primary:
+            bars_to_apply = [primary[-1]]
+        for bar in bars_to_apply:
+            if not getattr(bar, "symbol", None):
+                try:
+                    object.__setattr__(bar, "symbol", symbol)
+                except Exception:
+                    try:
+                        bar.symbol = symbol  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+            self.broker.update_extremes(bar)
+        last_bar = primary[-1]
+        try:
+            self.plan_engine.adjust_stops(
+                self.broker, symbol,
+                [p for p in self.broker.positions if p.symbol == symbol],
+                ctx.candles, list(primary), last_bar,
+            )
+        except Exception as exc:
+            logger.debug("plan adjust_stops: %s", exc)
+        closed = self.broker.check_exits(last_bar)
+        try:
+            await self._sync_perps_state(symbol, last_bar.close)
+            liq_closed = self.broker.check_liquidations(symbol)
+            closed = closed + liq_closed
+        except Exception as exc:
+            logger.debug("liquidation check %s: %s", symbol, exc)
+        try:
+            closed = closed + self.plan_engine.forced_closes(
+                self.broker, symbol,
+                [p for p in self.broker.positions if p.symbol == symbol],
+                ctx.candles, last_bar.close, ctx.current_price, "",
+            )
+        except Exception as exc:
+            logger.debug("plan forced_closes: %s", exc)
+        if closed:
+            self._record_closed(closed)
+        return closed
+
     async def process_symbol(self, symbol: str) -> list[Any]:
 
         # Риск-состояние (лимиты, HALT) живое между CI-сессиями:
@@ -1226,15 +1297,23 @@ class TradingEngine:
         if not primary:
             return []
         if getattr(self, "symbol_guard", None) is not None and self.symbol_guard.is_paused(symbol):
-            logger.info("SYMBOL_COOLDOWN skip %s", symbol)
-            return []
+            logger.info("SYMBOL_COOLDOWN skip %s (выходы обрабатываются)", symbol)
+            # R2-04 (внешний аудит 28.09): пауза ограничивает ВХОДЫ,
+            # а не выходы — стопы/тейки/ликвидации работают (до фикса
+            # запаузенный символ жил до 4ч без обязательных выходов).
+            return await self._process_exits_only(symbol, ctx, primary)
         _today = datetime.now(UTC).strftime("%Y-%m-%d")
         if getattr(self, "_trades_today_date", "") != _today:
             self._trades_today_date = _today
             self._daily_trade_count = 0
         if getattr(self, "_daily_trade_count", 0) >= int(getattr(self.config, "max_trades_per_day", 6)):
-            logger.info("DAILY_LIMIT reached (%d), skip %s", self._daily_trade_count, symbol)
-            return []
+            logger.info(
+                "DAILY_LIMIT reached (%d), skip %s (выходы обрабатываются)",
+                self._daily_trade_count, symbol,
+            )
+            # R2-04 (внешний аудит 28.09): дневной лимит ограничивает
+            # ВХОДЫ, а не выходы.
+            return await self._process_exits_only(symbol, ctx, primary)
 
         # BTC PANIC (Этап 4): это ВЫХОД, а не вход — работает независимо
         # от risk-состояния (HALT не отменяет обязательные выходы).
@@ -2040,21 +2119,27 @@ class TradingEngine:
             logger.debug("cooldown register skipped: %s", exc)
         # SymbolLossGuard (A5): consecutive losses per symbol
         # (persist across CI restarts). До фикса record() не вызывался.
-        if getattr(self, "symbol_guard", None) is not None:
-            try:
-                for d in trades:
-                    sym = str(d.get("symbol") or "")
-                    if not sym:
-                        continue
+        # R2-03 (внешний аудит 28.09): guard и карточки НЕЗАВИСИМЫ:
+        # карточки шлются и при guard=None; сбой record() на одной
+        # сделке не роняет карточки/record остальных (try на итерацию).
+        for d in trades:
+            sym = str(d.get("symbol") or "")
+            if not sym:
+                continue
+            if getattr(self, "symbol_guard", None) is not None:
+                try:
                     self.symbol_guard.record(sym, float(d.get("pnl") or 0.0))
-                    _card_key = (
-                        f"stop:{d.get('symbol')}:{d.get('exit_price')}"
-                        if str(d.get("exit_reason")) == "stop_loss"
-                        else f"exit:{d.get('id') or ''}"
-                    )
-                    self._send_trade_card(self._card_exit_text(d), _card_key)
+                except Exception as exc:
+                    logger.debug("symbol_loss_guard record skipped: %s", exc)
+            try:
+                _card_key = (
+                    f"stop:{d.get('symbol')}:{d.get('exit_price')}"
+                    if str(d.get("exit_reason")) == "stop_loss"
+                    else f"exit:{d.get('id') or ''}"
+                )
+                self._send_trade_card(self._card_exit_text(d), _card_key)
             except Exception as exc:
-                logger.debug("symbol_loss_guard record skipped: %s", exc)
+                logger.debug("exit card skipped: %s", exc)
         # Block 2.1 & 7.1: Save to data/trades.db and data/state.json via StateManager
         try:
             from ..data.state_manager import get_state_manager
