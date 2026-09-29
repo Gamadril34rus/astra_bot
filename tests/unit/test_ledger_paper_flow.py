@@ -84,7 +84,12 @@ def test_partial_tp_ledger_matches_broker(tmp_path, monkeypatch):
 
     assert snapped.fees == broker_fee
     assert snapped.realized_pnl == broker.realized_pnl
-    assert snapped.cash == Decimal("1000") + broker.realized_pnl
+    # R2-02: интервал фандинга стал периодической дробью (40/480 = 1/12),
+    # порядок суммирования Decimal (28 цифр) даёт шум ~1e-24 между
+    # replay.cash и суммой pnl брокера. Шум округления, не экономика —
+    # инвариант «реестр сходится с брокером» с допуском (реальные
+    # расхождения были бы на scale комиссий, 1e-2 и крупнее).
+    assert abs(snapped.cash - (Decimal("1000") + broker.realized_pnl)) < Decimal("1e-20")
     # Частичный выход уменьшил инвентарь → после полного закрытия пусто.
     assert snapped.positions == {}
 

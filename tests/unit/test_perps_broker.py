@@ -131,7 +131,7 @@ class TestLiveFundingRate:
             take_profit=Decimal("106"), quantity=Decimal("1"),
             leverage=2, timeframe="1h",
         )
-        pos.bars_held = 8  # 1 интервал
+        pos.bars_held = 8  # длительность не важна: assert на отношении
         fill = pos.fill_price or pos.entry_price
         default_pay = b.funding_payment(pos, Decimal("1"), fill)
         # Живая ставка с биржи выше дефолта → платёж растёт.

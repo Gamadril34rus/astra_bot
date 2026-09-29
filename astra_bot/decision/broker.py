@@ -42,6 +42,14 @@ _TIMEFRAME_MINUTES: dict[str, int] = {
     "1h": 60, "2h": 120, "4h": 240, "6h": 360, "12h": 720, "1d": 1440,
 }
 
+# R2-02 (внешний аудит 28.09): bars_held тикает по ПЕРВИЧНОМУ бару
+# контура — в обоих контурах (run_bot, run_paper_zeus)
+# trading_engine.process_symbol берёт primary = candles["5m"] или "1h".
+# Длительность удержания для фандинга = bars_held x ЭТА длительность,
+# а не x длительность timeframe позиции: для 4h-позиции старый код
+# завышал платёж в 240/5 = 48 раз.
+FUNDING_BAR_MINUTES = 5
+
 
 @dataclass
 class PaperPosition:
@@ -303,6 +311,12 @@ class PaperBroker:
                 str(k): int(v) for k, v in (data.get("cooldowns") or {}).items()
             }
             self._purge_cooldowns()
+
+            # R2-01: восстанавливаем вотермарку счётчика баров
+            # (symbol -> open_time последнего зачтённого бара).
+            self._last_extremes_bar = {
+                str(k): v for k, v in (data.get("last_extremes_bar") or {}).items()
+            }
         except Exception as exc:
             logger.warning("Не загрузил состояние paper-брокера: %s", exc)
 
@@ -336,6 +350,10 @@ class PaperBroker:
             "initial_capital": str(self.initial_capital),
             # Анти-дребезг: просроченные записи не пишем (рост ограничен).
             "cooldowns": self._purge_cooldowns(),
+            # R2-01: вотермарка счётчика баров переживает перезапуск —
+            # иначе каждая CI-сессия заново засчитывает текущий бар
+            # (bars_held растёт на тик, а не на новый бар).
+            "last_extremes_bar": dict(self._last_extremes_bar),
         }
         self.state_path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
 
@@ -994,14 +1012,16 @@ class PaperBroker:
     def _funding_intervals(self, pos: PaperPosition) -> Decimal:
         """Сколько интервалов фандинга прожила позиция (pro-rata).
 
-        Время — детерминированное: bars_held × длительность timeframe.
+        Время — детерминированное: bars_held × длительность ПЕРВИЧНОГО
+        бара (FUNDING_BAR_MINUTES; R2-02: bars_held тикает по 5m-барам
+        обоих контуров, timeframe позиции время не задаёт — иначе
+        4h-позиции платили в 48 раз больше реального).
         Реальная биржа списывает фандинг дискретно 3 раза в сутки
         (00:00/08:00/16:00 UTC+8 по открытым позициям); здесь —
         пропорциональная аппроксимация, честная в среднем и
         детерминированная при реплее.
         """
-        minutes = _TIMEFRAME_MINUTES.get(getattr(pos, "timeframe", "") or "", 60)
-        held_minutes = Decimal(pos.bars_held) * Decimal(minutes)
+        held_minutes = Decimal(pos.bars_held) * Decimal(FUNDING_BAR_MINUTES)
         interval_minutes = self.funding_interval_hours * Decimal("60")
         if held_minutes <= 0 or interval_minutes <= 0:
             return Decimal("0")
