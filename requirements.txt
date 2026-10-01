@@ -18,7 +18,7 @@ ccxt>=4.5.78
 
 # Data processing
 numpy>=2.4.6,<3
-pandas>=2.2
+pandas>=3.0.6
 polars>=1.44.2
 
 # ML (опционально). Раскомментируйте при включении auto-train/predictor:
