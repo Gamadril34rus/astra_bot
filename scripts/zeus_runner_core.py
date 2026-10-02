@@ -120,3 +120,9 @@ def _load_known_trade_ids(trades_path: Path) -> set[str]:
             if not line.strip():
                 continue
             row = _json.loads(line)
+            tid = str(row.get("id") or row.get("trade_id") or "")
+            if tid:
+                known.add(tid)
+    except Exception as exc:
+        logger.debug("known ids: %s", exc)
+    return known
