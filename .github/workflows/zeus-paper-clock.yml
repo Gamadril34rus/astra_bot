@@ -95,7 +95,7 @@ jobs:
           for i in 1 2 3 4 5 6; do
             git fetch origin master
             if git push origin master; then ok=1; break; fi
-            git rebase origin/master || { git rebase --abort; break; }
+            git rebase --autostash origin/master || { git rebase --abort || true; break; }
             sleep $((10 + RANDOM % 20))
           done
           [ "$ok" = "1" ] || echo "push failed (will retry next run)"
