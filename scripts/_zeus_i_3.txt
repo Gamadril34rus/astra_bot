@@ -1,0 +1,18 @@
+            except Exception as exc:
+                logger.exception("cycle error: %s", exc)
+            try:
+                await asyncio.wait_for(stop.wait(), timeout=args.interval)
+            except TimeoutError:
+                pass
+
+    await bingx.close()
+    return 0
+
+
+def main() -> None:
+    args = parse_args()
+    try:
+        code = asyncio.run(amain(args))
+    except KeyboardInterrupt:
+        code = 0
+    sys.exit(code or 0)
