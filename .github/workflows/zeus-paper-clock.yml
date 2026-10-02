@@ -91,4 +91,11 @@ jobs:
           done
           git diff --cached --quiet || \
             git commit -m "chore(ci): zeus paper state $(date -u +%Y-%m-%dT%H:%MZ)"
-          git push origin master || echo "push failed (will retry next run)"
+          ok=0
+          for i in 1 2 3 4 5 6; do
+            git fetch origin master
+            if git push origin master; then ok=1; break; fi
+            git rebase origin/master || { git rebase --abort; break; }
+            sleep $((10 + RANDOM % 20))
+          done
+          [ "$ok" = "1" ] || echo "push failed (will retry next run)"
