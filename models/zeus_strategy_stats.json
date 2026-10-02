@@ -1,17 +1,17 @@
 {
-  "updated": "2026-10-02T22:11:36.359163+00:00",
+  "updated": "2026-10-02T22:28:40.529070+00:00",
   "buckets": {
     "zeus_channel_boundary_4h|ANY|4h": {
-      "sample_size": 54,
-      "wins": 35,
-      "losses": 19,
-      "sum_r": 43.40354579930736,
-      "wins_sum_r": 55.94209696153465,
-      "losses_sum_r": -12.5385511622273,
-      "sum_mfe_r": 81.98528613736337,
-      "sum_mae_r": 83.28659246481743,
-      "sum_fees": 2.9693397007114233,
-      "last_updated": "2026-10-02T22:11:36.359127+00:00"
+      "sample_size": 56,
+      "wins": 36,
+      "losses": 20,
+      "sum_r": 54.38807529729834,
+      "wins_sum_r": 67.3725861023828,
+      "losses_sum_r": -12.98451080508446,
+      "sum_mfe_r": 95.4436185814189,
+      "sum_mae_r": 88.19255133749775,
+      "sum_fees": 3.38566200880716,
+      "last_updated": "2026-10-02T22:28:40.529010+00:00"
     },
     "zeus_wedge_retest_4h|ANY|4h": {
       "sample_size": 8,
@@ -26,16 +26,16 @@
       "last_updated": "2026-10-02T11:02:28.550070+00:00"
     },
     "zeus_channel_boundary_4h|LOW_VOLATILITY|4h": {
-      "sample_size": 46,
+      "sample_size": 47,
       "wins": 30,
-      "losses": 16,
-      "sum_r": 32.714557902389146,
+      "losses": 17,
+      "sum_r": 32.268598259531984,
       "wins_sum_r": 41.11383881461644,
-      "losses_sum_r": -8.399280912227297,
-      "sum_mfe_r": 67.49093764959319,
-      "sum_mae_r": 51.75089496219664,
-      "sum_fees": 2.568532706358447,
-      "last_updated": "2026-10-02T22:11:36.359121+00:00"
+      "losses_sum_r": -8.845240555084457,
+      "sum_mfe_r": 67.90489868855423,
+      "sum_mae_r": 51.88076509206677,
+      "sum_fees": 2.771853660904827,
+      "last_updated": "2026-10-02T22:27:12.910541+00:00"
     },
     "zeus_wedge_retest_4h|LOW_VOLATILITY|4h": {
       "sample_size": 8,
@@ -50,28 +50,40 @@
       "last_updated": "2026-10-02T11:02:28.550068+00:00"
     },
     "zeus_channel_boundary_4h|T:RANGE/V:VERY_LOW/L:DEEP|4h": {
-      "sample_size": 5,
+      "sample_size": 6,
       "wins": 5,
-      "losses": 0,
-      "sum_r": 7.403265510990448,
+      "losses": 1,
+      "sum_r": 6.957305868133288,
       "wins_sum_r": 7.403265510990448,
-      "losses_sum_r": 0.0,
-      "sum_mfe_r": 8.901892447339304,
-      "sum_mae_r": 4.612222714548463,
-      "sum_fees": 0.46006593362371995,
-      "last_updated": "2026-10-02T22:11:36.359109+00:00"
+      "losses_sum_r": -0.4459596428571603,
+      "sum_mfe_r": 9.315853486300343,
+      "sum_mae_r": 4.742092844418593,
+      "sum_fees": 0.6633868881700999,
+      "last_updated": "2026-10-02T22:27:12.910530+00:00"
     },
     "zeus_channel_boundary_4h|T:RANGE/V:VERY_LOW/L:NORMAL|4h": {
+      "sample_size": 2,
+      "wins": 2,
+      "losses": 0,
+      "sum_r": 11.5760855745935,
+      "wins_sum_r": 11.5760855745935,
+      "losses_sum_r": 0.0,
+      "sum_mfe_r": 13.38179297779465,
+      "sum_mae_r": 6.463196606310963,
+      "sum_fees": 0.41488787219334067,
+      "last_updated": "2026-10-02T22:28:40.528995+00:00"
+    },
+    "zeus_channel_boundary_4h|RANGE|4h": {
       "sample_size": 1,
       "wins": 1,
       "losses": 0,
-      "sum_r": 0.14559643374535625,
-      "wins_sum_r": 0.14559643374535625,
+      "sum_r": 11.430489140848145,
+      "wins_sum_r": 11.430489140848145,
       "losses_sum_r": 0.0,
-      "sum_mfe_r": 0.3374215727001548,
-      "sum_mae_r": 1.6871078635007741,
-      "sum_fees": 0.201886518643984,
-      "last_updated": "2026-10-02T22:10:53.258879+00:00"
+      "sum_mfe_r": 13.044371405094495,
+      "sum_mae_r": 4.776088742810189,
+      "sum_fees": 0.21300135354935668,
+      "last_updated": "2026-10-02T22:28:40.529005+00:00"
     }
   }
 }
