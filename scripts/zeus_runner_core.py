@@ -47,3 +47,36 @@ LTF_LOOKBACK = 24
 ZEUS_STATE_PATH = "models/zeus_paper_positions.json"
 ZEUS_TRADES_PATH = "models/zeus_paper_trades.jsonl"
 ZEUS_STATS_PATH = "models/zeus_strategy_stats.json"
+ZEUS_NO_TRADE_OBS = "models/zeus_no_trade_observations.jsonl"
+ZEUS_NO_TRADE_OUT = "models/zeus_no_trade_outcomes.json"
+ZEUS_PATTERN_EXIT = "models/zeus_pattern_exit_shadow.jsonl"
+ZEUS_HALT_ALERTS = "models/zeus_halt_alerts.json"
+ZEUS_SYMBOL_LOSS_GUARD = "models/zeus_symbol_loss_guard.json"
+ZEUS_HYPOTHESES = "models/zeus_hypotheses.json"
+ZEUS_KLINES_CACHE = "models/zeus_klines_cache"
+
+DEFAULT_SYMBOLS = (
+    "BTC-USDT",
+    "ETH-USDT",
+    "SOL-USDT",
+    "BNB-USDT",
+    "XRP-USDT",
+)
+
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="Zeus paper multi-symbol")
+    p.add_argument("--symbol", default="")
+    p.add_argument("--symbols", default=",".join(DEFAULT_SYMBOLS))
+    p.add_argument("--interval", type=int, default=300)
+    p.add_argument("--capital", type=float, default=2000.0)
+    p.add_argument("--once", action="store_true")
+    p.add_argument("--journal", default="models/zeus_trade_journal.jsonl")
+    return p.parse_args()
+
+
+def resolve_symbols(args: argparse.Namespace) -> tuple[str, ...]:
+    if (args.symbol or "").strip():
+        return (args.symbol.strip().upper(),)
+    parts = [s.strip().upper() for s in (args.symbols or "").split(",") if s.strip()]
+    return tuple(parts) if parts else DEFAULT_SYMBOLS
