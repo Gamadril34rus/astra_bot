@@ -1,17 +1,17 @@
 {
-  "updated": "2026-10-02T11:02:28.550105+00:00",
+  "updated": "2026-10-02T21:49:03.170956+00:00",
   "buckets": {
     "zeus_channel_boundary_4h|ANY|4h": {
-      "sample_size": 48,
-      "wins": 29,
+      "sample_size": 51,
+      "wins": 32,
       "losses": 19,
-      "sum_r": 35.854683854571554,
-      "wins_sum_r": 48.39323501679885,
+      "sum_r": 42.779508938522056,
+      "wins_sum_r": 55.31806010074935,
       "losses_sum_r": -12.5385511622273,
-      "sum_mfe_r": 72.74597211732392,
-      "sum_mae_r": 76.98726188676818,
-      "sum_fees": 2.3073872484437197,
-      "last_updated": "2026-10-02T11:02:28.550103+00:00"
+      "sum_mfe_r": 80.85554198723442,
+      "sum_mae_r": 80.08458554894032,
+      "sum_fees": 2.4581241670778526,
+      "last_updated": "2026-10-02T21:49:03.170926+00:00"
     },
     "zeus_wedge_retest_4h|ANY|4h": {
       "sample_size": 8,
@@ -26,16 +26,16 @@
       "last_updated": "2026-10-02T11:02:28.550070+00:00"
     },
     "zeus_channel_boundary_4h|LOW_VOLATILITY|4h": {
-      "sample_size": 40,
-      "wins": 24,
+      "sample_size": 43,
+      "wins": 27,
       "losses": 16,
-      "sum_r": 25.165695957653345,
-      "wins_sum_r": 33.56497686988064,
+      "sum_r": 32.09052104160384,
+      "wins_sum_r": 40.48980195383114,
       "losses_sum_r": -8.399280912227297,
-      "sum_mfe_r": 58.25162362955373,
-      "sum_mae_r": 45.45156438414741,
-      "sum_fees": 1.9065802540907435,
-      "last_updated": "2026-10-02T11:02:28.550101+00:00"
+      "sum_mfe_r": 66.36119349946424,
+      "sum_mae_r": 48.54888804631955,
+      "sum_fees": 2.0573171727248765,
+      "last_updated": "2026-10-02T21:49:03.170920+00:00"
     },
     "zeus_wedge_retest_4h|LOW_VOLATILITY|4h": {
       "sample_size": 8,
@@ -48,7 +48,18 @@
       "sum_mae_r": 2.4987263203101127,
       "sum_fees": 0.3178890683493934,
       "last_updated": "2026-10-02T11:02:28.550068+00:00"
+    },
+    "zeus_channel_boundary_4h|T:RANGE/V:VERY_LOW/L:DEEP|4h": {
+      "sample_size": 3,
+      "wins": 3,
+      "losses": 0,
+      "sum_r": 6.924825083950498,
+      "wins_sum_r": 6.924825083950498,
+      "losses_sum_r": 0.0,
+      "sum_mfe_r": 8.1095698699105,
+      "sum_mae_r": 3.0973236621721396,
+      "sum_fees": 0.1507369186341332,
+      "last_updated": "2026-10-02T21:49:03.170908+00:00"
     }
-  },
-  "backfill_note": "one-time from zeus_paper_trades.jsonl; unique position id (56 of 63 rows), qty-weighted R; channel n=48 wedge n=8"
+  }
 }
