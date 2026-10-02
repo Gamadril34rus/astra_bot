@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-02T09:18:38.715745+00:00",
+  "updated": "2026-10-02T11:02:28.550105+00:00",
   "buckets": {
     "zeus_channel_boundary_4h|ANY|4h": {
       "sample_size": 48,
@@ -11,7 +11,7 @@
       "sum_mfe_r": 72.74597211732392,
       "sum_mae_r": 76.98726188676818,
       "sum_fees": 2.3073872484437197,
-      "last_updated": "2026-10-02T09:18:38.715743+00:00"
+      "last_updated": "2026-10-02T11:02:28.550103+00:00"
     },
     "zeus_wedge_retest_4h|ANY|4h": {
       "sample_size": 8,
@@ -23,7 +23,7 @@
       "sum_mfe_r": 1.4883242569451682,
       "sum_mae_r": 2.4987263203101127,
       "sum_fees": 0.3178890683493934,
-      "last_updated": "2026-10-02T09:18:38.715710+00:00"
+      "last_updated": "2026-10-02T11:02:28.550070+00:00"
     },
     "zeus_channel_boundary_4h|LOW_VOLATILITY|4h": {
       "sample_size": 40,
@@ -35,7 +35,7 @@
       "sum_mfe_r": 58.25162362955373,
       "sum_mae_r": 45.45156438414741,
       "sum_fees": 1.9065802540907435,
-      "last_updated": "2026-10-02T09:18:38.715741+00:00"
+      "last_updated": "2026-10-02T11:02:28.550101+00:00"
     },
     "zeus_wedge_retest_4h|LOW_VOLATILITY|4h": {
       "sample_size": 8,
@@ -47,8 +47,8 @@
       "sum_mfe_r": 1.4883242569451682,
       "sum_mae_r": 2.4987263203101127,
       "sum_fees": 0.3178890683493934,
-      "last_updated": "2026-10-02T09:18:38.715708+00:00"
+      "last_updated": "2026-10-02T11:02:28.550068+00:00"
     }
   },
-  "backfill_note": "one-time from zeus_paper_trades.jsonl; positions aggregated qty-weighted; full regime buckets can be re-filled by next closes"
+  "backfill_note": "one-time from zeus_paper_trades.jsonl; unique position id (56 of 63 rows), qty-weighted R; channel n=48 wedge n=8"
 }
