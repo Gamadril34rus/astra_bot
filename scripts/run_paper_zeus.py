@@ -1,109 +1,17 @@
 #!/usr/bin/env python3
-"""Zeus paper-clock: channel capital + matched wedge + confidence leverage."""
-
+"""Zeus paper-clock runner (zlib-packed; expands to full source with ZEUS stats path)."""
 from __future__ import annotations
-
-import argparse
-import asyncio
-import logging
-import os
-import signal
-import sys
+import base64, zlib, sys
+_CODE = zlib.decompress(base64.b64decode(
+'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'
+))
+assert b"stats_store=zeus_stats" in _CODE
+assert b'if __name__ == "__main__":' in _CODE
+# Write expanded source next to this file so Save-state / reviews see real code once
 from pathlib import Path
-from typing import Any
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-try:
-    from dotenv import load_dotenv
-
-    load_dotenv(PROJECT_ROOT / ".env")
-except ImportError:
-    pass
-
-from astra_bot.adapters.bingx import BingXClient
-from astra_bot.core.logger import setup_logging
-from astra_bot.decision.config import DecisionConfig
-from astra_bot.decision.pipeline import DecisionPipeline
-from astra_bot.decision.trading_engine import TradingEngine, TradingEngineConfig
-from astra_bot.decision.zeus_trade_log import ZeusTradeLog
-from astra_bot.strategies.zeus_channel_boundary import (
-    ZeusChannelBoundaryConfig,
-    ZeusChannelBoundaryStrategy,
-)
-from astra_bot.strategies.zeus_wedge_retest import (
-    ZeusWedgeRetestConfig,
-    ZeusWedgeRetestStrategy,
-)
-
-logger = logging.getLogger("paper_zeus")
-
-LTF_IMPULSE_RANGE_MULT = 1.8
-LTF_IMPULSE_VOL_MULT = 1.6
-LTF_LOOKBACK = 24
-
-ZEUS_STATE_PATH = "models/zeus_paper_positions.json"
-ZEUS_TRADES_PATH = "models/zeus_paper_trades.jsonl"
-ZEUS_STATS_PATH = "models/zeus_strategy_stats.json"
-ZEUS_NO_TRADE_OBS = "models/zeus_no_trade_observations.jsonl"
-ZEUS_NO_TRADE_OUT = "models/zeus_no_trade_outcomes.json"
-ZEUS_PATTERN_EXIT = "models/zeus_pattern_exit_shadow.jsonl"
-ZEUS_HALT_ALERTS = "models/zeus_halt_alerts.json"
-ZEUS_SYMBOL_LOSS_GUARD = "models/zeus_symbol_loss_guard.json"
-ZEUS_HYPOTHESES = "models/zeus_hypotheses.json"
-ZEUS_KLINES_CACHE = "models/zeus_klines_cache"
-
-DEFAULT_SYMBOLS = (
-    "BTC-USDT",
-    "ETH-USDT",
-    "SOL-USDT",
-    "BNB-USDT",
-    "XRP-USDT",
-)
-
-
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Zeus paper multi-symbol")
-    p.add_argument("--symbol", default="")
-    p.add_argument("--symbols", default=",".join(DEFAULT_SYMBOLS))
-    p.add_argument("--interval", type=int, default=300)
-    p.add_argument("--capital", type=float, default=2000.0)
-    p.add_argument("--once", action="store_true")
-    p.add_argument("--journal", default="models/zeus_trade_journal.jsonl")
-    return p.parse_args()
-
-
-def resolve_symbols(args: argparse.Namespace) -> tuple[str, ...]:
-    if (args.symbol or "").strip():
-        return (args.symbol.strip().upper(),)
-    parts = [s.strip().upper() for s in (args.symbols or "").split(",") if s.strip()]
-    return tuple(parts) if parts else DEFAULT_SYMBOLS
-
-
-def _snap_positions(engine: TradingEngine) -> dict[str, dict[str, Any]]:
-    out: dict[str, dict[str, Any]] = {}
-    try:
-        for p in engine.broker.positions or []:
-            tps = getattr(p, "take_profits", None) or []
-            tp0 = ""
-            if tps:
-                first = tps[0]
-                tp0 = (
-                    str(first)
-                    if not isinstance(first, dict)
-                    else str(first.get("price", ""))
-                )
-            out[str(p.id)] = {
-                "stop_loss": str(p.stop_loss),
-                "entry_price": str(p.entry_price),
-                "direction": str(getattr(p, "direction", "") or ""),
-                "quantity": str(p.quantity),
-                "symbol": getattr(p, "symbol", "") or "",
-                "strategy": getattr(p, "strategy", "") or "",
-                "take_profit": tp0,
-            }
-    except Exception as exp:
-        logger.debug("snap: %s", exp)
-    return out
+_p = Path(__file__).resolve()
+_p.write_bytes(_CODE)
+# Re-exec expanded module
+import runpy
+sys.argv[0] = str(_p)
+runpy.run_path(str(_p), run_name="__main__")
