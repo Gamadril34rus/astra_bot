@@ -52,7 +52,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "4h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 11,
+      "bars_held": 12,
       "leverage": "14",
       "margin_used": "15.03596791928571428571428571",
       "plan_variant": "STATIC_TP",
@@ -111,7 +111,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "4h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
-      "bars_held": 13,
+      "bars_held": 14,
       "leverage": "1",
       "margin_used": "216.17282491800",
       "plan_variant": "STATIC_TP",
@@ -124,7 +124,7 @@
       "direction": "long",
       "entry_price": "0.6077",
       "quantity": "141.46327400",
-      "stop_loss": "0.5185752029268292",
+      "stop_loss": "0.6022428571428572",
       "take_profits": [
         "0.6968247970731708",
         "0.7859495941463416"
@@ -140,8 +140,8 @@
       "initial_quantity": "141.46327400",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "0.6116",
+      "lowest_price": "0.5927",
       "strategy": "zeus_channel_boundary_4h",
       "opened_at": 1791032237259,
       "notes": {
@@ -170,12 +170,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "4h",
       "regime_axes": "T:RANGE/V:LOW/L:DEEP",
-      "bars_held": 0,
+      "bars_held": 30,
       "leverage": "3",
       "margin_used": "28.65574386993333333333333333",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.7859495941463416",
-      "plan_last_bar_ts": 0
+      "plan_last_bar_ts": 1791014400000
     }
   ],
   "realized_pnl": "159.9856358846554741397609894",
@@ -194,7 +194,7 @@
     "TAO-USDT": 1790984400000,
     "DOGE-USDT": 1790922000000,
     "1000PEPE-USDT": 1790922000000,
-    "LINK-USDT": 1791032100000,
+    "LINK-USDT": 1791032400000,
     "AAVE-USDT": 1790986200000,
     "HYPE-USDT": 1791007500000,
     "LTC-USDT": 1791013500000,
@@ -206,9 +206,9 @@
     "NEAR-USDT": 1791019800000,
     "UNI-USDT": 1790985300000,
     "FIL-USDT": 1790983800000,
-    "ATOM-USDT": 1791032100000,
+    "ATOM-USDT": 1791032400000,
     "SUI-USDT": 1791027000000,
-    "WLD-USDT": 1791023400000,
+    "WLD-USDT": 1791032400000,
     "ENA-USDT": 1791016500000
   }
 }
