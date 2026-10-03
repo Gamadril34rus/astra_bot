@@ -1,70 +1,9 @@
 {
-  "positions": [
-    {
-      "id": "4e741a84-4603-4a3a-89a7-223da8eeeb0a",
-      "symbol": "WLD-USDT",
-      "direction": "long",
-      "entry_price": "0.6077",
-      "quantity": "141.46327400",
-      "stop_loss": "0.6052142857142857",
-      "take_profits": [
-        "0.6968247970731708",
-        "0.7859495941463416"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "141.46327400",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "0.6158",
-      "lowest_price": "0.5927",
-      "strategy": "zeus_channel_boundary_4h",
-      "opened_at": 1791032237259,
-      "notes": {
-        "signal_bar_close": 0.608,
-        "effective_entry": 0.6083077,
-        "initial_stop": 0.5185752029268292,
-        "initial_take": 0.7859495941463416,
-        "stop_pct": 0.14751169033890382,
-        "confidence": 0.88,
-        "ml_probability": null,
-        "prior_r": 1.6195444134531578,
-        "costs_r": 0.02033737118127782,
-        "equity_before": 2160.6558001678673,
-        "risk_budget": 21.606558001678675,
-        "binding_constraint": "none",
-        "score": 52.0,
-        "edge_pct": 113.5772,
-        "ev_r": 1.1357717305907558,
-        "ev_confidence": 0.2857142857142857,
-        "rr": 2.0,
-        "leverage": 3
-      },
-      "fill_price": "0.6083077",
-      "entry_fee_per_unit": "0.00030415385",
-      "risk_distance": "0.0891247970731708",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "4h",
-      "regime_axes": "T:RANGE/V:LOW/L:DEEP",
-      "bars_held": 34,
-      "leverage": "3",
-      "margin_used": "28.65574386993333333333333333",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "0.7859495941463416",
-      "plan_last_bar_ts": 1791014400000
-    }
-  ],
-  "realized_pnl": "158.5726980455614513710370524",
+  "positions": [],
+  "realized_pnl": "157.9605489935415633637289597",
   "initial_capital": "2000.0",
   "cooldowns": {
-    "zeus_wedge_retest_4h|LINK-USDT|short": 1791033998239,
-    "zeus_channel_boundary_4h|ATOM-USDT|short": 1791034022197
+    "zeus_channel_boundary_4h|WLD-USDT|long": 1791035308491
   },
   "last_extremes_bar": {
     "ADA-USDT": 1790986500000,
@@ -91,7 +30,7 @@
     "FIL-USDT": 1790983800000,
     "ATOM-USDT": 1791032700000,
     "SUI-USDT": 1791027000000,
-    "WLD-USDT": 1791033600000,
+    "WLD-USDT": 1791033900000,
     "ENA-USDT": 1791016500000
   }
 }
