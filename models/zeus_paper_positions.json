@@ -23,7 +23,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "1.1977",
-      "lowest_price": "1.1711",
+      "lowest_price": "1.1706",
       "strategy": "zeus_channel_boundary_4h",
       "opened_at": 1790991406559,
       "notes": {
@@ -52,7 +52,7 @@
       "regime": "RANGE",
       "timeframe": "4h",
       "regime_axes": "T:TRANSITION/V:LOW/L:DEEP",
-      "bars_held": 10,
+      "bars_held": 11,
       "leverage": "3",
       "margin_used": "70.65991206726666666666666667",
       "plan_variant": "STATIC_TP",
@@ -82,7 +82,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "89.878",
-      "lowest_price": "88.980",
+      "lowest_price": "88.684",
       "strategy": "zeus_channel_boundary_4h",
       "opened_at": 1790991732430,
       "notes": {
@@ -111,12 +111,71 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "4h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
-      "bars_held": 18,
+      "bars_held": 19,
       "leverage": "1",
       "margin_used": "211.93343308500",
       "plan_variant": "STATIC_TP",
       "plan_take": "87.35318199999998",
       "plan_last_bar_ts": 1790971200000
+    },
+    {
+      "id": "a4b0add4-dc25-4b96-a02b-27994ad39664",
+      "symbol": "WIF-USDT",
+      "direction": "long",
+      "entry_price": "0.2453",
+      "quantity": "863.70459900",
+      "stop_loss": "0.2433376",
+      "take_profits": [
+        "0.2472624",
+        "0.2492248"
+      ],
+      "tp_filled": [
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.3,
+        0.7
+      ],
+      "initial_quantity": "863.70459900",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "zeus_channel_boundary_4h",
+      "opened_at": 1790993238931,
+      "notes": {
+        "signal_bar_close": 0.2457,
+        "effective_entry": 0.2455453,
+        "initial_stop": 0.2433376,
+        "initial_take": 0.2492248,
+        "stop_pct": 0.008991008991008992,
+        "confidence": 0.7299999999999999,
+        "ml_probability": null,
+        "prior_r": 0.8150000000000001,
+        "costs_r": 0.33366666666666667,
+        "equity_before": 2120.7860489451564,
+        "risk_budget": 21.207860489451566,
+        "binding_constraint": "none",
+        "score": 34.0,
+        "edge_pct": 115.7994,
+        "ev_r": 1.1579939106867616,
+        "ev_confidence": 0.2,
+        "rr": 2.0,
+        "leverage": 3
+      },
+      "fill_price": "0.2455453",
+      "entry_fee_per_unit": "0.00012277265",
+      "risk_distance": "0.0019624",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "4h",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
+      "bars_held": 0,
+      "leverage": "3",
+      "margin_used": "70.622246044900",
+      "plan_variant": "STATIC_TP",
+      "plan_take": "0.2492248",
+      "plan_last_bar_ts": 0
     }
   ],
   "realized_pnl": "117.6775701148433136431089971",
@@ -135,7 +194,7 @@
     "1000PEPE-USDT": 1790922000000,
     "LINK-USDT": 1790987700000,
     "AAVE-USDT": 1790986200000,
-    "HYPE-USDT": 1790992800000,
+    "HYPE-USDT": 1790993100000,
     "LTC-USDT": 1790821200000,
     "APT-USDT": 1790991000000,
     "WIF-USDT": 1790979900000,
@@ -146,6 +205,6 @@
     "UNI-USDT": 1790985300000,
     "FIL-USDT": 1790983800000,
     "ATOM-USDT": 1790985600000,
-    "SUI-USDT": 1790992800000
+    "SUI-USDT": 1790993100000
   }
 }
