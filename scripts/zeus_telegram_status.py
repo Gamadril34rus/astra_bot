@@ -35,7 +35,7 @@ SIGNAL_SYMBOLS: set[str] = {
     "ARB-USDT", "OP-USDT", "UNI-USDT", "FIL-USDT", "ATOM-USDT",
     "INJ-USDT", "TIA-USDT", "WIF-USDT",
 }
-STRONG_CONF = 0.85
+STRONG_CONF = 0.88
 STATE_PATH = Path("models/zeus_tg_notify_state.json")
 JOURNAL_DEFAULT = Path("models/zeus_trade_journal.jsonl")
 
@@ -131,6 +131,8 @@ def _format_important(rows: list[dict], since_ts: int, only_symbols: bool = Fals
             continue
         ev = r.get("event")
         if ev not in PUSH_EVENTS:
+            continue
+        if only_symbols and ev == "stop_adjust":
             continue
         if only_symbols and SIGNAL_SYMBOLS and str(r.get("symbol") or "").upper() not in SIGNAL_SYMBOLS:
             continue
