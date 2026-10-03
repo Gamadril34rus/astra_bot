@@ -103,7 +103,7 @@ def _save_state(state: dict) -> None:
     STATE_PATH.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
 
 
-def _read_journal(path: Path, max_lines: int = 40) -> list[dict]:
+def _read_journal(path: Path, max_lines: int = 2000) -> list[dict]:
     if not path.exists():
         return []
     rows: list[dict] = []
@@ -207,7 +207,7 @@ def _format_important(rows: list[dict], since_ts: int, only_symbols: bool = Fals
         if m != prev:
             out.append(m)
         prev = m
-    return out[-8:]  # не раздувать
+    return out[-20:]  # не раздувать
 
 
 def _heartbeat_text(rows: list[dict]) -> str:
