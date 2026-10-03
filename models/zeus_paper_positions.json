@@ -6,7 +6,7 @@
       "direction": "short",
       "entry_price": "13.913",
       "quantity": "15.12171400",
-      "stop_loss": "14.768702171171176",
+      "stop_loss": "14.024304",
       "take_profits": [
         "13.057297828828824",
         "11.9448850063062952"
@@ -22,8 +22,8 @@
       "initial_quantity": "15.12171400",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "13.883",
+      "lowest_price": "13.844",
       "strategy": "zeus_wedge_retest_4h",
       "opened_at": 1791036135421,
       "notes": {
@@ -52,71 +52,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "4h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 0,
+      "bars_held": 12,
       "leverage": "14",
       "margin_used": "15.02774334871428571428571429",
       "plan_variant": "STATIC_TP",
       "plan_take": "11.9448850063062952",
-      "plan_last_bar_ts": 0
-    },
-    {
-      "id": "58e3bb13-a04e-42c4-913a-a50ca6719224",
-      "symbol": "ARB-USDT",
-      "direction": "short",
-      "entry_price": "0.20231",
-      "quantity": "1067.93074100",
-      "stop_loss": "0.20471693000000002",
-      "take_profits": [
-        "0.19990306999999998",
-        "0.1974961399999999300000000000"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "1067.93074100",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
-      "strategy": "zeus_channel_boundary_4h",
-      "opened_at": 1791036150014,
-      "notes": {
-        "signal_bar_close": 0.20233,
-        "effective_entry": 0.20210769,
-        "initial_stop": 0.20471693000000002,
-        "initial_take": 0.19749613999999993,
-        "stop_pct": 0.01291014706070818,
-        "confidence": 0.7799999999999999,
-        "ml_probability": null,
-        "prior_r": 1.087840610237941,
-        "costs_r": 0.23237535450935726,
-        "equity_before": 2158.3701508606596,
-        "risk_budget": 21.583701508606595,
-        "binding_constraint": "none",
-        "score": 40.0,
-        "edge_pct": 93.2607,
-        "ev_r": 0.9326071420497138,
-        "ev_confidence": 0.3548387096774194,
-        "rr": 2.0000000000000124,
-        "leverage": 1
-      },
-      "fill_price": "0.20210769",
-      "entry_fee_per_unit": "0.000101053845",
-      "risk_distance": "0.00240693000000002",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "4h",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
-      "bars_held": 0,
-      "leverage": "1",
-      "margin_used": "216.0530682117100",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "0.1974961399999999300000000000",
-      "plan_last_bar_ts": 0
+      "plan_last_bar_ts": 1791014400000
     },
     {
       "id": "5a0e1626-0c2f-45c7-a043-e77bc13eea0f",
@@ -124,7 +65,7 @@
       "direction": "long",
       "entry_price": "0.6094",
       "quantity": "138.66835700",
-      "stop_loss": "0.5185752029268292",
+      "stop_loss": "0.6023999999999999",
       "take_profits": [
         "0.7002247970731708",
         "0.7910495941463417000000000000"
@@ -140,8 +81,8 @@
       "initial_quantity": "138.66835700",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "0.6112",
+      "lowest_price": "0.6003",
       "strategy": "zeus_channel_boundary_4h",
       "opened_at": 1791036171392,
       "notes": {
@@ -170,20 +111,22 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "4h",
       "regime_axes": "T:RANGE/V:LOW/L:DEEP",
-      "bars_held": 0,
+      "bars_held": 8,
       "leverage": "2",
       "margin_used": "42.252248377900",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.7910495941463417000000000000",
-      "plan_last_bar_ts": 0
+      "plan_last_bar_ts": 1791014400000
     }
   ],
-  "realized_pnl": "157.9605489935415633637289597",
+  "realized_pnl": "158.0802559818484618381056796",
   "initial_capital": "2000.0",
-  "cooldowns": {},
+  "cooldowns": {
+    "zeus_channel_boundary_4h|ARB-USDT|short": 1791037615495
+  },
   "last_extremes_bar": {
     "ADA-USDT": 1790986500000,
-    "ARB-USDT": 1791027000000,
+    "ARB-USDT": 1791036300000,
     "AVAX-USDT": 1790798100000,
     "OP-USDT": 1790988600000,
     "INJ-USDT": 1791003300000,
@@ -192,7 +135,7 @@
     "TAO-USDT": 1790984400000,
     "DOGE-USDT": 1790922000000,
     "1000PEPE-USDT": 1790922000000,
-    "LINK-USDT": 1791032700000,
+    "LINK-USDT": 1791036300000,
     "AAVE-USDT": 1790986200000,
     "HYPE-USDT": 1791007500000,
     "LTC-USDT": 1791013500000,
@@ -206,7 +149,7 @@
     "FIL-USDT": 1790983800000,
     "ATOM-USDT": 1791032700000,
     "SUI-USDT": 1791027000000,
-    "WLD-USDT": 1791033900000,
+    "WLD-USDT": 1791036300000,
     "ENA-USDT": 1791016500000
   }
 }
