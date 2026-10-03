@@ -23,7 +23,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "1.1977",
-      "lowest_price": "1.1806",
+      "lowest_price": "1.1804",
       "strategy": "zeus_channel_boundary_4h",
       "opened_at": 1790991406559,
       "notes": {
@@ -52,7 +52,7 @@
       "regime": "RANGE",
       "timeframe": "4h",
       "regime_axes": "T:TRANSITION/V:LOW/L:DEEP",
-      "bars_held": 6,
+      "bars_held": 7,
       "leverage": "3",
       "margin_used": "70.65991206726666666666666667",
       "plan_variant": "STATIC_TP",
@@ -65,7 +65,7 @@
       "direction": "short",
       "entry_price": "89.303",
       "quantity": "2.37319500",
-      "stop_loss": "90.27790900000001",
+      "stop_loss": "90.01742399999999",
       "take_profits": [
         "88.32809099999999",
         "87.35318199999998"
@@ -81,8 +81,8 @@
       "initial_quantity": "2.37319500",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "89.878",
+      "lowest_price": "88.980",
       "strategy": "zeus_channel_boundary_4h",
       "opened_at": 1790991732430,
       "notes": {
@@ -111,12 +111,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "4h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
-      "bars_held": 0,
+      "bars_held": 15,
       "leverage": "1",
       "margin_used": "211.93343308500",
       "plan_variant": "STATIC_TP",
       "plan_take": "87.35318199999998",
-      "plan_last_bar_ts": 0
+      "plan_last_bar_ts": 1790971200000
     }
   ],
   "realized_pnl": "117.6775701148433136431089971",
@@ -137,7 +137,7 @@
     "1000PEPE-USDT": 1790922000000,
     "LINK-USDT": 1790987700000,
     "AAVE-USDT": 1790986200000,
-    "HYPE-USDT": 1790987400000,
+    "HYPE-USDT": 1790991900000,
     "LTC-USDT": 1790821200000,
     "APT-USDT": 1790991000000,
     "WIF-USDT": 1790979900000,
@@ -148,6 +148,6 @@
     "UNI-USDT": 1790985300000,
     "FIL-USDT": 1790983800000,
     "ATOM-USDT": 1790985600000,
-    "SUI-USDT": 1790991600000
+    "SUI-USDT": 1790991900000
   }
 }
