@@ -42,6 +42,8 @@ def _snap_positions(engine: TradingEngine) -> dict[str, dict[str, Any]]:
                     if not isinstance(first, dict)
                     else str(first.get("price", ""))
                 )
+            notes = getattr(p, "notes", None)
+            conf = notes.get("confidence") if isinstance(notes, dict) else None
             out[str(p.id)] = {
                 "stop_loss": str(p.stop_loss),
                 "entry_price": str(p.entry_price),
@@ -50,6 +52,7 @@ def _snap_positions(engine: TradingEngine) -> dict[str, dict[str, Any]]:
                 "symbol": getattr(p, "symbol", "") or "",
                 "strategy": getattr(p, "strategy", "") or "",
                 "take_profit": tp0,
+                "confidence": conf,
             }
     except Exception as exc:
         logger.debug("snap: %s", exc)

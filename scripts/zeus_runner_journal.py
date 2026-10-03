@@ -34,6 +34,7 @@ def sync_journal_from_broker(
                     features={
                         "position_id": pid,
                         "quantity": str(meta.get("quantity") or ""),
+                        "confidence": meta.get("confidence"),
                         "source": "zeus_paper_clock",
                     },
                     strategy=str(
@@ -53,7 +54,7 @@ def sync_journal_from_broker(
                     ),
                     old_stop=before[pid].get("stop_loss") or "0",
                     new_stop=meta.get("stop_loss") or "0",
-                    why=f"stop_sync position_id={pid}",
+                    why=f"stop_sync position_id={pid} entry={before[pid].get('entry_price') or meta.get('entry_price') or ''}",
                 )
             except Exception as exc:
                 logger.warning("journal.stop_adjust failed: %s", exc)
