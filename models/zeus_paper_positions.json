@@ -1,69 +1,10 @@
 {
-  "positions": [
-    {
-      "id": "a372c2f9-749d-42a0-84b4-76d75ee6f7bc",
-      "symbol": "LINK-USDT",
-      "direction": "short",
-      "entry_price": "13.82",
-      "quantity": "14.18208500",
-      "stop_loss": "13.882857142857143",
-      "take_profits": [
-        "12.90028511711712",
-        "11.704655769369376"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "14.18208500",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "13.882",
-      "lowest_price": "13.849",
-      "strategy": "zeus_wedge_retest_4h",
-      "opened_at": 1791046922529,
-      "notes": {
-        "signal_bar_close": 13.869,
-        "effective_entry": 13.80618,
-        "initial_stop": 14.73971488288288,
-        "initial_take": 10.600997909909918,
-        "stop_pct": 0.06761717454667981,
-        "confidence": 0.95,
-        "ml_probability": null,
-        "prior_r": 3.229920812121642,
-        "costs_r": 0.0443674261770423,
-        "equity_before": 2172.631190275429,
-        "risk_budget": 21.726311902754293,
-        "binding_constraint": "none",
-        "score": 56.0,
-        "edge_pct": 232.2934,
-        "ev_r": 2.3229343508234788,
-        "ev_confidence": 0.2857142857142857,
-        "rr": 3.5000000000000027,
-        "leverage": 12
-      },
-      "fill_price": "13.80618",
-      "entry_fee_per_unit": "0.006903090",
-      "risk_distance": "0.91971488288288",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "4h",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 5,
-      "leverage": "12",
-      "margin_used": "16.33303455833333333333333333",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "11.704655769369376",
-      "plan_last_bar_ts": 1791028800000
-    }
-  ],
-  "realized_pnl": "172.4297638339708106792878162",
+  "positions": [],
+  "realized_pnl": "170.9502153858909917752356421",
   "initial_capital": "2000.0",
   "cooldowns": {
-    "zeus_channel_boundary_4h|WLD-USDT|long": 1791048156277
+    "zeus_channel_boundary_4h|WLD-USDT|long": 1791048156277,
+    "zeus_wedge_retest_4h|LINK-USDT|short": 1791048423309
   },
   "last_extremes_bar": {
     "ADA-USDT": 1790986500000,
@@ -76,7 +17,7 @@
     "TAO-USDT": 1790984400000,
     "DOGE-USDT": 1790922000000,
     "1000PEPE-USDT": 1790922000000,
-    "LINK-USDT": 1791046800000,
+    "LINK-USDT": 1791047100000,
     "AAVE-USDT": 1790986200000,
     "HYPE-USDT": 1791039300000,
     "LTC-USDT": 1791013500000,
