@@ -1,70 +1,11 @@
 {
-  "positions": [
-    {
-      "id": "8f20b4c0-32b7-4542-8e4a-4f16760d597a",
-      "symbol": "SUI-USDT",
-      "direction": "short",
-      "entry_price": "1.1698",
-      "quantity": "182.98849000",
-      "stop_loss": "1.1791584",
-      "take_profits": [
-        "1.1604416",
-        "1.1510832"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "182.98849000",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
-      "strategy": "zeus_channel_boundary_4h",
-      "opened_at": 1791019955145,
-      "notes": {
-        "signal_bar_close": 1.1706,
-        "effective_entry": 1.1686302,
-        "initial_stop": 1.1791584,
-        "initial_take": 1.1510832,
-        "stop_pct": 0.009009009009009009,
-        "confidence": 0.7799999999999999,
-        "ml_probability": null,
-        "prior_r": 0.9649999999999994,
-        "costs_r": 0.333,
-        "equity_before": 2138.4587589963176,
-        "risk_budget": 21.384587589963175,
-        "binding_constraint": "none",
-        "score": 47.0,
-        "edge_pct": 89.4706,
-        "ev_r": 0.8947055897849127,
-        "ev_confidence": 0.2857142857142857,
-        "rr": 2.0,
-        "leverage": 1
-      },
-      "fill_price": "1.1686302",
-      "entry_fee_per_unit": "0.00058431510",
-      "risk_distance": "0.0093584",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "4h",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
-      "bars_held": 0,
-      "leverage": "1",
-      "margin_used": "214.059935602000",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "1.1510832",
-      "plan_last_bar_ts": 0
-    }
-  ],
-  "realized_pnl": "138.4206492904386586920721123",
+  "positions": [],
+  "realized_pnl": "141.2023098944896522170721123",
   "initial_capital": "2000.0",
   "cooldowns": {
     "zeus_channel_boundary_4h|NEAR-USDT|short": 1791021142806,
-    "zeus_channel_boundary_4h|WLD-USDT|long": 1791021190271
+    "zeus_channel_boundary_4h|WLD-USDT|long": 1791021190271,
+    "zeus_channel_boundary_4h|SUI-USDT|short": 1791021402547
   },
   "last_extremes_bar": {
     "ADA-USDT": 1790986500000,
@@ -90,7 +31,7 @@
     "UNI-USDT": 1790985300000,
     "FIL-USDT": 1790983800000,
     "ATOM-USDT": 1790985600000,
-    "SUI-USDT": 1790999700000,
+    "SUI-USDT": 1791020100000,
     "WLD-USDT": 1791019800000,
     "ENA-USDT": 1791016500000
   }
