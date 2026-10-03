@@ -52,7 +52,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "4h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
-      "bars_held": 32,
+      "bars_held": 33,
       "leverage": "3",
       "margin_used": "71.292351859400",
       "plan_variant": "STATIC_TP",
@@ -63,12 +63,11 @@
   "realized_pnl": "136.8847272996707691873866263",
   "initial_capital": "2000.0",
   "cooldowns": {
-    "zeus_wedge_retest_4h|LTC-USDT|long": 1791014811859,
     "zeus_channel_boundary_4h|WLD-USDT|long": 1791015777287
   },
   "last_extremes_bar": {
     "ADA-USDT": 1790986500000,
-    "ARB-USDT": 1791014400000,
+    "ARB-USDT": 1791014700000,
     "AVAX-USDT": 1790798100000,
     "OP-USDT": 1790988600000,
     "INJ-USDT": 1791003300000,
