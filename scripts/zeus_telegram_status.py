@@ -25,7 +25,9 @@ try:
 except ImportError:
     pass
 
-HEARTBEAT_SEC = 2 * 3600  # не чаще раза в 2 часа, если тихо
+HEARTBEAT_SEC = 12 * 3600
+DIGEST_SEC = 2 * 3600
+PUSH_EVENTS = {"entry", "exit", "stop_adjust"}
 STATE_PATH = Path("models/zeus_tg_notify_state.json")
 JOURNAL_DEFAULT = Path("models/zeus_trade_journal.jsonl")
 
@@ -113,6 +115,8 @@ def _format_important(rows: list[dict], since_ts: int) -> list[str]:
         if ts and since_ts and ts <= since_ts:
             continue
         ev = r.get("event")
+        if ev not in PUSH_EVENTS:
+            continue
         if ev == "entry":
             msgs.append(
                 f"🟢 Вход {r.get('symbol')} {_ru_dir(r.get('direction'))} "
@@ -228,10 +232,12 @@ async def amain(journal: Path, force_heartbeat: bool) -> int:
     important = _format_important(rows, since)
     sent_any = False
 
-    if important:
+    digest_due = (now - int(state.get("last_digest") or 0)) >= DIGEST_SEC * 1000
+    if important and digest_due:
         body = "📊 Zeus paper (research)\n\n" + "\n\n".join(important)
         if await _send(body):
             sent_any = True
+            state["last_digest"] = now
             # max ts among new rows
             max_ts = since
             for r in rows:
