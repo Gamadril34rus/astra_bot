@@ -141,16 +141,19 @@ def _format_important(rows: list[dict], since_ts: int, only_symbols: bool = Fals
                 conf = 0.0
             if conf < STRONG_CONF:
                 continue
-        if only_symbols and ev == "stop_adjust":
+        if ev == "stop_adjust":
             try:
                 entry_p = float(str(r.get("why") or "").split("entry=")[-1])
             except (TypeError, ValueError):
                 entry_p = 0.0
             if entry_p > 0:
                 new_p = float(r.get("new_stop") or 0)
+                old_p = float(r.get("old_stop") or 0)
                 is_long = str(r.get("direction") or "").lower() == "long"
                 locked = new_p >= entry_p if is_long else (new_p <= entry_p and new_p > 0)
                 if not locked:
+                    continue
+                if abs(new_p - old_p) < 0.0015 * entry_p:
                     continue
         if ev == "entry":
             msgs.append(
