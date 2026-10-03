@@ -6,7 +6,7 @@
       "direction": "short",
       "entry_price": "1.1839",
       "quantity": "179.05206200",
-      "stop_loss": "1.1891142857142856",
+      "stop_loss": "1.1933711999999999",
       "take_profits": [
         "1.1665483",
         "1.149196599999999800000000000"
@@ -23,7 +23,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "1.1977",
-      "lowest_price": "1.1764",
+      "lowest_price": "1.1711",
       "strategy": "zeus_channel_boundary_4h",
       "opened_at": 1790991406559,
       "notes": {
@@ -52,7 +52,7 @@
       "regime": "RANGE",
       "timeframe": "4h",
       "regime_axes": "T:TRANSITION/V:LOW/L:DEEP",
-      "bars_held": 9,
+      "bars_held": 10,
       "leverage": "3",
       "margin_used": "70.65991206726666666666666667",
       "plan_variant": "STATIC_TP",
@@ -111,7 +111,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "4h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
-      "bars_held": 17,
+      "bars_held": 18,
       "leverage": "1",
       "margin_used": "211.93343308500",
       "plan_variant": "STATIC_TP",
@@ -135,7 +135,7 @@
     "1000PEPE-USDT": 1790922000000,
     "LINK-USDT": 1790987700000,
     "AAVE-USDT": 1790986200000,
-    "HYPE-USDT": 1790992500000,
+    "HYPE-USDT": 1790992800000,
     "LTC-USDT": 1790821200000,
     "APT-USDT": 1790991000000,
     "WIF-USDT": 1790979900000,
@@ -146,6 +146,6 @@
     "UNI-USDT": 1790985300000,
     "FIL-USDT": 1790983800000,
     "ATOM-USDT": 1790985600000,
-    "SUI-USDT": 1790992500000
+    "SUI-USDT": 1790992800000
   }
 }
