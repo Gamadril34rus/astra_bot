@@ -1,9 +1,68 @@
 {
-  "positions": [],
+  "positions": [
+    {
+      "id": "27aed04a-d818-4f89-a67b-669a90d640df",
+      "symbol": "WIF-USDT",
+      "direction": "long",
+      "entry_price": "0.2447",
+      "quantity": "868.76250300",
+      "stop_loss": "0.2427424",
+      "take_profits": [
+        "0.2466576",
+        "0.2486152"
+      ],
+      "tp_filled": [
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.3,
+        0.7
+      ],
+      "initial_quantity": "868.76250300",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "zeus_channel_boundary_4h",
+      "opened_at": 1791000748279,
+      "notes": {
+        "signal_bar_close": 0.2445,
+        "effective_entry": 0.2449447,
+        "initial_stop": 0.2427424,
+        "initial_take": 0.2486152,
+        "stop_pct": 0.008991008991008992,
+        "confidence": 0.7299999999999999,
+        "ml_probability": null,
+        "prior_r": 0.8150000000000002,
+        "costs_r": 0.33366666666666667,
+        "equity_before": 2127.9877055621564,
+        "risk_budget": 21.279877055621565,
+        "binding_constraint": "none",
+        "score": 27.0,
+        "edge_pct": 101.6793,
+        "ev_r": 1.0167934939253858,
+        "ev_confidence": 0.3103448275862069,
+        "rr": 2.0,
+        "leverage": 2
+      },
+      "fill_price": "0.2449447",
+      "entry_fee_per_unit": "0.00012247235",
+      "risk_distance": "0.0019576",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "4h",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
+      "bars_held": 0,
+      "leverage": "2",
+      "margin_used": "106.293092242050",
+      "plan_variant": "STATIC_TP",
+      "plan_take": "0.2486152",
+      "plan_last_bar_ts": 0
+    }
+  ],
   "realized_pnl": "127.9877055621564455417524760",
   "initial_capital": "2000.0",
   "cooldowns": {
-    "zeus_channel_boundary_4h|WIF-USDT|long": 1791000444735,
     "zeus_channel_boundary_4h|SUI-USDT|short": 1791001041991,
     "zeus_wedge_retest_4h|LTC-USDT|long": 1791001590456
   },
