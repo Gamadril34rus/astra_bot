@@ -1,17 +1,17 @@
 {
-  "updated": "2026-10-03T00:41:55.360545+00:00",
+  "updated": "2026-10-03T00:47:23.720219+00:00",
   "buckets": {
     "zeus_channel_boundary_4h|ANY|4h": {
-      "sample_size": 80,
-      "wins": 53,
+      "sample_size": 81,
+      "wins": 54,
       "losses": 27,
-      "sum_r": 80.33162711752291,
-      "wins_sum_r": 94.82399620968269,
+      "sum_r": 86.39286274264231,
+      "wins_sum_r": 100.88523183480208,
       "losses_sum_r": -14.4923690921598,
-      "sum_mfe_r": 139.21330017698537,
-      "sum_mae_r": 137.219089945849,
-      "sum_fees": 8.208620978708824,
-      "last_updated": "2026-10-03T00:41:55.360519+00:00"
+      "sum_mfe_r": 146.972067265378,
+      "sum_mae_r": 141.54956459983558,
+      "sum_fees": 8.413334747049111,
+      "last_updated": "2026-10-03T00:47:23.720198+00:00"
     },
     "zeus_wedge_retest_4h|ANY|4h": {
       "sample_size": 8,
@@ -74,16 +74,16 @@
       "last_updated": "2026-10-03T00:16:33.669218+00:00"
     },
     "zeus_channel_boundary_4h|RANGE|4h": {
-      "sample_size": 6,
-      "wins": 6,
+      "sample_size": 7,
+      "wins": 7,
       "losses": 0,
-      "sum_r": 25.18793828906278,
-      "wins_sum_r": 25.18793828906278,
+      "sum_r": 31.249173914182172,
+      "wins_sum_r": 31.249173914182172,
       "losses_sum_r": 0.0,
-      "sum_mfe_r": 33.24589875063577,
-      "sum_mae_r": 16.535778216673588,
-      "sum_fees": 1.2425845434168608,
-      "last_updated": "2026-10-03T00:41:55.360513+00:00"
+      "sum_mfe_r": 41.0046658390284,
+      "sum_mae_r": 20.866252870660173,
+      "sum_fees": 1.4472983117571485,
+      "last_updated": "2026-10-03T00:47:23.720194+00:00"
     },
     "zeus_channel_boundary_4h|T:TRANSITION/V:VERY_LOW/L:DEEP|4h": {
       "sample_size": 5,
@@ -108,6 +108,18 @@
       "sum_mae_r": 1.023104300153546,
       "sum_fees": 0.20328099796260002,
       "last_updated": "2026-10-03T00:36:28.550332+00:00"
+    },
+    "zeus_channel_boundary_4h|T:TRANSITION/V:LOW/L:DEEP|4h": {
+      "sample_size": 1,
+      "wins": 1,
+      "losses": 0,
+      "sum_r": 6.061235625119391,
+      "wins_sum_r": 6.061235625119391,
+      "losses_sum_r": 0.0,
+      "sum_mfe_r": 7.75876708839263,
+      "sum_mae_r": 4.330474653986584,
+      "sum_fees": 0.2047137683402877,
+      "last_updated": "2026-10-03T00:47:23.720183+00:00"
     }
   }
 }
