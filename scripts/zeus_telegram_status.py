@@ -28,6 +28,14 @@ except ImportError:
 HEARTBEAT_SEC = 12 * 3600
 DIGEST_SEC = 2 * 3600
 PUSH_EVENTS = {"entry", "exit", "stop_adjust"}
+SIGNAL_SYMBOLS: set[str] = {
+    "BTC-USDT", "ETH-USDT", "SOL-USDT", "BNB-USDT", "XRP-USDT",
+    "DOGE-USDT", "ADA-USDT", "AVAX-USDT", "LINK-USDT", "DOT-USDT",
+    "LTC-USDT", "BCH-USDT", "NEAR-USDT", "APT-USDT", "SUI-USDT",
+    "ARB-USDT", "OP-USDT", "UNI-USDT", "FIL-USDT", "ATOM-USDT",
+    "INJ-USDT", "TIA-USDT", "WIF-USDT",
+}
+STRONG_CONF = 0.85
 STATE_PATH = Path("models/zeus_tg_notify_state.json")
 JOURNAL_DEFAULT = Path("models/zeus_trade_journal.jsonl")
 
@@ -74,6 +82,13 @@ def _pct(fraction: object) -> str:
         return "—"
 
 
+def _fp(v: object) -> str:
+    try:
+        return f"{float(v):.5g}"
+    except (TypeError, ValueError):
+        return "—"
+
+
 def _load_state() -> dict:
     if not STATE_PATH.exists():
         return {"last_ts": 0, "last_heartbeat": 0, "last_notified_line": 0}
@@ -107,7 +122,7 @@ def _read_journal(path: Path, max_lines: int = 40) -> list[dict]:
     return rows
 
 
-def _format_important(rows: list[dict], since_ts: int) -> list[str]:
+def _format_important(rows: list[dict], since_ts: int, only_symbols: bool = False) -> list[str]:
     """События, о которых стоит писать сразу."""
     msgs: list[str] = []
     for r in rows:
@@ -117,27 +132,40 @@ def _format_important(rows: list[dict], since_ts: int) -> list[str]:
         ev = r.get("event")
         if ev not in PUSH_EVENTS:
             continue
+        if only_symbols and SIGNAL_SYMBOLS and str(r.get("symbol") or "").upper() not in SIGNAL_SYMBOLS:
+            continue
+        if only_symbols and ev == "entry":
+            try:
+                conf = float((r.get("features") or {}).get("confidence") or 0)
+            except (TypeError, ValueError):
+                conf = 0.0
+            if conf < STRONG_CONF:
+                continue
+        if only_symbols and ev == "stop_adjust":
+            try:
+                entry_p = float(str(r.get("why") or "").split("entry=")[-1])
+            except (TypeError, ValueError):
+                entry_p = 0.0
+            if entry_p > 0:
+                new_p = float(r.get("new_stop") or 0)
+                is_long = str(r.get("direction") or "").lower() == "long"
+                locked = new_p >= entry_p if is_long else (new_p <= entry_p and new_p > 0)
+                if not locked:
+                    continue
         if ev == "entry":
             msgs.append(
-                f"🟢 Вход {r.get('symbol')} {_ru_dir(r.get('direction'))} "
-                f"по ${r.get('entry_price')}\n"
-                f"причина: {r.get('reason')}\n"
-                f"стоп ${r.get('stop_loss')} · тейк ${r.get('take_profit')}"
+                f"🟢 {r.get('symbol')}: {_ru_dir(r.get('direction'))} по ${_fp(r.get('entry_price'))}\n"
+                f"стоп ${_fp(r.get('stop_loss'))} · тейк ${_fp(r.get('take_profit'))}"
             )
         elif ev == "exit":
             r_mult = r.get("r_multiple")
             r_part = f"{float(r_mult):+.2f}R · " if r_mult is not None else ""
             msgs.append(
-                f"🏁 Выход {r.get('symbol')} {_ru_dir(r.get('direction'))} "
-                f"по ${r.get('exit_price')}\n"
-                f"итог: {r_part}{_ru(r.get('reason'), EXIT_REASONS_RU)}"
+                f"🏁 {r.get('symbol')}: закрыта {_ru_dir(r.get('direction'))} · итог: {r_part}{_ru(r.get('reason'), EXIT_REASONS_RU)}"
             )
         elif ev == "stop_adjust":
-            mfe = r.get("mfe_r")
-            mfe_part = f" · MFE {float(mfe):+.2f}R" if mfe is not None else ""
             msgs.append(
-                f"🔧 Стоп {r.get('symbol')}: ${r.get('old_stop')} → "
-                f"${r.get('new_stop')}{mfe_part}"
+                f"🔧 {r.get('symbol')}: стоп подтянут ${_fp(r.get('old_stop'))} → ${_fp(r.get('new_stop'))}"
             )
         elif ev == "ltf_impulse" and r.get("near_structure"):
             msgs.append(
@@ -183,16 +211,7 @@ def _format_important(rows: list[dict], since_ts: int) -> list[str]:
 
 
 def _heartbeat_text(rows: list[dict]) -> str:
-    last = rows[-1] if rows else {}
-    rejects = [r for r in rows if r.get("event") == "reject"]
-    last_rej = rejects[-1] if rejects else {}
-    return (
-        "📊 Zeus paper (research): всё тихо\n"
-        f"последнее событие: {last.get('event', '—')}\n"
-        f"последний фильтр: {_ru(last_rej.get('reason'), REJECT_REASONS_RU)} "
-        f"[{_ru(last_rej.get('stage'), STAGE_RU)}]\n"
-        "live не включён · риск не трогаем"
-    )
+    return "📊 Zeus paper: тихо, сделок нет"
 
 
 async def _send(text: str) -> bool:
@@ -232,19 +251,26 @@ async def amain(journal: Path, force_heartbeat: bool) -> int:
     important = _format_important(rows, since)
     sent_any = False
 
-    digest_due = (now - int(state.get("last_digest") or 0)) >= DIGEST_SEC * 1000
-    if important and digest_due:
-        body = "📊 Zeus paper (research)\n\n" + "\n\n".join(important)
+    signals = _format_important(rows, since, only_symbols=True)
+    if signals:
+        body = "✅ Zeus:\n\n" + "\n\n".join(signals)
         if await _send(body):
             sent_any = True
-            state["last_digest"] = now
-            # max ts among new rows
             max_ts = since
             for r in rows:
                 ts = int(r.get("ts") or 0)
                 if ts > max_ts:
                     max_ts = ts
             state["last_ts"] = max_ts or now
+
+    digest_due = (now - int(state.get("last_digest") or 0)) >= DIGEST_SEC * 1000
+    if digest_due:
+        digest = _format_important(rows, int(state.get("last_digest") or 0))
+        if digest:
+            body = "📊 Zeus paper:\n\n" + "\n\n".join(digest)
+            if await _send(body):
+                sent_any = True
+        state["last_digest"] = now
 
     last_hb = int(state.get("last_heartbeat") or 0)
     if force_heartbeat or (
