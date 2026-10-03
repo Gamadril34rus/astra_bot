@@ -17,6 +17,8 @@
 | Статус | учится на бумаге, TG-алерты выключены (03.10), live не раньше подтверждённого эджа | сигналит владельцу в Telegram; live — отдельное решение владельца |
 | Паспорт | docs/README_ARCHIVE_2026-10-03.md | этот README |
 
+Юниверс ASTRA (35 пар, все против USDT): BTC · ETH · SOL · BNB · XRP · ADA · AVAX · DOGE · LINK · DOT · TRX · LTC · BCH · ATOM · NEAR · APT · ARB · OP · SUI · INJ · TIA · FIL · ICP · HBAR · AAVE · UNI · FET · TON · XLM · SHIB · PEPE · ETC · CRO · MKR · XMR
+
 ## Zeus: как работает
 
 Каждые 5 мин внешний планировщик (cron-job.org) дергает workflow_dispatch → раннер делает один цикл по 30 символам (наблюдения + решения) → состояние (позиции, сделки, журнал, статистика) коммитится на master с retry/autostash. Нативный */5 остался запасным, параллельность гасится concurrency-группой.
