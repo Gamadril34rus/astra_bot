@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-03T12:01:11.866334+00:00",
+ "updated": "2026-10-03T12:02:43.922516+00:00",
  "outcomes": {
   "ee0905ba0f325831850b": {
    "bar_time": 1790610900000,
@@ -82733,6 +82733,76 @@
     }
    },
    "computed_at": "2026-10-03T12:01:11.864838+00:00"
+  },
+  "d9c7546b2d752f7f79c7": {
+   "bar_time": 1791028500000,
+   "symbol": "BTC-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.000188,
+     "max_up": 0.000189,
+     "max_down": -1e-06
+    }
+   },
+   "computed_at": "2026-10-03T12:02:34.556103+00:00"
+  },
+  "3eab074745d158a907b8": {
+   "bar_time": 1791028500000,
+   "symbol": "ETH-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 3e-05,
+     "max_up": 0.000138,
+     "max_down": -4e-06
+    }
+   },
+   "computed_at": "2026-10-03T12:02:37.591700+00:00"
+  },
+  "8154cd854e97c05aedab": {
+   "bar_time": 1791028500000,
+   "symbol": "SOL-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.000704,
+     "max_up": 0.000839,
+     "max_down": -0.00026
+    }
+   },
+   "computed_at": "2026-10-03T12:02:41.649840+00:00"
+  },
+  "ef55ac8a0a02a5e42945": {
+   "bar_time": 1791028500000,
+   "symbol": "SOL-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.000704,
+     "max_up": 0.000839,
+     "max_down": -0.00026
+    }
+   },
+   "computed_at": "2026-10-03T12:02:41.649892+00:00"
+  },
+  "92de64cf4f86c59bc2eb": {
+   "bar_time": 1791028500000,
+   "symbol": "BNB-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000818,
+     "max_up": 1.3e-05,
+     "max_down": -0.000857
+    }
+   },
+   "computed_at": "2026-10-03T12:02:43.921172+00:00"
   }
  }
 }
