@@ -1,70 +1,11 @@
 {
-  "positions": [
-    {
-      "id": "4a820298-db0b-4a18-85a8-28d83d32636e",
-      "symbol": "ATOM-USDT",
-      "direction": "long",
-      "entry_price": "1.77",
-      "quantity": "85.57463100",
-      "stop_loss": "1.6153797659999998",
-      "take_profits": [
-        "1.9246202340000002",
-        "2.12562653820000046"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "85.57463100",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
-      "strategy": "zeus_wedge_retest_4h",
-      "opened_at": 1791127628463,
-      "notes": {
-        "signal_bar_close": 1.785,
-        "effective_entry": 1.77177,
-        "initial_stop": 1.6153797659999998,
-        "initial_take": 2.311170819000001,
-        "stop_pct": 0.0882677966101696,
-        "confidence": 0.95,
-        "ml_probability": null,
-        "prior_r": 3.2406577935330243,
-        "costs_r": 0.03398748031798452,
-        "equity_before": 2196.190615460137,
-        "risk_budget": 21.96190615460137,
-        "binding_constraint": "none",
-        "score": 62.0,
-        "edge_pct": 144.3224,
-        "ev_r": 1.4432235431438605,
-        "ev_confidence": 0.5555555555555556,
-        "rr": 3.5000000000000018,
-        "leverage": 5
-      },
-      "fill_price": "1.77177",
-      "entry_fee_per_unit": "0.000885885",
-      "risk_distance": "0.1546202340000002",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "4h",
-      "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
-      "bars_held": 0,
-      "leverage": "5",
-      "margin_used": "30.2934193740",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "2.12562653820000046",
-      "plan_last_bar_ts": 0
-    }
-  ],
-  "realized_pnl": "196.1906154601370464412415160",
+  "positions": [],
+  "realized_pnl": "197.1493174697878708787415160",
   "initial_capital": "2000.0",
   "cooldowns": {
     "zeus_channel_boundary_4h|APT-USDT|short": 1791128516463,
-    "zeus_wedge_retest_4h|BCH-USDT|long": 1791128804754
+    "zeus_wedge_retest_4h|BCH-USDT|long": 1791128804754,
+    "zeus_wedge_retest_4h|ATOM-USDT|long": 1791129172876
   },
   "last_extremes_bar": {
     "ADA-USDT": 1790986500000,
@@ -89,7 +30,7 @@
     "NEAR-USDT": 1791113400000,
     "UNI-USDT": 1790985300000,
     "FIL-USDT": 1791054300000,
-    "ATOM-USDT": 1791042600000,
+    "ATOM-USDT": 1791127800000,
     "SUI-USDT": 1791027000000,
     "WLD-USDT": 1791048600000,
     "ENA-USDT": 1791069600000,
