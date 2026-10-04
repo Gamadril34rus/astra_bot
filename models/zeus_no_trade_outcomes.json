@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-04T17:01:40.198843+00:00",
+ "updated": "2026-10-04T17:03:04.719095+00:00",
  "outcomes": {
   "ee0905ba0f325831850b": {
    "bar_time": 1790610900000,
@@ -222010,6 +222010,20 @@
     }
    },
    "computed_at": "2026-10-04T17:01:40.195619+00:00"
+  },
+  "60e0c67d09fa500507b2": {
+   "bar_time": 1791132900000,
+   "symbol": "BTC-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -1.3e-05,
+     "max_up": 0.000234,
+     "max_down": -1.4e-05
+    }
+   },
+   "computed_at": "2026-10-04T17:03:04.716040+00:00"
   }
  }
 }
