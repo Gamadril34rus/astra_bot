@@ -1,68 +1,10 @@
 {
-  "positions": [
-    {
-      "id": "d70172c0-ae78-4aca-aa0c-434258b8326a",
-      "symbol": "BCH-USDT",
-      "direction": "long",
-      "entry_price": "318.61",
-      "quantity": "0.68820500",
-      "stop_loss": "316.06112",
-      "take_profits": [
-        "336.5229896096095",
-        "359.80987610210185"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "0.68820500",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "318.36",
-      "lowest_price": "317.41",
-      "strategy": "zeus_wedge_retest_4h",
-      "opened_at": 1791123707672,
-      "notes": {
-        "signal_bar_close": 317.76,
-        "effective_entry": 318.92861,
-        "initial_stop": 300.6970103903905,
-        "initial_take": 381.3054636336333,
-        "stop_pct": 0.057165143038153586,
-        "confidence": 0.95,
-        "ml_probability": null,
-        "prior_r": 3.221640397787803,
-        "costs_r": 0.052479532815963,
-        "equity_before": 2194.8829681359375,
-        "risk_budget": 21.948829681359374,
-        "binding_constraint": "none",
-        "score": 40.0,
-        "edge_pct": 183.3345,
-        "ev_r": 1.833344982078758,
-        "ev_confidence": 0.42857142857142855,
-        "rr": 3.5000000000000027,
-        "leverage": 10
-      },
-      "fill_price": "318.92861",
-      "entry_fee_per_unit": "0.159464305",
-      "risk_distance": "17.9129896096095",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "4h",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 8,
-      "leverage": "10",
-      "margin_used": "21.9268995050",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "359.80987610210185",
-      "plan_last_bar_ts": 1791100800000
-    }
-  ],
-  "realized_pnl": "194.8829681359375153332381709",
+  "positions": [],
+  "realized_pnl": "193.4839015960811768900341654",
   "initial_capital": "2000.0",
-  "cooldowns": {},
+  "cooldowns": {
+    "zeus_wedge_retest_4h|BCH-USDT|long": 1791126141452
+  },
   "last_extremes_bar": {
     "ADA-USDT": 1790986500000,
     "ARB-USDT": 1791036300000,
@@ -82,7 +24,7 @@
     "WIF-USDT": 1791079500000,
     "BNB-USDT": 1790945400000,
     "XRP-USDT": 1790977500000,
-    "BCH-USDT": 1791124500000,
+    "BCH-USDT": 1791124800000,
     "NEAR-USDT": 1791113400000,
     "UNI-USDT": 1790985300000,
     "FIL-USDT": 1791054300000,
