@@ -1,5 +1,65 @@
 {
-  "positions": [],
+  "positions": [
+    {
+      "id": "5935fa8b-ce8f-45a3-824c-d110c1d27f75",
+      "symbol": "ENA-USDT",
+      "direction": "short",
+      "entry_price": "0.2412",
+      "quantity": "911.83609700",
+      "stop_loss": "0.2431296",
+      "take_profits": [
+        "0.2392704",
+        "0.2373408"
+      ],
+      "tp_filled": [
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.3,
+        0.7
+      ],
+      "initial_quantity": "911.83609700",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "zeus_channel_boundary_4h",
+      "opened_at": 1791136066121,
+      "notes": {
+        "signal_bar_close": 0.24164,
+        "effective_entry": 0.2409588,
+        "initial_stop": 0.2431296,
+        "initial_take": 0.2373408,
+        "stop_pct": 0.009009009009009009,
+        "confidence": 0.7799999999999999,
+        "ml_probability": null,
+        "prior_r": 0.9650000000000005,
+        "costs_r": 0.333,
+        "equity_before": 2197.149317469788,
+        "risk_budget": 21.97149317469788,
+        "binding_constraint": "none",
+        "score": 27.0,
+        "edge_pct": 94.3846,
+        "ev_r": 0.943845588141823,
+        "ev_confidence": 0.09090909090909091,
+        "rr": 2.0,
+        "leverage": 1
+      },
+      "fill_price": "0.2409588",
+      "entry_fee_per_unit": "0.00012047940",
+      "risk_distance": "0.0019296",
+      "regime": "WEAK_BULL_TREND",
+      "timeframe": "4h",
+      "regime_axes": "T:WEAK/V:VERY_LOW/L:DEEP",
+      "bars_held": 0,
+      "leverage": "1",
+      "margin_used": "219.934866596400",
+      "plan_variant": "STATIC_TP",
+      "plan_take": "0.2373408",
+      "plan_last_bar_ts": 0
+    }
+  ],
   "realized_pnl": "197.1493174697878708787415160",
   "initial_capital": "2000.0",
   "cooldowns": {},
