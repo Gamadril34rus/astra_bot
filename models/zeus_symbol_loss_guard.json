@@ -4,7 +4,7 @@
   "losses": {
     "TIA-USDT": 2,
     "LINK-USDT": 2,
-    "BCH-USDT": 2,
+    "BCH-USDT": 3,
     "AVAX-USDT": 0,
     "XRP-USDT": 0,
     "DOT-USDT": 1,
@@ -30,5 +30,7 @@
     "WLD-USDT": 0,
     "ENA-USDT": 0
   },
-  "pause_until": {}
+  "pause_until": {
+    "BCH-USDT": "2026-10-04T19:26:44.950491+00:00"
+  }
 }
