@@ -1,68 +1,10 @@
 {
-  "positions": [
-    {
-      "id": "24e669e3-f6e5-42df-929a-aabf4a3f6af9",
-      "symbol": "NEAR-USDT",
-      "direction": "short",
-      "entry_price": "4.89",
-      "quantity": "44.84545900",
-      "stop_loss": "4.929119999999999",
-      "take_profits": [
-        "4.850880000000001",
-        "4.811760000000000500000000000"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "44.84545900",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
-      "strategy": "zeus_channel_boundary_4h",
-      "opened_at": 1791111410522,
-      "notes": {
-        "signal_bar_close": 4.888,
-        "effective_entry": 4.88511,
-        "initial_stop": 4.929119999999999,
-        "initial_take": 4.8117600000000005,
-        "stop_pct": 0.009009009009008804,
-        "confidence": 0.7799999999999999,
-        "ml_probability": null,
-        "prior_r": 0.9649999999999961,
-        "costs_r": 0.33300000000000757,
-        "equity_before": 2190.749998984131,
-        "risk_budget": 21.90749998984131,
-        "binding_constraint": "none",
-        "score": 27.0,
-        "edge_pct": 94.3846,
-        "ev_r": 0.9438455881418188,
-        "ev_confidence": 0.09090909090909091,
-        "rr": 2.000000000000038,
-        "leverage": 1
-      },
-      "fill_price": "4.88511",
-      "entry_fee_per_unit": "0.002442555",
-      "risk_distance": "0.039119999999999",
-      "regime": "WEAK_BULL_TREND",
-      "timeframe": "4h",
-      "regime_axes": "T:WEAK/V:LOW/L:DEEP",
-      "bars_held": 0,
-      "leverage": "1",
-      "margin_used": "219.2942945100",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "4.811760000000000500000000000",
-      "plan_last_bar_ts": 0
-    }
-  ],
-  "realized_pnl": "190.7499989841309930835996771",
+  "positions": [],
+  "realized_pnl": "194.5129364085644920557071532",
   "initial_capital": "2000.0",
-  "cooldowns": {},
+  "cooldowns": {
+    "zeus_channel_boundary_4h|NEAR-USDT|short": 1791112935906
+  },
   "last_extremes_bar": {
     "ADA-USDT": 1790986500000,
     "ARB-USDT": 1791036300000,
@@ -83,7 +25,7 @@
     "BNB-USDT": 1790945400000,
     "XRP-USDT": 1790977500000,
     "BCH-USDT": 1790983200000,
-    "NEAR-USDT": 1791077700000,
+    "NEAR-USDT": 1791111600000,
     "UNI-USDT": 1790985300000,
     "FIL-USDT": 1791054300000,
     "ATOM-USDT": 1791042600000,
