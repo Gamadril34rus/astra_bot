@@ -1,17 +1,17 @@
 {
-  "updated": "2026-10-04T15:32:53.640088+00:00",
+  "updated": "2026-10-04T17:52:32.025731+00:00",
   "buckets": {
     "zeus_channel_boundary_4h|ANY|4h": {
-      "sample_size": 151,
-      "wins": 96,
+      "sample_size": 152,
+      "wins": 97,
       "losses": 55,
-      "sum_r": 122.89613589670711,
-      "wins_sum_r": 144.04928494252945,
+      "sum_r": 125.01239120221085,
+      "wins_sum_r": 146.16554024803318,
       "losses_sum_r": -21.153149045822342,
-      "sum_mfe_r": 236.09664139508754,
-      "sum_mae_r": 181.17656238360541,
-      "sum_fees": 21.59640328160211,
-      "last_updated": "2026-10-04T15:21:56.738967+00:00"
+      "sum_mfe_r": 239.4911272989018,
+      "sum_mae_r": 181.42531860251088,
+      "sum_fees": 21.814172979708644,
+      "last_updated": "2026-10-04T17:52:32.025704+00:00"
     },
     "zeus_wedge_retest_4h|ANY|4h": {
       "sample_size": 26,
@@ -170,28 +170,28 @@
       "last_updated": "2026-10-04T01:37:17.632334+00:00"
     },
     "zeus_channel_boundary_4h|T:WEAK/V:VERY_LOW/L:DEEP|4h": {
-      "sample_size": 2,
-      "wins": 2,
-      "losses": 0,
-      "sum_r": 1.4646029391200939,
-      "wins_sum_r": 1.4646029391200939,
-      "losses_sum_r": 0.0,
-      "sum_mfe_r": 4.076216916034359,
-      "sum_mae_r": 1.073219093045415,
-      "sum_fees": 0.4304019888813116,
-      "last_updated": "2026-10-03T22:37:09.402141+00:00"
-    },
-    "zeus_channel_boundary_4h|WEAK_BULL_TREND|4h": {
       "sample_size": 3,
       "wins": 3,
       "losses": 0,
-      "sum_r": 3.609515916018133,
-      "wins_sum_r": 3.609515916018133,
+      "sum_r": 3.5808582446238333,
+      "wins_sum_r": 3.5808582446238333,
       "losses_sum_r": 0.0,
-      "sum_mfe_r": 7.961697488631595,
-      "sum_mae_r": 1.175468581797974,
-      "sum_fees": 0.6474998649231392,
-      "last_updated": "2026-10-04T11:02:16.223093+00:00"
+      "sum_mfe_r": 7.470702819848621,
+      "sum_mae_r": 1.3219753119508877,
+      "sum_fees": 0.6481716869878437,
+      "last_updated": "2026-10-04T17:52:32.025689+00:00"
+    },
+    "zeus_channel_boundary_4h|WEAK_BULL_TREND|4h": {
+      "sample_size": 4,
+      "wins": 4,
+      "losses": 0,
+      "sum_r": 5.725771221521873,
+      "wins_sum_r": 5.725771221521873,
+      "losses_sum_r": 0.0,
+      "sum_mfe_r": 11.356183392445857,
+      "sum_mae_r": 1.4242248007034466,
+      "sum_fees": 0.8652695630296712,
+      "last_updated": "2026-10-04T17:52:32.025700+00:00"
     },
     "zeus_channel_boundary_4h|T:STRONG/V:LOW/L:DEEP|4h": {
       "sample_size": 3,
