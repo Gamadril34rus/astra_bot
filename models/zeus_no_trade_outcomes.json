@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-05T16:31:36.485074+00:00",
+ "updated": "2026-10-05T16:33:52.110699+00:00",
  "outcomes": {
   "ee0905ba0f325831850b": {
    "bar_time": 1790610900000,
@@ -335056,6 +335056,166 @@
     }
    },
    "computed_at": "2026-10-05T16:31:36.481976+00:00"
+  },
+  "47c40c740d18028de193": {
+   "bar_time": 1791217500000,
+   "symbol": "BTC-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.000918,
+     "max_up": 0.001318,
+     "max_down": -0.000197
+    }
+   },
+   "computed_at": "2026-10-05T16:33:18.982433+00:00"
+  },
+  "6ce5361c29d9ef2aef91": {
+   "bar_time": 1791217500000,
+   "symbol": "ETH-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.000875,
+     "max_up": 0.001385,
+     "max_down": -0.000328
+    }
+   },
+   "computed_at": "2026-10-05T16:33:21.784644+00:00"
+  },
+  "6de87175095966895c3e": {
+   "bar_time": 1791217500000,
+   "symbol": "SOL-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.001025,
+     "max_up": 0.001538,
+     "max_down": -0.000681
+    }
+   },
+   "computed_at": "2026-10-05T16:33:24.972818+00:00"
+  },
+  "f980a612488794e39526": {
+   "bar_time": 1791217500000,
+   "symbol": "BNB-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.001591,
+     "max_up": 0.001794,
+     "max_down": -3.8e-05
+    }
+   },
+   "computed_at": "2026-10-05T16:33:27.832203+00:00"
+  },
+  "a815c0a250325ef2e6b8": {
+   "bar_time": 1791217500000,
+   "symbol": "XRP-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.00047,
+     "max_up": 0.002016,
+     "max_down": -0.001747
+    }
+   },
+   "computed_at": "2026-10-05T16:33:31.248352+00:00"
+  },
+  "7bb44d4c283f017c0c5e": {
+   "bar_time": 1791217500000,
+   "symbol": "DOGE-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.00298,
+     "max_up": 0.00298,
+     "max_down": -0.000851
+    }
+   },
+   "computed_at": "2026-10-05T16:33:35.387788+00:00"
+  },
+  "de826f7849c1546b470a": {
+   "bar_time": 1791217500000,
+   "symbol": "ADA-USDT",
+   "reason_code": "PORTFOLIO_DIRECTION",
+   "market_regime": "RANGE",
+   "horizons": {
+    "1": {
+     "future_return": 0.0042,
+     "max_up": 0.004964,
+     "max_down": -0.000764
+    }
+   },
+   "computed_at": "2026-10-05T16:33:38.533095+00:00",
+   "hypothetic_r": {
+    "r": 0.0087,
+    "exit_kind": "time",
+    "bars": 1,
+    "incomplete": true
+   }
+  },
+  "55e1cb1a73437c9c1d13": {
+   "bar_time": 1791217500000,
+   "symbol": "AVAX-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.00212,
+     "max_up": 0.002673,
+     "max_down": -0.000922
+    }
+   },
+   "computed_at": "2026-10-05T16:33:41.150873+00:00"
+  },
+  "df40903609e4d397db8f": {
+   "bar_time": 1791217500000,
+   "symbol": "DOT-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.001764,
+     "max_up": 0.003107,
+     "max_down": -0.00126
+    }
+   },
+   "computed_at": "2026-10-05T16:33:44.001597+00:00"
+  },
+  "51e3291dd5a887c6fad1": {
+   "bar_time": 1791217500000,
+   "symbol": "LINK-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.001673,
+     "max_up": 0.001964,
+     "max_down": -0.001091
+    }
+   },
+   "computed_at": "2026-10-05T16:33:46.919335+00:00"
+  },
+  "885ed18b74452f783541": {
+   "bar_time": 1791217500000,
+   "symbol": "BCH-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.002613,
+     "max_up": 0.002613,
+     "max_down": 0.0
+    }
+   },
+   "computed_at": "2026-10-05T16:33:52.106376+00:00"
   }
  }
 }
