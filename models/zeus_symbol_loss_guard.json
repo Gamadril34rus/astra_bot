@@ -2,7 +2,7 @@
   "max_consecutive": 3,
   "pause_hours": 4.0,
   "losses": {
-    "TIA-USDT": 2,
+    "TIA-USDT": 3,
     "LINK-USDT": 2,
     "BCH-USDT": 0,
     "AVAX-USDT": 0,
@@ -31,5 +31,7 @@
     "ENA-USDT": 0,
     "PENDLE-USDT": 0
   },
-  "pause_until": {}
+  "pause_until": {
+    "TIA-USDT": "2026-10-05T07:17:20.519412+00:00"
+  }
 }
