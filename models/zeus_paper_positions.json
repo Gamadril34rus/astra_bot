@@ -52,7 +52,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "4h",
       "regime_axes": "T:RANGE/V:LOW/L:DEEP",
-      "bars_held": 67,
+      "bars_held": 68,
       "leverage": "9",
       "margin_used": "16.72171400900",
       "plan_variant": "STATIC_TP",
@@ -111,7 +111,7 @@
       "regime": "RANGE",
       "timeframe": "4h",
       "regime_axes": "T:TRANSITION/V:VERY_LOW/L:DEEP",
-      "bars_held": 5,
+      "bars_held": 6,
       "leverage": "2",
       "margin_used": "112.071126734700",
       "plan_variant": "STATIC_TP",
@@ -121,9 +121,7 @@
   ],
   "realized_pnl": "241.5803774152631451882056740",
   "initial_capital": "2000.0",
-  "cooldowns": {
-    "zeus_channel_boundary_4h|ENA-USDT|long": 1791237460740
-  },
+  "cooldowns": {},
   "last_extremes_bar": {
     "ADA-USDT": 1791225900000,
     "ARB-USDT": 1791036300000,
@@ -144,12 +142,12 @@
     "BNB-USDT": 1790945400000,
     "XRP-USDT": 1790977500000,
     "BCH-USDT": 1791146700000,
-    "NEAR-USDT": 1791237000000,
+    "NEAR-USDT": 1791237300000,
     "UNI-USDT": 1790985300000,
     "FIL-USDT": 1791054300000,
     "ATOM-USDT": 1791203100000,
     "SUI-USDT": 1791027000000,
-    "WLD-USDT": 1791237000000,
+    "WLD-USDT": 1791237300000,
     "ENA-USDT": 1791236100000,
     "DOT-USDT": 1791049200000,
     "PENDLE-USDT": 1791138600000
