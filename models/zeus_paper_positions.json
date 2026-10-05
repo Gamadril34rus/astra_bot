@@ -1,68 +1,10 @@
 {
-  "positions": [
-    {
-      "id": "c1e98d89-c496-4586-b7ec-ee48d481fab8",
-      "symbol": "WIF-USDT",
-      "direction": "long",
-      "entry_price": "0.2506",
-      "quantity": "878.94109900",
-      "stop_loss": "0.2465482",
-      "take_profits": [
-        "0.2546518",
-        "0.2587036"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "878.94109900",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
-      "strategy": "zeus_channel_boundary_4h",
-      "opened_at": 1791176319717,
-      "notes": {
-        "signal_bar_close": 0.2492,
-        "effective_entry": 0.2508506,
-        "initial_stop": 0.2465482,
-        "initial_take": 0.2587036,
-        "stop_pct": 0.01715124460535474,
-        "confidence": 0.83,
-        "ml_probability": null,
-        "prior_r": 1.3044528357766914,
-        "costs_r": 0.17491441985868353,
-        "equity_before": 2204.829019968465,
-        "risk_budget": 22.04829019968465,
-        "binding_constraint": "none",
-        "score": 34.0,
-        "edge_pct": 65.634,
-        "ev_r": 0.6563402996966229,
-        "ev_confidence": 0.855072463768116,
-        "rr": 2.0,
-        "leverage": 1
-      },
-      "fill_price": "0.2508506",
-      "entry_fee_per_unit": "0.00012542530",
-      "risk_distance": "0.0040518",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "4h",
-      "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
-      "bars_held": 0,
-      "leverage": "1",
-      "margin_used": "220.262639409400",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "0.2587036",
-      "plan_last_bar_ts": 0
-    }
-  ],
-  "realized_pnl": "204.8290199684651780396582496",
+  "positions": [],
+  "realized_pnl": "208.5616176281402375831507701",
   "initial_capital": "2000.0",
-  "cooldowns": {},
+  "cooldowns": {
+    "zeus_channel_boundary_4h|WIF-USDT|long": 1791177791578
+  },
   "last_extremes_bar": {
     "ADA-USDT": 1790986500000,
     "ARB-USDT": 1791036300000,
@@ -79,7 +21,7 @@
     "HYPE-USDT": 1791061200000,
     "LTC-USDT": 1791013500000,
     "APT-USDT": 1791127200000,
-    "WIF-USDT": 1791079500000,
+    "WIF-USDT": 1791176400000,
     "BNB-USDT": 1790945400000,
     "XRP-USDT": 1790977500000,
     "BCH-USDT": 1791146700000,
