@@ -1,5 +1,65 @@
 {
-  "positions": [],
+  "positions": [
+    {
+      "id": "dd9144b0-851e-4ab7-91f6-8c6be55025c3",
+      "symbol": "DOGE-USDT",
+      "direction": "long",
+      "entry_price": "0.09542",
+      "quantity": "2347.44647400",
+      "stop_loss": "0.09249722482",
+      "take_profits": [
+        "0.09834277518",
+        "0.102142382914"
+      ],
+      "tp_filled": [
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.3,
+        0.7
+      ],
+      "initial_quantity": "2347.44647400",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "zeus_wedge_retest_4h",
+      "opened_at": 1791240733941,
+      "notes": {
+        "signal_bar_close": 0.09576,
+        "effective_entry": 0.09551542,
+        "initial_stop": 0.09249722482,
+        "initial_take": 0.10564971313000002,
+        "stop_pct": 0.03159903584154265,
+        "confidence": 0.8999999999999999,
+        "ml_probability": null,
+        "prior_r": 2.952058837108367,
+        "costs_r": 0.09493960559568583,
+        "equity_before": 2242.173359113118,
+        "risk_budget": 22.421733591131176,
+        "binding_constraint": "none",
+        "score": 53.0,
+        "edge_pct": 280.5906,
+        "ev_r": 2.8059062042401743,
+        "ev_confidence": 0.047619047619047616,
+        "rr": 3.500000000000007,
+        "leverage": 20
+      },
+      "fill_price": "0.09551542",
+      "entry_fee_per_unit": "0.000047757710",
+      "risk_distance": "0.00292277518",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "4h",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
+      "bars_held": 0,
+      "leverage": "20",
+      "margin_used": "11.1996671274540",
+      "plan_variant": "STATIC_TP",
+      "plan_take": "0.102142382914",
+      "plan_last_bar_ts": 0
+    }
+  ],
   "realized_pnl": "242.1733591131176944626518214",
   "initial_capital": "2000.0",
   "cooldowns": {
