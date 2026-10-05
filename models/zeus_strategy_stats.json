@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05T12:17:09.830345+00:00",
+  "updated": "2026-10-05T12:27:23.339099+00:00",
   "buckets": {
     "zeus_channel_boundary_4h|ANY|4h": {
       "sample_size": 160,
@@ -14,16 +14,16 @@
       "last_updated": "2026-10-05T10:08:42.445700+00:00"
     },
     "zeus_wedge_retest_4h|ANY|4h": {
-      "sample_size": 34,
+      "sample_size": 35,
       "wins": 13,
-      "losses": 21,
-      "sum_r": 0.8221822222761552,
+      "losses": 22,
+      "sum_r": 0.8074379968169855,
       "wins_sum_r": 3.066048291798176,
-      "losses_sum_r": -2.2438660695220207,
-      "sum_mfe_r": 4.772788209415788,
-      "sum_mae_r": 6.80166040460275,
-      "sum_fees": 5.841483309747679,
-      "last_updated": "2026-10-05T12:17:09.830313+00:00"
+      "losses_sum_r": -2.2586102949811906,
+      "sum_mfe_r": 4.950506107469359,
+      "sum_mae_r": 6.823875141859446,
+      "sum_fees": 6.063112961187187,
+      "last_updated": "2026-10-05T12:27:23.339066+00:00"
     },
     "zeus_channel_boundary_4h|LOW_VOLATILITY|4h": {
       "sample_size": 120,
@@ -38,16 +38,16 @@
       "last_updated": "2026-10-05T08:08:34.524729+00:00"
     },
     "zeus_wedge_retest_4h|LOW_VOLATILITY|4h": {
-      "sample_size": 34,
+      "sample_size": 35,
       "wins": 13,
-      "losses": 21,
-      "sum_r": 0.8221822222761552,
+      "losses": 22,
+      "sum_r": 0.8074379968169855,
       "wins_sum_r": 3.066048291798176,
-      "losses_sum_r": -2.2438660695220207,
-      "sum_mfe_r": 4.772788209415788,
-      "sum_mae_r": 6.80166040460275,
-      "sum_fees": 5.841483309747679,
-      "last_updated": "2026-10-05T12:17:09.830307+00:00"
+      "losses_sum_r": -2.2586102949811906,
+      "sum_mfe_r": 4.950506107469359,
+      "sum_mae_r": 6.823875141859446,
+      "sum_fees": 6.063112961187187,
+      "last_updated": "2026-10-05T12:27:23.339061+00:00"
     },
     "zeus_channel_boundary_4h|T:RANGE/V:VERY_LOW/L:DEEP|4h": {
       "sample_size": 21,
@@ -266,16 +266,16 @@
       "last_updated": "2026-10-05T08:08:34.524717+00:00"
     },
     "zeus_wedge_retest_4h|T:RANGE/V:VERY_LOW/L:NORMAL|4h": {
-      "sample_size": 4,
+      "sample_size": 5,
       "wins": 2,
-      "losses": 2,
-      "sum_r": 0.45113439832391716,
+      "losses": 3,
+      "sum_r": 0.43639017286474735,
       "wins_sum_r": 0.4868786788031604,
-      "losses_sum_r": -0.03574428047924323,
-      "sum_mfe_r": 1.1178266091990863,
-      "sum_mae_r": 1.1353998741873246,
-      "sum_fees": 0.8889177974208458,
-      "last_updated": "2026-10-05T12:17:09.830296+00:00"
+      "losses_sum_r": -0.05048850593841303,
+      "sum_mfe_r": 1.2955445072526572,
+      "sum_mae_r": 1.157614611444021,
+      "sum_fees": 1.1105474488603537,
+      "last_updated": "2026-10-05T12:27:23.339050+00:00"
     }
   }
 }
