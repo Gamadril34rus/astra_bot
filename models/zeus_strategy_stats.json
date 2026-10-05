@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05T08:22:39.881437+00:00",
+  "updated": "2026-10-05T08:47:23.046805+00:00",
   "buckets": {
     "zeus_channel_boundary_4h|ANY|4h": {
       "sample_size": 158,
@@ -14,16 +14,16 @@
       "last_updated": "2026-10-05T08:22:39.881404+00:00"
     },
     "zeus_wedge_retest_4h|ANY|4h": {
-      "sample_size": 30,
-      "wins": 11,
+      "sample_size": 31,
+      "wins": 12,
       "losses": 19,
-      "sum_r": 0.3710478239522381,
-      "wins_sum_r": 2.5791696129950155,
+      "sum_r": 0.42211448431525833,
+      "wins_sum_r": 2.630236273358036,
       "losses_sum_r": -2.2081217890427776,
-      "sum_mfe_r": 3.654961600216702,
-      "sum_mae_r": 5.666260530415425,
-      "sum_fees": 4.952565512326833,
-      "last_updated": "2026-10-04T20:47:23.277934+00:00"
+      "sum_mfe_r": 3.8771089727836654,
+      "sum_mae_r": 6.099447906921004,
+      "sum_fees": 5.1744144157490695,
+      "last_updated": "2026-10-05T08:47:23.046771+00:00"
     },
     "zeus_channel_boundary_4h|LOW_VOLATILITY|4h": {
       "sample_size": 120,
@@ -38,16 +38,16 @@
       "last_updated": "2026-10-05T08:08:34.524729+00:00"
     },
     "zeus_wedge_retest_4h|LOW_VOLATILITY|4h": {
-      "sample_size": 30,
-      "wins": 11,
+      "sample_size": 31,
+      "wins": 12,
       "losses": 19,
-      "sum_r": 0.3710478239522381,
-      "wins_sum_r": 2.5791696129950155,
+      "sum_r": 0.42211448431525833,
+      "wins_sum_r": 2.630236273358036,
       "losses_sum_r": -2.2081217890427776,
-      "sum_mfe_r": 3.654961600216702,
-      "sum_mae_r": 5.666260530415425,
-      "sum_fees": 4.952565512326833,
-      "last_updated": "2026-10-04T20:47:23.277929+00:00"
+      "sum_mfe_r": 3.8771089727836654,
+      "sum_mae_r": 6.099447906921004,
+      "sum_fees": 5.1744144157490695,
+      "last_updated": "2026-10-05T08:47:23.046766+00:00"
     },
     "zeus_channel_boundary_4h|T:RANGE/V:VERY_LOW/L:DEEP|4h": {
       "sample_size": 21,
@@ -264,6 +264,18 @@
       "sum_mae_r": 2.539561776787015,
       "sum_fees": 0.4463096754965936,
       "last_updated": "2026-10-05T08:08:34.524717+00:00"
+    },
+    "zeus_wedge_retest_4h|T:RANGE/V:VERY_LOW/L:NORMAL|4h": {
+      "sample_size": 1,
+      "wins": 1,
+      "losses": 0,
+      "sum_r": 0.05106666036302023,
+      "wins_sum_r": 0.05106666036302023,
+      "losses_sum_r": 0.0,
+      "sum_mfe_r": 0.2221473725669637,
+      "sum_mae_r": 0.4331873765055792,
+      "sum_fees": 0.22184890342223657,
+      "last_updated": "2026-10-05T08:47:23.046752+00:00"
     }
   }
 }
