@@ -1,65 +1,6 @@
 {
   "positions": [
     {
-      "id": "18ea27f4-e281-4d99-9649-589fc2ea1bdb",
-      "symbol": "ENA-USDT",
-      "direction": "long",
-      "entry_price": "0.2525",
-      "quantity": "551.15298500",
-      "stop_loss": "0.25048",
-      "take_profits": [
-        "0.27372161803658573",
-        "0.2949432360731714700000000000"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "551.15298500",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "0.25779",
-      "lowest_price": "0.23649",
-      "strategy": "zeus_channel_boundary_4h",
-      "opened_at": 1791190672331,
-      "notes": {
-        "signal_bar_close": 0.25223,
-        "effective_entry": 0.2527525,
-        "initial_stop": 0.23127838196341427,
-        "initial_take": 0.29494323607317147,
-        "stop_pct": 0.08496105097510699,
-        "confidence": 0.71,
-        "ml_probability": null,
-        "prior_r": 1.0943052665120028,
-        "costs_r": 0.03531029766662114,
-        "equity_before": 2214.8349483428137,
-        "risk_budget": 22.148349483428138,
-        "binding_constraint": "none",
-        "score": 53.0,
-        "edge_pct": 94.5779,
-        "ev_r": 0.9457794792933302,
-        "ev_confidence": 0.13043478260869565,
-        "rr": 2.0000000000000004,
-        "leverage": 1
-      },
-      "fill_price": "0.2527525",
-      "entry_fee_per_unit": "0.00012637625",
-      "risk_distance": "0.02122161803658573",
-      "regime": "STRONG_BULL_TREND",
-      "timeframe": "4h",
-      "regime_axes": "T:STRONG/V:LOW/L:DEEP",
-      "bars_held": 180,
-      "leverage": "1",
-      "margin_used": "139.166128712500",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "0.2949432360731714700000000000",
-      "plan_last_bar_ts": 1791172800000
-    },
-    {
       "id": "dd93e118-780d-4e6e-9343-6e177410dfb4",
       "symbol": "ATOM-USDT",
       "direction": "long",
@@ -111,7 +52,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "4h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
-      "bars_held": 10,
+      "bars_held": 11,
       "leverage": "16",
       "margin_used": "13.82888957625",
       "plan_variant": "STATIC_TP",
@@ -119,9 +60,11 @@
       "plan_last_bar_ts": 1791172800000
     }
   ],
-  "realized_pnl": "214.8349483428137184818532252",
+  "realized_pnl": "214.7496835301844385701261376",
   "initial_capital": "2000.0",
-  "cooldowns": {},
+  "cooldowns": {
+    "zeus_channel_boundary_4h|ENA-USDT|long": 1791194564807
+  },
   "last_extremes_bar": {
     "ADA-USDT": 1790986500000,
     "ARB-USDT": 1791036300000,
@@ -145,10 +88,10 @@
     "NEAR-USDT": 1791113400000,
     "UNI-USDT": 1790985300000,
     "FIL-USDT": 1791054300000,
-    "ATOM-USDT": 1791192900000,
+    "ATOM-USDT": 1791193200000,
     "SUI-USDT": 1791027000000,
     "WLD-USDT": 1791188400000,
-    "ENA-USDT": 1791192900000,
+    "ENA-USDT": 1791193200000,
     "DOT-USDT": 1791049200000,
     "PENDLE-USDT": 1791138600000
   }
