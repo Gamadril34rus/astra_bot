@@ -52,12 +52,71 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "4h",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
-      "bars_held": 26,
+      "bars_held": 27,
       "leverage": "15",
       "margin_used": "15.1076187471880",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.27763308311411459",
       "plan_last_bar_ts": 1791259200000
+    },
+    {
+      "id": "45bce891-a1e2-442b-aaa5-374a31f81642",
+      "symbol": "ATOM-USDT",
+      "direction": "long",
+      "entry_price": "1.817",
+      "quantity": "116.97697400",
+      "stop_loss": "1.7006474444444437",
+      "take_profits": [
+        "1.9333525555555563",
+        "2.08461087777777949"
+      ],
+      "tp_filled": [
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.3,
+        0.7
+      ],
+      "initial_quantity": "116.97697400",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "zeus_wedge_retest_4h",
+      "opened_at": 1791274347734,
+      "notes": {
+        "signal_bar_close": 1.806,
+        "effective_entry": 1.818817,
+        "initial_stop": 1.7006474444444437,
+        "initial_take": 2.224233944444447,
+        "stop_pct": 0.06497055809108684,
+        "confidence": 0.95,
+        "ml_probability": null,
+        "prior_r": 3.228151007522159,
+        "costs_r": 0.0461747611247865,
+        "equity_before": 2268.408954206584,
+        "risk_budget": 22.68408954206584,
+        "binding_constraint": "none",
+        "score": 45.0,
+        "edge_pct": 259.9976,
+        "ev_r": 2.599976412932317,
+        "ev_confidence": 0.2,
+        "rr": 3.4999999999999996,
+        "leverage": 13
+      },
+      "fill_price": "1.818817",
+      "entry_fee_per_unit": "0.0009094085",
+      "risk_distance": "0.1163525555555563",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "4h",
+      "regime_axes": "T:RANGE/V:VERY_LOW/L:NORMAL",
+      "bars_held": 0,
+      "leverage": "13",
+      "margin_used": "16.34978167369230769230769231",
+      "plan_variant": "STATIC_TP",
+      "plan_take": "2.08461087777777949",
+      "plan_last_bar_ts": 0
     }
   ],
   "realized_pnl": "268.4089542065839827215459434",
@@ -89,7 +148,7 @@
     "ATOM-USDT": 1791203100000,
     "SUI-USDT": 1791027000000,
     "WLD-USDT": 1791238800000,
-    "ENA-USDT": 1791273900000,
+    "ENA-USDT": 1791274200000,
     "DOT-USDT": 1791049200000,
     "PENDLE-USDT": 1791138600000
   }
