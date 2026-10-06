@@ -1,74 +1,16 @@
 {
-  "positions": [
-    {
-      "id": "512539cc-c7cf-4961-81af-0b7416ca44b0",
-      "symbol": "INJ-USDT",
-      "direction": "long",
-      "entry_price": "8.05",
-      "quantity": "26.32602300",
-      "stop_loss": "7.985600000000001",
-      "take_profits": [
-        "8.5337402512195085",
-        "9.017480502439020000000000000"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "26.32602300",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "8.138",
-      "lowest_price": "7.499",
-      "strategy": "zeus_channel_boundary_4h",
-      "opened_at": 1791317577237,
-      "notes": {
-        "signal_bar_close": 8.021,
-        "effective_entry": 8.05805,
-        "initial_stop": 7.5662597487804915,
-        "initial_take": 9.01748050243902,
-        "stop_pct": 0.06103092574748339,
-        "confidence": 0.83,
-        "ml_probability": null,
-        "prior_r": 1.4400765132958897,
-        "costs_r": 0.04915540708677035,
-        "equity_before": 2263.935548680445,
-        "risk_budget": 22.63935548680445,
-        "binding_constraint": "none",
-        "score": 57.0,
-        "edge_pct": 146.0081,
-        "ev_r": 1.4600813715901502,
-        "ev_confidence": 0.2,
-        "rr": 2.000000000000006,
-        "leverage": 5
-      },
-      "fill_price": "8.05805",
-      "entry_fee_per_unit": "0.004029025",
-      "risk_distance": "0.4837402512195085",
-      "regime": "WEAK_BULL_TREND",
-      "timeframe": "4h",
-      "regime_axes": "T:WEAK/V:VERY_LOW/L:DEEP",
-      "bars_held": 252,
-      "leverage": "5",
-      "margin_used": "42.3848970300",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "9.017480502439020000000000000",
-      "plan_last_bar_ts": 1791302400000
-    }
-  ],
-  "realized_pnl": "263.9355486804451264883125138",
+  "positions": [],
+  "realized_pnl": "263.1988057898189096795961770",
   "initial_capital": "2000.0",
-  "cooldowns": {},
+  "cooldowns": {
+    "zeus_channel_boundary_4h|INJ-USDT|long": 1791319999150
+  },
   "last_extremes_bar": {
     "ADA-USDT": 1791225900000,
     "ARB-USDT": 1791036300000,
     "AVAX-USDT": 1790798100000,
     "OP-USDT": 1791254100000,
-    "INJ-USDT": 1791318300000,
+    "INJ-USDT": 1791318600000,
     "SOL-USDT": 1790977500000,
     "TIA-USDT": 1791251100000,
     "TAO-USDT": 1791066900000,
