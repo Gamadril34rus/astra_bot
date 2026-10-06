@@ -1,68 +1,10 @@
 {
-  "positions": [
-    {
-      "id": "ba055d72-43d9-44d3-a480-4cd92fac64db",
-      "symbol": "ENA-USDT",
-      "direction": "long",
-      "entry_price": "0.24558",
-      "quantity": "921.31357100",
-      "stop_loss": "0.2316438769069067",
-      "take_profits": [
-        "0.2595161230930933",
-        "0.27763308311411459"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "921.31357100",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
-      "strategy": "zeus_wedge_retest_4h",
-      "opened_at": 1791265968973,
-      "notes": {
-        "signal_bar_close": 0.24377,
-        "effective_entry": 0.24582558,
-        "initial_stop": 0.2316438769069067,
-        "initial_take": 0.2943564308258266,
-        "stop_pct": 0.0576901032557039,
-        "confidence": 0.95,
-        "ml_probability": null,
-        "prior_r": 3.222134508279055,
-        "costs_r": 0.052001987008116264,
-        "equity_before": 2264.824429753732,
-        "risk_budget": 22.64824429753732,
-        "binding_constraint": "none",
-        "score": 46.0,
-        "edge_pct": 281.3563,
-        "ev_r": 2.813563194855666,
-        "ev_confidence": 0.13043478260869565,
-        "rr": 3.500000000000003,
-        "leverage": 15
-      },
-      "fill_price": "0.24582558",
-      "entry_fee_per_unit": "0.000122912790",
-      "risk_distance": "0.0139361230930933",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "4h",
-      "regime_axes": "T:RANGE/V:VERY_LOW/L:STRESSED",
-      "bars_held": 0,
-      "leverage": "15",
-      "margin_used": "15.0837457844120",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "0.27763308311411459",
-      "plan_last_bar_ts": 0
-    }
-  ],
-  "realized_pnl": "264.8244297537321636017334434",
+  "positions": [],
+  "realized_pnl": "268.4089542065839827215459434",
   "initial_capital": "2000.0",
-  "cooldowns": {},
+  "cooldowns": {
+    "zeus_wedge_retest_4h|ENA-USDT|long": 1791267470822
+  },
   "last_extremes_bar": {
     "ADA-USDT": 1791225900000,
     "ARB-USDT": 1791036300000,
@@ -89,7 +31,7 @@
     "ATOM-USDT": 1791203100000,
     "SUI-USDT": 1791027000000,
     "WLD-USDT": 1791238800000,
-    "ENA-USDT": 1791247800000,
+    "ENA-USDT": 1791266100000,
     "DOT-USDT": 1791049200000,
     "PENDLE-USDT": 1791138600000
   }
