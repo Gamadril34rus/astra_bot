@@ -38,7 +38,7 @@ fastapi>=0.100.0
 uvicorn>=0.53.0
 
 # Monitoring
-prometheus-client>=0.19
+prometheus-client>=0.26.0
 
 # Retry & logging (Block 1)
 tenacity>=9.1.4
