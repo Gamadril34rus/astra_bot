@@ -1,17 +1,17 @@
 {
-  "updated": "2026-10-07T02:03:19.270309+00:00",
+  "updated": "2026-10-07T02:06:53.726625+00:00",
   "buckets": {
     "zeus_channel_boundary_4h|ANY|4h": {
-      "sample_size": 189,
-      "wins": 120,
+      "sample_size": 190,
+      "wins": 121,
       "losses": 69,
-      "sum_r": 152.85740870396774,
-      "wins_sum_r": 176.4959601665118,
+      "sum_r": 163.5772545554879,
+      "wins_sum_r": 187.21580601803197,
       "losses_sum_r": -23.638551462544008,
-      "sum_mfe_r": 292.94189324537973,
-      "sum_mae_r": 220.99885837369234,
-      "sum_fees": 29.598445426290574,
-      "last_updated": "2026-10-07T02:03:19.270280+00:00"
+      "sum_mfe_r": 305.93525002537194,
+      "sum_mae_r": 225.39510690827618,
+      "sum_fees": 29.835132073628426,
+      "last_updated": "2026-10-07T02:06:53.726594+00:00"
     },
     "zeus_wedge_retest_4h|ANY|4h": {
       "sample_size": 54,
@@ -350,16 +350,28 @@
       "last_updated": "2026-10-05T18:46:47.933120+00:00"
     },
     "zeus_channel_boundary_4h|STRONG_BEAR_TREND|4h": {
-      "sample_size": 1,
-      "wins": 0,
+      "sample_size": 2,
+      "wins": 1,
       "losses": 1,
-      "sum_r": -0.31824529813980257,
-      "wins_sum_r": 0.0,
+      "sum_r": 10.401600553380385,
+      "wins_sum_r": 10.719845851520187,
       "losses_sum_r": -0.31824529813980257,
-      "sum_mfe_r": 0.5003266020874738,
-      "sum_mae_r": 0.27795922338192985,
-      "sum_fees": 0.22320413016535542,
-      "last_updated": "2026-10-05T17:03:52.676233+00:00"
+      "sum_mfe_r": 13.49368338207966,
+      "sum_mae_r": 4.6742077579657515,
+      "sum_fees": 0.45989077750320806,
+      "last_updated": "2026-10-07T02:06:53.726588+00:00"
+    },
+    "zeus_channel_boundary_4h|T:STRONG/V:LOW/L:STRESSED|4h": {
+      "sample_size": 1,
+      "wins": 1,
+      "losses": 0,
+      "sum_r": 10.719845851520187,
+      "wins_sum_r": 10.719845851520187,
+      "losses_sum_r": 0.0,
+      "sum_mfe_r": 12.993356779992185,
+      "sum_mae_r": 4.396248534583822,
+      "sum_fees": 0.23668664733785266,
+      "last_updated": "2026-10-07T02:06:53.726576+00:00"
     }
   }
 }
