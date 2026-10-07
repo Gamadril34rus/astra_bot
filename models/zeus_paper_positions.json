@@ -1,10 +1,68 @@
 {
-  "positions": [],
+  "positions": [
+    {
+      "id": "96f2e4f6-9953-4b2d-bc5b-5c093fe3c573",
+      "symbol": "ADA-USDT",
+      "direction": "long",
+      "entry_price": "0.2533",
+      "quantity": "928.70142300",
+      "stop_loss": "0.25127360000000004",
+      "take_profits": [
+        "0.25532639999999996",
+        "0.2573528000000000000000000000"
+      ],
+      "tp_filled": [
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.3,
+        0.7
+      ],
+      "initial_quantity": "928.70142300",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "zeus_channel_boundary_4h",
+      "opened_at": 1791342418350,
+      "notes": {
+        "signal_bar_close": 0.2534,
+        "effective_entry": 0.2535533,
+        "initial_stop": 0.25127360000000004,
+        "initial_take": 0.2573528,
+        "stop_pct": 0.008991008991008834,
+        "confidence": 0.7299999999999999,
+        "ml_probability": null,
+        "prior_r": 0.8149999999999965,
+        "costs_r": 0.3336666666666725,
+        "equity_before": 2354.7531053657776,
+        "risk_budget": 23.547531053657778,
+        "binding_constraint": "none",
+        "score": 27.0,
+        "edge_pct": 94.3753,
+        "ev_r": 0.9437526570461416,
+        "ev_confidence": 0.09090909090909091,
+        "rr": 2.0000000000000395,
+        "leverage": 1
+      },
+      "fill_price": "0.2535533",
+      "entry_fee_per_unit": "0.00012677665",
+      "risk_distance": "0.00202639999999996",
+      "regime": "STRONG_BEAR_TREND",
+      "timeframe": "4h",
+      "regime_axes": "T:STRONG/V:LOW/L:NORMAL",
+      "bars_held": 0,
+      "leverage": "1",
+      "margin_used": "235.240070445900",
+      "plan_variant": "STATIC_TP",
+      "plan_take": "0.2573528000000000000000000000",
+      "plan_last_bar_ts": 0
+    }
+  ],
   "realized_pnl": "354.7531053657777295910485041",
   "initial_capital": "2000.0",
   "cooldowns": {
-    "zeus_channel_boundary_4h|AAVE-USDT|long": 1791342452123,
-    "zeus_channel_boundary_4h|ATOM-USDT|long": 1791342460671,
     "zeus_channel_boundary_4h|FIL-USDT|long": 1791342757597,
     "zeus_channel_boundary_4h|APT-USDT|long": 1791343018543
   },
