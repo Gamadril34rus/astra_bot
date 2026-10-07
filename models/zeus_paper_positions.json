@@ -6,7 +6,7 @@
       "direction": "long",
       "entry_price": "11.039",
       "quantity": "21.70255400",
-      "stop_loss": "10.903882999999999",
+      "stop_loss": "10.95357142857143",
       "take_profits": [
         "11.174117000000001",
         "11.309234000000002"
@@ -22,8 +22,8 @@
       "initial_quantity": "21.70255400",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "11.047",
+      "lowest_price": "11.034",
       "strategy": "zeus_channel_boundary_4h",
       "opened_at": 1791412929926,
       "notes": {
@@ -52,12 +52,12 @@
       "regime": "WEAK_BEAR_TREND",
       "timeframe": "4h",
       "regime_axes": "T:WEAK/V:VERY_LOW/L:DEEP",
-      "bars_held": 0,
+      "bars_held": 1,
       "leverage": "3",
       "margin_used": "79.85816453533333333333333333",
       "plan_variant": "STATIC_TP",
       "plan_take": "11.309234000000002",
-      "plan_last_bar_ts": 0
+      "plan_last_bar_ts": 1791388800000
     }
   ],
   "realized_pnl": "398.1406876793908381290819267",
@@ -66,7 +66,7 @@
   "last_extremes_bar": {
     "ADA-USDT": 1791390900000,
     "ARB-USDT": 1791036300000,
-    "AVAX-USDT": 1791412800000,
+    "AVAX-USDT": 1791413100000,
     "OP-USDT": 1791340800000,
     "INJ-USDT": 1791398400000,
     "SOL-USDT": 1790977500000,
