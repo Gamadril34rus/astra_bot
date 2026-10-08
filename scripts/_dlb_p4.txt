@@ -1,0 +1,94 @@
+                        result_r = (entry - exit_px) / risk - 2 * COST_PER_SIDE * entry / risk
+                    _append({
+                        "signal_id": pos["signal_id"], "ts": int(time.time() * 1000),
+                        "symbol": symbol, "side": side, "geom": pos.get("geom"),
+                        "lb": pos.get("lb"),
+                        "status": "closed", "result_r": result_r, "mfe_r": 0.0, "mae_r": 0.0,
+                        "hold_hours": None, "exit_reason": "eod",
+                    })
+                    del open_map[key]
+                    changed = True
+                    continue
+            else:
+                entry_i = 0
+            exit_reason = None
+            exit_px = None
+            tp1_hit = False
+            be = False
+            mfe = mae = 0.0
+            for i in range(entry_i + 1, len(c)):
+                hi, lo = h[i], l[i]
+                if side == "long":
+                    mfe = max(mfe, (hi - entry) / risk)
+                    mae = min(mae, (lo - entry) / risk)
+                    if not tp1_hit and hi >= tp1:
+                        tp1_hit = be = True
+                        stop = entry
+                    if lo <= stop:
+                        exit_reason = "be_stop" if be and stop == entry else "stop"
+                        exit_px = stop
+                        break
+                    if hi >= tp2:
+                        exit_reason, exit_px = "tp2", tp2
+                        break
+                else:
+                    mfe = max(mfe, (entry - lo) / risk)
+                    mae = min(mae, (entry - hi) / risk)
+                    if not tp1_hit and lo <= tp1:
+                        tp1_hit = be = True
+                        stop = entry
+                    if hi >= stop:
+                        exit_reason = "be_stop" if be and stop == entry else "stop"
+                        exit_px = stop
+                        break
+                    if lo <= tp2:
+                        exit_reason, exit_px = "tp2", tp2
+                        break
+            if exit_reason is None:
+                continue
+            cost_r = 2 * COST_PER_SIDE * entry / risk
+            if side == "long":
+                r_tp1 = (tp1 - entry) / risk
+                r_final = (float(exit_px) - entry) / risk
+            else:
+                r_tp1 = (entry - tp1) / risk
+                r_final = (entry - float(exit_px)) / risk
+            if tp1_hit:
+                if exit_reason == "be_stop":
+                    result_r = 0.5 * r_tp1 + 0.5 * 0.0 - cost_r
+                else:
+                    result_r = 0.5 * r_tp1 + 0.5 * r_final - cost_r
+            else:
+                result_r = r_final - cost_r
+            _append({
+                "signal_id": pos["signal_id"], "ts": int(time.time() * 1000),
+                "symbol": symbol, "side": side, "geom": pos.get("geom"),
+                "lb": pos.get("lb"),
+                "status": "closed", "result_r": result_r, "mfe_r": mfe, "mae_r": mae,
+                "hold_hours": max(0, len(c) - entry_i - 1), "exit_reason": exit_reason,
+            })
+            key_sym = f"zeus_wedge_retest_1h|{symbol}"
+            if result_r < 0:
+                loss_streak[key_sym] = int(loss_streak.get(key_sym, 0)) + 1
+                if loss_streak[key_sym] >= 3:
+                    pause_until[key_sym] = time.time() + 36 * 3600
+                    loss_streak[key_sym] = 0
+            del open_map[key]
+            changed = True
+    if changed:
+        _save_state(st)
+
+
+async def observe_wedge_1h_shadow(
+    *,
+    bingx: Any,
+    symbol: str,
+    regime: str | None = None,
+    lbs: Sequence[int] | None = None,
+    lb: int | None = None,
+) -> None:
+    """Fetch 1h bars once; scan each lookback window independently."""
+    windows = list(lbs) if lbs is not None else ([int(lb)] if lb is not None else list(LOOKBACKS))
+    try:
+        need = max(max(windows) + 80, 200)
+        klines = await bingx.get_candles(symbol, "1h", limit=need)
