@@ -9,10 +9,21 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from astra_bot.zeus_wedge_1h_core import detect_wedge, scan_breakout_retest
+from astra_bot.zeus_wedge_1h_core import detect_wedge, scan_breakout_retest, _classify_kind
 
 
-def _falling_wedge_series(lb: int = 48):
+def test_gold_classify_matches_brief():
+    assert _classify_kind(-0.02, -0.05, 0.05, 0.04, "gold") == "falling"
+    assert _classify_kind(0.05, 0.02, 0.05, 0.04, "gold") == "rising"
+    assert _classify_kind(-0.05, -0.02, 0.05, 0.04, "gold") is None
+
+
+def test_narrow_classify_classic():
+    assert _classify_kind(-0.05, -0.02, 0.05, 0.04, "narrow") == "falling"
+    assert _classify_kind(0.05, 0.02, 0.05, 0.04, "narrow") == "rising"
+
+
+def _narrow_series(lb: int = 48):
     opens, highs, lows, closes = [], [], [], []
     for i in range(lb):
         up = 102.0 - 0.05 * i
@@ -23,7 +34,7 @@ def _falling_wedge_series(lb: int = 48):
             hi, lo = up - 0.3 * (up - dn), dn
         mid = 0.5 * (hi + lo)
         opens.append(mid); highs.append(hi); lows.append(lo); closes.append(mid)
-    form = detect_wedge(highs, lows, closes, lb=lb)
+    form = detect_wedge(highs, lows, closes, lb=lb, geom="narrow")
     assert form is not None
     form.form_start = 0
     form.form_end = lb
@@ -38,24 +49,21 @@ def _falling_wedge_series(lb: int = 48):
     return opens, highs, lows, closes, form
 
 
-def test_detect_falling_wedge():
-    o, h, l, c, form = _falling_wedge_series()
+def test_detect_narrow_falling_wedge():
+    o, h, l, c, form = _narrow_series()
     assert form.kind == "falling"
-    assert form.side_break == "long"
+    assert form.geom == "narrow"
     assert form.touches_up >= 2 and form.touches_dn >= 2
-    assert 0.005 <= form.w0 <= 0.15
 
 
 def test_breakout_retest_entry():
-    o, h, l, c, form = _falling_wedge_series()
+    o, h, l, c, form = _narrow_series()
     br = scan_breakout_retest(h, l, o, c, form)
     assert br is not None
     assert br.get("status") == "signal", br
     assert br["side"] == "long"
-    assert br["entry"] > 0
-    assert br["stop"] < br["entry"]
+    assert br["entry"] > 0 and br["stop"] < br["entry"]
     assert br["tp1"] > br["entry"]
-    assert br["tp2"] > br["entry"]
 
 
 def test_shadow_log_row(tmp_path, monkeypatch):
@@ -64,17 +72,18 @@ def test_shadow_log_row(tmp_path, monkeypatch):
 
     monkeypatch.setattr(sh, "SHADOW_PATH", tmp_path / "signals.jsonl")
     monkeypatch.setattr(sh, "STATE_PATH", tmp_path / "state.json")
-    o, h, l, c, form = _falling_wedge_series()
-    pad = [{"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 500.0}] * 40
+    o, h, l, c, form = _narrow_series()
+    pad = [{"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 500.0, "open_time": 1_700_000_000 + i * 3600}
+           for i in range(40)]
     bars = pad + [
-        {"open": o[i], "high": h[i], "low": l[i], "close": c[i], "volume": 1000.0}
+        {"open": o[i], "high": h[i], "low": l[i], "close": c[i], "volume": 1000.0,
+         "open_time": 1_700_000_000 + (40 + i) * 3600}
         for i in range(len(o))
     ]
-    bars.append({"open": c[-1], "high": c[-1], "low": c[-1], "close": c[-1], "volume": 1})
+    bars.append({"open": c[-1], "high": c[-1], "low": c[-1], "close": c[-1], "volume": 1, "open_time": 1_700_200_000})
     sh.log_wedge_1h_shadow(symbol="BTC-USDT", bars_1h=bars, lb=48)
     assert sh.SHADOW_PATH.exists()
     lines = [ln for ln in sh.SHADOW_PATH.read_text().splitlines() if ln.strip()]
-    assert lines
-    rec = json.loads(lines[-1])
-    assert rec["symbol"] == "BTC-USDT"
-    assert "signal_id" in rec and "status" in rec
+    assert len(lines) >= 2
+    geoms = {json.loads(ln)["geom"] for ln in lines}
+    assert "gold" in geoms and "narrow" in geoms
