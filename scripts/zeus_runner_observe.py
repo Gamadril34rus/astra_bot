@@ -69,9 +69,9 @@ async def observe_zeus(
             if _scripts2 not in _sys2.path:
                 _sys2.path.insert(0, _scripts2)
             from zeus_wedge_1h_shadow import observe_wedge_1h_shadow
-            await observe_wedge_1h_shadow(bingx=bingx, symbol=symbol, lb=48)
+            await observe_wedge_1h_shadow(bingx=bingx, symbol=symbol)  # dual-lb 48+72
         except Exception as _w1h_exc:
             logger.debug("wedge_1h_shadow: %s", _w1h_exc)
 
     except Exception as exc:
-        logger.warning("observe_zeus skipped: %s", exc)
+        logger.warning("observe_zeus skipped: %s", exp)
