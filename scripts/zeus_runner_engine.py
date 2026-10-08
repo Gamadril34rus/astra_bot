@@ -5,18 +5,21 @@ from __future__ import annotations
 import argparse
 
 from zeus_runner_common import (
+    ZEUS_STATS_PATH,
     BingXClient,
     DecisionConfig,
     DecisionPipeline,
     Path,
     TradingEngine,
     TradingEngineConfig,
-    ZEUS_STATS_PATH,
     ZeusChannelBoundaryStrategy,
     ZeusWedgeRetestStrategy,
     logger,
     os,
 )
+
+CONF_RISK_LADDER = ((0.88, 3.0), (0.80, 2.0), (0.70, 1.5))  # conf -> risk %
+
 
 def zeus_build_pipeline_and_engine(
     args: argparse.Namespace,
@@ -25,7 +28,8 @@ def zeus_build_pipeline_and_engine(
     bingx: BingXClient,
 ) -> tuple[TradingEngine, ZeusWedgeRetestStrategy, ZeusChannelBoundaryStrategy]:
     # Capital path: channel TP2 density + matched wedge quality.
-    # Leverage ladder: confidence→2..20x (env ASTRA_LEVERAGE_MAX); risk $ still 1%.
+    # Leverage ladder: confidence→2..20x (env ASTRA_LEVERAGE_MAX);
+    # actual risk $ scales 1–3% via CONF_RISK_LADDER on conf (sizing + notes).
     import sys as _sys
     from pathlib import Path as _P
 
@@ -33,10 +37,10 @@ def zeus_build_pipeline_and_engine(
     if _scripts not in _sys.path:
         _sys.path.insert(0, _scripts)
     from zeus_research_wrap import (
-        ZeusMatchedResearchStrategy,
-        research_config,
         ZeusChannelCapitalStrategy,
+        ZeusMatchedResearchStrategy,
         channel_capital_config,
+        research_config,
     )
 
     zeus = ZeusMatchedResearchStrategy(research_config())
@@ -46,8 +50,6 @@ def zeus_build_pipeline_and_engine(
     dcfg.min_ml_probability = 0.0
     dcfg.min_expected_edge_pct = 0.0
     dcfg.min_ev_r = 0.0
-    # Isolate Zeus stats: pipeline owns ZEUS path (engine uses pipeline.stats_store).
-    # Without this, records go to strategy_stats.json; Zeus CI does not commit it.
     from astra_bot.decision.strategy_stats import StrategyStatsStore
 
     zeus_stats = StrategyStatsStore(
@@ -68,12 +70,87 @@ def zeus_build_pipeline_and_engine(
     from decimal import Decimal as _DRisk
 
     config.risk_per_trade_pct = _DRisk("0.01")
+    config.conf_risk_ladder = CONF_RISK_LADDER
     config.max_open_positions = 3
     engine = TradingEngine(
         exchange=bingx, pipeline=pipeline, config=config, notifier=None
     )
+    # Day/week loss limits (Zeus-only): 4% / 6%. HALT / 2-stop / kill-switch untouched.
+    try:
+        engine.risk.config.daily_loss_limit = _DRisk("0.04")
+        engine.risk.config.weekly_loss_limit = _DRisk("0.06")
+        logger.info(
+            "Zeus risk limits applied: day=%.1f%% week=%.1f%% (conf ladder 1-3%%)",
+            float(engine.risk.config.daily_loss_limit) * 100,
+            float(engine.risk.config.weekly_loss_limit) * 100,
+        )
+    except Exception as _lim_exc:
+        logger.warning("risk limit override FAILED: %s", _lim_exc)
+    # Actual sizing budget + notes risk_budget both use conf ladder.
+    # Kelly / clamps / slots / LEVERAGE_LADDER / RiskEngine check_trade untouched.
+    try:
+        import types as _types
+
+        from astra_bot.decision.conf_risk_ladder import conf_risk_pct
+
+        _orig_size = engine._position_size
+        _orig_open = engine.broker.open_position
+
+        def _position_size(
+            self,
+            equity,
+            entry,
+            stop,
+            ml_confidence=None,
+            atr_pct=None,
+            strategy="",
+            timeframe="",
+        ):
+            saved = self.config.risk_per_trade_pct
+            try:
+                self.config.risk_per_trade_pct = conf_risk_pct(
+                    ml_confidence, CONF_RISK_LADDER, _DRisk(str(saved))
+                )
+                return _orig_size(
+                    equity,
+                    entry,
+                    stop,
+                    ml_confidence=ml_confidence,
+                    atr_pct=atr_pct,
+                    strategy=strategy,
+                    timeframe=timeframe,
+                )
+            finally:
+                self.config.risk_per_trade_pct = saved
+
+        def _open_with_ladder(self, *args, **kwargs):
+            notes = dict(kwargs.get("notes") or {})
+            conf = notes.get("confidence")
+            eq = notes.get("equity_before")
+            if eq is None:
+                try:
+                    eq = float(self.net_equity)
+                except Exception:
+                    eq = None
+            if eq is not None:
+                tier = conf_risk_pct(
+                    float(conf) if conf is not None else None,
+                    CONF_RISK_LADDER,
+                    _DRisk("0.01"),
+                )
+                notes["risk_budget"] = float(_DRisk(str(eq)) * tier)
+                kwargs["notes"] = notes
+            return _orig_open(*args, **kwargs)
+
+        engine._position_size = _types.MethodType(_position_size, engine)
+        engine.broker.open_position = _types.MethodType(
+            _open_with_ladder, engine.broker
+        )
+    except Exception as _sz_exc:
+        logger.warning("conf risk ladder wrap FAILED: %s", _sz_exc)
     logger.info(
-        "Zeus paper leverage_max=%s (conf ladder; risk_pct=1%%)", _lev_max
+        "Zeus paper leverage_max=%s (conf risk 1-3%% actual sizing; day 4%% week 6%%)",
+        _lev_max,
     )
     from decimal import Decimal as _Dec
 
