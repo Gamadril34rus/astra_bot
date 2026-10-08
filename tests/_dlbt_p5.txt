@@ -1,0 +1,39 @@
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import zeus_wedge_1h_shadow as sh
+
+    monkeypatch.setattr(sh, "SHADOW_PATH", tmp_path / "signals.jsonl")
+    monkeypatch.setattr(sh, "STATE_PATH", tmp_path / "state.json")
+
+    # lb+30 minimum: need >= 78 closed bars for 48, >= 102 for 72
+    n = 90  # enough for 48 (78), not for 72 (102)
+    base_ts = 1_700_000_000
+    bars = [
+        {
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.0,
+            "volume": 500.0,
+            "open_time": base_ts + i * 3600,
+        }
+        for i in range(n)
+    ]
+    # trailing forming bar stripped by logger
+    bars.append(
+        {
+            "open": 100.0,
+            "high": 100.0,
+            "low": 100.0,
+            "close": 100.0,
+            "volume": 1,
+            "open_time": base_ts + n * 3600,
+        }
+    )
+    sh.log_wedge_1h_shadow(symbol="SOL-USDT", bars_1h=bars, lbs=(48, 72))
+    if not sh.SHADOW_PATH.exists():
+        # no_wedge rows still written for 48; if file missing both skipped — fail
+        raise AssertionError("expected at least lb=48 rows")
+    lines = [json.loads(ln) for ln in sh.SHADOW_PATH.read_text().splitlines() if ln.strip()]
+    lbs_seen = {r.get("lb") for r in lines}
+    assert 48 in lbs_seen, lines
+    assert 72 not in lbs_seen, lines
