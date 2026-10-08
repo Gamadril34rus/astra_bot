@@ -6,6 +6,7 @@ Primary geometry (\"gold\") matches the research brief verbatim:
 where w0=(maxH-minL)/close[first], wE=(uE-lE)/close[last].
 
 Optional second stream \"narrow\" (classic converging rails) tagged via geom.
+Production signals use evaluate_bars_with_lag (formation ends k bars ago).
 """
 from __future__ import annotations
 
@@ -113,13 +114,11 @@ def wilder_adx(highs, lows, closes, period: int = 14) -> float | None:
 
 def _classify_kind(su: float, sl: float, w0: float, wE: float, geom: str) -> str | None:
     if geom == "gold":
-        # Brief verbatim
         if su < 0 and sl < 0 and sl < su and wE < 0.95 * w0:
             return "falling"
         if su > 0 and sl > 0 and su > sl and wE < 0.95 * w0:
             return "rising"
     else:
-        # Classic converging rails (optional second stream)
         if su < 0 and sl < 0 and su < sl and wE < 0.95 * w0:
             return "falling"
         if su > 0 and sl > 0 and su > sl and wE < 0.95 * w0:
@@ -147,15 +146,9 @@ class WedgeFormation:
 
 
 def detect_wedge(
-    highs: Sequence[float],
-    lows: Sequence[float],
-    closes: Sequence[float],
-    *,
-    lb: int = 48,
-    touch_tol: float = TOUCH_TOL,
-    w0_min: float = W0_MIN,
-    w0_max: float = W0_MAX,
-    geom: str = "gold",
+    highs: Sequence[float], lows: Sequence[float], closes: Sequence[float],
+    *, lb: int = 48, touch_tol: float = TOUCH_TOL, w0_min: float = W0_MIN,
+    w0_max: float = W0_MAX, geom: str = "gold",
 ) -> WedgeFormation | None:
     n = len(highs)
     if n < lb or len(lows) < lb or len(closes) < lb:
@@ -310,3 +303,56 @@ def evaluate_bars(opens, highs, lows, closes, *, lb: int = 48, geom: str = "gold
         )
         out["side"] = side
     return out
+
+
+def evaluate_bars_with_lag(
+    opens: Sequence[float], highs: Sequence[float], lows: Sequence[float], closes: Sequence[float],
+    *, lb: int = 48, geom: str = "gold", max_lag: int | None = None,
+) -> dict[str, Any]:
+    """Fit formation ending `lag` bars ago; scan breakout/retest on the FULL series.
+
+    Production path: detect_wedge on closes[:n-lag] so form_end < n.
+    First lag with signal or signal_pending_entry wins.
+    Stage telemetry (rejected_*) still from lag=0 evaluate_bars.
+    """
+    n = len(closes)
+    if max_lag is None:
+        max_lag = BREAKOUT_MAX_BARS + RETEST_MAX_BARS + 1
+    stage = evaluate_bars(opens, highs, lows, closes, lb=lb, geom=geom)
+    if stage.get("status") in ("insufficient_bars", "rejected_width", "no_wedge", "rejected_touches"):
+        return stage
+    best: dict[str, Any] | None = None
+    for lag in range(1, max_lag + 1):
+        end = n - lag
+        if end < lb:
+            break
+        form = detect_wedge(highs[:end], lows[:end], closes[:end], lb=lb, geom=geom)
+        if form is None:
+            continue
+        br = scan_breakout_retest(highs, lows, opens, closes, form)
+        if br is None:
+            continue
+        st = br.get("status")
+        if st in ("signal", "signal_pending_entry"):
+            out: dict[str, Any] = {
+                "status": st, "form": form, "w0": form.w0, "wE": form.wE,
+                "touches_up": form.touches_up, "touches_dn": form.touches_dn,
+                "kind": form.kind, "lb": lb, "geom": geom, "lag": lag,
+            }
+            out.update({k: v for k, v in br.items() if k != "status"})
+            if st == "signal":
+                side = br["side"]
+                out["div"] = _rsi_divergence(
+                    highs[form.form_start:form.form_end], lows[form.form_start:form.form_end],
+                    closes[form.form_start:form.form_end], side,
+                )
+                out["side"] = side
+            return out
+        if best is None and st in ("no_breakout", "no_retest"):
+            best = {
+                "status": st, "form": form, "w0": form.w0, "wE": form.wE,
+                "touches_up": form.touches_up, "touches_dn": form.touches_dn,
+                "kind": form.kind, "lb": lb, "geom": geom, "lag": lag,
+            }
+            best.update({k: v for k, v in br.items() if k != "status"})
+    return best if best is not None else stage
