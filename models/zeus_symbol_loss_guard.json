@@ -14,7 +14,7 @@
     "OP-USDT": 0,
     "INJ-USDT": 0,
     "SOL-USDT": 0,
-    "TAO-USDT": 0,
+    "TAO-USDT": 1,
     "DOGE-USDT": 0,
     "1000PEPE-USDT": 1,
     "AAVE-USDT": 0,
@@ -28,8 +28,10 @@
     "ATOM-USDT": 0,
     "SUI-USDT": 0,
     "WLD-USDT": 1,
-    "ENA-USDT": 2,
+    "ENA-USDT": 3,
     "PENDLE-USDT": 0
   },
-  "pause_until": {}
+  "pause_until": {
+    "ENA-USDT": "2026-10-08T08:29:15.986374+00:00"
+  }
 }
