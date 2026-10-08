@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import argparse
-import types
 
 from zeus_runner_common import (
+    ZEUS_STATS_PATH,
     BingXClient,
     DecisionConfig,
     DecisionPipeline,
     Path,
     TradingEngine,
     TradingEngineConfig,
-    ZEUS_STATS_PATH,
     ZeusChannelBoundaryStrategy,
     ZeusWedgeRetestStrategy,
     logger,
@@ -30,7 +29,7 @@ def zeus_build_pipeline_and_engine(
 ) -> tuple[TradingEngine, ZeusWedgeRetestStrategy, ZeusChannelBoundaryStrategy]:
     # Capital path: channel TP2 density + matched wedge quality.
     # Leverage ladder: confidence→2..20x (env ASTRA_LEVERAGE_MAX);
-    # risk $ scales 1–3% via CONF_RISK_LADDER on conf.
+    # risk_budget telemetry scales 1–3% via CONF_RISK_LADDER on conf.
     import sys as _sys
     from pathlib import Path as _P
 
@@ -38,10 +37,10 @@ def zeus_build_pipeline_and_engine(
     if _scripts not in _sys.path:
         _sys.path.insert(0, _scripts)
     from zeus_research_wrap import (
-        ZeusMatchedResearchStrategy,
-        research_config,
         ZeusChannelCapitalStrategy,
+        ZeusMatchedResearchStrategy,
         channel_capital_config,
+        research_config,
     )
 
     zeus = ZeusMatchedResearchStrategy(research_config())
@@ -71,58 +70,20 @@ def zeus_build_pipeline_and_engine(
     from decimal import Decimal as _DRisk
 
     config.risk_per_trade_pct = _DRisk("0.01")
-    # Optional attrs (TradingEngineConfig may not declare them yet).
+    # risk_budget telemetry only (sizing stays on risk_per_trade_pct=1%).
     config.conf_risk_ladder = CONF_RISK_LADDER
-    config.daily_loss_limit_pct = _DRisk("0.04")
-    config.weekly_loss_limit_pct = _DRisk("0.06")
     config.max_open_positions = 3
     engine = TradingEngine(
         exchange=bingx, pipeline=pipeline, config=config, notifier=None
     )
-    # Day/week loss limits (RiskEngine built with paper defaults 3%/6%).
+    # Day/week loss limits (Zeus-only): 4% / 6%. HALT / 2-stop / kill-switch untouched.
     try:
         engine.risk.config.daily_loss_limit = _DRisk("0.04")
         engine.risk.config.weekly_loss_limit = _DRisk("0.06")
     except Exception as _lim_exc:
         logger.debug("risk limit override: %s", _lim_exc)
-    # Conf → risk% on position sizing (temporarily raises risk_per_trade_pct).
-    try:
-        from astra_bot.decision.conf_risk_ladder import conf_risk_pct
-
-        _orig_size = engine._position_size
-
-        def _position_size(
-            self,
-            equity,
-            entry,
-            stop,
-            ml_confidence=None,
-            atr_pct=None,
-            strategy="",
-            timeframe="",
-        ):
-            saved = self.config.risk_per_trade_pct
-            try:
-                self.config.risk_per_trade_pct = conf_risk_pct(
-                    ml_confidence, CONF_RISK_LADDER, _DRisk(str(saved))
-                )
-                return _orig_size(
-                    equity,
-                    entry,
-                    stop,
-                    ml_confidence=ml_confidence,
-                    atr_pct=atr_pct,
-                    strategy=strategy,
-                    timeframe=timeframe,
-                )
-            finally:
-                self.config.risk_per_trade_pct = saved
-
-        engine._position_size = types.MethodType(_position_size, engine)
-    except Exception as _sz_exc:
-        logger.debug("conf risk ladder wrap: %s", _sz_exc)
     logger.info(
-        "Zeus paper leverage_max=%s (conf risk ladder 1-3%%; day 4%% week 6%%)",
+        "Zeus paper leverage_max=%s (conf risk_budget ladder 1-3%%; day 4%% week 6%%)",
         _lev_max,
     )
     from decimal import Decimal as _Dec

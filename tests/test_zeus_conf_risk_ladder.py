@@ -7,7 +7,6 @@ from decimal import Decimal
 from astra_bot.core.config import RiskConfig
 from astra_bot.decision.conf_risk_ladder import conf_risk_pct
 
-
 CONF_RISK_LADDER = ((0.88, 3.0), (0.80, 2.0), (0.70, 1.5))
 
 
