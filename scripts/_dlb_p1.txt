@@ -1,0 +1,117 @@
+"""Shadow logger for zeus_wedge_retest_1h — append-only jsonl, never trades.
+
+Primary geometry: gold (brief). Optional: narrow. Field geom tags stream.
+result_r: 50% at tp1 + remainder at be_stop/tp2/stop; costs 0.0015/side.
+Loss streak cumulative (wins/zeros do NOT reset); pause per strategy+symbol.
+
+Production signal path uses lag-scan (formation ends k bars ago) so breakout
+bars exist after form_end. Open positions keyed by entry_ts (ms), not bar index.
+Dedup/cooldown key = symbol|geom|side|lb (no breakout_ts) with 48h TTL.
+Dual lookback streams (lb=48 and lb=72) run in parallel and never suppress each other.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import time
+import uuid
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
+
+from astra_bot.zeus_wedge_1h_core import (
+    BREAKOUT_MAX_BARS,
+    COST_PER_SIDE,
+    RETEST_MAX_BARS,
+    evaluate_bars_with_lag,
+    wilder_adx,
+)
+
+logger = logging.getLogger(__name__)
+SHADOW_PATH = Path("models/zeus_wedge_1h_signals.jsonl")
+STATE_PATH = Path("models/zeus_wedge_1h_shadow_state.json")
+GEOMS = ("gold", "narrow")
+LOOKBACKS: tuple[int, ...] = (48, 72)
+DONE_TTL_MS = 48 * 3600 * 1000
+
+
+def _append(row: dict[str, Any]) -> None:
+    SHADOW_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with SHADOW_PATH.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
+
+
+def _empty_section() -> dict[str, Any]:
+    return {"open": {}, "loss_streak": {}, "pause_until": {}, "done": {}}
+
+
+def _load_state() -> dict[str, Any]:
+    """State has independent sections per lb under by_lb."""
+    if not STATE_PATH.exists():
+        return {"by_lb": {}}
+    try:
+        st = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+        if not isinstance(st, dict):
+            return {"by_lb": {}}
+        # Migrate legacy flat open/done into lb=48 section once.
+        if "by_lb" not in st and ("open" in st or "done" in st):
+            st = {
+                "by_lb": {
+                    "48": {
+                        "open": st.get("open") or {},
+                        "done": st.get("done") or {},
+                        "loss_streak": st.get("loss_streak") or {},
+                        "pause_until": st.get("pause_until") or {},
+                    }
+                }
+            }
+        st.setdefault("by_lb", {})
+        return st
+    except Exception:
+        return {"by_lb": {}}
+
+
+def _save_state(st: dict[str, Any]) -> None:
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    STATE_PATH.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
+
+
+def _lb_section(st: dict[str, Any], lb: int) -> dict[str, Any]:
+    by = st.setdefault("by_lb", {})
+    key = str(int(lb))
+    sec = by.setdefault(key, _empty_section())
+    for k in ("open", "done", "loss_streak", "pause_until"):
+        sec.setdefault(k, {})
+    return sec
+
+
+def _prune_done(done: dict[str, float], now_ms: int) -> None:
+    dead = [k for k, t in done.items() if now_ms - float(t) > DONE_TTL_MS]
+    for k in dead:
+        del done[k]
+
+
+def _ohlc(bars: Sequence[Any]):
+    o, h, l, c, v, ts = [], [], [], [], [], []
+    for b in bars:
+        if hasattr(b, "open"):
+            o.append(float(b.open))
+            h.append(float(b.high))
+            l.append(float(b.low))
+            c.append(float(b.close))
+            v.append(float(getattr(b, "volume", 0) or 0))
+            ot = getattr(b, "open_time", None) or getattr(b, "timestamp", None) or 0
+            ts.append(int(ot))
+        else:
+            o.append(float(b["open"]))
+            h.append(float(b["high"]))
+            l.append(float(b["low"]))
+            c.append(float(b["close"]))
+            v.append(float(b.get("volume", 0) or 0))
+            ot = b.get("open_time") or b.get("timestamp") or 0
+            ts.append(int(ot))
+    out_ts = [t * 1000 if t and t < 10_000_000_000 else t for t in ts]
+    return o, h, l, c, v, out_ts
+
+
+def _btc_ctx(btc_4h, btc_1h):
