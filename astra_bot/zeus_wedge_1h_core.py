@@ -10,8 +10,9 @@ Production signals use evaluate_bars_with_lag (formation ends k bars ago).
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any
 
 COST_PER_SIDE = 0.0015
 TOUCH_TOL = 0.0035
@@ -274,14 +275,17 @@ def evaluate_bars(opens, highs, lows, closes, *, lb: int = 48, geom: str = "gold
         if n < lb:
             return {"status": "insufficient_bars", "geom": geom}
         start = n - lb
-        h = list(highs[start:]); l = list(lows[start:])
+        h = list(highs[start:])
+        l = list(lows[start:])
         c0 = float(closes[start]) or 1.0
         c1 = float(closes[start + lb - 1]) or 1.0
         w0 = (max(h) - min(l)) / c0
         if not (W0_MIN <= w0 <= W0_MAX):
             return {"status": "rejected_width", "w0": w0, "geom": geom}
-        u0, su = _linreg(h); l0, sl = _linreg(l)
-        uE = u0 + su * (lb - 1); lE = l0 + sl * (lb - 1)
+        u0, su = _linreg(h)
+        l0, sl = _linreg(l)
+        uE = u0 + su * (lb - 1)
+        lE = l0 + sl * (lb - 1)
         wE = (uE - lE) / c1
         if _classify_kind(su, sl, w0, wE, geom) is None:
             return {"status": "no_wedge", "w0": w0, "wE": wE, "geom": geom}
