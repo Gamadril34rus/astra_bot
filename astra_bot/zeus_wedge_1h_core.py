@@ -313,13 +313,14 @@ def evaluate_bars_with_lag(
 
     Production path: detect_wedge on closes[:n-lag] so form_end < n.
     First lag with signal or signal_pending_entry wins.
-    Stage telemetry (rejected_*) still from lag=0 evaluate_bars.
+    Stage telemetry (rejected_*) is lag=0 only; does NOT block lag-scan
+    except insufficient_bars.
     """
     n = len(closes)
     if max_lag is None:
         max_lag = BREAKOUT_MAX_BARS + RETEST_MAX_BARS + 1
     stage = evaluate_bars(opens, highs, lows, closes, lb=lb, geom=geom)
-    if stage.get("status") in ("insufficient_bars", "rejected_width", "no_wedge", "rejected_touches"):
+    if stage.get("status") == "insufficient_bars":
         return stage
     best: dict[str, Any] | None = None
     for lag in range(1, max_lag + 1):
