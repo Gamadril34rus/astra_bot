@@ -9,6 +9,7 @@ system:
   environment: "development"  # development | paper | production
   paper_trading: true
   trading_enabled: false  # Включить только после полной валидации
+  zeus_wedge_1h_enabled: false  # H1 wedge shadow only; do NOT enable trading
 
 # Рыночные данные
 market_data:
