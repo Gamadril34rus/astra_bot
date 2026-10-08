@@ -87,7 +87,8 @@ jobs:
             models/zeus_pattern_exit_shadow.jsonl \
             models/zeus_wedge_1h_signals.jsonl \
             models/zeus_wedge_1h_shadow_state.json \
-            models/zeus_hypotheses.json
+            models/zeus_hypotheses.json \
+            models/zeus_tier_audit.json
           do
             [ -f "$f" ] && git add -f "$f" || true
           done
