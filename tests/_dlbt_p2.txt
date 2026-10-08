@@ -1,0 +1,90 @@
+    lines = [ln for ln in sh.SHADOW_PATH.read_text().splitlines() if ln.strip()]
+    assert len(lines) >= 1
+    statuses = {json.loads(ln)["status"] for ln in lines}
+    assert "signal" in statuses, statuses
+    geoms = {json.loads(ln).get("geom") for ln in lines}
+    assert "gold" in geoms and "narrow" in geoms
+
+
+def test_shadow_closes_on_slid_window(tmp_path, monkeypatch):
+    """Blocker 2: after window slides, stop hit must produce closed row + drop open."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import zeus_wedge_1h_shadow as sh
+
+    monkeypatch.setattr(sh, "SHADOW_PATH", tmp_path / "signals.jsonl")
+    monkeypatch.setattr(sh, "STATE_PATH", tmp_path / "state.json")
+
+    o, h, l, c, _form = _narrow_series()
+    base_ts = 1_700_000_000
+
+    def make_bars(o, h, l, c, base, extra_bars=None):
+        pad = [{"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 500.0,
+                "open_time": base + i * 3600} for i in range(40)]
+        bars = pad + [
+            {"open": o[i], "high": h[i], "low": l[i], "close": c[i], "volume": 1000.0,
+             "open_time": base + (40 + i) * 3600}
+            for i in range(len(o))
+        ]
+        if extra_bars:
+            bars.extend(extra_bars)
+        last = bars[-1]
+        bars.append({
+            "open": last["close"], "high": last["close"], "low": last["close"],
+            "close": last["close"], "volume": 1,
+            "open_time": last["open_time"] + 3600,
+        })
+        return bars
+
+    bars0 = make_bars(o, h, l, c, base_ts)
+    sh.log_wedge_1h_shadow(symbol="BTC-USDT", bars_1h=bars0, lb=48)
+    st = sh._load_state()
+    open_map = (st.get("by_lb") or {}).get("48", {}).get("open") or {}
+    assert open_map, "expected open shadow position after signal"
+    key, pos = next(iter(open_map.items()))
+    entry = float(pos["entry"])
+    stop = float(pos["stop"])
+    entry_ts = pos["entry_ts"]
+    assert pos["side"] == "long"
+    assert stop < entry
+
+    pierce = {
+        "open": entry, "high": entry * 1.001, "low": stop * 0.99, "close": stop * 0.995,
+        "volume": 2000.0, "open_time": int(entry_ts / 1000) + 7200,
+    }
+    bars1 = make_bars(o, h, l, c, base_ts + 3600, extra_bars=[pierce])
+    bars1[-2]["open_time"] = int(entry_ts / 1000) + 7200
+
+    sh.update_open_shadows(symbol="BTC-USDT", bars_1h=bars1)
+    st2 = sh._load_state()
+    open2 = (st2.get("by_lb") or {}).get("48", {}).get("open") or {}
+    assert key not in open2, "position must be removed after stop"
+    lines = [json.loads(ln) for ln in sh.SHADOW_PATH.read_text().splitlines() if ln.strip()]
+    closed = [r for r in lines if r.get("status") == "closed"]
+    assert closed, "expected closed row in jsonl"
+    assert closed[-1]["result_r"] < 0
+    assert closed[-1]["exit_reason"] in ("stop", "be_stop")
+
+
+def test_dedup_collapse_on_slid_window(tmp_path, monkeypatch):
+    """Problem A: sliding window must not re-open same episode (key = symbol|geom|side|lb)."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import zeus_wedge_1h_shadow as sh
+
+    monkeypatch.setattr(sh, "SHADOW_PATH", tmp_path / "signals.jsonl")
+    monkeypatch.setattr(sh, "STATE_PATH", tmp_path / "state.json")
+
+    o, h, l, c, _form = _narrow_series()
+    base_ts = 1_700_000_000
+    pad = [{"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 500.0,
+            "open_time": base_ts + i * 3600} for i in range(40)]
+    bars = pad + [
+        {"open": o[i], "high": h[i], "low": l[i], "close": c[i], "volume": 1000.0,
+         "open_time": base_ts + (40 + i) * 3600}
+        for i in range(len(o))
+    ]
+    last = bars[-1]
+    bars.append({"open": last["close"], "high": last["close"], "low": last["close"],
+                 "close": last["close"], "volume": 1, "open_time": last["open_time"] + 3600})
+
+    sh.log_wedge_1h_shadow(symbol="BTC-USDT", bars_1h=bars, lb=48)
+    lines0 = [json.loads(ln) for ln in sh.SHADOW_PATH.read_text().splitlines() if ln.strip()]
