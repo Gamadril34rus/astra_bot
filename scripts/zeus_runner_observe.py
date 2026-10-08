@@ -11,6 +11,7 @@ from zeus_runner_common import (
 )
 from zeus_runner_ltf import observe_ltf_impulse
 
+
 async def observe_zeus(
     *,
     bingx: BingXClient,
@@ -60,6 +61,17 @@ async def observe_zeus(
         except Exception as _sw_exc:
             logger.debug("liquidity_sweep: %s", _sw_exc)
         await observe_ltf_impulse(bingx=bingx, journal=journal, symbol=symbol)
+
+        try:
+            import sys as _sys2
+            from pathlib import Path as _P2
+            _scripts2 = str(_P2(__file__).resolve().parent)
+            if _scripts2 not in _sys2.path:
+                _sys2.path.insert(0, _scripts2)
+            from zeus_wedge_1h_shadow import observe_wedge_1h_shadow
+            await observe_wedge_1h_shadow(bingx=bingx, symbol=symbol, lb=48)
+        except Exception as _w1h_exc:
+            logger.debug("wedge_1h_shadow: %s", _w1h_exc)
 
     except Exception as exc:
         logger.warning("observe_zeus skipped: %s", exc)

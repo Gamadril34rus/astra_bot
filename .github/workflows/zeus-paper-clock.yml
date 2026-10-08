@@ -61,7 +61,7 @@ jobs:
           grep -q 'PAPER_TRADING=true' .env
 
       - name: Zeus paper-clock --once multi-symbol
-        run: python scripts/run_paper_zeus.py --once --symbols BTC-USDT,ETH-USDT,SOL-USDT,BNB-USDT,XRP-USDT,DOGE-USDT,ADA-USDT,AVAX-USDT,DOT-USDT,LINK-USDT,LTC-USDT,BCH-USDT,NEAR-USDT,APT-USDT,SUI-USDT,ARB-USDT,OP-USDT,UNI-USDT,AAVE-USDT,FIL-USDT,ATOM-USDT,INJ-USDT,TIA-USDT,WLD-USDT,TAO-USDT,HYPE-USDT,1000PEPE-USDT,WIF-USDT,ENA-USDT,PENDLE-USDT --journal models/zeus_trade_journal.jsonl
+        run: python scripts/run_paper_zeus.py --once --symbols BTC-USDT,ETH-USDT,SOL-USDT,BNB-USDT,XRP-USDT,DOGE-USDT,ADA-USDT,AVAX-USDT,DOT-USDT,LINK-USDT,LTC-USDT,BCH-USDT,NEAR-USDT,APT-USDT,SUI-USDT,ARB-USDT,OP-USDT,UNI-USDT,AAVE-USDT,FIL-USDT,ATOM-USDT,INJ-USDT,TIA-USDT,WLD-USDT,TAO-USDT,HYPE-USDT,1000PEPE-USDT,WIF-USDT,ENA-USDT,PENDLE-USDT,TRX-USDT --journal models/zeus_trade_journal.jsonl
         continue-on-error: true
 
       - name: Telegram status
@@ -85,6 +85,8 @@ jobs:
             models/zeus_symbol_loss_guard.json \
             models/zeus_no_trade_outcomes.json \
             models/zeus_pattern_exit_shadow.jsonl \
+            models/zeus_wedge_1h_signals.jsonl \
+            models/zeus_wedge_1h_shadow_state.json \
             models/zeus_hypotheses.json
           do
             [ -f "$f" ] && git add -f "$f" || true
