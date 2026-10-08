@@ -9,7 +9,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from astra_bot.zeus_wedge_1h_core import detect_wedge, scan_breakout_retest, _classify_kind
+from astra_bot.zeus_wedge_1h_core import (
+    detect_wedge,
+    evaluate_bars,
+    evaluate_bars_with_lag,
+    scan_breakout_retest,
+    _classify_kind,
+)
 
 
 def test_gold_classify_matches_brief():
@@ -24,6 +30,7 @@ def test_narrow_classify_classic():
 
 
 def _narrow_series(lb: int = 48):
+    """Formation on first 48 bars, breakout/retest/entry after. No form_end mutation for prod path."""
     opens, highs, lows, closes = [], [], [], []
     for i in range(lb):
         up = 102.0 - 0.05 * i
@@ -66,6 +73,18 @@ def test_breakout_retest_entry():
     assert br["tp1"] > br["entry"]
 
 
+def test_evaluate_bars_signal_production():
+    """Blocker 1: production lag-scan without manual form_end must yield signal."""
+    o, h, l, c, _ = _narrow_series()
+    naive = evaluate_bars(o, h, l, c, lb=48, geom="narrow")
+    assert naive.get("status") == "no_breakout", naive
+    prod = evaluate_bars_with_lag(o, h, l, c, lb=48, geom="narrow")
+    assert prod.get("status") == "signal", prod
+    assert prod["side"] == "long"
+    assert prod.get("entry") is not None
+    assert prod.get("entry_i") is not None
+
+
 def test_shadow_log_row(tmp_path, monkeypatch):
     sys.path.insert(0, str(ROOT / "scripts"))
     import zeus_wedge_1h_shadow as sh
@@ -73,17 +92,78 @@ def test_shadow_log_row(tmp_path, monkeypatch):
     monkeypatch.setattr(sh, "SHADOW_PATH", tmp_path / "signals.jsonl")
     monkeypatch.setattr(sh, "STATE_PATH", tmp_path / "state.json")
     o, h, l, c, form = _narrow_series()
-    pad = [{"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 500.0, "open_time": 1_700_000_000 + i * 3600}
-           for i in range(40)]
+    base_ts = 1_700_000_000
+    pad = [{"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 500.0,
+            "open_time": base_ts + i * 3600} for i in range(40)]
     bars = pad + [
         {"open": o[i], "high": h[i], "low": l[i], "close": c[i], "volume": 1000.0,
-         "open_time": 1_700_000_000 + (40 + i) * 3600}
+         "open_time": base_ts + (40 + i) * 3600}
         for i in range(len(o))
     ]
-    bars.append({"open": c[-1], "high": c[-1], "low": c[-1], "close": c[-1], "volume": 1, "open_time": 1_700_200_000})
+    bars.append({"open": c[-1], "high": c[-1], "low": c[-1], "close": c[-1], "volume": 1,
+                 "open_time": base_ts + (40 + len(o)) * 3600})
     sh.log_wedge_1h_shadow(symbol="BTC-USDT", bars_1h=bars, lb=48)
     assert sh.SHADOW_PATH.exists()
     lines = [ln for ln in sh.SHADOW_PATH.read_text().splitlines() if ln.strip()]
-    assert len(lines) >= 2
-    geoms = {json.loads(ln)["geom"] for ln in lines}
+    assert len(lines) >= 1
+    statuses = {json.loads(ln)["status"] for ln in lines}
+    assert "signal" in statuses, statuses
+    geoms = {json.loads(ln).get("geom") for ln in lines}
     assert "gold" in geoms and "narrow" in geoms
+
+
+def test_shadow_closes_on_slid_window(tmp_path, monkeypatch):
+    """Blocker 2: after window slides, stop hit must produce closed row + drop open."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import zeus_wedge_1h_shadow as sh
+
+    monkeypatch.setattr(sh, "SHADOW_PATH", tmp_path / "signals.jsonl")
+    monkeypatch.setattr(sh, "STATE_PATH", tmp_path / "state.json")
+
+    o, h, l, c, form = _narrow_series()
+    base_ts = 1_700_000_000
+
+    def make_bars(o, h, l, c, base, extra_bars=None):
+        pad = [{"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 500.0,
+                "open_time": base + i * 3600} for i in range(40)]
+        bars = pad + [
+            {"open": o[i], "high": h[i], "low": l[i], "close": c[i], "volume": 1000.0,
+             "open_time": base + (40 + i) * 3600}
+            for i in range(len(o))
+        ]
+        if extra_bars:
+            bars.extend(extra_bars)
+        last = bars[-1]
+        bars.append({
+            "open": last["close"], "high": last["close"], "low": last["close"],
+            "close": last["close"], "volume": 1,
+            "open_time": last["open_time"] + 3600,
+        })
+        return bars
+
+    bars0 = make_bars(o, h, l, c, base_ts)
+    sh.log_wedge_1h_shadow(symbol="BTC-USDT", bars_1h=bars0, lb=48)
+    st = sh._load_state()
+    assert st["open"], "expected open shadow position after signal"
+    key, pos = next(iter(st["open"].items()))
+    entry = float(pos["entry"])
+    stop = float(pos["stop"])
+    entry_ts = pos["entry_ts"]
+    assert pos["side"] == "long"
+    assert stop < entry
+
+    pierce = {
+        "open": entry, "high": entry * 1.001, "low": stop * 0.99, "close": stop * 0.995,
+        "volume": 2000.0, "open_time": int(entry_ts / 1000) + 7200,
+    }
+    bars1 = make_bars(o, h, l, c, base_ts + 3600, extra_bars=[pierce])
+    bars1[-2]["open_time"] = int(entry_ts / 1000) + 7200
+
+    sh.update_open_shadows(symbol="BTC-USDT", bars_1h=bars1)
+    st2 = sh._load_state()
+    assert key not in st2["open"], "position must be removed after stop"
+    lines = [json.loads(ln) for ln in sh.SHADOW_PATH.read_text().splitlines() if ln.strip()]
+    closed = [r for r in lines if r.get("status") == "closed"]
+    assert closed, "expected closed row in jsonl"
+    assert closed[-1]["result_r"] < 0
+    assert closed[-1]["exit_reason"] in ("stop", "be_stop")
