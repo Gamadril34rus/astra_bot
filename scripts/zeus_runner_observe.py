@@ -11,6 +11,7 @@ from zeus_runner_common import (
 )
 from zeus_runner_ltf import observe_ltf_impulse
 
+
 async def observe_zeus(
     *,
     bingx: BingXClient,
