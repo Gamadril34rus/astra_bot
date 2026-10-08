@@ -142,6 +142,16 @@ STRATEGY_REGISTRY: dict[str, StrategyRegistryEntry] = {
             "Do not mix stats with 5m families."
         ),
     ),
+    "zeus_wedge_retest_1h": StrategyRegistryEntry(
+        key="zeus_wedge_retest_1h",
+        name="Zeus Wedge Retest (1h, shadow)",
+        source="Zeus H1 wedge research (shadow-only)",
+        tier=TIER_RESEARCH,
+        execution_blocked_reason=(
+            "Shadow-only: zeus_wedge_1h_enabled=false; no live orders. "
+            "Logger writes models/zeus_wedge_1h_signals.jsonl."
+        ),
+    ),
 }
 
 
