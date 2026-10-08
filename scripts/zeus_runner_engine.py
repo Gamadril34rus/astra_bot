@@ -82,6 +82,36 @@ def zeus_build_pipeline_and_engine(
         engine.risk.config.weekly_loss_limit = _DRisk("0.06")
     except Exception as _lim_exc:
         logger.debug("risk limit override: %s", _lim_exc)
+    # risk_budget notes only (sizing stays on risk_per_trade_pct=1%).
+    try:
+        import types as _types
+
+        from astra_bot.decision.conf_risk_ladder import conf_risk_pct
+
+        _orig_open = engine.broker.open_position
+
+        def _open_with_ladder(self, *args, **kwargs):
+            notes = dict(kwargs.get("notes") or {})
+            conf = notes.get("confidence")
+            eq = notes.get("equity_before")
+            if eq is None:
+                try:
+                    eq = float(self.net_equity)
+                except Exception:
+                    eq = None
+            if eq is not None:
+                tier = conf_risk_pct(
+                    float(conf) if conf is not None else None,
+                    CONF_RISK_LADDER,
+                    _DRisk("0.01"),
+                )
+                notes["risk_budget"] = float(_DRisk(str(eq)) * tier)
+                kwargs["notes"] = notes
+            return _orig_open(*args, **kwargs)
+
+        engine.broker.open_position = _types.MethodType(_open_with_ladder, engine.broker)
+    except Exception as _rb_exc:
+        logger.debug("conf risk_budget wrap: %s", _rb_exc)
     logger.info(
         "Zeus paper leverage_max=%s (conf risk_budget ladder 1-3%%; day 4%% week 6%%)",
         _lev_max,
