@@ -1,9 +1,11 @@
 """Zeus Wedge Retest (1h) — shadow-only research strategy."""
 from __future__ import annotations
 
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from astra_bot.zeus_wedge_1h_core import evaluate_bars
+
 from .base import BaseStrategy, Signal, StrategyConfig
 
 
@@ -28,9 +30,13 @@ class ZeusWedgeRetest1hStrategy(BaseStrategy[ZeusWedge1hConfig]):
         opens, highs, lows, closes = [], [], [], []
         for b in bars:
             if hasattr(b, "open"):
-                opens.append(float(b.open)); highs.append(float(b.high))
-                lows.append(float(b.low)); closes.append(float(b.close))
+                opens.append(float(b.open))
+                highs.append(float(b.high))
+                lows.append(float(b.low))
+                closes.append(float(b.close))
             else:
-                opens.append(float(b["open"])); highs.append(float(b["high"]))
-                lows.append(float(b["low"])); closes.append(float(b["close"]))
+                opens.append(float(b["open"]))
+                highs.append(float(b["high"]))
+                lows.append(float(b["low"]))
+                closes.append(float(b["close"]))
         return evaluate_bars(opens, highs, lows, closes, lb=lb or self.config.lookback)
