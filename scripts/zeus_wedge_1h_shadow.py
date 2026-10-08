@@ -14,8 +14,9 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from astra_bot.zeus_wedge_1h_core import (
     BREAKOUT_MAX_BARS,
@@ -67,14 +68,18 @@ def _ohlc(bars: Sequence[Any]):
     o, h, l, c, v, ts = [], [], [], [], [], []
     for b in bars:
         if hasattr(b, "open"):
-            o.append(float(b.open)); h.append(float(b.high))
-            l.append(float(b.low)); c.append(float(b.close))
+            o.append(float(b.open))
+            h.append(float(b.high))
+            l.append(float(b.low))
+            c.append(float(b.close))
             v.append(float(getattr(b, "volume", 0) or 0))
             ot = getattr(b, "open_time", None) or getattr(b, "timestamp", None) or 0
             ts.append(int(ot))
         else:
-            o.append(float(b["open"])); h.append(float(b["high"]))
-            l.append(float(b["low"])); c.append(float(b["close"]))
+            o.append(float(b["open"]))
+            h.append(float(b["high"]))
+            l.append(float(b["low"]))
+            c.append(float(b["close"]))
             v.append(float(b.get("volume", 0) or 0))
             ot = b.get("open_time") or b.get("timestamp") or 0
             ts.append(int(ot))
@@ -233,7 +238,7 @@ def update_open_shadows(*, symbol: str, bars_1h: Sequence[Any]) -> None:
     bars = list(bars_1h)
     if len(bars) >= 2:
         bars = bars[:-1]
-    o, h, l, c, v, ts = _ohlc(bars)
+    _, h, l, c, _, ts = _ohlc(bars)
     if not c or not ts:
         return
     changed = False
