@@ -18,6 +18,9 @@ from zeus_runner_common import (
     os,
 )
 
+CONF_RISK_LADDER = ((0.88, 3.0), (0.80, 2.0), (0.70, 1.5))  # conf -> risk %
+
+
 def zeus_build_pipeline_and_engine(
     args: argparse.Namespace,
     symbols: tuple[str, ...],
@@ -25,7 +28,8 @@ def zeus_build_pipeline_and_engine(
     bingx: BingXClient,
 ) -> tuple[TradingEngine, ZeusWedgeRetestStrategy, ZeusChannelBoundaryStrategy]:
     # Capital path: channel TP2 density + matched wedge quality.
-    # Leverage ladder: confidence→2..20x (env ASTRA_LEVERAGE_MAX); risk $ still 1%.
+    # Leverage ladder: confidence→2..20x (env ASTRA_LEVERAGE_MAX);
+    # risk $ scales 1–3% via CONF_RISK_LADDER on conf.
     import sys as _sys
     from pathlib import Path as _P
 
@@ -68,12 +72,16 @@ def zeus_build_pipeline_and_engine(
     from decimal import Decimal as _DRisk
 
     config.risk_per_trade_pct = _DRisk("0.01")
+    config.conf_risk_ladder = CONF_RISK_LADDER
+    config.daily_loss_limit_pct = _DRisk("0.04")
+    config.weekly_loss_limit_pct = _DRisk("0.06")
     config.max_open_positions = 3
     engine = TradingEngine(
         exchange=bingx, pipeline=pipeline, config=config, notifier=None
     )
     logger.info(
-        "Zeus paper leverage_max=%s (conf ladder; risk_pct=1%%)", _lev_max
+        "Zeus paper leverage_max=%s (conf risk ladder 1-3%%; day 4%% week 6%%)",
+        _lev_max,
     )
     from decimal import Decimal as _Dec
 
