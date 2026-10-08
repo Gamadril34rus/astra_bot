@@ -3,6 +3,9 @@
 Primary geometry: gold (brief). Optional: narrow. Field geom tags stream.
 result_r: 50% at tp1 + remainder at be_stop/tp2/stop; costs 0.0015/side.
 Loss streak cumulative (wins/zeros do NOT reset); pause per strategy+symbol.
+
+Production signal path uses lag-scan (formation ends k bars ago) so breakout
+bars exist after form_end. Open positions keyed by entry_ts (ms), not bar index.
 """
 from __future__ import annotations
 
@@ -13,12 +16,19 @@ import uuid
 from pathlib import Path
 from typing import Any, Sequence
 
-from astra_bot.zeus_wedge_1h_core import COST_PER_SIDE, evaluate_bars, wilder_adx
+from astra_bot.zeus_wedge_1h_core import (
+    BREAKOUT_MAX_BARS,
+    COST_PER_SIDE,
+    RETEST_MAX_BARS,
+    evaluate_bars_with_lag,
+    wilder_adx,
+)
 
 logger = logging.getLogger(__name__)
 SHADOW_PATH = Path("models/zeus_wedge_1h_signals.jsonl")
 STATE_PATH = Path("models/zeus_wedge_1h_shadow_state.json")
 GEOMS = ("gold", "narrow")
+DONE_TTL_MS = 48 * 3600 * 1000
 
 
 def _append(row: dict[str, Any]) -> None:
@@ -29,16 +39,27 @@ def _append(row: dict[str, Any]) -> None:
 
 def _load_state() -> dict[str, Any]:
     if not STATE_PATH.exists():
-        return {"open": {}, "loss_streak": {}, "pause_until": {}}
+        return {"open": {}, "loss_streak": {}, "pause_until": {}, "done": {}}
     try:
-        return json.loads(STATE_PATH.read_text(encoding="utf-8"))
+        st = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+        st.setdefault("open", {})
+        st.setdefault("loss_streak", {})
+        st.setdefault("pause_until", {})
+        st.setdefault("done", {})
+        return st
     except Exception:
-        return {"open": {}, "loss_streak": {}, "pause_until": {}}
+        return {"open": {}, "loss_streak": {}, "pause_until": {}, "done": {}}
 
 
 def _save_state(st: dict[str, Any]) -> None:
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     STATE_PATH.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
+
+
+def _prune_done(done: dict[str, float], now_ms: int) -> None:
+    dead = [k for k, t in done.items() if now_ms - float(t) > DONE_TTL_MS]
+    for k in dead:
+        del done[k]
 
 
 def _ohlc(bars: Sequence[Any]):
@@ -61,8 +82,13 @@ def _ohlc(bars: Sequence[Any]):
 
 
 def _btc_ctx(btc_4h, btc_1h):
-    out = {"btc_ema50_4h_dist": None, "btc_ema50_4h_slope": None,
-           "btc_ret24h": None, "btc_ret72h": None, "adx4h": None}
+    out = {
+        "btc_ema50_4h_dist": None,
+        "btc_ret10_4h": None,
+        "btc_ret24h": None,
+        "btc_ret72h": None,
+        "adx4h": None,
+    }
     if not btc_4h or len(btc_4h) < 55:
         return out
     def _f(b, k):
@@ -76,7 +102,7 @@ def _btc_ctx(btc_4h, btc_1h):
         ema = x * k + ema * (1 - k)
     out["btc_ema50_4h_dist"] = (closes[-1] - ema) / ema if ema else None
     if len(closes) >= 10 and closes[-10]:
-        out["btc_ema50_4h_slope"] = (closes[-1] - closes[-10]) / closes[-10]
+        out["btc_ret10_4h"] = (closes[-1] - closes[-10]) / closes[-10]
     out["adx4h"] = wilder_adx(highs, lows, closes, 14)
     if btc_1h and len(btc_1h) >= 73:
         c1 = [_f(b, "close") for b in btc_1h]
@@ -87,28 +113,47 @@ def _btc_ctx(btc_4h, btc_1h):
     return out
 
 
+def _dedup_key(symbol: str, geom: str, side: str, breakout_ts) -> str:
+    return f"{symbol}|{geom}|{side}|{breakout_ts}"
+
+
 def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st):
-    result = evaluate_bars(o, h, l, c, lb=lb, geom=geom)
+    result = evaluate_bars_with_lag(
+        o, h, l, c, lb=lb, geom=geom,
+        max_lag=BREAKOUT_MAX_BARS + RETEST_MAX_BARS + 1,
+    )
     status = result.get("status") or "unknown"
     form = result.get("form")
     now_ms = int(time.time() * 1000)
     sid = str(uuid.uuid4())
     open_map = st.setdefault("open", {})
     pause_until = st.setdefault("pause_until", {})
+    done = st.setdefault("done", {})
+    _prune_done(done, now_ms)
     side = result.get("side")
     key_sym = f"zeus_wedge_retest_1h|{symbol}"
-    key_open = f"{symbol}|{side}|{geom}" if side else None
+    breakout_i = result.get("breakout_i")
+    retest_i = result.get("retest_i")
+    entry_i = result.get("entry_i")
+    breakout_ts = ts[breakout_i] if breakout_i is not None and breakout_i < len(ts) else None
+    retest_ts = ts[retest_i] if retest_i is not None and retest_i < len(ts) else None
+    entry_ts = ts[entry_i] if entry_i is not None and entry_i < len(ts) else None
+
     counterfactual_pause = False
     if pause_until.get(key_sym, 0) > time.time():
         counterfactual_pause = True
         if status == "signal":
             status = "blocked_pause"
-    if status == "signal" and key_open and key_open in open_map:
-        return None
-    breakout_i = result.get("breakout_i")
-    retest_i = result.get("retest_i")
-    breakout_ts = ts[breakout_i] if breakout_i is not None and breakout_i < len(ts) else None
-    retest_ts = ts[retest_i] if retest_i is not None and retest_i < len(ts) else None
+
+    if status in ("signal", "signal_pending_entry") and side and breakout_ts is not None:
+        dkey = _dedup_key(symbol, geom, side, breakout_ts)
+        if dkey in done:
+            return None
+        for ok, ov in open_map.items():
+            if (ov.get("symbol") == symbol and ov.get("geom") == geom
+                    and ov.get("side") == side and ov.get("breakout_ts") == breakout_ts):
+                return None
+
     atr_pct = None
     if len(h) >= 15:
         trs = [max(h[-i] - l[-i], abs(h[-i] - c[-i - 1]), abs(l[-i] - c[-i - 1])) for i in range(1, 15)]
@@ -127,6 +172,7 @@ def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st):
     if form is not None and breakout_i is not None:
         span = form.form_end - form.form_start
         breakout_pos = (breakout_i - form.form_start) / span if span else None
+
     row = {
         "signal_id": sid, "ts": now_ms, "symbol": symbol, "side": side, "lb": lb, "geom": geom,
         "w0": result.get("w0"), "wE": result.get("wE"),
@@ -136,21 +182,26 @@ def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st):
         "tp1": result.get("tp1"), "tp2": result.get("tp2"), "rr_to_tp2": result.get("rr_to_tp2"),
         "div": result.get("div"), "hour_utc": time.gmtime().tm_hour,
         "btc_ema50_4h_dist": btc.get("btc_ema50_4h_dist"),
-        "btc_ema50_4h_slope": btc.get("btc_ema50_4h_slope"),
+        "btc_ret10_4h": btc.get("btc_ret10_4h"),
         "btc_ret24h": btc.get("btc_ret24h"), "btc_ret72h": btc.get("btc_ret72h"),
         "adx4h": btc.get("adx4h"), "atr_pct_1h": atr_pct,
         "vol_breakout_ratio": vol_ratio, "breakout_pos": breakout_pos,
         "trend120_aligned": trend_aligned, "regime": regime,
         "counterfactual_pause": counterfactual_pause,
+        "lag": result.get("lag"),
     }
     _append(row)
-    if status == "signal" and key_open and result.get("entry") is not None:
+    if status == "signal" and side and result.get("entry") is not None and entry_ts is not None:
+        key_open = f"{symbol}|{side}|{geom}|{breakout_ts}"
         open_map[key_open] = {
             "signal_id": sid, "side": side, "geom": geom,
             "entry": result["entry"], "stop": result["stop"],
             "tp1": result["tp1"], "tp2": result["tp2"],
-            "entry_i": result.get("entry_i"), "ts": now_ms, "symbol": symbol,
+            "entry_ts": entry_ts, "breakout_ts": breakout_ts,
+            "ts": now_ms, "symbol": symbol,
         }
+        if breakout_ts is not None:
+            done[_dedup_key(symbol, geom, side, breakout_ts)] = now_ms
         _save_state(st)
     return row
 
@@ -172,6 +223,7 @@ def log_wedge_1h_shadow(*, symbol, bars_1h, btc_4h=None, btc_1h=None, lb=48, reg
 
 
 def update_open_shadows(*, symbol: str, bars_1h: Sequence[Any]) -> None:
+    """Close open shadows using entry_ts (stable across sliding windows)."""
     st = _load_state()
     open_map = st.setdefault("open", {})
     loss_streak = st.setdefault("loss_streak", {})
@@ -182,7 +234,7 @@ def update_open_shadows(*, symbol: str, bars_1h: Sequence[Any]) -> None:
     if len(bars) >= 2:
         bars = bars[:-1]
     o, h, l, c, v, ts = _ohlc(bars)
-    if not c:
+    if not c or not ts:
         return
     changed = False
     for key in list(open_map.keys()):
@@ -193,11 +245,42 @@ def update_open_shadows(*, symbol: str, bars_1h: Sequence[Any]) -> None:
         entry, stop = float(pos["entry"]), float(pos["stop"])
         tp1, tp2 = float(pos["tp1"]), float(pos["tp2"])
         risk = abs(entry - stop) or 1e-12
-        entry_i = int(pos.get("entry_i") or 0)
+        entry_ts = pos.get("entry_ts")
+        if entry_ts is not None:
+            entry_i = None
+            for i, t in enumerate(ts):
+                if t <= entry_ts:
+                    entry_i = i
+                else:
+                    break
+            if entry_i is None:
+                exit_px = float(c[-1])
+                if side == "long":
+                    result_r = (exit_px - entry) / risk - 2 * COST_PER_SIDE * entry / risk
+                else:
+                    result_r = (entry - exit_px) / risk - 2 * COST_PER_SIDE * entry / risk
+                _append({
+                    "signal_id": pos["signal_id"], "ts": int(time.time() * 1000),
+                    "symbol": symbol, "side": side, "geom": pos.get("geom"),
+                    "status": "closed", "result_r": result_r, "mfe_r": 0.0, "mae_r": 0.0,
+                    "hold_hours": None, "exit_reason": "eod",
+                })
+                key_sym = f"zeus_wedge_retest_1h|{symbol}"
+                if result_r < 0:
+                    loss_streak[key_sym] = int(loss_streak.get(key_sym, 0)) + 1
+                    if loss_streak[key_sym] >= 3:
+                        pause_until[key_sym] = time.time() + 36 * 3600
+                        loss_streak[key_sym] = 0
+                del open_map[key]
+                changed = True
+                continue
+        else:
+            entry_i = int(pos.get("entry_i") or 0)
+
         mfe = mae = 0.0
         exit_reason = exit_px = None
         tp1_hit = be = False
-        for i in range(max(entry_i + 1, 0), len(c)):
+        for i in range(entry_i + 1, len(c)):
             hi, lo = h[i], l[i]
             if side == "long":
                 mfe = max(mfe, (hi - entry) / risk)
