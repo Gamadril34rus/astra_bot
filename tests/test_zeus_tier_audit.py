@@ -7,12 +7,12 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from astra_bot.decision.zeus_tier_audit import (
+    TierStats,
     aggregate_tiers,
     money_r,
     run_audit,
     status_line,
     verdict_from_tiers,
-    TierStats,
 )
 
 
