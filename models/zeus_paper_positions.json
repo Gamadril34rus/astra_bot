@@ -1,71 +1,12 @@
 {
   "positions": [
     {
-      "id": "d9029c75-cfd6-4fd4-984d-783e45594b76",
-      "symbol": "ATOM-USDT",
-      "direction": "short",
-      "entry_price": "1.704",
-      "quantity": "145.02033300",
-      "stop_loss": "1.717632",
-      "take_profits": [
-        "1.6109004365853666",
-        "1.517800873170733000000000000"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "145.02033300",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "1.832",
-      "lowest_price": "1.654",
-      "strategy": "zeus_channel_boundary_4h",
-      "opened_at": 1791476791831,
-      "notes": {
-        "signal_bar_close": 1.703,
-        "effective_entry": 1.702296,
-        "initial_stop": 1.7970995634146334,
-        "initial_take": 1.517800873170733,
-        "stop_pct": 0.05569158560828046,
-        "confidence": 0.88,
-        "ml_probability": null,
-        "prior_r": 1.585091042186386,
-        "costs_r": 0.05386810174702491,
-        "equity_before": 2468.6753344609597,
-        "risk_budget": 74.0602600338288,
-        "binding_constraint": "none",
-        "score": 76.0,
-        "edge_pct": 141.4543,
-        "ev_r": 1.4145427974687754,
-        "ev_confidence": 0.5555555555555556,
-        "rr": 2.000000000000002,
-        "leverage": 5
-      },
-      "fill_price": "1.702296",
-      "entry_fee_per_unit": "0.0008511480",
-      "risk_distance": "0.0930995634146334",
-      "regime": "STRONG_BEAR_TREND",
-      "timeframe": "4h",
-      "regime_axes": "T:STRONG/V:NORMAL/L:NORMAL",
-      "bars_held": 68,
-      "leverage": "5",
-      "margin_used": "49.42292948640",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "1.517800873170733000000000000",
-      "plan_last_bar_ts": 1791460800000
-    },
-    {
       "id": "9042b240-6fc2-423b-b823-240cabd21bea",
       "symbol": "DOGE-USDT",
       "direction": "short",
       "entry_price": "0.08156",
       "quantity": "1409.570732",
-      "stop_loss": "0.08207571428571428",
+      "stop_loss": "0.08206999999999999",
       "take_profits": [
         "0.07189558434146337",
         "0.06223116868292672000000000000"
@@ -111,7 +52,7 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "4h",
       "regime_axes": "T:RANGE/V:LOW/L:STRESSED",
-      "bars_held": 250,
+      "bars_held": 251,
       "leverage": "7",
       "margin_used": "16.42351270027428571428571429",
       "plan_variant": "STATIC_TP",
@@ -119,10 +60,11 @@
       "plan_last_bar_ts": 1791460800000
     }
   ],
-  "realized_pnl": "472.7755681583996637083376165",
+  "realized_pnl": "475.0604679230799735298907621",
   "initial_capital": "2000.0",
   "cooldowns": {
-    "zeus_channel_boundary_4h|TIA-USDT|long": 1791481773947
+    "zeus_channel_boundary_4h|TIA-USDT|long": 1791481773947,
+    "zeus_channel_boundary_4h|ATOM-USDT|short": 1791482001856
   },
   "last_extremes_bar": {
     "ADA-USDT": 1791390900000,
@@ -133,7 +75,7 @@
     "SOL-USDT": 1790977500000,
     "TIA-USDT": 1791480300000,
     "TAO-USDT": 1791473400000,
-    "DOGE-USDT": 1791480300000,
+    "DOGE-USDT": 1791480600000,
     "1000PEPE-USDT": 1791214200000,
     "LINK-USDT": 1791474000000,
     "AAVE-USDT": 1791341100000,
@@ -147,7 +89,7 @@
     "NEAR-USDT": 1791472800000,
     "UNI-USDT": 1791280500000,
     "FIL-USDT": 1791356400000,
-    "ATOM-USDT": 1791480300000,
+    "ATOM-USDT": 1791480600000,
     "SUI-USDT": 1791340500000,
     "WLD-USDT": 1791238800000,
     "ENA-USDT": 1791433500000,
