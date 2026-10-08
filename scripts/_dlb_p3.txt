@@ -1,0 +1,108 @@
+        "tp1": result.get("tp1"), "tp2": result.get("tp2"), "rr_to_tp2": result.get("rr_to_tp2"),
+        "div": result.get("div"), "hour_utc": time.gmtime().tm_hour,
+        "btc_ema50_4h_dist": btc.get("btc_ema50_4h_dist"),
+        "btc_ret10_4h": btc.get("btc_ret10_4h"),
+        "btc_ret24h": btc.get("btc_ret24h"), "btc_ret72h": btc.get("btc_ret72h"),
+        "adx4h": btc.get("adx4h"), "atr_pct_1h": atr_pct,
+        "vol_breakout_ratio": vol_ratio, "breakout_pos": breakout_pos,
+        "trend120_aligned": trend_aligned, "regime": regime,
+        "counterfactual_pause": counterfactual_pause,
+        "lag": result.get("lag"),
+    }
+    _append(row)
+    if status == "signal" and side and result.get("entry") is not None and entry_ts is not None:
+        key_open = _dedup_key(symbol, geom, side, lb)
+        open_map[key_open] = {
+            "signal_id": sid, "side": side, "geom": geom, "lb": int(lb),
+            "entry": result["entry"], "stop": result["stop"],
+            "tp1": result["tp1"], "tp2": result["tp2"],
+            "entry_ts": entry_ts, "breakout_ts": breakout_ts,
+            "ts": now_ms, "symbol": symbol,
+        }
+        done[key_open] = now_ms  # 48h cooldown after open; pruned by _prune_done
+        _save_state(st)
+    return row
+
+
+def log_wedge_1h_shadow(
+    *,
+    symbol,
+    bars_1h,
+    btc_4h=None,
+    btc_1h=None,
+    lb: int | None = None,
+    lbs: Sequence[int] | None = None,
+    regime=None,
+):
+    """Scan each lookback independently on the same bar stream.
+
+    Default windows: LOOKBACKS (48, 72). Pass ``lb=`` for a single window
+    (tests / back-compat) or ``lbs=`` for an explicit list.
+    """
+    windows: list[int]
+    if lbs is not None:
+        windows = [int(x) for x in lbs]
+    elif lb is not None:
+        windows = [int(lb)]
+    else:
+        windows = list(LOOKBACKS)
+
+    bars = list(bars_1h)
+    if len(bars) >= 2:
+        bars = bars[:-1]
+    o, h, l, c, v, ts = _ohlc(bars)
+    btc = _btc_ctx(btc_4h, btc_1h)
+    st = _load_state()
+    last = None
+    for win in windows:
+        if len(bars) < win + 30:
+            # One lb short of window must not block the other stream.
+            continue
+        for geom in GEOMS:
+            last = _log_one(
+                symbol=symbol, o=o, h=h, l=l, c=c, v=v, ts=ts,
+                btc=btc, lb=win, regime=regime, geom=geom, st=st,
+            )
+    return last
+
+
+def update_open_shadows(*, symbol: str, bars_1h: Sequence[Any]) -> None:
+    """Close open shadows using entry_ts (stable across sliding windows)."""
+    st = _load_state()
+    by_lb = st.get("by_lb") or {}
+    if not by_lb:
+        return
+    bars = list(bars_1h)
+    if len(bars) >= 2:
+        bars = bars[:-1]
+    _, h, l, c, _, ts = _ohlc(bars)
+    if not c or not ts:
+        return
+    changed = False
+    for _lb_key, sec in by_lb.items():
+        open_map = sec.setdefault("open", {})
+        loss_streak = sec.setdefault("loss_streak", {})
+        pause_until = sec.setdefault("pause_until", {})
+        if not open_map:
+            continue
+        for key in list(open_map.keys()):
+            if not key.startswith(symbol + "|"):
+                continue
+            pos = open_map[key]
+            side = pos["side"]
+            entry, stop = float(pos["entry"]), float(pos["stop"])
+            tp1, tp2 = float(pos["tp1"]), float(pos["tp2"])
+            risk = abs(entry - stop) or 1e-12
+            entry_ts = pos.get("entry_ts")
+            if entry_ts is not None:
+                entry_i = None
+                for i, t in enumerate(ts):
+                    if t <= entry_ts:
+                        entry_i = i
+                    else:
+                        break
+                if entry_i is None:
+                    exit_px = float(c[-1])
+                    if side == "long":
+                        result_r = (exit_px - entry) / risk - 2 * COST_PER_SIDE * entry / risk
+                    else:
