@@ -6,6 +6,7 @@ Loss streak cumulative (wins/zeros do NOT reset); pause per strategy+symbol.
 
 Production signal path uses lag-scan (formation ends k bars ago) so breakout
 bars exist after form_end. Open positions keyed by entry_ts (ms), not bar index.
+Dedup/cooldown key = symbol|geom|side (no breakout_ts) with 48h TTL.
 """
 from __future__ import annotations
 
@@ -113,8 +114,9 @@ def _btc_ctx(btc_4h, btc_1h):
     return out
 
 
-def _dedup_key(symbol: str, geom: str, side: str, breakout_ts) -> str:
-    return f"{symbol}|{geom}|{side}|{breakout_ts}"
+def _dedup_key(symbol: str, geom: str, side: str) -> str:
+    """Episode key: one open/cooldown per symbol|geom|side (no breakout_ts)."""
+    return f"{symbol}|{geom}|{side}"
 
 
 def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st):
@@ -139,20 +141,19 @@ def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st):
     retest_ts = ts[retest_i] if retest_i is not None and retest_i < len(ts) else None
     entry_ts = ts[entry_i] if entry_i is not None and entry_i < len(ts) else None
 
+    # Dedup BEFORE blocked_pause rewrite — suppress episode noise while paused
+    if status in ("signal", "signal_pending_entry") and side:
+        dkey = _dedup_key(symbol, geom, side)
+        if dkey in done:
+            return None
+        if dkey in open_map:
+            return None
+
     counterfactual_pause = False
     if pause_until.get(key_sym, 0) > time.time():
         counterfactual_pause = True
         if status == "signal":
             status = "blocked_pause"
-
-    if status in ("signal", "signal_pending_entry") and side and breakout_ts is not None:
-        dkey = _dedup_key(symbol, geom, side, breakout_ts)
-        if dkey in done:
-            return None
-        for ok, ov in open_map.items():
-            if (ov.get("symbol") == symbol and ov.get("geom") == geom
-                    and ov.get("side") == side and ov.get("breakout_ts") == breakout_ts):
-                return None
 
     atr_pct = None
     if len(h) >= 15:
@@ -192,7 +193,7 @@ def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st):
     }
     _append(row)
     if status == "signal" and side and result.get("entry") is not None and entry_ts is not None:
-        key_open = f"{symbol}|{side}|{geom}|{breakout_ts}"
+        key_open = _dedup_key(symbol, geom, side)
         open_map[key_open] = {
             "signal_id": sid, "side": side, "geom": geom,
             "entry": result["entry"], "stop": result["stop"],
@@ -200,8 +201,7 @@ def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st):
             "entry_ts": entry_ts, "breakout_ts": breakout_ts,
             "ts": now_ms, "symbol": symbol,
         }
-        if breakout_ts is not None:
-            done[_dedup_key(symbol, geom, side, breakout_ts)] = now_ms
+        done[key_open] = now_ms  # 48h cooldown after open; pruned by _prune_done
         _save_state(st)
     return row
 
