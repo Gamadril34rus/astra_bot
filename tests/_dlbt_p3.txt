@@ -1,0 +1,106 @@
+    signals0 = [r for r in lines0 if r.get("status") == "signal"]
+    assert signals0, "expected initial signal"
+    n_sig0 = len(signals0)
+    st0 = sh._load_state()
+    n_open0 = len((st0.get("by_lb") or {}).get("48", {}).get("open") or {})
+    assert n_open0 >= 1
+
+    # Hour H+1: APPEND one new bar; keep STABLE timestamps on old bars
+    closed = bars[:-1]
+    cont_ts = closed[-1]["open_time"] + 3600
+    closed.append({
+        "open": closed[-1]["close"], "high": closed[-1]["close"] * 1.002,
+        "low": closed[-1]["close"] * 0.998, "close": closed[-1]["close"] * 1.001,
+        "volume": 1100.0, "open_time": cont_ts,
+    })
+    closed.append({
+        "open": closed[-1]["close"], "high": closed[-1]["close"], "low": closed[-1]["close"],
+        "close": closed[-1]["close"], "volume": 1, "open_time": cont_ts + 3600,
+    })
+    sh.log_wedge_1h_shadow(symbol="BTC-USDT", bars_1h=closed, lb=48)
+    lines1 = [json.loads(ln) for ln in sh.SHADOW_PATH.read_text().splitlines() if ln.strip()]
+    signals1 = [r for r in lines1 if r.get("status") == "signal"]
+    assert len(signals1) == n_sig0, (n_sig0, len(signals1), signals1)
+    st1 = sh._load_state()
+    assert len((st1.get("by_lb") or {}).get("48", {}).get("open") or {}) == n_open0
+
+
+def test_lag_scan_not_blocked_by_stage(tmp_path, monkeypatch):
+    """Problem B: lag=0 rejected_width must not prevent lag-scan signal."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import zeus_wedge_1h_shadow as sh
+
+    monkeypatch.setattr(sh, "SHADOW_PATH", tmp_path / "signals.jsonl")
+    monkeypatch.setattr(sh, "STATE_PATH", tmp_path / "state.json")
+
+    o, h, l, c, _form = _narrow_series()
+    h = list(h)
+    l = list(l)
+    o = list(o)
+    c = list(c)
+    h[-1] = max(h) * 1.5
+    l[-1] = min(l) * 0.5
+    c[-1] = (h[-1] + l[-1]) / 2
+    o[-1] = c[-1]
+
+    stage = evaluate_bars(o, h, l, c, lb=48, geom="narrow")
+    assert stage.get("status") in ("rejected_width", "no_wedge", "rejected_touches", "no_breakout"), stage
+
+    prod = evaluate_bars_with_lag(o, h, l, c, lb=48, geom="narrow")
+    assert prod.get("status") == "signal", prod
+
+    base_ts = 1_700_000_000
+    pad = [{"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 500.0,
+            "open_time": base_ts + i * 3600} for i in range(40)]
+    bars = pad + [
+        {"open": o[i], "high": h[i], "low": l[i], "close": c[i], "volume": 1000.0,
+         "open_time": base_ts + (40 + i) * 3600}
+        for i in range(len(o))
+    ]
+    bars.append({"open": c[-1], "high": c[-1], "low": c[-1], "close": c[-1], "volume": 1,
+                 "open_time": base_ts + (40 + len(o)) * 3600})
+    sh.log_wedge_1h_shadow(symbol="ETH-USDT", bars_1h=bars, lb=48)
+    lines = [json.loads(ln) for ln in sh.SHADOW_PATH.read_text().splitlines() if ln.strip()]
+    assert any(r.get("status") == "signal" for r in lines), lines
+
+
+
+def test_dual_lb_both_logged(tmp_path, monkeypatch):
+    """(a) One hour logs rows for both lb=48 and lb=72."""
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import zeus_wedge_1h_shadow as sh
+
+    monkeypatch.setattr(sh, "SHADOW_PATH", tmp_path / "signals.jsonl")
+    monkeypatch.setattr(sh, "STATE_PATH", tmp_path / "state.json")
+
+    o, h, l, c, _form = _narrow_series(lb=48)
+    base_ts = 1_700_000_000
+    # Pad enough for lb=72 + formation + lag
+    pad = [
+        {
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.0,
+            "volume": 500.0,
+            "open_time": base_ts + i * 3600,
+        }
+        for i in range(80)
+    ]
+    bars = pad + [
+        {
+            "open": o[i],
+            "high": h[i],
+            "low": l[i],
+            "close": c[i],
+            "volume": 1000.0,
+            "open_time": base_ts + (80 + i) * 3600,
+        }
+        for i in range(len(o))
+    ]
+    last = bars[-1]
+    bars.append(
+        {
+            "open": last["close"],
+            "high": last["close"],
+            "low": last["close"],
