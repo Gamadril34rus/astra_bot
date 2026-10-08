@@ -73,5 +73,5 @@ async def observe_zeus(
         except Exception as _w1h_exc:
             logger.debug("wedge_1h_shadow: %s", _w1h_exc)
 
-    except Exception as exc:
+    except Exception as exp:
         logger.warning("observe_zeus skipped: %s", exp)
