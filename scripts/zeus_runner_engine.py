@@ -19,6 +19,7 @@ from zeus_runner_common import (
 )
 
 CONF_RISK_LADDER = ((0.88, 3.0), (0.80, 2.0), (0.70, 1.5))  # conf -> risk %
+ZEUS_HEAT_PATH = "models/zeus_heat_state.json"
 
 
 def zeus_build_pipeline_and_engine(
@@ -30,6 +31,7 @@ def zeus_build_pipeline_and_engine(
     # Capital path: channel TP2 density + matched wedge quality.
     # Leverage ladder: confidence→2..20x (env ASTRA_LEVERAGE_MAX);
     # actual risk $ scales 1–3% via CONF_RISK_LADDER on conf (sizing + notes).
+    # Heat governor: 3 consecutive losses → risk capped at 1% until UTC day end or win.
     import sys as _sys
     from pathlib import Path as _P
 
@@ -86,7 +88,20 @@ def zeus_build_pipeline_and_engine(
         )
     except Exception as _lim_exc:
         logger.warning("risk limit override FAILED: %s", _lim_exc)
-    # Actual sizing budget + notes risk_budget both use conf ladder.
+
+    # Heat governor (persistent). Caps ladder to 1% after 3 consecutive losses.
+    from astra_bot.decision.zeus_heat import ZeusHeatGovernor
+
+    heat = ZeusHeatGovernor(state_path=Path(ZEUS_HEAT_PATH))
+    engine._zeus_heat = heat  # type: ignore[attr-defined]
+    if heat.is_heat_active():
+        logger.warning(
+            "Zeus heat ACTIVE at start (consecutive=%s day=%s) — risk capped at 1%%",
+            heat.consecutive,
+            heat.heat_day,
+        )
+
+    # Actual sizing budget + notes risk_budget both use conf ladder (or heat 1%).
     # Kelly / clamps / slots / LEVERAGE_LADDER / RiskEngine check_trade untouched.
     try:
         import types as _types
@@ -95,6 +110,7 @@ def zeus_build_pipeline_and_engine(
 
         _orig_size = engine._position_size
         _orig_open = engine.broker.open_position
+        _orig_log = engine.broker._log_trade
 
         def _position_size(
             self,
@@ -108,9 +124,12 @@ def zeus_build_pipeline_and_engine(
         ):
             saved = self.config.risk_per_trade_pct
             try:
-                self.config.risk_per_trade_pct = conf_risk_pct(
-                    ml_confidence, CONF_RISK_LADDER, _DRisk(str(saved))
-                )
+                if heat.is_heat_active():
+                    self.config.risk_per_trade_pct = _DRisk("0.01")
+                else:
+                    self.config.risk_per_trade_pct = conf_risk_pct(
+                        ml_confidence, CONF_RISK_LADDER, _DRisk(str(saved))
+                    )
                 return _orig_size(
                     equity,
                     entry,
@@ -132,25 +151,42 @@ def zeus_build_pipeline_and_engine(
                     eq = float(self.net_equity)
                 except Exception:
                     eq = None
+            heat_on = heat.is_heat_active()
             if eq is not None:
-                tier = conf_risk_pct(
-                    float(conf) if conf is not None else None,
-                    CONF_RISK_LADDER,
-                    _DRisk("0.01"),
-                )
+                if heat_on:
+                    tier = _DRisk("0.01")
+                    notes["binding_constraint"] = "heat_cap"
+                else:
+                    tier = conf_risk_pct(
+                        float(conf) if conf is not None else None,
+                        CONF_RISK_LADDER,
+                        _DRisk("0.01"),
+                    )
                 notes["risk_budget"] = float(_DRisk(str(eq)) * tier)
                 kwargs["notes"] = notes
+            elif heat_on:
+                notes["binding_constraint"] = "heat_cap"
+                kwargs["notes"] = notes
             return _orig_open(*args, **kwargs)
+
+        def _log_with_heat(self, trade):
+            try:
+                heat.record(float(getattr(trade, "pnl", 0) or 0))
+            except Exception as _h_exc:
+                logger.debug("zeus heat record: %s", _h_exc)
+            return _orig_log(trade)
 
         engine._position_size = _types.MethodType(_position_size, engine)
         engine.broker.open_position = _types.MethodType(
             _open_with_ladder, engine.broker
         )
+        engine.broker._log_trade = _types.MethodType(_log_with_heat, engine.broker)
     except Exception as _sz_exc:
-        logger.warning("conf risk ladder wrap FAILED: %s", _sz_exc)
+        logger.warning("conf risk / heat wrap FAILED: %s", _sz_exc)
     logger.info(
-        "Zeus paper leverage_max=%s (conf risk 1-3%% actual sizing; day 4%% week 6%%)",
+        "Zeus paper leverage_max=%s (conf risk 1-3%%; heat@%s losses; day 4%% week 6%%)",
         _lev_max,
+        heat.threshold,
     )
     from decimal import Decimal as _Dec
 
