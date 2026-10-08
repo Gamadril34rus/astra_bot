@@ -10,11 +10,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from astra_bot.zeus_wedge_1h_core import (
+    _classify_kind,
     detect_wedge,
     evaluate_bars,
     evaluate_bars_with_lag,
     scan_breakout_retest,
-    _classify_kind,
 )
 
 
@@ -40,24 +40,36 @@ def _narrow_series(lb: int = 48):
         else:
             hi, lo = up - 0.3 * (up - dn), dn
         mid = 0.5 * (hi + lo)
-        opens.append(mid); highs.append(hi); lows.append(lo); closes.append(mid)
+        opens.append(mid)
+        highs.append(hi)
+        lows.append(lo)
+        closes.append(mid)
     form = detect_wedge(highs, lows, closes, lb=lb, geom="narrow")
     assert form is not None
     form.form_start = 0
     form.form_end = lb
     j = lb
     up = form.u0 + form.su * j
-    opens.append(up * 1.01); highs.append(up * 1.03); lows.append(up * 0.999); closes.append(up * 1.02)
+    opens.append(up * 1.01)
+    highs.append(up * 1.03)
+    lows.append(up * 0.999)
+    closes.append(up * 1.02)
     j = lb + 1
     line = form.u0 + form.su * j
-    opens.append(line * 1.001); highs.append(line * 1.01); lows.append(line * 0.999); closes.append(line * 1.001)
+    opens.append(line * 1.001)
+    highs.append(line * 1.01)
+    lows.append(line * 0.999)
+    closes.append(line * 1.001)
     entry = line * 1.002
-    opens.append(entry); highs.append(entry * 1.01); lows.append(entry * 0.99); closes.append(entry * 1.001)
+    opens.append(entry)
+    highs.append(entry * 1.01)
+    lows.append(entry * 0.99)
+    closes.append(entry * 1.001)
     return opens, highs, lows, closes, form
 
 
 def test_detect_narrow_falling_wedge():
-    o, h, l, c, form = _narrow_series()
+    _, _, _, _, form = _narrow_series()
     assert form.kind == "falling"
     assert form.geom == "narrow"
     assert form.touches_up >= 2 and form.touches_dn >= 2
@@ -91,7 +103,7 @@ def test_shadow_log_row(tmp_path, monkeypatch):
 
     monkeypatch.setattr(sh, "SHADOW_PATH", tmp_path / "signals.jsonl")
     monkeypatch.setattr(sh, "STATE_PATH", tmp_path / "state.json")
-    o, h, l, c, form = _narrow_series()
+    o, h, l, c, _form = _narrow_series()
     base_ts = 1_700_000_000
     pad = [{"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 500.0,
             "open_time": base_ts + i * 3600} for i in range(40)]
@@ -120,7 +132,7 @@ def test_shadow_closes_on_slid_window(tmp_path, monkeypatch):
     monkeypatch.setattr(sh, "SHADOW_PATH", tmp_path / "signals.jsonl")
     monkeypatch.setattr(sh, "STATE_PATH", tmp_path / "state.json")
 
-    o, h, l, c, form = _narrow_series()
+    o, h, l, c, _form = _narrow_series()
     base_ts = 1_700_000_000
 
     def make_bars(o, h, l, c, base, extra_bars=None):
@@ -177,7 +189,7 @@ def test_dedup_collapse_on_slid_window(tmp_path, monkeypatch):
     monkeypatch.setattr(sh, "SHADOW_PATH", tmp_path / "signals.jsonl")
     monkeypatch.setattr(sh, "STATE_PATH", tmp_path / "state.json")
 
-    o, h, l, c, form = _narrow_series()
+    o, h, l, c, _form = _narrow_series()
     base_ts = 1_700_000_000
     pad = [{"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 500.0,
             "open_time": base_ts + i * 3600} for i in range(40)]
@@ -227,8 +239,11 @@ def test_lag_scan_not_blocked_by_stage(tmp_path, monkeypatch):
     monkeypatch.setattr(sh, "SHADOW_PATH", tmp_path / "signals.jsonl")
     monkeypatch.setattr(sh, "STATE_PATH", tmp_path / "state.json")
 
-    o, h, l, c, form = _narrow_series()
-    h = list(h); l = list(l); o = list(o); c = list(c)
+    o, h, l, c, _form = _narrow_series()
+    h = list(h)
+    l = list(l)
+    o = list(o)
+    c = list(c)
     h[-1] = max(h) * 1.5
     l[-1] = min(l) * 0.5
     c[-1] = (h[-1] + l[-1]) / 2
