@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-08T16:06:28.444586+00:00",
+ "updated": "2026-10-08T16:08:36.024852+00:00",
  "outcomes": {
   "ee0905ba0f325831850b": {
    "bar_time": 1790610900000,
@@ -677785,6 +677785,48 @@
     }
    },
    "computed_at": "2026-10-08T16:06:28.435224+00:00"
+  },
+  "3c7e8c745140bf4f88e4": {
+   "bar_time": 1791475200000,
+   "symbol": "ETH-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "STRONG_BEAR_TREND",
+   "horizons": {
+    "1": {
+     "future_return": 0.000338,
+     "max_up": 0.001643,
+     "max_down": -0.005231
+    }
+   },
+   "computed_at": "2026-10-08T16:08:28.027672+00:00"
+  },
+  "adb0a31e900fbe682f8a": {
+   "bar_time": 1791475200000,
+   "symbol": "SOL-USDT",
+   "reason_code": "LOW_EV",
+   "market_regime": "STRONG_BEAR_TREND",
+   "horizons": {
+    "1": {
+     "future_return": 0.001367,
+     "max_up": 0.001616,
+     "max_down": -0.003104
+    }
+   },
+   "computed_at": "2026-10-08T16:08:32.085340+00:00"
+  },
+  "ea5b5ea0a15d6ae18b7e": {
+   "bar_time": 1791475200000,
+   "symbol": "BNB-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "STRONG_BEAR_TREND",
+   "horizons": {
+    "1": {
+     "future_return": -0.00048,
+     "max_up": 0.00048,
+     "max_down": -0.003933
+    }
+   },
+   "computed_at": "2026-10-08T16:08:36.014606+00:00"
   }
  }
 }
