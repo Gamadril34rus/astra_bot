@@ -215,8 +215,11 @@ def _format_important(rows: list[dict], since_ts: int, only_symbols: bool = Fals
     return out[-20:]  # не раздувать
 
 
-def _heartbeat_text(rows: list[dict]) -> str:
-    return "📊 Zeus paper: тихо, сделок нет"
+def _heartbeat_text(rows: list[dict], tier_line: str | None = None) -> str:
+    base = "📊 Zeus paper: тихо, сделок нет"
+    if tier_line:
+        return base + "\n" + tier_line
+    return base
 
 
 async def _send(text: str) -> bool:
@@ -253,6 +256,19 @@ async def amain(journal: Path, force_heartbeat: bool) -> int:
     since = int(state.get("last_ts") or 0)
     now = int(time.time() * 1000)
 
+    # Weekly confidence-tier audit (money R); no auto ladder change.
+    audit = None
+    try:
+        from astra_bot.decision.zeus_tier_audit import run_audit, status_line
+
+        audit = run_audit(
+            trades_path=Path("models/zeus_paper_trades.jsonl"),
+            audit_path=Path("models/zeus_tier_audit.json"),
+        )
+        state["tier_status_line"] = status_line(audit)
+    except Exception as exc:
+        print(f"tier audit skip: {exc}")
+
     important = _format_important(rows, since)
     sent_any = False
 
@@ -273,6 +289,8 @@ async def amain(journal: Path, force_heartbeat: bool) -> int:
         digest = _format_important(rows, int(state.get("last_digest") or 0))
         if digest:
             body = "📊 Zeus paper:\n\n" + "\n\n".join(digest)
+            if state.get("tier_status_line"):
+                body = body + "\n\n" + state["tier_status_line"]
             if await _send(body):
                 sent_any = True
         state["last_digest"] = now
@@ -281,7 +299,7 @@ async def amain(journal: Path, force_heartbeat: bool) -> int:
     if force_heartbeat or (
         not important and (now - last_hb) >= HEARTBEAT_SEC * 1000
     ):
-        if await _send(_heartbeat_text(rows)):
+        if await _send(_heartbeat_text(rows, state.get("tier_status_line"))):
             sent_any = True
             state["last_heartbeat"] = now
             if not state.get("last_ts"):
