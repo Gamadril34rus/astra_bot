@@ -1,0 +1,100 @@
+    out = {
+        "btc_ema50_4h_dist": None,
+        "btc_ret10_4h": None,
+        "btc_ret24h": None,
+        "btc_ret72h": None,
+        "adx4h": None,
+    }
+    if not btc_4h or len(btc_4h) < 55:
+        return out
+
+    def _f(b, k):
+        return float(getattr(b, k, b.get(k) if isinstance(b, dict) else 0) or 0)
+
+    closes = [_f(b, "close") for b in btc_4h]
+    highs = [_f(b, "high") for b in btc_4h]
+    lows = [_f(b, "low") for b in btc_4h]
+    k = 2.0 / 51
+    ema = closes[0]
+    for x in closes[1:]:
+        ema = x * k + ema * (1 - k)
+    out["btc_ema50_4h_dist"] = (closes[-1] - ema) / ema if ema else None
+    if len(closes) >= 10 and closes[-10]:
+        out["btc_ret10_4h"] = (closes[-1] - closes[-10]) / closes[-10]
+    out["adx4h"] = wilder_adx(highs, lows, closes, 14)
+    if btc_1h and len(btc_1h) >= 73:
+        c1 = [_f(b, "close") for b in btc_1h]
+        if c1[-25]:
+            out["btc_ret24h"] = (c1[-1] - c1[-25]) / c1[-25]
+        if c1[-73]:
+            out["btc_ret72h"] = (c1[-1] - c1[-73]) / c1[-73]
+    return out
+
+
+def _dedup_key(symbol: str, geom: str, side: str, lb: int) -> str:
+    """Episode key: one open/cooldown per symbol|geom|side|lb (no breakout_ts)."""
+    return f"{symbol}|{geom}|{side}|{int(lb)}"
+
+
+def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st):
+    result = evaluate_bars_with_lag(
+        o, h, l, c, lb=lb, geom=geom,
+        max_lag=BREAKOUT_MAX_BARS + RETEST_MAX_BARS + 1,
+    )
+    status = result.get("status") or "unknown"
+    form = result.get("form")
+    now_ms = int(time.time() * 1000)
+    sid = str(uuid.uuid4())
+    sec = _lb_section(st, lb)
+    open_map = sec["open"]
+    pause_until = sec["pause_until"]
+    done = sec["done"]
+    _prune_done(done, now_ms)
+    side = result.get("side")
+    key_sym = f"zeus_wedge_retest_1h|{symbol}"
+    breakout_i = result.get("breakout_i")
+    retest_i = result.get("retest_i")
+    entry_i = result.get("entry_i")
+    breakout_ts = ts[breakout_i] if breakout_i is not None and breakout_i < len(ts) else None
+    retest_ts = ts[retest_i] if retest_i is not None and retest_i < len(ts) else None
+    entry_ts = ts[entry_i] if entry_i is not None and entry_i < len(ts) else None
+
+    # Dedup BEFORE blocked_pause rewrite — suppress episode noise while paused
+    if status in ("signal", "signal_pending_entry") and side:
+        dkey = _dedup_key(symbol, geom, side, lb)
+        if dkey in done:
+            return None
+        if dkey in open_map:
+            return None
+
+    counterfactual_pause = False
+    if pause_until.get(key_sym, 0) > time.time():
+        counterfactual_pause = True
+        if status == "signal":
+            status = "blocked_pause"
+
+    atr_pct = None
+    if len(h) >= 15:
+        trs = [max(h[-i] - l[-i], abs(h[-i] - c[-i - 1]), abs(l[-i] - c[-i - 1])) for i in range(1, 15)]
+        atr = sum(trs) / len(trs)
+        atr_pct = atr / c[-1] if c[-1] else None
+    vol_ratio = None
+    if breakout_i is not None and breakout_i >= 20:
+        med = sorted(v[breakout_i - 20:breakout_i])[10]
+        if med > 0:
+            vol_ratio = v[breakout_i] / med
+    trend120 = (c[-1] - c[-120]) / c[-120] if len(c) >= 120 and c[-120] else None
+    trend_aligned = None
+    if side and trend120 is not None:
+        trend_aligned = (side == "long" and trend120 > 0) or (side == "short" and trend120 < 0)
+    breakout_pos = None
+    if form is not None and breakout_i is not None:
+        span = form.form_end - form.form_start
+        breakout_pos = (breakout_i - form.form_start) / span if span else None
+
+    row = {
+        "signal_id": sid, "ts": now_ms, "symbol": symbol, "side": side, "lb": lb, "geom": geom,
+        "w0": result.get("w0"), "wE": result.get("wE"),
+        "touches_up": result.get("touches_up"), "touches_dn": result.get("touches_dn"),
+        "status": status, "breakout_ts": breakout_ts, "retest_ts": retest_ts,
+        "entry": result.get("entry"), "stop": result.get("stop"),
