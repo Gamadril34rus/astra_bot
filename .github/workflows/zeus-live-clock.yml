@@ -1,0 +1,48 @@
+name: zeus-live-clock
+
+# MANUAL ONLY — no schedule. Secrets never echoed.
+on:
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: "dry tick (reconcile+commands, no entries)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  live-tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: |
+          pip install -q -r requirements.txt || pip install -q aiohttp python-dotenv
+      - name: Guard flags
+        env:
+          ZEUS_LIVE: ${{ secrets.ZEUS_LIVE }}
+        run: |
+          if [ "${ZEUS_LIVE}" != "1" ]; then
+            echo "ZEUS_LIVE is not 1 — abort (adapter inactive)"
+            exit 0
+          fi
+      - name: Run live clock
+        env:
+          ZEUS_LIVE: ${{ secrets.ZEUS_LIVE }}
+          ZEUS_VST: ${{ secrets.ZEUS_VST }}
+          ZEUS_MAINNET: ${{ secrets.ZEUS_MAINNET }}
+          ENVIRONMENT: live
+          BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
+          BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
+        run: |
+          # never print secrets
+          set +x
+          DRY_FLAG=""
+          if [ "${{ inputs.dry }}" = "true" ]; then DRY_FLAG="--dry"; fi
+          python scripts/zeus_live_clock.py $DRY_FLAG
