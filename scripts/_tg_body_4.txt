@@ -1,0 +1,113 @@
+            best_pnl, best_sym = pnl, sym
+        if worst_pnl is None or pnl < worst_pnl:
+            worst_pnl, worst_sym = pnl, sym
+
+    line1 = f"{label}: {n} сделок, итог {_money(window_pnl)}"
+    if n and best_sym is not None and worst_sym is not None:
+        line1 += f" (лучший {best_sym} {_money(best_pnl)}, худший {worst_sym} {_money(worst_pnl)})"
+    line1 += "."
+
+    line2 = f"Счёт {_money(equity).lstrip('+').rstrip('$')}$ ({_money(window_pnl)})."
+    # _money always has sign; equity positive display without forcing +
+    eq_s = f"{equity:.2f}$".replace(".", ",")
+    line2 = f"Счёт {eq_s} ({_money(window_pnl)})."
+
+    line3 = f"Санитар: {audit_line}." if not audit_line.startswith("санитар") else f"{audit_line}."
+    if incidents:
+        line4 = "Поломки: " + "; ".join(incidents)
+    else:
+        line4 = "Поломок нет."
+    return "\n".join([line1, line2, line3, line4])
+
+
+async def _send(text: str) -> bool:
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    admin = os.environ.get("TELEGRAM_ADMIN_ID", "").strip()
+    if not token or not admin:
+        print("TELEGRAM_BOT_TOKEN / TELEGRAM_ADMIN_ID missing — skip")
+        return False
+    try:
+        from telegram import Bot
+    except ImportError:
+        print("python-telegram-bot not installed — skip")
+        return False
+
+    bot = Bot(token=token)
+    ok = False
+    for raw_id in admin.split(","):
+        raw_id = raw_id.strip()
+        if not raw_id:
+            continue
+        try:
+            chunk = text if len(text) < 4000 else text[:4000] + "…"
+            await bot.send_message(chat_id=int(raw_id), text=chunk)
+            ok = True
+        except Exception as exc:
+            print(f"send failed to {raw_id}: {exc}")
+    return ok
+
+
+def collect_exit_pushes(
+    journal: list[dict[str, Any]],
+    trades: list[dict[str, Any]],
+    since_ts: int,
+) -> list[str]:
+    msgs: list[str] = []
+    for r in journal:
+        if str(r.get("event") or "") != "exit":
+            continue
+        ts = _ts_ms(r)
+        if since_ts and ts and ts <= since_ts:
+            continue
+        tid = match_trade_id_for_exit(r, trades)
+        pnl = sum_pnl_for_trade_id(trades, tid) if tid else None
+        reason = exit_reason_for_trade(trades, tid) if tid else (r.get("reason") or "—")
+        msgs.append(format_exit_line(r.get("symbol"), r.get("direction"), pnl, reason))
+    return msgs
+
+
+def collect_incident_pushes(
+    journal: list[dict[str, Any]], since_ts: int
+) -> list[str]:
+    msgs: list[str] = []
+    for r in journal:
+        ts = _ts_ms(r)
+        if since_ts and ts and ts <= since_ts:
+            continue
+        if not is_incident(r):
+            continue
+        msgs.append(format_incident_line(r))
+    return msgs
+
+
+def run_tier_audit() -> tuple[dict[str, Any] | None, str]:
+    """Run weekly tier audit; return (audit_dict, status_line)."""
+    try:
+        import sys as _sys
+
+        if str(PROJECT_ROOT) not in _sys.path:
+            _sys.path.insert(0, str(PROJECT_ROOT))
+        from astra_bot.decision.zeus_tier_audit import run_audit, status_line
+
+        audit = run_audit(trades_path=TRADES_PATH, audit_path=AUDIT_PATH)
+        return audit, status_line(audit)
+    except Exception as exc:
+        print(f"tier audit skip: {exc}")
+        return None, "нет данных"
+
+
+async def amain(journal: Path, force_report: bool = False) -> int:
+    state = _load_state()
+    rows = _read_jsonl(journal, max_lines=5000)
+    trades = _read_jsonl(TRADES_PATH)
+    since = int(state.get("last_ts") or 0)
+    now_ms = int(time.time() * 1000)
+    now = datetime.now(tz=UTC)
+
+    audit, audit_line = run_tier_audit()
+    state["tier_status_line"] = audit_line
+
+    sent_any = False
+
+    # Instant pushes: exits + incidents only
+    exits = collect_exit_pushes(rows, trades, since)
