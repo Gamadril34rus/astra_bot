@@ -1,0 +1,101 @@
+"""Mock-exchange tests for live BingX adapter (no network)."""
+from __future__ import annotations
+
+import asyncio
+from decimal import Decimal
+from types import SimpleNamespace
+from typing import Any
+
+from astra_bot.decision.live_broker import HARD_CAP_USD, LiveBroker, LiveBrokerConfig, LiveEntryPlan
+from astra_bot.decision import live_commands as lc
+
+
+class MockClient:
+    def __init__(self, balance: Decimal = Decimal("250"), positions=None):
+        self._balance = balance
+        self._positions = list(positions or [])
+        self._orders: list[Any] = []
+        self.placed: list[dict] = []
+        self.cancelled: list[tuple] = []
+        self.closed: list[str] = []
+        self.fail_next: str | None = None
+
+    async def get_balance_usdt(self) -> Decimal:
+        return self._balance
+
+    async def get_positions(self):
+        return list(self._positions)
+
+    async def get_open_orders(self, symbol: str | None = None):
+        if symbol:
+            return [o for o in self._orders if getattr(o, "symbol", None) == symbol]
+        return list(self._orders)
+
+    async def place_order(self, **kwargs):
+        if self.fail_next == "reject":
+            self.fail_next = None
+            raise RuntimeError("place_order rejected code=101204 msg=insufficient")
+        if self.fail_next == "timeout":
+            self.fail_next = None
+            raise TimeoutError("timeout")
+        oid = f"ord-{len(self.placed)+1}"
+        o = SimpleNamespace(
+            id=oid,
+            symbol=kwargs.get("symbol"),
+            side=kwargs.get("side"),
+            order_type=str(kwargs.get("order_type", "")).lower(),
+            quantity=kwargs.get("quantity"),
+            status="filled" if kwargs.get("order_type") == "MARKET" else "new",
+            filled_quantity=kwargs.get("quantity") if kwargs.get("order_type") == "MARKET" else Decimal("0"),
+        )
+        self.placed.append(kwargs)
+        self._orders.append(o)
+        if kwargs.get("order_type") == "MARKET" and not kwargs.get("reduce_only"):
+            side = "long" if kwargs.get("side") == "BUY" else "short"
+            self._positions.append(
+                SimpleNamespace(
+                    symbol=kwargs["symbol"],
+                    side=side,
+                    quantity=kwargs["quantity"],
+                    entry_price=Decimal("10"),
+                )
+            )
+        return o
+
+    async def cancel_order(self, symbol: str, order_id: str) -> bool:
+        self.cancelled.append((symbol, order_id))
+        self._orders = [o for o in self._orders if o.id != order_id]
+        return True
+
+    async def cancel_all_orders(self, symbol: str) -> int:
+        n = len([o for o in self._orders if o.symbol == symbol])
+        self._orders = [o for o in self._orders if o.symbol != symbol]
+        return n
+
+    async def set_leverage(self, symbol: str, leverage: int, side: str = "LONG") -> None:
+        return None
+
+    async def set_margin_isolated(self, symbol: str) -> None:
+        return None
+
+    async def close_position(self, symbol: str, quantity=None, price=None) -> bool:
+        self.closed.append(symbol)
+        self._positions = [p for p in self._positions if p.symbol != symbol]
+        return True
+
+
+def test_hard_cap_100():
+    async def _():
+        b = LiveBroker(MockClient(Decimal("250")))
+        assert await b.equity() == HARD_CAP_USD
+        b2 = LiveBroker(MockClient(Decimal("40")))
+        assert await b2.equity() == Decimal("40")
+    asyncio.run(_())
+
+
+def test_risk_pct_from_real_equity():
+    async def _():
+        b = LiveBroker(MockClient(Decimal("80")))
+        assert await b.risk_budget(Decimal("0.03")) == Decimal("2.40")
+        b2 = LiveBroker(MockClient(Decimal("500")))
+        assert await b2.risk_budget(Decimal("0.01")) == Decimal("1.00")
