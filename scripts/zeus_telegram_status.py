@@ -354,7 +354,7 @@ def format_daily_report(
     n = len(groups)
     # best / worst by summed pnl per id
     best_sym = best_pnl = worst_sym = worst_pnl = None
-    for tid, parts in groups.items():
+    for parts in groups.values():
         pnl = sum(float(p.get("pnl") or 0) for p in parts)
         sym = _sym_short(parts[0].get("symbol"))
         if best_pnl is None or pnl > best_pnl:
