@@ -1,0 +1,110 @@
+    if not parts:
+        return None
+    total = 0.0
+    for p in parts:
+        try:
+            total += float(p.get("pnl") or 0)
+        except (TypeError, ValueError):
+            continue
+    return total
+
+
+def match_trade_id_for_exit(
+    exit_row: dict[str, Any], trades: list[dict[str, Any]], window_ms: int = 6 * 3600 * 1000
+) -> str | None:
+    """Find paper-trade id for a journal exit (symbol+direction, closed_at near ts)."""
+    sym = str(exit_row.get("symbol") or "").upper()
+    direction = str(exit_row.get("direction") or "").lower()
+    ts = _ts_ms(exit_row)
+    # explicit id fields if present
+    for key in ("id", "trade_id", "position_id"):
+        if exit_row.get(key):
+            return str(exit_row[key])
+    feats = exit_row.get("features") or {}
+    if isinstance(feats, dict):
+        for key in ("id", "trade_id", "position_id"):
+            if feats.get(key):
+                return str(feats[key])
+    best_id: str | None = None
+    best_dt = None
+    for t in trades:
+        if str(t.get("symbol") or "").upper() != sym:
+            continue
+        if str(t.get("direction") or "").lower() != direction:
+            continue
+        ct = _ts_ms(t)  # prefers closed_at
+        if not ct or not ts:
+            continue
+        dt = abs(ct - ts)
+        if dt > window_ms:
+            continue
+        if best_dt is None or dt < best_dt:
+            best_dt = dt
+            best_id = str(t.get("id") or "") or None
+    return best_id
+
+
+def exit_reason_for_trade(trades: list[dict[str, Any]], trade_id: str) -> str:
+    """Pick the 'final' exit reason among parts (prefer tp2/stop over tp1)."""
+    parts = [r for r in trades if str(r.get("id") or "") == str(trade_id)]
+    if not parts:
+        return "—"
+    reasons = [str(p.get("exit_reason") or "") for p in parts]
+    for preferred in ("tp2", "take_profit", "stop_loss", "mae_cut", "regime_exit", "tp1"):
+        if preferred in reasons:
+            return preferred
+    # latest by closed_at
+    parts_sorted = sorted(parts, key=_ts_ms)
+    return str(parts_sorted[-1].get("exit_reason") or "—")
+
+
+def format_exit_line(
+    symbol: object,
+    direction: object,
+    pnl: float | None,
+    reason: object,
+) -> str:
+    """🏁 TIA ЛОНГ: закрыта +2,61$ (тейк2)"""
+    if pnl is None:
+        money_s = "+? (сверка утром)"
+        return (
+            f"🏁 {_sym_short(symbol)} {_ru_dir(direction)}: закрыта "
+            f"{money_s}"
+        )
+    return (
+        f"🏁 {_sym_short(symbol)} {_ru_dir(direction)}: закрыта "
+        f"{_money(pnl)} ({_ru_reason(reason)})"
+    )
+
+
+def is_incident(row: dict[str, Any]) -> bool:
+    ev = str(row.get("event") or "").lower()
+    if ev in INCIDENT_EVENTS:
+        return True
+    note = str(row.get("note") or row.get("reason") or "").lower()
+    if any(k in note for k in ("halt", "kill-switch", "kill_switch", "save-state", "unhandled")):
+        return True
+    if "heat" in ev and any(x in ev for x in ("on", "off", "active", "clear", "cap")):
+        return True
+    return False
+
+
+def format_incident_line(row: dict[str, Any]) -> str:
+    ev = str(row.get("event") or "incident")
+    note = str(row.get("note") or row.get("reason") or row.get("symbol") or "").strip()
+    if note:
+        return f"⚠️ {ev}: {note}"
+    return f"⚠️ {ev}"
+
+
+def account_equity(trades: list[dict[str, Any]] | None = None) -> tuple[float, float]:
+    """Return (equity, realized_pnl). Prefer positions file."""
+    initial = 2000.0
+    realized = 0.0
+    if POSITIONS_PATH.exists():
+        try:
+            pos = json.loads(POSITIONS_PATH.read_text(encoding="utf-8"))
+            if isinstance(pos, dict):
+                if pos.get("initial_capital") is not None:
+                    initial = float(pos["initial_capital"])
+                if pos.get("realized_pnl") is not None:
