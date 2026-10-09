@@ -1,0 +1,7 @@
+    spec.loader.exec_module(le)
+    monkeypatch.delenv("ZEUS_MAINNET", raising=False)
+    monkeypatch.setenv("ZEUS_VST", "1")
+    assert le.resolve_base_url() == le.BINGX_VST_BASE
+    monkeypatch.setenv("ZEUS_MAINNET", "1")
+    monkeypatch.setenv("ZEUS_VST", "0")
+    assert le.resolve_base_url() == le.BINGX_API_BASE
