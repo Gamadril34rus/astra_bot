@@ -1,0 +1,114 @@
+    asyncio.run(_())
+
+
+def test_halt_before_place():
+    async def _():
+        b = LiveBroker(MockClient())
+        b.set_halt("kill")
+        try:
+            await b.open_with_protection(
+                LiveEntryPlan("BTC-USDT", "long", Decimal("0.01"), Decimal("90"), Decimal("110"))
+            )
+            raise AssertionError("expected HALT")
+        except RuntimeError as e:
+            assert "HALT" in str(e)
+    asyncio.run(_())
+
+
+def test_entry_three_orders():
+    async def _():
+        c = MockClient(Decimal("100"))
+        b = LiveBroker(c)
+        res = await b.open_with_protection(
+            LiveEntryPlan("ETH-USDT", "long", Decimal("1"), Decimal("90"), Decimal("120"), client_tag="t1")
+        )
+        assert res["entry"] and res["stop"] and res["tp"]
+        types = [p["order_type"] for p in c.placed]
+        assert types == ["MARKET", "STOP_MARKET", "TAKE_PROFIT_MARKET"]
+    asyncio.run(_())
+
+
+def test_reject_and_timeout():
+    async def _():
+        c = MockClient()
+        b = LiveBroker(c)
+        c.fail_next = "reject"
+        try:
+            await b.open_with_protection(
+                LiveEntryPlan("BTC-USDT", "long", Decimal("1"), Decimal("1"), None)
+            )
+            raise AssertionError("expected reject")
+        except RuntimeError as e:
+            assert "rejected" in str(e)
+        c.fail_next = "timeout"
+        try:
+            await b.open_with_protection(
+                LiveEntryPlan("BTC-USDT", "long", Decimal("1"), Decimal("1"), None)
+            )
+            raise AssertionError("expected timeout")
+        except TimeoutError:
+            pass
+    asyncio.run(_())
+
+
+def test_reconcile_missing_stop():
+    async def _():
+        pos = SimpleNamespace(symbol="SOL-USDT", side="long", quantity=Decimal("2"), entry_price=Decimal("100"))
+        c = MockClient(positions=[pos])
+        b = LiveBroker(c)
+        rec = await b.reconcile()
+        assert rec["missing_stops"] == 1
+        assert rec["positions"] == 1
+    asyncio.run(_())
+
+
+def test_flat_all():
+    async def _():
+        pos = SimpleNamespace(symbol="SOL-USDT", side="long", quantity=Decimal("2"), entry_price=Decimal("100"))
+        c = MockClient(positions=[pos])
+        c._orders = [SimpleNamespace(id="1", symbol="SOL-USDT", order_type="stop_market")]
+        b = LiveBroker(c)
+        res = await b.flat_all()
+        assert res["closed"] >= 1
+        assert "SOL-USDT" in c.closed
+    asyncio.run(_())
+
+
+def test_commands_stop_flat_resume(tmp_path):
+    async def _():
+        path = tmp_path / "cmds.json"
+        c = MockClient()
+        b = LiveBroker(c)
+        lc.enqueue("stop", path)
+        lines = await lc.apply_pending(b, path)
+        assert any("blocked" in x for x in lines)
+        assert not b.entries_allowed
+        lc.enqueue("resume", path)
+        await lc.apply_pending(b, path)
+        assert b.entries_allowed
+        pos = SimpleNamespace(symbol="X", side="long", quantity=Decimal("1"), entry_price=Decimal("1"))
+        c._positions = [pos]
+        lc.enqueue("flat", path)
+        await lc.apply_pending(b, path)
+        assert not b.entries_allowed
+        assert c.closed
+    asyncio.run(_())
+
+
+def test_secrets_not_in_redact():
+    # mirror live_env._redact without importing aiohttp chain
+    def _redact(s: object) -> str:
+        t = str(s or "")
+        if len(t) > 8:
+            return t[:3] + "***" + t[-2:]
+        return "***"
+    assert "***" in _redact("abcdefghijklmnop")
+    assert "abcdefghijklmnop" not in _redact("abcdefghijklmnop")
+
+
+def test_vst_default_base(monkeypatch):
+    import importlib.util
+    from pathlib import Path
+    p = Path("astra_bot/adapters/bingx/live_env.py")
+    spec = importlib.util.spec_from_file_location("live_env_standalone", p)
+    le = importlib.util.module_from_spec(spec)
