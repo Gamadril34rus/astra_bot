@@ -1,66 +1,6 @@
 {
-  "positions": [
-    {
-      "id": "956bb3bd-5bc6-41b3-86ae-36986b41908b",
-      "symbol": "ATOM-USDT",
-      "direction": "short",
-      "entry_price": "1.808",
-      "quantity": "139.35587300",
-      "stop_loss": "1.822464",
-      "take_profits": [
-        "1.793536",
-        "1.779072"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "139.35587300",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
-      "strategy": "zeus_channel_boundary_4h",
-      "opened_at": 1791513107514,
-      "notes": {
-        "signal_bar_close": 1.808,
-        "effective_entry": 1.806192,
-        "initial_stop": 1.822464,
-        "initial_take": 1.779072,
-        "stop_pct": 0.009009009009009009,
-        "confidence": 0.83,
-        "ml_probability": null,
-        "prior_r": 1.1150000000000007,
-        "costs_r": 0.333,
-        "equity_before": 2517.0346335270738,
-        "risk_budget": 50.34069267054148,
-        "binding_constraint": "none",
-        "score": 30.0,
-        "edge_pct": 165.2917,
-        "ev_r": 1.6529169298092996,
-        "ev_confidence": 0.2,
-        "rr": 2.0,
-        "leverage": 10
-      },
-      "fill_price": "1.806192",
-      "entry_fee_per_unit": "0.0009030960",
-      "risk_distance": "0.014464",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "4h",
-      "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
-      "bars_held": 0,
-      "leverage": "10",
-      "margin_used": "25.19554183840",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "1.779072",
-      "plan_last_bar_ts": 0
-    }
-  ],
-  "realized_pnl": "517.0346335270738509571460814",
+  "positions": [],
+  "realized_pnl": "516.5599947537547707571460814",
   "initial_capital": "2000.0",
   "cooldowns": {},
   "last_extremes_bar": {
@@ -86,7 +26,7 @@
     "NEAR-USDT": 1791472800000,
     "UNI-USDT": 1791280500000,
     "FIL-USDT": 1791356400000,
-    "ATOM-USDT": 1791510900000,
+    "ATOM-USDT": 1791513300000,
     "SUI-USDT": 1791340500000,
     "WLD-USDT": 1791238800000,
     "ENA-USDT": 1791433500000,
