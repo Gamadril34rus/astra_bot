@@ -1,0 +1,105 @@
+"""BingX swap LIVE client (VST by default). Does not replace BingXClient stubs.
+
+Activate only via LiveBingXClient / LiveBroker. Existing place_order stubs in
+client.py stay NotImplementedError (paper path unchanged).
+"""
+from __future__ import annotations
+
+import logging
+import os
+import time
+from decimal import Decimal
+from typing import Any
+
+from astra_bot.adapters.base import Order, Position
+from astra_bot.adapters.bingx.client import (
+    BINGX_API_BASE,
+    BINGX_ENDPOINTS,
+    BINGX_SWAP_V2_PREFIX,
+    BingXClient,
+)
+
+logger = logging.getLogger(__name__)
+
+from astra_bot.adapters.bingx.live_env import BINGX_VST_BASE, _redact, resolve_base_url
+
+# Trade endpoints (swap v2)
+_TRADE = {
+    "order": f"{BINGX_SWAP_V2_PREFIX}/trade/order",
+    "cancel": f"{BINGX_SWAP_V2_PREFIX}/trade/order",
+    "cancel_all": f"{BINGX_SWAP_V2_PREFIX}/trade/allOpenOrders",
+    "open_orders": f"{BINGX_SWAP_V2_PREFIX}/trade/openOrders",
+    "positions": f"{BINGX_SWAP_V2_PREFIX}/user/positions",
+    "leverage": f"{BINGX_SWAP_V2_PREFIX}/trade/leverage",
+    "margin_type": f"{BINGX_SWAP_V2_PREFIX}/trade/marginType",
+    "balance_v3": "/openApi/swap/v3/user/balance",
+}
+
+
+def _parse_order(data: dict[str, Any], symbol: str = "") -> Order:
+    d = data.get("order") if isinstance(data.get("order"), dict) else data
+    if not isinstance(d, dict):
+        d = {}
+    status_map = {
+        "NEW": "new",
+        "PENDING": "pending",
+        "PARTIALLY_FILLED": "partially_filled",
+        "FILLED": "filled",
+        "CANCELED": "canceled",
+        "CANCELLED": "canceled",
+        "REJECTED": "rejected",
+        "EXPIRED": "expired",
+    }
+    st = str(d.get("status") or "new").upper()
+    qty = Decimal(str(d.get("quantity") or d.get("origQty") or "0"))
+    filled = Decimal(str(d.get("executedQty") or d.get("filledQty") or "0"))
+    px = d.get("avgPrice") or d.get("price")
+    return Order(
+        id=str(d.get("orderId") or d.get("orderID") or "") or None,
+        client_order_id=str(d.get("clientOrderId") or "") or None,
+        exchange="bingx",
+        symbol=str(d.get("symbol") or symbol),
+        side=str(d.get("side") or "").lower(),
+        order_type=str(d.get("type") or "").lower(),
+        quantity=qty,
+        price=Decimal(str(px)) if px not in (None, "", "0") else None,
+        stop_price=Decimal(str(d["stopPrice"])) if d.get("stopPrice") else None,
+        status=status_map.get(st, st.lower()),
+        filled_quantity=filled,
+        filled_price=Decimal(str(px)) if px not in (None, "", "0") else None,
+        exchange_order_id=str(d.get("orderId") or "") or None,
+        reject_reason=str(d.get("msg") or "") or None,
+    )
+
+
+class LiveBingXClient(BingXClient):
+    """BingX client with live trade methods. Base URL VST unless ZEUS_MAINNET=1."""
+
+    def __init__(self, config: dict[str, Any] | None = None):
+        cfg = dict(config or {})
+        cfg.setdefault("base_url", resolve_base_url())
+        # Prefer live keys; never print them.
+        cfg.setdefault("api_key", os.environ.get("BINGX_API_KEY", ""))
+        cfg.setdefault("api_secret", os.environ.get("BINGX_API_SECRET", ""))
+        super().__init__(cfg)
+        self._is_vst = "vst" in (self.base_url or "").lower()
+        logger.info(
+            "LiveBingXClient base=%s vst=%s key=%s",
+            self.base_url,
+            self._is_vst,
+            _redact(self.api_key),
+        )
+
+    async def place_order(
+        self,
+        symbol: str,
+        side: str,
+        order_type: str,
+        quantity: Decimal,
+        price: Decimal | None = None,
+        stop_price: Decimal | None = None,
+        client_order_id: str | None = None,
+        *,
+        position_side: str | None = None,
+        reduce_only: bool = False,
+        close_position: bool = False,
