@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-09T08:26:59.861826+00:00",
+ "updated": "2026-10-09T08:30:07.548270+00:00",
  "outcomes": {
   "ee0905ba0f325831850b": {
    "bar_time": 1790610900000,
@@ -754216,6 +754216,62 @@
     }
    },
    "computed_at": "2026-10-09T08:26:59.850430+00:00"
+  },
+  "36c6c5c760d49d6d5a40": {
+   "bar_time": 1791534000000,
+   "symbol": "BTC-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.000427,
+     "max_up": 0.000871,
+     "max_down": -0.000247
+    }
+   },
+   "computed_at": "2026-10-09T08:28:57.766251+00:00"
+  },
+  "17b6168fa671b50f3de9": {
+   "bar_time": 1791534000000,
+   "symbol": "ETH-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.000192,
+     "max_up": 0.00072,
+     "max_down": -6e-05
+    }
+   },
+   "computed_at": "2026-10-09T08:29:02.267228+00:00"
+  },
+  "b4fe9d758abdd317a755": {
+   "bar_time": 1791534300000,
+   "symbol": "PENDLE-USDT",
+   "reason_code": "LOW_EV",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.0,
+     "max_up": 0.0,
+     "max_down": -4.7e-05
+    }
+   },
+   "computed_at": "2026-10-09T08:30:04.163629+00:00"
+  },
+  "6d04f824a1d79d8c9af0": {
+   "bar_time": 1791534300000,
+   "symbol": "TRX-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 3e-05,
+     "max_up": 3e-05,
+     "max_down": 0.0
+    }
+   },
+   "computed_at": "2026-10-09T08:30:07.539517+00:00"
   }
  }
 }
