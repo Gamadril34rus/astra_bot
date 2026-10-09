@@ -52,7 +52,7 @@
       "regime": "STRONG_BULL_TREND",
       "timeframe": "4h",
       "regime_axes": "T:STRONG/V:VERY_LOW/L:DEEP",
-      "bars_held": 5,
+      "bars_held": 6,
       "leverage": "3",
       "margin_used": "85.8809007992400",
       "plan_variant": "STATIC_TP",
@@ -65,7 +65,7 @@
       "direction": "short",
       "entry_price": "7.106",
       "quantity": "36.25706500",
-      "stop_loss": "7.452643496341466",
+      "stop_loss": "7.142857142857143",
       "take_profits": [
         "6.759356503658534",
         "6.412713007317068"
@@ -81,8 +81,8 @@
       "initial_quantity": "36.25706500",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "7.131",
+      "lowest_price": "7.084",
       "strategy": "zeus_channel_boundary_4h",
       "opened_at": 1791527604575,
       "notes": {
@@ -111,12 +111,12 @@
       "regime": "STRONG_BULL_TREND",
       "timeframe": "4h",
       "regime_axes": "T:STRONG/V:VERY_LOW/L:DEEP",
-      "bars_held": 0,
+      "bars_held": 7,
       "leverage": "3",
       "margin_used": "85.88090129666666666666666667",
       "plan_variant": "STATIC_TP",
       "plan_take": "6.412713007317068",
-      "plan_last_bar_ts": 0
+      "plan_last_bar_ts": 1791504000000
     }
   ],
   "realized_pnl": "573.8505975212660609466738173",
@@ -127,7 +127,7 @@
     "ARB-USDT": 1791036300000,
     "AVAX-USDT": 1791437100000,
     "OP-USDT": 1791340800000,
-    "INJ-USDT": 1791525600000,
+    "INJ-USDT": 1791527700000,
     "SOL-USDT": 1790977500000,
     "TIA-USDT": 1791483600000,
     "TAO-USDT": 1791473400000,
@@ -148,7 +148,7 @@
     "ATOM-USDT": 1791516300000,
     "SUI-USDT": 1791340500000,
     "WLD-USDT": 1791238800000,
-    "ENA-USDT": 1791527400000,
+    "ENA-USDT": 1791527700000,
     "DOT-USDT": 1791490800000,
     "PENDLE-USDT": 1791138600000,
     "BTC-USDT": 1791477600000
