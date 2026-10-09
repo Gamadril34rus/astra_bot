@@ -259,6 +259,9 @@ async def amain(journal: Path, force_heartbeat: bool) -> int:
     # Weekly confidence-tier audit (money R); no auto ladder change.
     audit = None
     try:
+        import sys as _sys
+        if str(PROJECT_ROOT) not in _sys.path:
+            _sys.path.insert(0, str(PROJECT_ROOT))
         from astra_bot.decision.zeus_tier_audit import run_audit, status_line
 
         audit = run_audit(
