@@ -11,8 +11,6 @@ import asyncio
 import logging
 import os
 import sys
-from decimal import Decimal
-from pathlib import Path
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("zeus_live")
@@ -26,6 +24,9 @@ def _guard() -> None:
         sys.exit(2)
     if live != "1":
         logger.error("ABORT: ZEUS_LIVE!=1 — live clock inactive")
+        sys.exit(2)
+    if env != "live":
+        logger.error("ABORT: ZEUS_LIVE=1 requires ENVIRONMENT=live (got %r)", env)
         sys.exit(2)
     mainnet = (os.environ.get("ZEUS_MAINNET") or "").strip()
     vst = (os.environ.get("ZEUS_VST") or "1").strip()
@@ -46,11 +47,8 @@ async def one_tick(*, dry: bool = False) -> int:
     from astra_bot.decision.live_commands import apply_pending
 
     client = LiveBingXClient({})
-    await client.connect() if hasattr(client, "connect") else None
-    if hasattr(client, "_session") and client._session is None:
-        import aiohttp
-
-        client._session = aiohttp.ClientSession()
+    # Сессия создаётся самим клиентом; hasattr-проверки не нужны.
+    await client.initialize()
 
     broker = LiveBroker(client=client, config=LiveBrokerConfig())
     # kill / halt hooks (optional state files)
@@ -82,8 +80,9 @@ async def one_tick(*, dry: bool = False) -> int:
     else:
         logger.info("tick done — signal→entry hook not armed in phase-1 (observe)")
 
-    if hasattr(client, "_session") and client._session:
-        await client._session.close()
+    session = getattr(client, "_session", None)
+    if session is not None:
+        await session.close()
     return 0
 
 

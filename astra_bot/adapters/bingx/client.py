@@ -225,6 +225,12 @@ class BingXClient(ExchangeAdapter):
                 async with self._session.post(url, headers=headers) as resp:
                     http_status = resp.status
                     data = await resp.json()
+            elif method == "DELETE":
+                # Отмена ордеров (live-контур): тот же разбор ответа,
+                # что у GET/POST, ничего особенного BingX не требует.
+                async with self._session.delete(url, headers=headers) as resp:
+                    http_status = resp.status
+                    data = await resp.json()
             else:
                 raise ValueError(f"Unsupported method: {method}")
 

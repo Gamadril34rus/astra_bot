@@ -72,7 +72,21 @@ def mark_done(cmd_row: dict[str, Any], path: Path = DEFAULT_PATH, result: str = 
 async def apply_pending(broker: Any, path: Path = DEFAULT_PATH) -> list[str]:
     """Execute pending stop/flat/resume on broker. Returns log lines."""
     lines: list[str] = []
-    for row in pending(path):
+    rows = pending(path)
+    # Ревью арбитра: если в батче есть и stop, и resume — исполняем
+    # ТОЛЬКО более поздний по ts, второй помечаем done/"superseded".
+    # Иначе два клика подряд в одном батче гасят друг друга.
+    stop_resume = {r.get("cmd"): r for r in rows if r.get("cmd") in ("stop", "resume")}
+    if "stop" in stop_resume and "resume" in stop_resume:
+        loser = min(
+            (stop_resume["stop"], stop_resume["resume"]),
+            key=lambda r: int(r.get("ts") or 0),
+        )
+        winner = stop_resume["resume"] if loser.get("cmd") == "stop" else stop_resume["stop"]
+        mark_done(loser, path, result="superseded")
+        lines.append(f"cmd {loser.get('cmd')}: superseded by {winner.get('cmd')}")
+        rows = [r for r in rows if r is not loser]
+    for row in rows:
         cmd = row.get("cmd")
         try:
             if cmd == "stop":
