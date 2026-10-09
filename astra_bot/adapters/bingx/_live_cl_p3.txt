@@ -1,0 +1,85 @@
+            side = "long" if amt > 0 else "short"
+            ps = str(item.get("positionSide") or "").upper()
+            if ps == "SHORT":
+                side = "short"
+            elif ps == "LONG":
+                side = "long"
+            out.append(
+                Position(
+                    exchange="bingx",
+                    symbol=str(item.get("symbol") or ""),
+                    side=side,
+                    quantity=abs(amt),
+                    entry_price=Decimal(str(item.get("avgPrice") or item.get("entryPrice") or "0")),
+                    current_price=Decimal(str(item.get("markPrice") or "0")) or None,
+                    unrealized_pnl=Decimal(str(item.get("unrealizedProfit") or "0")),
+                    status="open",
+                )
+            )
+        return out
+
+    async def get_balance_usdt(self) -> Decimal:
+        """Wallet equity in USDT (prefer v3 balance)."""
+        try:
+            params = {"timestamp": int(time.time() * 1000)}
+            resp = await self._request("GET", _TRADE["balance_v3"], params=params, signed=True)
+            data = resp.get("data") or {}
+            rows = data.get("balance", data) if isinstance(data, dict) else data
+            if isinstance(rows, dict):
+                rows = [rows]
+            for item in rows or []:
+                if not isinstance(item, dict):
+                    continue
+                if str(item.get("asset") or "").upper() != "USDT":
+                    continue
+                return Decimal(str(item.get("equity") or item.get("balance") or "0"))
+        except Exception as exc:
+            logger.warning("balance_v3 failed: %s", type(exc).__name__)
+        bals = await self.get_account_balance()
+        usdt = bals.get("USDT")
+        return usdt.total if usdt else Decimal("0")
+
+    async def set_leverage(self, symbol: str, leverage: int, side: str = "LONG") -> None:
+        params = {
+            "symbol": symbol,
+            "side": side.upper(),
+            "leverage": int(leverage),
+            "timestamp": int(time.time() * 1000),
+        }
+        await self._request("POST", _TRADE["leverage"], params=params, signed=True)
+
+    async def set_margin_isolated(self, symbol: str) -> None:
+        params = {
+            "symbol": symbol,
+            "marginType": "ISOLATED",
+            "timestamp": int(time.time() * 1000),
+        }
+        try:
+            await self._request("POST", _TRADE["margin_type"], params=params, signed=True)
+        except Exception as exc:
+            # already isolated is ok
+            logger.info("set_margin_isolated %s: %s", symbol, type(exc).__name__)
+
+    async def close_position(
+        self,
+        symbol: str,
+        quantity: Decimal | None = None,
+        price: Decimal | None = None,
+    ) -> bool:
+        """Market close via reduce-only opposite side."""
+        positions = await self.get_positions()
+        pos = next((p for p in positions if p.symbol == symbol), None)
+        if not pos or pos.quantity <= 0:
+            return True
+        qty = quantity if quantity is not None else pos.quantity
+        side = "SELL" if pos.side == "long" else "BUY"
+        ps = "LONG" if pos.side == "long" else "SHORT"
+        await self.place_order(
+            symbol=symbol,
+            side=side,
+            order_type="MARKET",
+            quantity=qty,
+            position_side=ps,
+            reduce_only=True,
+        )
+        return True
