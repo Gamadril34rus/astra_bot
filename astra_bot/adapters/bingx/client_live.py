@@ -206,7 +206,12 @@ class LiveBingXClient(BingXClient):
         return out
 
     async def get_balance_usdt(self) -> Decimal:
-        """Wallet equity in USDT (prefer v3 balance)."""
+        """Wallet equity in USDT or VST (prefer v3 balance).
+
+        Demo (VST) server names the coin "VST", so both assets are accepted.
+        If neither is present, fall back to the first row with equity > 0,
+        and then to get_account_balance() (which keys balances by asset too).
+        """
         try:
             params = {"timestamp": int(time.time() * 1000)}
             resp = await self._request("GET", _TRADE["balance_v3"], params=params, signed=True)
@@ -214,16 +219,26 @@ class LiveBingXClient(BingXClient):
             rows = data.get("balance", data) if isinstance(data, dict) else data
             if isinstance(rows, dict):
                 rows = [rows]
+            fallback: Decimal | None = None
             for item in rows or []:
                 if not isinstance(item, dict):
                     continue
-                if str(item.get("asset") or "").upper() != "USDT":
-                    continue
-                return Decimal(str(item.get("equity") or item.get("balance") or "0"))
+                asset = str(item.get("asset") or "").upper()
+                if asset in ("USDT", "VST"):
+                    return Decimal(str(item.get("equity") or item.get("balance") or "0"))
+                if fallback is None:
+                    try:
+                        value = Decimal(str(item.get("equity") or item.get("balance") or "0"))
+                    except Exception:
+                        continue
+                    if value > 0:
+                        fallback = value
+            if fallback is not None:
+                return fallback
         except Exception as exc:
             logger.warning("balance_v3 failed: %s", type(exc).__name__)
         bals = await self.get_account_balance()
-        usdt = bals.get("USDT")
+        usdt = bals.get("USDT") or bals.get("VST")
         return usdt.total if usdt else Decimal("0")
 
     async def set_leverage(self, symbol: str, leverage: int, side: str = "LONG") -> None:

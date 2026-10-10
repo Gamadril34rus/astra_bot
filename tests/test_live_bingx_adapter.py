@@ -6,6 +6,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any
 
+from astra_bot.adapters.bingx.client_live import LiveBingXClient
 from astra_bot.decision import live_commands as lc
 from astra_bot.decision.live_broker import HARD_CAP_USD, LiveBroker, LiveEntryPlan
 
@@ -220,3 +221,42 @@ def test_vst_default_base(monkeypatch):
     monkeypatch.setenv("ZEUS_MAINNET", "1")
     monkeypatch.setenv("ZEUS_VST", "0")
     assert le.resolve_base_url() == le.BINGX_API_BASE
+
+
+class _BalanceStub(LiveBingXClient):
+    """LiveBingXClient with _request / get_account_balance stubbed — no network."""
+
+    def __init__(self, rows, account=None, raise_v3=False):
+        super().__init__({})
+        self._rows = rows
+        self._account = dict(account or {})
+        self._raise_v3 = raise_v3
+
+    async def _request(self, method, endpoint, params=None, signed=False):
+        if self._raise_v3:
+            raise ConnectionError("stub: network unavailable")
+        return {"data": {"balance": self._rows}}
+
+    async def get_account_balance(self):
+        return self._account
+
+
+def test_get_balance_usdt_accepts_vst_asset():
+    """Run #4: VST-сервер называет монету VST — фильтр не должен её терять."""
+    client = _BalanceStub([{"asset": "VST", "equity": "99999.99"}])
+    assert asyncio.run(client.get_balance_usdt()) == Decimal("99999.99")
+
+
+def test_get_balance_usdt_fallback_without_usdt_vst():
+    """Без USDT/VST: первая запись с equity>0, иначе get_account_balance (ключ VST)."""
+    client = _BalanceStub(
+        [{"asset": "BTC", "equity": "0"}, {"asset": "ETH", "equity": "2.5"}]
+    )
+    assert asyncio.run(client.get_balance_usdt()) == Decimal("2.5")
+
+    dead = _BalanceStub(
+        [],
+        account={"VST": SimpleNamespace(total=Decimal("777"))},
+        raise_v3=True,
+    )
+    assert asyncio.run(dead.get_balance_usdt()) == Decimal("777")
