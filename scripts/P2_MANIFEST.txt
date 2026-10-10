@@ -1,0 +1,32 @@
+feat/zeus-phase2-arm assembly map
+=================================
+Target files (assemble chunks in order; byte-identical to local tests):
+
+1) astra_bot/decision/live_positions.py
+   - already on branch (full commit df570cd)
+
+2) astra_bot/decision/live_arm.py
+   - scripts/p2_arm_p1.txt + scripts/p2_arm_p2.txt
+
+3) astra_bot/decision/live_broker.py
+   - scripts/p2_br_p1.txt .. p2_br_p4.txt
+   - NEW: restore_missing_stops() after reconcile
+
+4) scripts/zeus_live_clock.py
+   - scripts/p2_clk_p1.txt + p2_clk_p2.txt
+   - after reconcile: restore_missing_stops, rotate_live_json_files,
+     ZEUS_ARM gate (entries only if ZEUS_ARM=1)
+
+5) astra_bot/core/state_rotation.py
+   - scripts/p2_rot_p1.txt + p2_rot_p2.txt
+   - ADD: LIVE_JSON_BYTE_LIMITS + rotate_live_json_files()
+
+6) tests/test_zeus_phase2_arm.py
+   - scripts/p2_tst_p1.txt + p2_tst_p2.txt
+   - 8 tests local: restore plan/no-plan/missing, size, conflict,
+     arm flag, max_open, rotate
+
+Gates: ZEUS_LIVE=1 still required for clock; ZEUS_ARM=1 required for entries.
+Trade NOT enabled without both. Paper path untouched.
+
+Local: py_compile OK, pytest tests/test_zeus_phase2_arm.py 8 passed.
