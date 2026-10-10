@@ -70,6 +70,12 @@ async def one_tick(*, dry: bool = False) -> int:
     for ln in cmd_lines:
         logger.info("%s", ln)
 
+    # Temporary VST balance diagnostics — flag-gated, read-only.
+    if Path("models/zeus_live_debug.json").exists():
+        from astra_bot.adapters.bingx.vst_diag import dump as _diag
+
+        await _diag(client, logger)
+
     rec = await broker.reconcile()
     logger.info(
         "reconcile equity=%s positions=%s orders=%s missing_stops=%s",
