@@ -31,6 +31,12 @@ LIVE_JSONL_LIMITS: dict[str, int] = {
     "paper_ledger.jsonl": 20_000,
     "research_observations.jsonl": 20_000,
     "research/observations.jsonl": 10_000,
+    # Zeus: ротация (rotate_zeus_states) держит хвост ≤20_000;
+    # гейт тревожится на 24_000 — то есть при ОТКАЗЕ ротации.
+    "zeus_trade_journal.jsonl": 24_000,
+    "zeus_no_trade_observations.jsonl": 24_000,
+    "zeus_wedge_1h_signals.jsonl": 24_000,
+    "zeus_paper_trades.jsonl": 24_000,
 }
 
 # Допустимый разброс на время сессии для size-gate (TZ §29).
