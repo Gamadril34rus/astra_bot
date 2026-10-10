@@ -71,6 +71,10 @@ jobs:
         run: python scripts/zeus_telegram_status.py --journal models/zeus_trade_journal.jsonl
         continue-on-error: true
 
+      - name: State size gate (TZ §29)
+        if: ${{ !cancelled() }}
+        run: python scripts/check_state_size.py --root models
+
       - name: Save Zeus state
         if: always()
         run: |
@@ -96,10 +100,19 @@ jobs:
           git diff --cached --quiet || \
             git commit -m "chore(ci): zeus paper state $(date -u +%Y-%m-%dT%H:%MZ)"
           ok=0
+          push_log=""
           for i in 1 2 3 4 5 6; do
             git fetch origin master
-            if git push origin master; then ok=1; break; fi
+            if push_out=$(git push origin master 2>&1); then
+              ok=1
+              break
+            fi
+            push_log="$push_out"
             git rebase --autostash origin/master || { git rebase --abort || true; break; }
             sleep $((10 + RANDOM % 20))
           done
-          [ "$ok" = "1" ] || echo "push failed (will retry next run)"
+          if [ "$ok" != "1" ]; then
+            echo "ERROR: git push origin master rejected after retries"
+            printf '%s\n' "$push_log" | tail -n 5
+            exit 1
+          fi
