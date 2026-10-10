@@ -1,0 +1,37 @@
+
+
+# Live state JSON (not JSONL): size limits in bytes. Archive + reset when exceeded.
+LIVE_JSON_BYTE_LIMITS: dict[str, int] = {
+    "zeus_live_positions.json": 200_000,
+    "zeus_live_commands.json": 100_000,
+}
+
+
+def rotate_live_json_files(root: Path = Path("models")) -> dict[str, int]:
+    """If live JSON exceeds byte limit → append to .archive and rewrite empty shell.
+
+    Returns {relpath: size_before} for files rotated.
+    """
+    moved: dict[str, int] = {}
+    for rel, limit in LIVE_JSON_BYTE_LIMITS.items():
+        path = root / rel
+        if not path.exists():
+            continue
+        size = path.stat().st_size
+        if size <= limit:
+            continue
+        archive = path.with_name(path.stem + ".archive" + path.suffix)
+        data = path.read_bytes()
+        with archive.open("ab") as f:
+            f.write(data)
+            f.write(b"\n")
+        if "commands" in rel:
+            path.write_text('{"commands": []}\n', encoding="utf-8")
+        else:
+            path.write_text('{"positions": {}}\n', encoding="utf-8")
+        moved[rel] = size
+        logger.info(
+            "Live JSON rotate %s: %d B > %d → archive %s",
+            rel, size, limit, archive.name,
+        )
+    return moved
