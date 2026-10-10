@@ -1,1 +1,35 @@
-PLACEHOLDER
+    positions_path: Path | None = None,
+) -> dict[str, Any] | None:
+    """At most one entry plan per tick (caller enforces)."""
+    plan = await plan_from_candidate(broker, cand, positions_path=positions_path)
+    if plan is None:
+        return None
+    result = await broker.open_with_protection(plan)
+    upsert_plan(
+        plan.symbol,
+        side=plan.side,
+        qty=plan.quantity,
+        stop=plan.stop_price,
+        tp=plan.take_profit_price,
+        entry=cand.entry,
+        leverage=plan.leverage,
+        path=positions_path or Path("models/zeus_live_positions.json"),
+    )
+    mark_cooldown(cand.strategy, plan.symbol, plan.side)
+    return result
+
+
+def format_entry_tg(
+    symbol: str,
+    side: str,
+    qty: Decimal,
+    entry: Decimal,
+    stop: Decimal,
+    tp: Decimal | None,
+    *,
+    vst: bool = True,
+) -> str:
+    side_ru = "ЛОНГ" if side.lower() == "long" else "ШОРТ"
+    tp_s = str(tp) if tp is not None else "—"
+    mode = "VST" if vst else "MAIN"
+    return f"🚀 {symbol} {side_ru} {qty} @ {entry}; стоп {stop}; тейк {tp_s} ({mode})"
