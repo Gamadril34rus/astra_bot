@@ -10,7 +10,7 @@ on:
         default: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   live-tick:
@@ -46,3 +46,18 @@ jobs:
           DRY_FLAG=""
           if [ "${{ inputs.dry }}" = "true" ]; then DRY_FLAG="--dry"; fi
           python scripts/zeus_live_clock.py $DRY_FLAG
+      - name: Save live commands state
+        if: always()
+        run: |
+          git config user.name "astra-bot" || true
+          git config user.email "bot@users.noreply.github.com" || true
+          F=models/zeus_live_commands.json
+          if [ -f "$F" ] && ! git diff --quiet -- "$F"; then
+            git add -f "$F"
+            git commit -m "live: commands state (auto)"
+            for i in 1 2 3 4 5; do
+              git fetch origin "${{ github.ref_name }}"
+              if git push origin "HEAD:${{ github.ref_name }}"; then break; fi
+              sleep 5
+            done
+          fi
