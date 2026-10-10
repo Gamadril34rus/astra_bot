@@ -14,8 +14,19 @@ from zeus_runner_core import parse_args, resolve_symbols
 from zeus_runner_cycle import zeus_run_cycles
 from zeus_runner_engine import zeus_build_pipeline_and_engine
 
+
 async def amain(args: argparse.Namespace) -> int:
     setup_logging()
+    # Живые state-файлы не должны упереться в лимит GitHub 100 MB на один
+    # blob (авария 09.10: zeus_trade_journal.jsonl = 100.02 MB, GH001).
+    try:
+        from rotate_zeus_states import rotate_all as _rotate_states
+
+        for _res in _rotate_states():
+            if _res.get("rotated"):
+                logger.info("state rotation: %s", _res)
+    except Exception as exc:
+        logger.warning("state rotation skipped: %s", type(exc).__name__)
     symbols = resolve_symbols(args)
     logger.info("Zeus symbols: %s", ",".join(symbols))
     env = (os.environ.get("ENVIRONMENT") or "").strip().lower()
