@@ -32,6 +32,13 @@ jobs:
             echo "ZEUS_LIVE is not 1 — abort (adapter inactive)"
             exit 0
           fi
+      - name: TG commands poll
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          set +x
+          python -m astra_bot.decision.tg_live_commands --timeout 25
       - name: Run live clock
         env:
           ZEUS_LIVE: ${{ secrets.ZEUS_LIVE }}
