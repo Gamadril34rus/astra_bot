@@ -6,7 +6,7 @@
       "direction": "long",
       "entry_price": "1.927",
       "quantity": "136.64494600",
-      "stop_loss": "1.9002189999999999",
+      "stop_loss": "1.9034285714285712",
       "take_profits": [
         "1.9537810000000001",
         "1.980562000000000400000000000"
@@ -22,8 +22,8 @@
       "initial_quantity": "136.64494600",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "1.930",
+      "lowest_price": "1.906",
       "strategy": "zeus_channel_boundary_4h",
       "opened_at": 1791746271731,
       "notes": {
@@ -52,12 +52,12 @@
       "regime": "STRONG_BEAR_TREND",
       "timeframe": "4h",
       "regime_axes": "T:STRONG/V:LOW/L:NORMAL",
-      "bars_held": 0,
+      "bars_held": 8,
       "leverage": "1",
       "margin_used": "263.31481094200",
       "plan_variant": "STATIC_TP",
       "plan_take": "1.980562000000000400000000000",
-      "plan_last_bar_ts": 0
+      "plan_last_bar_ts": 1791720000000
     }
   ],
   "realized_pnl": "635.7812497560948733680485692",
@@ -86,7 +86,7 @@
     "NEAR-USDT": 1791735900000,
     "UNI-USDT": 1791280500000,
     "FIL-USDT": 1791356400000,
-    "ATOM-USDT": 1791744000000,
+    "ATOM-USDT": 1791746400000,
     "SUI-USDT": 1791737100000,
     "WLD-USDT": 1791567300000,
     "ENA-USDT": 1791532800000,
