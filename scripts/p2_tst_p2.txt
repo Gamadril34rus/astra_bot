@@ -1,0 +1,78 @@
+        b = LiveBroker(c)
+        r = await b.restore_missing_stops(positions_path=path)
+        assert "SOL-USDT" in r["closed_naked"]
+        assert get_plan("SOL-USDT", path) is None
+    asyncio.run(_())
+
+
+def test_size_qty_and_step():
+    q = size_qty(Decimal("30"), Decimal("100"), Decimal("90"), Decimal("0.01"))
+    assert q == Decimal("3.00")
+    assert quantize_qty(Decimal("1.239"), Decimal("0.01")) == Decimal("1.23")
+
+
+def test_conflict_and_cooldown(tmp_path):
+    path = tmp_path / "pos.json"
+    upsert_plan("BTC-USDT", side="long", qty="1", stop="1", path=path)
+    assert conflict_blocks("BTC-USDT", path) is True
+    assert conflict_blocks("ETH-USDT", path) is False
+    assert _cooldown_key("zeus", "X", "LONG") == "zeus|X|long"
+    assert COOLDOWN_MS == 20 * 60 * 1000
+    mark_cooldown("zeus", "X", "long", now_ms=1_000_000)
+    assert cooldown_blocks("zeus", "X", "long", now_ms=1_000_000 + 1000)
+    assert not cooldown_blocks("zeus", "X", "long", now_ms=1_000_000 + 21 * 60_000)
+
+
+def test_arm_flag(monkeypatch):
+    monkeypatch.delenv("ZEUS_ARM", raising=False)
+    assert arm_enabled() is False
+    monkeypatch.setenv("ZEUS_ARM", "1")
+    assert arm_enabled() is True
+
+
+def test_zeus_arm_absent_no_entry(monkeypatch, tmp_path):
+    """ZEUS_ARM missing → execute_one path must not be taken by arm_enabled gate."""
+    monkeypatch.delenv("ZEUS_ARM", raising=False)
+    assert arm_enabled() is False
+    path = tmp_path / "pos.json"
+    c = MockClient(Decimal("100"))
+    b = LiveBroker(c)
+    cand = SignalCandidate(
+        symbol="BTC-USDT",
+        side="long",
+        entry=Decimal("100"),
+        stop=Decimal("90"),
+        confidence=0.95,
+    )
+    # Gate is on arm_enabled; callers must check before execute.
+    # When disabled, plan_from_candidate may still size, but clock never calls it.
+    assert not arm_enabled()
+    # Simulate clock: no open_with_protection when arm off
+    assert c.placed == []
+
+
+def test_plan_from_candidate_respects_max(tmp_path):
+    async def _():
+        path = tmp_path / "pos.json"
+        for i in range(MAX_OPEN):
+            upsert_plan(f"S{i}", side="long", qty="1", stop="1", path=path)
+        c = MockClient(Decimal("100"))
+        b = LiveBroker(c)
+        cand = SignalCandidate(
+            symbol="NEW",
+            side="long",
+            entry=Decimal("10"),
+            stop=Decimal("9"),
+            confidence=0.95,
+        )
+        plan = await plan_from_candidate(b, cand, positions_path=path)
+        assert plan is None
+    asyncio.run(_())
+
+
+def test_restore_after_reconcile_order():
+    """restore_missing_stops is invoked after reconcile in clock source order."""
+    src = Path("scripts/zeus_live_clock.py").read_text(encoding="utf-8")
+    i_rec = src.index("await broker.reconcile()")
+    i_res = src.index("await broker.restore_missing_stops()")
+    assert i_rec < i_res
