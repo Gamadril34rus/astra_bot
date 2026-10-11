@@ -11,8 +11,9 @@ TRADE (сделка в paper_trades.jsonl) или NO_TRADE (наблюдение
 - ``models/no_trade_observations.jsonl`` — архив наблюдений, только
   append; повторная обработка того же бара не создаёт дубль (стабильный
   id = sha1(symbol|bar_time|reason|strategy|direction));
-- ``models/no_trade_outcomes.json`` — мутабельный индекс исходов
-  (id -> horizons), режется до 30 дней.
+- ``models/no_trade_outcomes.jsonl`` — append-once исходы с id; индекс в
+  памяти режется до 30 дней (bar_time в мс), файл ограничивается ротацией;
+- при отсутствии JSONL читается legacy ``no_trade_outcomes.json``.
 
 Свечи будущего берутся из рыночных данных текущего цикла (движок уже
 тянет 200-300 баров) — никакого look-ahead при формировании самого
@@ -30,11 +31,12 @@ from pathlib import Path
 from typing import Any
 
 from ..core import models
+from .no_trade_outcomes import load_outcomes, outcome_sort_key, outcomes_jsonl_path
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_OBSERVATIONS = Path("models/no_trade_observations.jsonl")
-DEFAULT_OUTCOMES = Path("models/no_trade_outcomes.json")
+DEFAULT_OUTCOMES = Path("models/no_trade_outcomes.jsonl")
 DEFAULT_HORIZONS: tuple[int, ...] = (1, 3, 6, 12, 24)
 OUTCOMES_KEEP_DAYS = 30
 
@@ -127,11 +129,17 @@ class NoTradeObservationLog:
         horizons: tuple[int, ...] = DEFAULT_HORIZONS,
     ) -> None:
         self.observations_path = observations_path
-        self.outcomes_path = outcomes_path
+        self.outcomes_path = outcomes_jsonl_path(outcomes_path)
         self.horizons = horizons
         self._known_ids: set[str] = set()
         self._load_known_ids()
         self._outcomes: dict[str, dict[str, Any]] = self._load_outcomes()
+        # A fallback-loaded legacy index must survive the first JSONL append and
+        # the next process restart. Bootstrap once; never rewrite legacy JSON.
+        self._unsaved_outcomes: dict[str, dict[str, Any]] = (
+            {} if self.outcomes_path.exists() else dict(self._outcomes)
+        )
+        self._prune_outcomes()
 
     # ------------------------------------------------------------ loading
     def _load_known_ids(self) -> None:
@@ -153,26 +161,25 @@ class NoTradeObservationLog:
             logger.debug("no_trade: не прочитал журнал: %s", exc)
 
     def _load_outcomes(self) -> dict[str, dict[str, Any]]:
-        if not self.outcomes_path.exists():
-            return {}
-        try:
-            data = json.loads(self.outcomes_path.read_text(encoding="utf-8"))
-            return data.get("outcomes", {}) if isinstance(data, dict) else {}
-        except Exception:
-            return {}
+        return load_outcomes(self.outcomes_path)
 
     def _save_outcomes(self) -> None:
+        """Append only new outcomes (plus a one-time legacy bootstrap)."""
+        if not self._unsaved_outcomes:
+            return
         self.outcomes_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.outcomes_path.with_suffix(".tmp")
-        tmp.write_text(
-            json.dumps(
-                {"updated": datetime.now(UTC).isoformat(), "outcomes": self._outcomes},
-                ensure_ascii=False,
-                indent=1,
-            ),
-            encoding="utf-8",
-        )
-        tmp.replace(self.outcomes_path)
+        # An interrupted append must not join the next row to a damaged tail.
+        needs_newline = False
+        if self.outcomes_path.exists() and self.outcomes_path.stat().st_size:
+            with self.outcomes_path.open("rb") as tail:
+                tail.seek(-1, 2)
+                needs_newline = tail.read(1) != b"\n"
+        with self.outcomes_path.open("a", encoding="utf-8") as stream:
+            if needs_newline:
+                stream.write("\n")
+            for oid, row in sorted(self._unsaved_outcomes.items(), key=outcome_sort_key):
+                stream.write(json.dumps({"id": oid, **row}, ensure_ascii=False) + "\n")
+        self._unsaved_outcomes.clear()
 
     # ------------------------------------------------------------ record
     def add(self, obs: NoTradeObservation) -> bool:
@@ -190,6 +197,7 @@ class NoTradeObservationLog:
         if not self.observations_path.exists():
             return []
         rows: list[NoTradeObservation] = []
+        cutoff_ms = _outcomes_cutoff_ms()
         try:
             with self.observations_path.open("r", encoding="utf-8") as f:
                 for line in f:
@@ -200,7 +208,9 @@ class NoTradeObservationLog:
                         obs = NoTradeObservation.from_dict(json.loads(line))
                     except Exception:
                         continue
-                    if obs.id in self._outcomes:
+                    # Outcomes evicted by rotation/time-pruning must not be
+                    # computed again: observation backfill is append-once too.
+                    if obs.id in self._outcomes or obs.result is not None or obs.bar_time < cutoff_ms:
                         continue
                     rows.append(obs)
         except OSError:
@@ -219,8 +229,8 @@ class NoTradeObservationLog:
         TZ P0-3: после обогащения обновляет result в JSONL-файле наблюдений
         (backfill_jsonl), чтобы result != null для ≥90% записей старше 24 баров.
         """
+        self._prune_outcomes()
         enriched: list[NoTradeObservation] = []
-        changed = False
         for obs in self.pending():
             candles = candles_by_symbol.get(obs.symbol) or []
             result = _forward_outcome(candles, obs.bar_time, self.horizons)
@@ -245,10 +255,9 @@ class NoTradeObservationLog:
             if hyp is not None:
                 outcome_row["hypothetic_r"] = hyp
             self._outcomes[obs.id] = outcome_row
+            self._unsaved_outcomes[obs.id] = outcome_row
             enriched.append(obs)
-            changed = True
-        if changed:
-            self._prune_outcomes()
+        if self._unsaved_outcomes:
             self._save_outcomes()
             # TZ P0-3: backfill result в JSONL.
             self.backfill_jsonl()
@@ -298,15 +307,23 @@ class NoTradeObservationLog:
         return updated
 
     def _prune_outcomes(self) -> None:
-        # bar_time — open_time свечи (секунды), сравниваем в секундах.
-        cutoff = datetime.now(UTC).timestamp() - OUTCOMES_KEEP_DAYS * 86_400
-        keep = {
-            obs_id: row
-            for obs_id, row in self._outcomes.items()
-            if row.get("bar_time", 0) >= cutoff
+        """Bound the in-memory index in ms; on-disk JSONL is rotated, not rewritten."""
+        cutoff_ms = _outcomes_cutoff_ms()
+        keep: dict[str, dict[str, Any]] = {}
+        for oid, row in self._outcomes.items():
+            try:
+                if int(row.get("bar_time") or 0) >= cutoff_ms:
+                    keep[oid] = row
+            except (TypeError, ValueError):
+                continue
+        self._outcomes = keep
+        self._unsaved_outcomes = {
+            oid: row for oid, row in self._unsaved_outcomes.items() if oid in keep
         }
-        if len(keep) != len(self._outcomes):
-            self._outcomes = keep
+
+
+def _outcomes_cutoff_ms() -> int:
+    return int(datetime.now(UTC).timestamp() * 1000) - OUTCOMES_KEEP_DAYS * 86_400_000
 
 
 def _hypothetic_r(

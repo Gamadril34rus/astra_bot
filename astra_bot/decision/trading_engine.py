@@ -171,7 +171,7 @@ class TradingEngineConfig:
     leverage_min_ev_r: float = 0.8
     stats_path: str = "models/strategy_stats.json"
     no_trade_observations_path: str = "models/no_trade_observations.jsonl"
-    no_trade_outcomes_path: str = "models/no_trade_outcomes.json"
+    no_trade_outcomes_path: str = "models/no_trade_outcomes.jsonl"
     hypotheses_path: str = "models/research/hypotheses.json"
     # Фаза-0 тени паттерн-выходов (бэклог блок D): только журнал,
     # на решения не влияет (образец D5 — htf_shadow).

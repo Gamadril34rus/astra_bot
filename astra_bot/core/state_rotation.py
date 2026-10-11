@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 # Живые append-only файлы (live-схема), строки.
 LIVE_JSONL_LIMITS: dict[str, int] = {
     "no_trade_observations.jsonl": 5_000,
+    "no_trade_outcomes.jsonl": 24_000,  # frozen twin: ready for reactivation
     # D5 фаза 0: гипотетические запреты HTF-фильтра (shadow, не блокирует).
     "htf_shadow_bans.jsonl": 5_000,
     # Фаза-0 тени паттерн-выходов (блок D): только журнал, не влияет.
@@ -35,6 +36,8 @@ LIVE_JSONL_LIMITS: dict[str, int] = {
     # гейт тревожится на 24_000 — то есть при ОТКАЗЕ ротации.
     "zeus_trade_journal.jsonl": 24_000,
     "zeus_no_trade_observations.jsonl": 24_000,
+    # Keep an outcome tail >= observation cap to avoid re-enrichment after eviction.
+    "zeus_no_trade_outcomes.jsonl": 24_000,
     "zeus_wedge_1h_signals.jsonl": 24_000,
     "zeus_paper_trades.jsonl": 24_000,
 }

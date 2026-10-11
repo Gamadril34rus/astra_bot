@@ -8,6 +8,7 @@ from pathlib import Path
 
 from astra_bot.ml.learning_digest import (
     build_digest,
+    recent_no_trade_insights,
     save_watermark,
     watermark_ms,
 )
@@ -69,7 +70,7 @@ def _make_models(tmp_path: Path, now: int) -> Path:
 
     outcomes = {
         "obs-1": {
-            "bar_time": (now - 2 * H) // 1000,  # секунды
+            "bar_time": now - 2 * H,  # production open_time: миллисекунды
             "symbol": "SOL-USDT",
             "reason_code": "LOW_EV",
             "market_regime": "TREND",
@@ -81,11 +82,11 @@ def _make_models(tmp_path: Path, now: int) -> Path:
         }
     }
     (d / "no_trade_outcomes.json").write_text(
-        json.dumps(outcomes, ensure_ascii=False), encoding="utf-8"
+        json.dumps({"updated": _iso(now), "outcomes": outcomes}, ensure_ascii=False), encoding="utf-8"
     )
     obs = [
         {
-            "id": "obs-1", "symbol": "SOL-USDT", "bar_time": (now - 2 * H) // 1000,
+            "id": "obs-1", "symbol": "SOL-USDT", "bar_time": now - 2 * H,
             "timestamp": now - 2 * H, "market_regime": "TREND",
             "regime_confidence": 0.5, "reason_code": "LOW_EV", "reasons": [],
             "candidate": {"strategy": "scalp", "direction": "long",
@@ -155,7 +156,7 @@ class TestDigest:
         now = _now_ms()
         d = _make_models(tmp_path, now)
         outcomes = json.loads((d / "no_trade_outcomes.json").read_text())
-        outcomes["obs-1"]["horizons"]["3"]["future_return"] = 0.012
+        outcomes["outcomes"]["obs-1"]["horizons"]["3"]["future_return"] = 0.012
         (d / "no_trade_outcomes.json").write_text(
             json.dumps(outcomes), encoding="utf-8"
         )
@@ -190,3 +191,47 @@ class TestDigest:
         data = json.loads((d / "telegram_offset.json").read_text())
         assert data["learning_digest_watermark_ms"] == 123
         assert data["other_key"] == 42
+
+
+def test_legacy_wrapper_ms_excludes_outcomes_before_watermark(tmp_path):
+    now = _now_ms()
+    d = _make_models(tmp_path, now)
+    path = d / "no_trade_outcomes.json"
+    data = json.loads(path.read_text())
+    data["outcomes"]["old"] = {
+        **data["outcomes"]["obs-1"], "bar_time": now - 3 * 24 * H,
+    }
+    path.write_text(json.dumps(data), encoding="utf-8")
+    insights = recent_no_trade_insights(d, since_ms=now - 26 * H, limit=10)
+    assert len(insights) == 1
+    assert insights[0]["bar_time_ms"] == now - 2 * H
+    assert recent_no_trade_insights(d, since_ms=now) == []
+
+
+def test_digest_jsonl_is_authoritative_and_deduplicates_last_wins(tmp_path):
+    now = _now_ms()
+    d = _make_models(tmp_path, now)
+    row = json.loads((d / "no_trade_outcomes.json").read_text())["outcomes"]["obs-1"]
+    new = {**row, "horizons": {"3": {"future_return": 0.012}}}
+    (d / "no_trade_outcomes.jsonl").write_text(
+        json.dumps({"id": "obs-1", **row}) + "\n"
+        + json.dumps({"id": "obs-1", **new}) + "\n", encoding="utf-8",
+    )
+    insights = recent_no_trade_insights(d, since_ms=now - 26 * H)
+    assert len(insights) == 1
+    assert insights[0]["justified"] is False
+    assert insights[0]["bar_time_ms"] == now - 2 * H
+    text, _ = build_digest(d, now_ms=now)
+    assert "движение было за гипотезу" in text
+    assert "отказ оправдан" not in text
+
+
+def test_digest_still_reads_legacy_bare_map_in_milliseconds(tmp_path):
+    now = _now_ms()
+    d = _make_models(tmp_path, now)
+    path = d / "no_trade_outcomes.json"
+    data = json.loads(path.read_text())["outcomes"]
+    path.write_text(json.dumps(data), encoding="utf-8")
+    text, _ = build_digest(d, now_ms=now)
+    assert "NO_TRADE LOW_EV long SOL-USDT" in text
+    assert "отказ оправдан" in text

@@ -18,7 +18,7 @@
   D. Потолок политики выходов: сколько в принципе даёт «идеальный выход» по
      mfe_r из лога, и сколько стоит цикл издержек.
 
-Данные: только репозиторий (`models/no_trade_outcomes.json`, `models/paper_trades
+Данные: только репозиторий (`models/no_trade_outcomes.jsonl`, `models/paper_trades
 .jsonl`); внешний HTTP недоступен, живых стаканов нет, поэтому исполнение
 моделируется, а не наблюдается. Отсюда главное методологическое предупреждение:
 правка fee/slippage в paper-модели меняет табло, а не торговлю.
@@ -41,9 +41,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from astra_bot.ml.no_trade_outcomes import load_outcomes
 from scripts.lever_scan import build_paths
 
-SRC = ROOT / "models" / "no_trade_outcomes.json"
+SRC = ROOT / "models" / "no_trade_outcomes.jsonl"
 TRADES = ROOT / "models" / "paper_trades.jsonl"
 BTC = "BTC-USDT"
 
@@ -59,8 +60,7 @@ class Panel:
     """Матрица [символ][бар] = (close-to-close r, max up, max down) без дырок."""
 
     def __init__(self) -> None:
-        with open(SRC, encoding="utf-8") as fh:
-            rows = list(json.load(fh)["outcomes"].values())
+        rows = list(load_outcomes(SRC).values())
         paths = build_paths(rows)
         cell: dict[tuple[str, int], tuple[float, float, float]] = {}
         for sym, runs in paths.items():

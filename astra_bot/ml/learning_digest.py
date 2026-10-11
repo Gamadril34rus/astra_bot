@@ -5,7 +5,7 @@
   ``takeaway``/``counterfactual``/``recommendation``;
 - ``models/research/hypotheses.json`` — lifecycle гипотез: новые
   переходы VALIDATED/INVALIDATED/RETIRED/WEAKENING с причинами;
-- ``models/no_trade_outcomes.json`` + ``models/no_trade_observations.jsonl``
+- ``models/no_trade_outcomes.jsonl`` (fallback: legacy JSON) + ``models/no_trade_observations.jsonl``
   — исходы NO_TRADE на горизонтах 1/3/6/12/24 баров: «отказ был
   оправдан» — будущее движение против гипотетического входа;
 - ``models/strategy_stats.json`` — сама база знаний: EV по
@@ -26,6 +26,8 @@ import json
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
+
+from .no_trade_outcomes import load_outcomes
 
 logger = logging.getLogger(__name__)
 
@@ -126,16 +128,14 @@ def recent_no_trade_insights(
     Объединяем индекс исходов (bar_time/горизонты) с наблюдениями
     (symbol/reason_code/candidate.direction).
     """
-    outcomes = _read_json(models_dir / "no_trade_outcomes.json")
-    if not isinstance(outcomes, dict):
-        return []
+    outcomes = load_outcomes(models_dir / "no_trade_outcomes.jsonl")
     obs_by_id = {
         str(o.get("id")): o for o in _read_jsonl(models_dir / "no_trade_observations.jsonl")
     }
     insights: list[dict] = []
     for oid, row in outcomes.items():
         try:
-            bar_time_ms = int(row.get("bar_time") or 0) * 1000  # сек → мс
+            bar_time_ms = int(row.get("bar_time") or 0)  # open_time свечи уже в мс
         except (TypeError, ValueError):
             continue
         if bar_time_ms < since_ms:

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -20,10 +21,10 @@ from astra_bot.ml.no_trade_observations import (
     make_observation_id,
 )
 
-STEP = 3600
+STEP = 3_600_000  # open_time и bar_time в production — миллисекунды
 # Индекс исходов режется до 30 дней (OUTCOMES_KEEP_DAYS) — берём свежий, но
 # полностью закрытый диапазон, иначе _prune_outcomes съест запись до сохранения.
-T0 = (int(time.time()) // STEP - 400) * STEP
+T0 = (int(time.time() * 1000) // STEP - 400) * STEP
 
 
 def _c(i: int, *, o: float, h: float, l: float, c: float) -> models.Candle:
@@ -108,7 +109,7 @@ def test_missing_take_profit_is_not_a_crash() -> None:
 # ------------------------------------------------------------------ pipeline ---
 def test_enrich_writes_hypothetic_r_and_backfills_jsonl(tmp_path: Path) -> None:
     obs_path = tmp_path / "no_trade_observations.jsonl"
-    out_path = tmp_path / "no_trade_outcomes.json"
+    out_path = tmp_path / "no_trade_outcomes.jsonl"
     bar_time = T0
     reason = "ENTRY_GATE"
     oid = make_observation_id("BTC-USDT", bar_time, reason, "-", "long")
@@ -127,7 +128,8 @@ def test_enrich_writes_hypothetic_r_and_backfills_jsonl(tmp_path: Path) -> None:
     enriched = log.enrich({"BTC-USDT": series})
     assert [o.id for o in enriched] == [oid], "наблюдение должно быть подхвачено"
 
-    outcome = json.loads(out_path.read_text(encoding="utf-8"))["outcomes"][oid]
+    outcome = json.loads(out_path.read_text(encoding="utf-8"))
+    assert outcome["id"] == oid
     assert outcome["hypothetic_r"]["r"] == -1.0
     assert outcome["hypothetic_r"]["exit_kind"] == "stop"
     # исходы на горизонтах считаются как раньше — рядом, не вместо
@@ -142,7 +144,7 @@ def test_enrich_writes_hypothetic_r_and_backfills_jsonl(tmp_path: Path) -> None:
 def test_enrich_survives_broken_candidate(tmp_path: Path) -> None:
     """Кривой candidate не имеет права сломать обогащение горизонтов."""
     obs_path = tmp_path / "o.jsonl"
-    out_path = tmp_path / "u.json"
+    out_path = tmp_path / "u.jsonl"
     bar_time = T0
     oid = make_observation_id("ETH-USDT", bar_time, "NO_VALID_SETUP", "-", "-")
     obs_path.write_text(
@@ -166,6 +168,35 @@ def test_enrich_survives_broken_candidate(tmp_path: Path) -> None:
         for i in range(31)
     ]})
     assert len(enriched) == 1
-    outcome = json.loads(out_path.read_text(encoding="utf-8"))["outcomes"][oid]
+    outcome = json.loads(out_path.read_text(encoding="utf-8"))
+    assert outcome["id"] == oid
     assert "hypothetic_r" not in outcome, "непригодная геометрия не пишет нули-обманки"
     assert outcome["horizons"]
+
+
+def test_prune_outcomes_uses_milliseconds_at_the_30_day_boundary(tmp_path, monkeypatch):
+    """Старый ms-vs-sec no-op проявлялся бы после 28.10; фиксируем UTC-часы."""
+    from astra_bot.ml import no_trade_observations as module
+
+    now = datetime(2026, 10, 29, tzinfo=UTC)
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now
+
+    monkeypatch.setattr(module, "datetime", Clock)
+    cutoff_ms = int(now.timestamp() * 1000) - 30 * 86_400_000
+    log = NoTradeObservationLog(
+        observations_path=tmp_path / "obs.jsonl", outcomes_path=tmp_path / "out.jsonl"
+    )
+    log._outcomes = {
+        "expired": {"bar_time": cutoff_ms - 1},
+        "boundary": {"bar_time": cutoff_ms},
+        "fresh": {"bar_time": cutoff_ms + 1},
+    }
+    log._unsaved_outcomes = dict(log._outcomes)
+    log._prune_outcomes()
+    assert set(log._outcomes) == {"boundary", "fresh"}
+    assert set(log._unsaved_outcomes) == {"boundary", "fresh"}
+    assert not log.outcomes_path.exists(), "time-prune не переписывает append-only JSONL"

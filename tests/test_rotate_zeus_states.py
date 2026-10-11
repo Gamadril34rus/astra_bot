@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import gzip
+import json
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -90,3 +92,41 @@ def test_line_trigger_rotates_file_over_line_limit_below_size(tmp_path):
     assert len(kept) == 20_000
     assert kept[0] == '{"i": 5000}'
     assert kept[-1] == '{"i": 24999}'
+
+
+def test_outcomes_keep_full_cap_and_do_not_evict_ids_in_observations(tmp_path):
+    """24k outcomes >= 24k observations: generic 20k tail would re-enrich 4k ids."""
+    from astra_bot.ml.no_trade_observations import NoTradeObservationLog
+
+    rel = "models/zeus_no_trade_outcomes.jsonl"
+    limit = rot.LIVE_JSONL_LIMITS["zeus_no_trade_outcomes.jsonl"]
+    assert rel in rot.STATE_FILES
+    assert limit == 24_000
+    assert limit >= rot.LIVE_JSONL_LIMITS["zeus_no_trade_observations.jsonl"]
+    assert rot.LIVE_JSONL_LIMITS["no_trade_outcomes.jsonl"] >= rot.LIVE_JSONL_LIMITS["no_trade_observations.jsonl"]
+    src = tmp_path / rel
+    src.parent.mkdir()
+    base = int(time.time() * 1000) - 25_000
+    rows = [
+        {"id": f"obs-{i}", "bar_time": base + i, "symbol": "BTC-USDT", "horizons": {"1": {}}}
+        for i in range(25_000)
+    ]
+    src.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    observations = src.with_name("zeus_no_trade_observations.jsonl")
+    # No backfill result: this checks retention alignment itself, not the extra
+    # protection pending() obtains from resolved observation rows.
+    observations.write_text("".join(json.dumps({
+        "id": row["id"], "bar_time": row["bar_time"], "symbol": row["symbol"], "result": None,
+    }) + "\n" for row in rows[-limit:]))
+    assert src.stat().st_size < rot.MAX_BYTES
+    result = rot.rotate_all((rel,), root=tmp_path)[0]
+    assert result["rotated"] is True
+    assert result["archived_lines"] == 1_000
+    assert result["kept_lines"] == limit
+    kept = src.read_text().splitlines()
+    assert json.loads(kept[0])["id"] == "obs-1000"
+    assert json.loads(kept[-1])["id"] == "obs-24999"
+    log = NoTradeObservationLog(observations_path=observations, outcomes_path=src)
+    assert log.pending(limit=25_000) == []
+    assert log.enrich({}) == []
+    assert src.read_text().splitlines() == kept
