@@ -1,0 +1,117 @@
+    tp = row.get("tp") or row.get("target") or row.get("tp1")
+    tp_d = Decimal(str(tp)) if tp is not None else None
+    try:
+        conf_f = float(row["confidence"]) if row.get("confidence") is not None else None
+    except (TypeError, ValueError):
+        conf_f = None
+    sym = str(row.get("symbol") or "").strip()
+    if not sym:
+        return None
+    return SignalCandidate(
+        symbol=sym,
+        side=side,
+        entry=e,
+        stop=s,
+        take_profit=tp_d,
+        confidence=conf_f,
+        leverage=int(row.get("leverage") or leverage),
+        strategy=str(row.get("strategy") or strategy),
+        step_size=step_size,
+    )
+
+
+async def exchange_open_symbols(broker: LiveBroker) -> set[str]:
+    """Source of truth: exchange positions with qty > 0."""
+    positions = await broker.client.get_positions()
+    out: set[str] = set()
+    for p in positions:
+        qty = getattr(p, "quantity", None) or Decimal("0")
+        try:
+            q = Decimal(str(qty))
+        except Exception:
+            continue
+        if q > 0:
+            sym = getattr(p, "symbol", None)
+            if sym:
+                out.add(str(sym))
+    return out
+
+
+def load_pending_rows(path: Path = PENDING_PATH) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rows.append(json.loads(line))
+        except Exception:
+            continue
+    return rows
+
+
+async def run_arm_entries(
+    broker: LiveBroker,
+    rows: Iterable[dict[str, Any]],
+    *,
+    max_entries: int = 1,
+    vst: bool | None = None,
+    send_tg: Any = None,
+    fresh_max_sec: float = FRESH_MAX_SEC,
+    entries_path: Path = ENTRIES_PATH,
+) -> list[dict[str, Any]]:
+    """At most max_entries opens. Exchange guards + signal_id dedup + freshness."""
+    if vst is None:
+        vst = (os.environ.get("ZEUS_MAINNET") or "").strip() != "1"
+
+    row_list = list(rows)
+    if not row_list:
+        logger.info("arm: empty feed — 0 entries (Stage A idle)")
+        return []
+
+    seen = _seen_signal_ids(entries_path)
+    open_syms = await exchange_open_symbols(broker)
+    open_n = len(open_syms)
+    results: list[dict[str, Any]] = []
+
+    for row in row_list:
+        if len(results) >= max_entries:
+            break
+        sid = str(row.get("signal_id") or "").strip()
+        if sid and sid in seen:
+            logger.info("arm: skip signal_id=%s — already in entries journal", sid)
+            continue
+        if not is_fresh(row, max_sec=fresh_max_sec):
+            logger.info(
+                "arm: skip %s — stale retest age>%ss",
+                row.get("symbol"),
+                int(fresh_max_sec),
+            )
+            continue
+        cand = candidate_from_signal_dict(row)
+        if cand is None:
+            continue
+        if cand.symbol in open_syms:
+            logger.info("arm: skip %s — already open on exchange", cand.symbol)
+            continue
+        if open_n >= MAX_OPEN:
+            logger.info("arm: skip — exchange max_open=%d", MAX_OPEN)
+            break
+
+        try:
+            plan = await plan_from_candidate(
+                broker,
+                cand,
+                exchange_symbols=open_syms,
+                exchange_open_count=open_n,
+            )
+            if plan is None:
+                continue
+            res = await broker.open_with_protection(plan)
+            upsert_plan(
+                plan.symbol,
+                side=plan.side,
+                qty=plan.quantity,
+                stop=plan.stop_price,
