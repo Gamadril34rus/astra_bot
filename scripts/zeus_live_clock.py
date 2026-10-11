@@ -101,7 +101,18 @@ async def one_tick(*, dry: bool = False) -> int:
         logger.info("tick done — ZEUS_ARM!=1 (observe only)")
     else:
         logger.info("ZEUS_ARM=1 — entry hook active (candidates via arm pipeline)")
-        from astra_bot.decision.live_arm_wiring import load_pending_rows, run_arm_entries
+        from astra_bot.decision.live_arm_feed import FEED_SYMBOLS, produce_pending
+        from astra_bot.decision.live_arm_wiring import (
+            ENTRIES_PATH,
+            _seen_signal_ids,
+            load_pending_rows,
+            run_arm_entries,
+        )
+        try:
+            seen = _seen_signal_ids(ENTRIES_PATH)
+        except Exception:
+            seen = set()
+        await produce_pending(client, FEED_SYMBOLS, seen_ids=seen)
         rows = load_pending_rows()
         entered = await run_arm_entries(broker, rows, max_entries=1)
         logger.info("arm tick entries=%d", len(entered))
