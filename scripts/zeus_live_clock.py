@@ -93,6 +93,19 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception as exc:
         logger.warning("restore_missing_stops failed: %s", type(exc).__name__)
 
+    # P4: observe the market and rewrite the pending-candidate file before the
+    # entry gate. The producer only reads candles and writes JSONL; it places no orders.
+    from astra_bot.decision.live_arm_feed import FEED_SYMBOLS, produce_pending
+    from astra_bot.decision.live_arm_wiring import ENTRIES_PATH, _seen_signal_ids
+
+    feed_ready = True
+    try:
+        seen = _seen_signal_ids(ENTRIES_PATH)
+        await produce_pending(client, FEED_SYMBOLS, seen_ids=seen)
+    except Exception as exc:
+        feed_ready = False
+        logger.warning("arm feed failed: %s", type(exc).__name__)
+
     # P2: signal→entry ONLY when ZEUS_ARM=1 (owner enables in separate PR)
     from astra_bot.decision.live_arm import arm_enabled
     if dry or not broker.entries_allowed:
@@ -101,10 +114,17 @@ async def one_tick(*, dry: bool = False) -> int:
         logger.info("tick done — ZEUS_ARM!=1 (observe only)")
     else:
         logger.info("ZEUS_ARM=1 — entry hook active (candidates via arm pipeline)")
-        from astra_bot.decision.live_arm_wiring import load_pending_rows, run_arm_entries
-        rows = load_pending_rows()
-        entered = await run_arm_entries(broker, rows, max_entries=1)
-        logger.info("arm tick entries=%d", len(entered))
+        if not feed_ready:
+            logger.warning("arm tick skipped — feed generation failed")
+        else:
+            from astra_bot.decision.live_arm_wiring import (
+                load_pending_rows,
+                run_arm_entries,
+            )
+
+            rows = load_pending_rows()
+            entered = await run_arm_entries(broker, rows, max_entries=1)
+            logger.info("arm tick entries=%d", len(entered))
 
     session = getattr(client, "_session", None)
     if session is not None:
