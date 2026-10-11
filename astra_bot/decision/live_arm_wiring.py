@@ -225,7 +225,28 @@ async def run_arm_entries(
             )
             if plan is None:
                 continue
+            # Sanity: stop within 25% of entry (ghost-price guard)
+            try:
+                dist = abs(float(cand.entry) - float(cand.stop)) / max(abs(float(cand.entry)), 1e-12)
+            except Exception:
+                dist = 0.0
+            if dist > 0.25:
+                logger.error(
+                    "arm: REJECT %s ghost stop entry=%s stop=%s dist=%.1f%%",
+                    cand.symbol, cand.entry, cand.stop, dist * 100,
+                )
+                append_journal(
+                    {
+                        "event": "entry_rejected_ghost_price",
+                        "symbol": cand.symbol,
+                        "entry": str(cand.entry),
+                        "stop": str(cand.stop),
+                        "dist_pct": round(dist * 100, 3),
+                    }
+                )
+                continue
             res = await broker.open_with_protection(plan)
+            # Journal IMMEDIATELY after successful open (entry+protect returned)
             upsert_plan(
                 plan.symbol,
                 side=plan.side,
@@ -237,7 +258,11 @@ async def run_arm_entries(
             )
             mark_cooldown(cand.strategy, plan.symbol, plan.side)
         except Exception as exc:
-            logger.warning("arm entry %s failed: %s", cand.symbol, type(exc).__name__)
+            logger.exception(
+                "arm entry %s failed AFTER possible fill — job must go red: %s",
+                cand.symbol,
+                type(exc).__name__,
+            )
             append_journal(
                 {
                     "event": "entry_failed",
@@ -247,7 +272,8 @@ async def run_arm_entries(
                     "error": type(exc).__name__,
                 }
             )
-            continue
+            # Do NOT continue to next symbol (would stack naked positions)
+            raise
 
         results.append(res)
         open_syms.add(cand.symbol)
