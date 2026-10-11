@@ -59,10 +59,11 @@ jobs:
         run: |
           git config user.name "astra-bot" || true
           git config user.email "bot@users.noreply.github.com" || true
-          F=models/zeus_live_commands.json
-          if [ -f "$F" ] && ! git diff --quiet -- "$F"; then
-            git add -f "$F"
-            git commit -m "live: commands state (auto)"
+          for F in models/zeus_live_commands.json models/zeus_live_entries.jsonl models/zeus_live_positions.json; do
+            [ -f "$F" ] && git add -f "$F" || true
+          done
+          if ! git diff --cached --quiet; then
+            git commit -m "live: commands/entries/positions state (auto)"
             for i in 1 2 3 4 5; do
               git fetch origin "${{ github.ref_name }}"
               if git push origin "HEAD:${{ github.ref_name }}"; then break; fi
