@@ -1,0 +1,86 @@
+            "positions": len(positions),
+            "open_orders": len(open_orders),
+            "missing_stops": restored,
+            "positions_raw": positions,
+            "orders_raw": open_orders,
+        }
+
+    async def restore_missing_stops(
+        self,
+        *,
+        positions_path: "Path | None" = None,
+    ) -> dict[str, Any]:
+        """After reconcile: positions without stop get plan stop or market close.
+
+        (a) plan in zeus_live_positions.json → re-place STOP_MARKET (+TP) via move_stop
+        (b) no plan → market reduceOnly close + warning (naked position forbidden)
+        """
+        from pathlib import Path as _Path
+        from astra_bot.decision.live_positions import get_plan, remove_plan
+
+        path = positions_path or _Path("models/zeus_live_positions.json")
+        positions = await self.client.get_positions()
+        open_orders = await self.client.get_open_orders()
+        by_sym: dict[str, list] = {}
+        for o in open_orders:
+            by_sym.setdefault(getattr(o, "symbol", ""), []).append(o)
+
+        restored: list[str] = []
+        closed: list[str] = []
+        for p in positions:
+            sym = getattr(p, "symbol", "")
+            qty = getattr(p, "quantity", None) or Decimal("0")
+            if qty <= 0:
+                continue
+            orders = by_sym.get(sym, [])
+            has_stop = any(
+                "stop" in str(getattr(o, "order_type", "")).lower()
+                and "take_profit" not in str(getattr(o, "order_type", "")).lower()
+                for o in orders
+            )
+            if has_stop:
+                continue
+            plan = get_plan(sym, path)
+            if plan and plan.get("stop"):
+                side = str(plan.get("side") or getattr(p, "side", "long")).lower()
+                stop_px = Decimal(str(plan["stop"]))
+                q = Decimal(str(plan.get("qty") or qty))
+                try:
+                    await self.move_stop(sym, side, q, stop_px)
+                    tp = plan.get("tp")
+                    if tp is not None:
+                        stop_side = "SELL" if side == "long" else "BUY"
+                        ps = "LONG" if side == "long" else "SHORT"
+                        await self.client.place_order(
+                            symbol=sym,
+                            side=stop_side,
+                            order_type="TAKE_PROFIT_MARKET",
+                            quantity=q,
+                            stop_price=Decimal(str(tp)),
+                            position_side=ps,
+                            reduce_only=True,
+                            client_order_id="rest-t",
+                        )
+                    restored.append(sym)
+                    logger.info("restore_missing_stops: %s STOP re-placed @ %s", sym, stop_px)
+                except Exception as exc:
+                    logger.warning(
+                        "restore_missing_stops: %s move_stop failed: %s",
+                        sym, type(exc).__name__,
+                    )
+            else:
+                logger.warning(
+                    "restore_missing_stops: %s naked position qty=%s — no plan, closing market",
+                    sym, qty,
+                )
+                try:
+                    await self.client.close_position(sym, quantity=qty)
+                    remove_plan(sym, path)
+                    closed.append(sym)
+                except Exception as exc:
+                    logger.warning(
+                        "restore_missing_stops: close %s failed: %s",
+                        sym, type(exc).__name__,
+                    )
+        return {"restored": restored, "closed_naked": closed}
+
