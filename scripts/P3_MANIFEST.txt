@@ -1,0 +1,29 @@
+P3 arm wiring (arbiter requirements)
+====================================
+1) astra_bot/decision/live_arm_wiring.py  p3_wire_p*.txt
+   - exchange get_positions for open/max_open (not file)
+   - zeus_live_entries.jsonl signal_id dedup
+   - freshness 45min (retest_ts/ts)
+   - empty feed → 0 + log "Stage A idle"
+   - max 1 entry/tick, format_entry_tg, journal
+
+2) astra_bot/decision/live_arm.py  p3_arm_p*.txt
+   - plan_from_candidate accepts exchange_symbols / exchange_open_count
+
+3) scripts/zeus_live_clock.py  p3_clk_p*.txt
+   - ZEUS_ARM=1 → load_pending_rows + run_arm_entries
+
+4) .github/workflows/zeus-live-clock.yml  p3_yml_p*.txt
+   - Save: + zeus_live_entries.jsonl + zeus_live_positions.json
+
+5) tests/test_live_arm_wiring.py  p3_tst_p*.txt
+  p3_arm_p1.txt: 3628
+  p3_arm_p2.txt: 1682
+  p3_clk_p1.txt: 3678
+  p3_clk_p2.txt: 761
+  p3_tst_p1.txt: 3698
+  p3_tst_p2.txt: 1402
+  p3_wire_p1.txt: 3647
+  p3_wire_p2.txt: 3669
+  p3_wire_p3.txt: 1926
+  p3_yml_p1.txt: 2336
