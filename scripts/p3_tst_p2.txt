@@ -1,0 +1,48 @@
+        )
+        assert len(res) == 1
+        assert any(x.get("symbol") == "B-USDT" for x in c.placed)
+    asyncio.run(_())
+
+
+def test_exchange_blocks_symbol(tmp_path, monkeypatch):
+    async def _():
+        monkeypatch.chdir(tmp_path)
+        pos = SimpleNamespace(symbol="A-USDT", quantity=Decimal("1"), side="long")
+        c = MockClient(positions=[pos])
+        rows = [
+            {
+                "signal_id": "x1",
+                "symbol": "A-USDT",
+                "side": "long",
+                "entry": 10,
+                "stop": 9,
+                "ts": time.time(),
+                "confidence": 0.95,
+            }
+        ]
+        res = await run_arm_entries(LiveBroker(c), rows, max_entries=1)
+        assert res == []
+        assert c.placed == []
+    asyncio.run(_())
+
+
+def test_max_one_entry(tmp_path, monkeypatch):
+    async def _():
+        monkeypatch.chdir(tmp_path)
+        rows = [
+            {
+                "signal_id": f"s{i}",
+                "symbol": f"S{i}-USDT",
+                "side": "long",
+                "entry": 10,
+                "stop": 9,
+                "ts": time.time(),
+                "confidence": 0.95,
+            }
+            for i in range(3)
+        ]
+        c = MockClient()
+        res = await run_arm_entries(LiveBroker(c), rows, max_entries=1)
+        assert len(res) == 1
+        assert len(c.placed) >= 2
+    asyncio.run(_())
