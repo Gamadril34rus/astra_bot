@@ -36,6 +36,7 @@ jobs:
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           set +x
           python -m astra_bot.decision.tg_live_commands --timeout 25
@@ -48,6 +49,8 @@ jobs:
           ENVIRONMENT: live
           BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
           BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           # never print secrets
           set +x
@@ -64,9 +67,15 @@ jobs:
           done
           if ! git diff --cached --quiet; then
             git commit -m "live: commands/entries/positions state (auto)"
+            ok=0
             for i in 1 2 3 4 5; do
               git fetch origin "${{ github.ref_name }}"
-              if git push origin "HEAD:${{ github.ref_name }}"; then break; fi
+              git rebase "origin/${{ github.ref_name }}" || git rebase --abort || true
+              if git push origin "HEAD:${{ github.ref_name }}"; then ok=1; break; fi
               sleep 5
             done
+            if [ "$ok" != "1" ]; then
+              echo "Save live state: push failed after 5 retries" >&2
+              exit 1
+            fi
           fi
