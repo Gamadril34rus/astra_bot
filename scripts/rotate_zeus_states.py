@@ -7,12 +7,22 @@ GH001 «large blob detected» (лог владельца из запуска #23
 state не сохранялся, сделки умирали вместе с раннером, сводки
 дублировались, а шаг Save завершался success, проглотив ошибку.
 
-Схема: если файл больше ``MAX_BYTES`` (20 МБ), в основном файле остаются
-последние ``KEEP_LINES`` (20 000) строк, всё остальное уходит в
+Схема: если файл больше ``MAX_BYTES`` (20 МБ) ИЛИ содержит больше строк, чем
+лимит ``LIVE_JSONL_LIMITS`` для этого файла (что наступит раньше), в основном
+файле остаются последние ``KEEP_LINES`` (20 000) строк, всё остальное уходит в
 ``models/archive/<имя>_<UTC-штамп до секунд>.jsonl.gz``. Один архив на
 событие ротации; штамп в имени не даёт архивам перезаписывать друг друга.
 Граница 20k может разрезать строки одной сделки между архивом и хвостом —
 это допустимо, читатели работают хвостовыми окнами.
+
+Строчный триггер нужен потому, что журнал с короткими строками дорастал бы до
+лимита строк (size-gate, 24000) задолго до 20 МБ: без него size-gate краснел
+при отсутствующей ротации (инцидент fix/wedge-signals-rotation).
+
+ИНВАРИАНТ: каждый zeus-*.jsonl обязан иметь ОБЕ крыши — ротацию (список
+``STATE_FILES`` в этом файле) и лимит строк в ``LIVE_JSONL_LIMITS``
+(astra_bot/core/state_rotation.py). Добавляешь файл в один — добавь во второй.
+Ротация и size-gate читают один и тот же лимит из ``LIVE_JSONL_LIMITS``.
 
 Запуск (в том числе в начале бумажного тика):
     python scripts/rotate_zeus_states.py [--dry-run]
@@ -33,15 +43,19 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from astra_bot.core.state_rotation import LIVE_JSONL_LIMITS
+
 logger = logging.getLogger("rotate_zeus_states")
 
 # Живые Zeus state-файлы. models/zeus_signals.jsonl из ТЗ в репо нет —
 # реальные имена найдены grep-ом по дереву master.
+# ИНВАРИАНТ: см. докстринг модуля (ротация + LIVE_JSONL_LIMITS).
 STATE_FILES = (
     "models/zeus_trade_journal.jsonl",  # 104.8 МБ — виновник GH001
     "models/zeus_paper_trades.jsonl",
     "models/zeus_wedge_1h_signals.jsonl",  # реальный «signals»
     "models/zeus_no_trade_observations.jsonl",
+    "models/zeus_pattern_exit_shadow.jsonl",  # тень паттерн-выходов (инвариант)
 )
 
 MAX_BYTES = 20 * 1024 * 1024
@@ -56,11 +70,13 @@ def rotate_file(
     keep_lines: int = KEEP_LINES,
     archive_dir: Path | None = None,
     dry_run: bool = False,
+    max_lines: int | None = None,
 ) -> dict:
     """Обрезать ``path`` до ``keep_lines`` последних строк, старые — в gz.
 
-    Отсутствующий или не превышающий порог файл не трогаем. Возвращает
-    отчёт по файлу — он же идёт в лог, и на нём стоят тесты.
+    Ротация, если размер > ``max_bytes`` ИЛИ строк > ``max_lines`` (``None`` —
+    строчный триггер выключен). Отсутствующий или не превышающий порогов файл не
+    трогаем. Возвращает отчёт по файлу — он же идёт в лог, и на нём стоят тесты.
     """
     res = {
         "path": str(path),
@@ -79,11 +95,16 @@ def rotate_file(
 
     size_before = path.stat().st_size
     res["size_before"] = size_before
-    if size_before <= max_bytes:
+    over_bytes = size_before > max_bytes
+    if not over_bytes and max_lines is None:
         res["skipped"] = "under_threshold"
         return res
 
     lines = path.read_bytes().splitlines(keepends=True)
+    over_lines = max_lines is not None and len(lines) > max_lines
+    if not over_bytes and not over_lines:
+        res["skipped"] = "under_threshold"
+        return res
     if len(lines) <= keep_lines:
         # Строк мало, а файл большой — резать по строкам нечего.
         res["skipped"] = "under_keep_lines"
@@ -138,12 +159,15 @@ def rotate_all(
     root = Path(root) if root else PROJECT_ROOT
     out: list[dict] = []
     for rel in files:
+        # Ключ LIVE_JSONL_LIMITS — путь относительно models/ (инвариант, см. выше).
+        line_limit = LIVE_JSONL_LIMITS.get(rel.removeprefix("models/"))
         res = rotate_file(
             root / rel,
             max_bytes=max_bytes,
             keep_lines=keep_lines,
             archive_dir=archive_dir if archive_dir else root / ARCHIVE_DIR,
             dry_run=dry_run,
+            max_lines=line_limit,
         )
         if res["rotated"]:
             logger.info(
