@@ -1,0 +1,60 @@
+                tp=plan.take_profit_price,
+                entry=cand.entry,
+                leverage=plan.leverage,
+            )
+            mark_cooldown(cand.strategy, plan.symbol, plan.side)
+        except Exception as exc:
+            logger.warning("arm entry %s failed: %s", cand.symbol, type(exc).__name__)
+            append_journal(
+                {
+                    "event": "entry_failed",
+                    "symbol": cand.symbol,
+                    "side": cand.side,
+                    "signal_id": sid or None,
+                    "error": type(exc).__name__,
+                }
+            )
+            continue
+
+        results.append(res)
+        open_syms.add(cand.symbol)
+        open_n += 1
+        if sid:
+            seen.add(sid)
+            append_entry_record(
+                {
+                    "signal_id": sid,
+                    "symbol": cand.symbol,
+                    "side": cand.side,
+                    "ts": time.time(),
+                },
+                entries_path,
+            )
+        msg = format_entry_tg(
+            cand.symbol,
+            cand.side,
+            plan.quantity,
+            cand.entry,
+            cand.stop,
+            cand.take_profit,
+            vst=vst,
+        )
+        append_journal(
+            {
+                "event": "entry",
+                "signal_id": sid or None,
+                "symbol": cand.symbol,
+                "side": cand.side,
+                "qty": str(plan.quantity),
+                "entry": str(cand.entry),
+                "stop": str(cand.stop),
+                "tp": str(cand.take_profit) if cand.take_profit else None,
+            }
+        )
+        if send_tg is not None:
+            try:
+                await send_tg(msg)
+            except Exception as exc:
+                logger.warning("arm TG send failed: %s", type(exc).__name__)
+        logger.info("arm entry done: %s", msg)
+    return results
