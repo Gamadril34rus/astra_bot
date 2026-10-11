@@ -1,6 +1,10 @@
 """Persist live entry plans: models/zeus_live_positions.json.
 
 Written on each successful open_with_protection; used by restore_missing_stops.
+
+Файл мал по построению (≤5 позиций, короткие планы) — отдельной крыши
+размера не требует. При появлении live-jsonl-журналов — добавить в
+rotate_zeus_states.py и LIVE_JSONL_LIMITS ОБА списка (один ротатор).
 """
 from __future__ import annotations
 
