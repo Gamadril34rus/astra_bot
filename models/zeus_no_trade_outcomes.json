@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-11T04:03:47.450165+00:00",
+ "updated": "2026-10-11T04:08:50.409095+00:00",
  "outcomes": {
   "ee0905ba0f325831850b": {
    "bar_time": 1790610900000,
@@ -852554,6 +852554,440 @@
     }
    },
    "computed_at": "2026-10-11T04:03:47.439852+00:00"
+  },
+  "4b039959c827afb176cb": {
+   "bar_time": 1791691200000,
+   "symbol": "BTC-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 6e-06,
+     "max_up": 0.00014,
+     "max_down": 0.0
+    }
+   },
+   "computed_at": "2026-10-11T04:06:28.602119+00:00"
+  },
+  "5d57e283e10a32914dab": {
+   "bar_time": 1791691200000,
+   "symbol": "ETH-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000384,
+     "max_up": 0.000148,
+     "max_down": -0.000384
+    }
+   },
+   "computed_at": "2026-10-11T04:06:34.343631+00:00"
+  },
+  "54739c41f855dfd4dec3": {
+   "bar_time": 1791691200000,
+   "symbol": "SOL-USDT",
+   "reason_code": "LOW_EV",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000156,
+     "max_up": 0.000659,
+     "max_down": -0.000156
+    }
+   },
+   "computed_at": "2026-10-11T04:06:38.446062+00:00"
+  },
+  "a779b750ba9aba174b4b": {
+   "bar_time": 1791691200000,
+   "symbol": "BNB-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.0,
+     "max_up": 0.000308,
+     "max_down": -1.3e-05
+    }
+   },
+   "computed_at": "2026-10-11T04:06:42.415486+00:00"
+  },
+  "c76fe70ef7691bafaae4": {
+   "bar_time": 1791691200000,
+   "symbol": "XRP-USDT",
+   "reason_code": "LOW_EV",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000216,
+     "max_up": 0.000504,
+     "max_down": -0.000288
+    }
+   },
+   "computed_at": "2026-10-11T04:06:46.835268+00:00"
+  },
+  "3bf3719ad42d37db9c52": {
+   "bar_time": 1791691200000,
+   "symbol": "DOGE-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000353,
+     "max_up": 0.000823,
+     "max_down": -0.00047
+    }
+   },
+   "computed_at": "2026-10-11T04:06:51.294136+00:00"
+  },
+  "fd37b93b6e7d2fba07f4": {
+   "bar_time": 1791691200000,
+   "symbol": "ADA-USDT",
+   "reason_code": "LOW_EV",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000813,
+     "max_up": 0.002032,
+     "max_down": -0.000813
+    }
+   },
+   "computed_at": "2026-10-11T04:06:55.393856+00:00"
+  },
+  "bbb20adff8fc7203799f": {
+   "bar_time": 1791691200000,
+   "symbol": "AVAX-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000783,
+     "max_up": 0.000489,
+     "max_down": -0.001077
+    }
+   },
+   "computed_at": "2026-10-11T04:07:01.341877+00:00"
+  },
+  "2b7bb7765f060bb131aa": {
+   "bar_time": 1791691200000,
+   "symbol": "DOT-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000569,
+     "max_up": 0.001787,
+     "max_down": -0.00065
+    }
+   },
+   "computed_at": "2026-10-11T04:07:05.771234+00:00"
+  },
+  "3eeb994f11f88d528229": {
+   "bar_time": 1791691200000,
+   "symbol": "LINK-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000466,
+     "max_up": 0.000233,
+     "max_down": -0.000543
+    }
+   },
+   "computed_at": "2026-10-11T04:07:11.224958+00:00"
+  },
+  "1f20ff84fe82e9b68023": {
+   "bar_time": 1791691200000,
+   "symbol": "LTC-USDT",
+   "reason_code": "LOW_EV",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000475,
+     "max_up": 0.000475,
+     "max_down": -0.000475
+    }
+   },
+   "computed_at": "2026-10-11T04:07:15.686506+00:00"
+  },
+  "6be2d3271e9ef1e747da": {
+   "bar_time": 1791691200000,
+   "symbol": "BCH-USDT",
+   "reason_code": "LOW_EV",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.001269,
+     "max_up": 3.6e-05,
+     "max_down": -0.001305
+    }
+   },
+   "computed_at": "2026-10-11T04:07:20.537290+00:00"
+  },
+  "335fae6416c1d5e1d897": {
+   "bar_time": 1791691200000,
+   "symbol": "NEAR-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "STRONG_BEAR_TREND",
+   "horizons": {
+    "1": {
+     "future_return": -0.005164,
+     "max_up": 0.000765,
+     "max_down": -0.005355
+    }
+   },
+   "computed_at": "2026-10-11T04:07:24.450057+00:00"
+  },
+  "a1b2826a9ebc97b5273a": {
+   "bar_time": 1791691200000,
+   "symbol": "APT-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.003766,
+     "max_up": 0.000706,
+     "max_down": -0.003766
+    }
+   },
+   "computed_at": "2026-10-11T04:07:28.363254+00:00"
+  },
+  "bf25ab0bcc46d939aff0": {
+   "bar_time": 1791691200000,
+   "symbol": "SUI-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.002378,
+     "max_up": 0.00064,
+     "max_down": -0.00247
+    }
+   },
+   "computed_at": "2026-10-11T04:07:33.350193+00:00"
+  },
+  "dfa7a2f04c31ba6bbf00": {
+   "bar_time": 1791691200000,
+   "symbol": "ARB-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.002354,
+     "max_up": 0.001674,
+     "max_down": -0.002616
+    }
+   },
+   "computed_at": "2026-10-11T04:07:38.297209+00:00"
+  },
+  "efeed4ab3db7df3d6fe0": {
+   "bar_time": 1791691200000,
+   "symbol": "OP-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "RANGE",
+   "horizons": {
+    "1": {
+     "future_return": -0.002814,
+     "max_up": 0.003752,
+     "max_down": -0.002886
+    }
+   },
+   "computed_at": "2026-10-11T04:07:43.550524+00:00"
+  },
+  "dd47e9a4e4dd6668a82a": {
+   "bar_time": 1791691200000,
+   "symbol": "UNI-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "RANGE",
+   "horizons": {
+    "1": {
+     "future_return": -0.003593,
+     "max_up": 0.000133,
+     "max_down": -0.003726
+    }
+   },
+   "computed_at": "2026-10-11T04:07:48.289852+00:00"
+  },
+  "2dcf0411921031504c2c": {
+   "bar_time": 1791691200000,
+   "symbol": "AAVE-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.001906,
+     "max_up": 0.000536,
+     "max_down": -0.00268
+    }
+   },
+   "computed_at": "2026-10-11T04:07:53.733936+00:00"
+  },
+  "19a0ea78f2c03e67d5e6": {
+   "bar_time": 1791691200000,
+   "symbol": "FIL-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "STRONG_BEAR_TREND",
+   "horizons": {
+    "1": {
+     "future_return": -0.002783,
+     "max_up": 0.000928,
+     "max_down": -0.003711
+    }
+   },
+   "computed_at": "2026-10-11T04:07:58.668486+00:00"
+  },
+  "4a604fc26270bd3d2eb5": {
+   "bar_time": 1791691200000,
+   "symbol": "ATOM-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "STRONG_BEAR_TREND",
+   "horizons": {
+    "1": {
+     "future_return": -0.00104,
+     "max_up": 0.00104,
+     "max_down": -0.001559
+    }
+   },
+   "computed_at": "2026-10-11T04:08:03.098745+00:00"
+  },
+  "e4c1ebc4941cddf9ccf7": {
+   "bar_time": 1791691200000,
+   "symbol": "INJ-USDT",
+   "reason_code": "LOW_EV",
+   "market_regime": "RANGE",
+   "horizons": {
+    "1": {
+     "future_return": -0.003855,
+     "max_up": 0.001196,
+     "max_down": -0.007577
+    }
+   },
+   "computed_at": "2026-10-11T04:08:07.759535+00:00"
+  },
+  "e084f01a2ccb019a6de6": {
+   "bar_time": 1791691200000,
+   "symbol": "TIA-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "RANGE",
+   "horizons": {
+    "1": {
+     "future_return": -0.010179,
+     "max_up": 0.001835,
+     "max_down": -0.013182
+    }
+   },
+   "computed_at": "2026-10-11T04:08:13.895406+00:00"
+  },
+  "ba5b377659cccc274a88": {
+   "bar_time": 1791691200000,
+   "symbol": "WLD-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "WEAK_BEAR_TREND",
+   "horizons": {
+    "1": {
+     "future_return": -0.003681,
+     "max_up": 0.000368,
+     "max_down": -0.005153
+    }
+   },
+   "computed_at": "2026-10-11T04:08:18.328902+00:00"
+  },
+  "ca757659918433c018be": {
+   "bar_time": 1791691200000,
+   "symbol": "TAO-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000891,
+     "max_up": 0.000428,
+     "max_down": -0.002424
+    }
+   },
+   "computed_at": "2026-10-11T04:08:22.230094+00:00"
+  },
+  "1103bc853c7d6d8eeaeb": {
+   "bar_time": 1791691200000,
+   "symbol": "HYPE-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000813,
+     "max_up": 0.000283,
+     "max_down": -0.001307
+    }
+   },
+   "computed_at": "2026-10-11T04:08:26.961230+00:00"
+  },
+  "d4ccaa9dd6ca3214a142": {
+   "bar_time": 1791691200000,
+   "symbol": "1000PEPE-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000802,
+     "max_up": 0.001053,
+     "max_down": -0.001629
+    }
+   },
+   "computed_at": "2026-10-11T04:08:31.047178+00:00"
+  },
+  "55a49a72e89c8c7ecb4d": {
+   "bar_time": 1791691200000,
+   "symbol": "WIF-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.0,
+     "max_up": 0.001404,
+     "max_down": -0.000936
+    }
+   },
+   "computed_at": "2026-10-11T04:08:36.500392+00:00"
+  },
+  "e6b89f641dfc0cf7185f": {
+   "bar_time": 1791691200000,
+   "symbol": "ENA-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 0.000631,
+     "max_up": 0.001441,
+     "max_down": -0.002072
+    }
+   },
+   "computed_at": "2026-10-11T04:08:40.410243+00:00"
+  },
+  "5b503a6d3d51a1a4cd00": {
+   "bar_time": 1791691200000,
+   "symbol": "PENDLE-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "RANGE",
+   "horizons": {
+    "1": {
+     "future_return": 0.001253,
+     "max_up": 0.001253,
+     "max_down": -0.003944
+    }
+   },
+   "computed_at": "2026-10-11T04:08:45.896686+00:00"
+  },
+  "44d322ed6321caba0594": {
+   "bar_time": 1791691200000,
+   "symbol": "TRX-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -3e-05,
+     "max_up": 0.0,
+     "max_down": -3e-05
+    }
+   },
+   "computed_at": "2026-10-11T04:08:50.397885+00:00"
   }
  }
 }
