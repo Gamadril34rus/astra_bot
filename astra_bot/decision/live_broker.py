@@ -185,7 +185,7 @@ class LiveBroker:
                             stop_price=Decimal(str(tp)),
                             position_side=ps,
                             reduce_only=True,
-                            client_order_id=unique_client_order_id(symbol, "r"),
+                            client_order_id=unique_client_order_id(sym, "r"),
                         )
                     restored.append(sym)
                     logger.info("restore_missing_stops: %s STOP re-placed @ %s", sym, stop_px)
