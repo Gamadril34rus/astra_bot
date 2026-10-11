@@ -114,7 +114,31 @@ async def one_tick(*, dry: bool = False) -> int:
             seen = set()
         await produce_pending(client, FEED_SYMBOLS, seen_ids=seen)
         rows = load_pending_rows()
-        entered = await run_arm_entries(broker, rows, max_entries=1)
+
+        async def _tg(msg: str) -> None:
+            token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
+            chat = (
+                (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
+                or (os.environ.get("TELEGRAM_ADMIN_ID") or "").strip()
+            )
+            if not token or not chat:
+                logger.warning("arm TG skip: no TELEGRAM_BOT_TOKEN/CHAT_ID/ADMIN_ID")
+                return
+            try:
+                import aiohttp
+                url = f"https://api.telegram.org/bot{token}/sendMessage"
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        url, json={"chat_id": chat, "text": msg[:4000]}
+                    ) as resp:
+                        if resp.status >= 400:
+                            logger.warning("arm TG HTTP %s", resp.status)
+            except Exception as exc:
+                logger.warning("arm TG failed: %s", type(exc).__name__)
+
+        entered = await run_arm_entries(
+            broker, rows, max_entries=1, send_tg=_tg
+        )
         logger.info("arm tick entries=%d", len(entered))
 
     session = getattr(client, "_session", None)
