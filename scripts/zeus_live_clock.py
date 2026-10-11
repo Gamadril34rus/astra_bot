@@ -84,12 +84,23 @@ async def one_tick(*, dry: bool = False) -> int:
         rec.get("open_orders"),
         rec.get("missing_stops"),
     )
-    # Phase-1 clock: observation only — no auto signals until owner enables.
-    # Entries only if entries_allowed and not dry and future signal hook.
+
+    # P1: restore protective stops AFTER reconcile (plan or naked-close)
+    try:
+        rest = await broker.restore_missing_stops()
+        if rest.get("restored") or rest.get("closed_naked"):
+            logger.info("restore_missing_stops: %s", rest)
+    except Exception as exc:
+        logger.warning("restore_missing_stops failed: %s", type(exc).__name__)
+
+    # P2: signal→entry ONLY when ZEUS_ARM=1 (owner enables in separate PR)
+    from astra_bot.decision.live_arm import arm_enabled
     if dry or not broker.entries_allowed:
         logger.info("tick done (no entries: dry=%s allowed=%s)", dry, broker.entries_allowed)
+    elif not arm_enabled():
+        logger.info("tick done — ZEUS_ARM!=1 (observe only)")
     else:
-        logger.info("tick done — signal→entry hook not armed in phase-1 (observe)")
+        logger.info("ZEUS_ARM=1 — entry hook active (candidates via arm pipeline)")
 
     session = getattr(client, "_session", None)
     if session is not None:
