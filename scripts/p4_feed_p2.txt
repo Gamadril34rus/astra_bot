@@ -1,0 +1,35 @@
+        logger.warning("arm feed: %s row map failed: %s", symbol, type(exc).__name__)
+        return None
+
+
+async def produce_pending(
+    client: Any,
+    symbols: list[str] | tuple[str, ...],
+    *,
+    path: Path = PENDING_PATH,
+    seen_ids: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Scan symbols, write pending jsonl, return rows written.
+
+    Dedup: skip signal_id already in seen_ids (entries journal) or duplicates
+    within this tick (≤1 per symbol).
+    """
+    strat = ZeusWedgeRetestStrategy()
+    seen = set(seen_ids or ())
+    out: list[dict[str, Any]] = []
+    for sym in symbols:
+        row = await scan_symbol(client, sym, strategy=strat)
+        if row is None:
+            continue
+        sid = row["signal_id"]
+        if sid in seen:
+            logger.info("arm feed: skip %s — signal_id already seen", sid)
+            continue
+        # ≤1 per symbol this tick
+        if any(r["symbol"] == row["symbol"] for r in out):
+            continue
+        seen.add(sid)
+        out.append(row)
+    write_pending(out, path)
+    logger.info("arm feed: wrote %d candidate(s) → %s", len(out), path)
+    return out

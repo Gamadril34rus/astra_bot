@@ -1,0 +1,18 @@
+P4 arm feed producer
+====================
+1) astra_bot/decision/live_arm_feed.py  p4_feed_p*.txt
+   ZeusWedgeRetestStrategy (paper thresholds) → models/zeus_arm_pending.jsonl
+   signal_id = strategy|symbol|side|bar_ts; ≤1/symbol/bar; ts on write
+   No orders.
+
+2) scripts/zeus_live_clock.py  p4_clk_p*.txt
+   Before arm: produce_pending(FEED_SYMBOLS) → load_pending_rows → run_arm_entries
+   _guard / live_broker / paper untouched.
+
+3) tests/test_live_arm_feed.py  p4_tst_p*.txt
+   row format, signal_id, write/load, dedup seen_ids, stale freshness
+  p4_clk_p1.txt: 3678
+  p4_clk_p2.txt: 1118
+  p4_feed_p1.txt: 3662
+  p4_feed_p2.txt: 1146
+  p4_tst_p1.txt: 3593

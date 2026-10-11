@@ -1,0 +1,32 @@
+        logger.info("ZEUS_ARM=1 — entry hook active (candidates via arm pipeline)")
+        from astra_bot.decision.live_arm_feed import FEED_SYMBOLS, produce_pending
+        from astra_bot.decision.live_arm_wiring import (
+            ENTRIES_PATH,
+            load_pending_rows,
+            run_arm_entries,
+            _seen_signal_ids,
+        )
+        try:
+            seen = _seen_signal_ids(ENTRIES_PATH)
+        except Exception:
+            seen = set()
+        await produce_pending(client, FEED_SYMBOLS, seen_ids=seen)
+        rows = load_pending_rows()
+        entered = await run_arm_entries(broker, rows, max_entries=1)
+        logger.info("arm tick entries=%d", len(entered))
+
+    session = getattr(client, "_session", None)
+    if session is not None:
+        await session.close()
+    return 0
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(description="Zeus live clock (VST default)")
+    p.add_argument("--dry", action="store_true", help="reconcile + commands only")
+    args = p.parse_args()
+    raise SystemExit(asyncio.run(one_tick(dry=args.dry)))
+
+
+if __name__ == "__main__":
+    main()
