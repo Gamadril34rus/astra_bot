@@ -1,32 +1,34 @@
-feat/zeus-phase2-arm assembly map
-=================================
-Target files (assemble chunks in order; byte-identical to local tests):
+feat/zeus-phase2-arm assembly map (updated)
+===========================================
+NO separate rotate_live_json_files — one rotator (rotate_zeus_states.py).
 
-1) astra_bot/decision/live_positions.py
-   - already on branch (full commit df570cd)
+Target files:
 
+1) astra_bot/decision/live_positions.py  [FULL on branch]
 2) astra_bot/decision/live_arm.py
-   - scripts/p2_arm_p1.txt + scripts/p2_arm_p2.txt
-
+   scripts/p2_arm_p1.txt + scripts/p2_arm_p2.txt
 3) astra_bot/decision/live_broker.py
-   - scripts/p2_br_p1.txt .. p2_br_p4.txt
-   - NEW: restore_missing_stops() after reconcile
-
+   scripts/p2_br_p1.txt .. p2_br_p4.txt  (+ restore_missing_stops)
 4) scripts/zeus_live_clock.py
-   - scripts/p2_clk_p1.txt + p2_clk_p2.txt
-   - after reconcile: restore_missing_stops, rotate_live_json_files,
-     ZEUS_ARM gate (entries only if ZEUS_ARM=1)
+   scripts/p2_clk_p1.txt + p2_clk_p2.txt
+   order: reconcile → restore_missing_stops → ZEUS_ARM gate
+5) tests/test_zeus_phase2_arm.py
+   scripts/p2_tst_p1.txt + p2_tst_p2.txt
 
-5) astra_bot/core/state_rotation.py
-   - scripts/p2_rot_p1.txt + p2_rot_p2.txt
-   - ADD: LIVE_JSON_BYTE_LIMITS + rotate_live_json_files()
+REVOKED: scripts/p2_rot_p2.txt
 
-6) tests/test_zeus_phase2_arm.py
-   - scripts/p2_tst_p1.txt + p2_tst_p2.txt
-   - 8 tests local: restore plan/no-plan/missing, size, conflict,
-     arm flag, max_open, rotate
+Chunk sizes (chars):
+  p2_br_p1.txt: 3674
+  p2_br_p2.txt: 3676
+  p2_br_p3.txt: 3687
+  p2_br_p4.txt: 1058
+  p2_clk_p1.txt: 3678
+  p2_clk_p2.txt: 510
+  p2_tst_p1.txt: 3681
+  p2_tst_p2.txt: 2867
+  p2_arm_p1.txt: 3797
+  p2_arm_p2.txt: 1093
+  p2_pos_p1.txt: 2425 (mirror of live_positions; optional)
 
-Gates: ZEUS_LIVE=1 still required for clock; ZEUS_ARM=1 required for entries.
-Trade NOT enabled without both. Paper path untouched.
-
-Local: py_compile OK, pytest tests/test_zeus_phase2_arm.py 8 passed.
+Local tests: 9 passed (restore×3, size, conflict/cooldown key 20m,
+arm flag, ZEUS_ARM absent, max_open, restore-after-reconcile order).

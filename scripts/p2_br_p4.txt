@@ -1,0 +1,22 @@
+        for p in positions:
+            try:
+                cancelled += await self.client.cancel_all_orders(p.symbol)
+            except Exception as exc:
+                failed += 1
+                logger.warning("flat_all: cancel_all_orders %s failed: %s", p.symbol, exc)
+            try:
+                if await self.client.close_position(p.symbol):
+                    closed += 1
+            except Exception as exc:
+                failed += 1
+                logger.warning("flat_all: close_position %s failed: %s", p.symbol, exc)
+        # also cancel orphans
+        for o in await self.client.get_open_orders():
+            if getattr(o, "id", None) and getattr(o, "symbol", None):
+                try:
+                    await self.client.cancel_order(o.symbol, str(o.id))
+                    cancelled += 1
+                except Exception as exc:
+                    failed += 1
+                    logger.warning("flat_all: cancel_order %s failed: %s", o.id, exc)
+        return {"cancelled": cancelled, "closed": closed, "failed": failed}
