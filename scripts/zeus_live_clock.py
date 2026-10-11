@@ -101,6 +101,10 @@ async def one_tick(*, dry: bool = False) -> int:
         logger.info("tick done — ZEUS_ARM!=1 (observe only)")
     else:
         logger.info("ZEUS_ARM=1 — entry hook active (candidates via arm pipeline)")
+        from astra_bot.decision.live_arm_wiring import load_pending_rows, run_arm_entries
+        rows = load_pending_rows()
+        entered = await run_arm_entries(broker, rows, max_entries=1)
+        logger.info("arm tick entries=%d", len(entered))
 
     session = getattr(client, "_session", None)
     if session is not None:

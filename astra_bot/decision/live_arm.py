@@ -91,14 +91,26 @@ async def plan_from_candidate(
     cand: SignalCandidate,
     *,
     positions_path: Path | None = None,
+    exchange_symbols: set[str] | None = None,
+    exchange_open_count: int | None = None,
 ) -> LiveEntryPlan | None:
-    if conflict_blocks(cand.symbol, positions_path):
+    # Prefer exchange truth when provided (ephemeral runner — file is blind).
+    if exchange_symbols is not None:
+        if cand.symbol in exchange_symbols:
+            logger.info("arm: skip %s — already open on exchange", cand.symbol)
+            return None
+    elif conflict_blocks(cand.symbol, positions_path):
         logger.info("arm: skip %s — already in live positions", cand.symbol)
         return None
     if cooldown_blocks(cand.strategy, cand.symbol, cand.side):
         logger.info("arm: skip %s — cooldown", cand.symbol)
         return None
-    if count_open(positions_path or Path("models/zeus_live_positions.json")) >= MAX_OPEN:
+    open_n = (
+        exchange_open_count
+        if exchange_open_count is not None
+        else count_open(positions_path or Path("models/zeus_live_positions.json"))
+    )
+    if open_n >= MAX_OPEN:
         logger.info("arm: skip — max_open=%d", MAX_OPEN)
         return None
     tier = conf_risk_pct(cand.confidence, CONF_RISK_LADDER, Decimal("0.01"))
