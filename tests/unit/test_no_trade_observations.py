@@ -18,7 +18,7 @@ from astra_bot.ml.no_trade_observations import (
 
 def _obs(
     symbol="BTC-USDT",
-    bar_time=1_700_000_000,
+    bar_time=1_700_000_000_000,
     reason_code="LOW_EV",
     strategy="scalp",
     direction="long",
@@ -27,7 +27,7 @@ def _obs(
         id=make_observation_id(symbol, bar_time, reason_code, strategy, direction),
         symbol=symbol,
         bar_time=bar_time,
-        timestamp=bar_time * 1000,
+        timestamp=bar_time,
         market_regime="RANGE",
         regime_confidence=0.6,
         reason_code=reason_code,
@@ -37,7 +37,7 @@ def _obs(
     )
 
 
-def _candles(n=40, base=1700000000, step=900, start_price=100.0, drift=0.1):
+def _candles(n=40, base=1700000000000, step=900_000, start_price=100.0, drift=0.1):
     out = []
     price = start_price
     for i in range(n):
@@ -65,7 +65,7 @@ class TestRecordingAndDedup:
     def test_add_appends_once(self, tmp_path):
         log = NoTradeObservationLog(
             observations_path=tmp_path / "obs.jsonl",
-            outcomes_path=tmp_path / "out.json",
+            outcomes_path=tmp_path / "out.jsonl",
         )
         obs = _obs()
         assert log.add(obs) is True
@@ -86,12 +86,12 @@ class TestRecordingAndDedup:
     def test_restart_does_not_duplicate(self, tmp_path):
         path = tmp_path / "obs.jsonl"
         log1 = NoTradeObservationLog(
-            observations_path=path, outcomes_path=tmp_path / "out.json"
+            observations_path=path, outcomes_path=tmp_path / "out.jsonl"
         )
         log1.add(_obs())
         # «Перезапуск» процесса: новый экземпляр читает существующие id.
         log2 = NoTradeObservationLog(
-            observations_path=path, outcomes_path=tmp_path / "out.json"
+            observations_path=path, outcomes_path=tmp_path / "out.jsonl"
         )
         assert log2.add(_obs()) is False
         assert len(path.read_text().strip().splitlines()) == 1
@@ -99,10 +99,10 @@ class TestRecordingAndDedup:
     def test_different_bar_is_new_observation(self, tmp_path):
         log = NoTradeObservationLog(
             observations_path=tmp_path / "obs.jsonl",
-            outcomes_path=tmp_path / "out.json",
+            outcomes_path=tmp_path / "out.jsonl",
         )
-        assert log.add(_obs(bar_time=1_700_000_000)) is True
-        assert log.add(_obs(bar_time=1_700_000_900)) is True
+        assert log.add(_obs(bar_time=1_700_000_000_000)) is True
+        assert log.add(_obs(bar_time=1_700_000_900_000)) is True
         assert len((tmp_path / "obs.jsonl").read_text().strip().splitlines()) == 2
 
 
@@ -110,19 +110,20 @@ class TestEnrichment:
     def test_forward_outcome_horizons(self, tmp_path):
         log = NoTradeObservationLog(
             observations_path=tmp_path / "obs.jsonl",
-            outcomes_path=tmp_path / "out.json",
+            outcomes_path=tmp_path / "out.jsonl",
             horizons=(1, 3),
         )
         # Свежие бары: старые timestamps режутся pruning (30 дней).
-        base = int(time.time() - 10 * 900)
+        base = int(time.time() * 1000) - 10 * 900_000
         candles = _candles(n=10, base=base, drift=0.1)
-        # Наблюдение на баре i=2 (bar_time = base + 2*900).
-        obs = _obs(bar_time=base + 2 * 900)
+        # Наблюдение на баре i=2 (bar_time = base + 2*900_000).
+        obs = _obs(bar_time=base + 2 * 900_000)
         log.add(obs)
 
         enriched = log.enrich({"BTC-USDT": candles})
         assert len(enriched) == 1
-        row = json.loads((tmp_path / "out.json").read_text())["outcomes"][obs.id]
+        row = json.loads((tmp_path / "out.jsonl").read_text())
+        assert row["id"] == obs.id
         entry = float(candles[2].close)
         h1 = row["horizons"]["1"]
         h3 = row["horizons"]["3"]
@@ -142,12 +143,12 @@ class TestEnrichment:
     def test_not_enriched_until_future_exists(self, tmp_path):
         log = NoTradeObservationLog(
             observations_path=tmp_path / "obs.jsonl",
-            outcomes_path=tmp_path / "out.json",
+            outcomes_path=tmp_path / "out.jsonl",
             horizons=(3,),
         )
-        base = 1_700_000_000
+        base = int(time.time() * 1000) - 10 * 900_000
         candles = _candles(n=5, base=base, drift=0.1)
-        obs = _obs(bar_time=base + 2 * 900)  # впереди только 2 бара < 3
+        obs = _obs(bar_time=base + 2 * 900_000)  # впереди только 2 бара < 3
         log.add(obs)
         assert log.enrich({"BTC-USDT": candles}) == []
         assert log.pending() == [obs]
@@ -155,9 +156,9 @@ class TestEnrichment:
     def test_bar_not_found_returns_empty(self, tmp_path):
         log = NoTradeObservationLog(
             observations_path=tmp_path / "obs.jsonl",
-            outcomes_path=tmp_path / "out.json",
+            outcomes_path=tmp_path / "out.jsonl",
         )
-        obs = _obs(bar_time=42)  # такого бара нет в данных
+        obs = _obs(bar_time=int(time.time() * 1000))  # свежий бар, которого нет в данных
         log.add(obs)
         assert log.enrich({"BTC-USDT": _candles()}) == []
 
@@ -169,12 +170,12 @@ class TestBackfillJsonl:
         """После enrich() JSONL содержит result != null."""
         log = NoTradeObservationLog(
             observations_path=tmp_path / "obs.jsonl",
-            outcomes_path=tmp_path / "out.json",
+            outcomes_path=tmp_path / "out.jsonl",
             horizons=(1, 3),
         )
-        base = int(time.time() - 10 * 900)
+        base = int(time.time() * 1000) - 10 * 900_000
         candles = _candles(n=10, base=base, drift=0.1)
-        obs = _obs(bar_time=base + 2 * 900)
+        obs = _obs(bar_time=base + 2 * 900_000)
         log.add(obs)
 
         # Before enrich: result is null in JSONL
@@ -198,12 +199,12 @@ class TestBackfillJsonl:
         """backfill_jsonl возвращает количество обновлённых записей."""
         log = NoTradeObservationLog(
             observations_path=tmp_path / "obs.jsonl",
-            outcomes_path=tmp_path / "out.json",
+            outcomes_path=tmp_path / "out.jsonl",
             horizons=(1,),
         )
-        base = int(time.time() - 10 * 900)
+        base = int(time.time() * 1000) - 10 * 900_000
         candles = _candles(n=10, base=base, drift=0.1)
-        obs = _obs(bar_time=base + 2 * 900)
+        obs = _obs(bar_time=base + 2 * 900_000)
         log.add(obs)
         log.enrich({"BTC-USDT": candles})
         # Second call to backfill should return 0 (already filled)

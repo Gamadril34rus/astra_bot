@@ -66,9 +66,11 @@ INSUFFICIENT_DATA, NEWS` — в `Decision.reason_code`, в уроках и в
   candidate{strategy, direction, ev_r, confidence, sample_size, score},
   features{close, return_24b_pct, atr25_pct, volume_ratio}`.
   Повторная обработка того же бара дубль не создаёт (TZ §30).
-- `models/no_trade_outcomes.json` — исходы по горизонтам 1/3/6/12/24 бара:
+- `models/no_trade_outcomes.jsonl` — append-once исходы с `id` по горизонтам 1/3/6/12/24 бара:
   `future_return, max_up, max_down` от close на момент отказа.
-  Обогащается живым циклом, когда будущие бары уже в данных; режется до 30 дней.
+  Обогащается живым циклом, когда будущие бары уже в данных; индекс в памяти
+  режется до 30 дней в мс, JSONL ограничен ротацией до 24k строк. При отсутствии
+  JSONL читается legacy JSON; повторные id разрешаются last-wins.
   Ответ на вопрос «правильно ли система отказалась от сделки».
 
 ## Логи (TZ §32)

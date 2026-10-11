@@ -3,7 +3,7 @@
 Два независимых источника.
 
 1. СТРУКТУРА РЫНКА (n ~ 32k баров 5m, 33 символа, 07-14.09.2026) —
-   ``models/no_trade_outcomes.json``. Каждая запись = пропущенный сигнал и его
+   ``models/no_trade_outcomes.jsonl`` (fallback: legacy JSON). Каждая запись = пропущенный сигнал и его
    форвард: ``future_return`` (close к close на горизонте) и ``max_up``/``max_down``
    (экстремумы за окно). У 31 615 записей есть только горизонт 1 бар, поэтому
    длинные горизонты собираются склейкой consecutive-записей по символу:
@@ -34,15 +34,22 @@ import json
 import math
 import random
 import statistics
+import sys
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from astra_bot.ml.no_trade_outcomes import load_outcomes
 
 MOSCOW = timedelta(hours=3)
 BAR_MS = 300_000
 HORIZONS = (1, 3, 6, 12, 24)
 DEFAULT_TRADES = "models/paper_trades.jsonl"
-DEFAULT_OUTCOMIES = "models/no_trade_outcomes.json"
+DEFAULT_OUTCOMIES = "models/no_trade_outcomes.jsonl"
 PERM = 4000
 
 
@@ -479,8 +486,8 @@ def main() -> int:
     ap.add_argument("--outcomes", default=DEFAULT_OUTCOMIES)
     args = ap.parse_args()
     opath = Path(args.outcomes)
-    if opath.exists():
-        rows = list(json.loads(opath.read_text(encoding="utf-8")).get("outcomes", {}).values())
+    rows = list(load_outcomes(opath).values())
+    if rows:
         paths = build_paths(rows)
         excursions(paths, args.cost)
         microstructure(paths, rows, args.cost)

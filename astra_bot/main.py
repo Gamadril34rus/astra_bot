@@ -343,7 +343,7 @@ class AstraBot:
                 trades_path=f"{state_dir}/paper_trades.jsonl",
                 stats_path=f"{state_dir}/strategy_stats.json",
                 no_trade_observations_path=f"{state_dir}/no_trade_observations.jsonl",
-                no_trade_outcomes_path=f"{state_dir}/no_trade_outcomes.json",
+                no_trade_outcomes_path=f"{state_dir}/no_trade_outcomes.jsonl",
                 hypotheses_path=f"{state_dir}/research/hypotheses.json",
                 leverage_max=leverage_max,
                 leverage_min_ev_r=leverage_min_ev,

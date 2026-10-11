@@ -9,7 +9,8 @@ state не сохранялся, сделки умирали вместе с р�
 
 Схема: если файл больше ``MAX_BYTES`` (20 МБ) ИЛИ содержит больше строк, чем
 лимит ``LIVE_JSONL_LIMITS`` для этого файла (что наступит раньше), в основном
-файле остаются последние ``KEEP_LINES`` (20 000) строк, всё остальное уходит в
+файле остаются последние ``KEEP_LINES`` (20 000) строк (для outcomes — весь
+лимит ``LIVE_JSONL_LIMITS``, 24 000, не меньше лимита наблюдений), остальное уходит в
 ``models/archive/<имя>_<UTC-штамп до секунд>.jsonl.gz``. Один архив на
 событие ротации; штамп в имени не даёт архивам перезаписывать друг друга.
 Граница 20k может разрезать строки одной сделки между архивом и хвостом —
@@ -55,6 +56,7 @@ STATE_FILES = (
     "models/zeus_paper_trades.jsonl",
     "models/zeus_wedge_1h_signals.jsonl",  # реальный «signals»
     "models/zeus_no_trade_observations.jsonl",
+    "models/zeus_no_trade_outcomes.jsonl",
     "models/zeus_pattern_exit_shadow.jsonl",  # тень паттерн-выходов (инвариант)
 )
 
@@ -161,10 +163,15 @@ def rotate_all(
     for rel in files:
         # Ключ LIVE_JSONL_LIMITS — путь относительно models/ (инвариант, см. выше).
         line_limit = LIVE_JSONL_LIMITS.get(rel.removeprefix("models/"))
+        # Outcomes retain the full 24k cap, not the generic 20k tail: a
+        # smaller tail could evict ids still present in the observation log.
+        file_keep_lines = (
+            line_limit if rel == "models/zeus_no_trade_outcomes.jsonl" else keep_lines
+        )
         res = rotate_file(
             root / rel,
             max_bytes=max_bytes,
-            keep_lines=keep_lines,
+            keep_lines=file_keep_lines,
             archive_dir=archive_dir if archive_dir else root / ARCHIVE_DIR,
             dry_run=dry_run,
             max_lines=line_limit,

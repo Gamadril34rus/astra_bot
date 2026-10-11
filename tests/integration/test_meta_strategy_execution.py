@@ -33,8 +33,8 @@ from astra_bot.strategies import ScalpStrategy
 
 # Свежие бары (последние часы): старые timestamps не проходят
 # pruning исходов (30 дней) и не отражают «живой» поток.
-BASE_TS = int(_time.time() // 900 * 900) - 235 * 900
-STEP = 900
+STEP = 900_000  # production open_time — миллисекунды
+BASE_TS = int(_time.time() * 1000) // STEP * STEP - 235 * STEP
 
 
 def gen_candles(n: int = 230, tf: str = "5m") -> list[models.Candle]:
@@ -126,7 +126,7 @@ def make_engine(tmp_path, feed, pipeline, lessons_collector):
         slippage_pct=Decimal("0"),
         stats_path=str(tmp_path / "stats.json"),
         no_trade_observations_path=str(tmp_path / "obs.jsonl"),
-        no_trade_outcomes_path=str(tmp_path / "outcomes.json"),
+        no_trade_outcomes_path=str(tmp_path / "outcomes.jsonl"),
         # Hermetic: гипотезы — в tmp, не в repo-state.
         hypotheses_path=str(tmp_path / "hypotheses.json"),
         # Тесты фиксируют легаси-поток выхода (-1R stop_loss) и активные
@@ -263,7 +263,10 @@ class TestTradeExecutionPath:
         # Шаг 3: новый бар → обогащение исходом (TZ §13).
         feed.candles = [*feed.candles, stop_hit_bar(feed.candles[-1], Decimal("90"))]
         asyncio.run(eng.process_symbol("BTC-USDT"))
-        outcomes = json.loads((tmp_path / "outcomes.json").read_text())["outcomes"]
+        outcomes = {
+            item["id"]: item
+            for item in map(json.loads, (tmp_path / "outcomes.jsonl").read_text().splitlines())
+        }
         assert row["id"] in outcomes
         assert "1" in outcomes[row["id"]]["horizons"]
         assert "future_return" in outcomes[row["id"]]["horizons"]["1"]
