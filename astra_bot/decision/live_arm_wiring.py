@@ -1,0 +1,293 @@
+"""Wire live wedge signals → SignalCandidate → execute_one (max 1/tick).
+
+Guards for open position / max_open use EXCHANGE get_positions (runner is
+ephemeral; local zeus_live_positions.json does not survive ticks).
+Durable dedup: models/zeus_live_entries.jsonl (signal_id).
+Freshness: skip candidates older than FRESH_MAX_SEC.
+"""
+from __future__ import annotations
+
+import json
+import logging
+import os
+import time
+from collections.abc import Iterable
+from decimal import Decimal
+from pathlib import Path
+from typing import Any
+
+from astra_bot.decision.live_arm import (
+    MAX_OPEN,
+    SignalCandidate,
+    format_entry_tg,
+    mark_cooldown,
+    plan_from_candidate,
+)
+from astra_bot.decision.live_broker import LiveBroker
+from astra_bot.decision.live_positions import upsert_plan
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_STRATEGY = "zeus_wedge_retest"
+ENTRIES_PATH = Path("models/zeus_live_entries.jsonl")
+JOURNAL_PATH = Path("models/zeus_live_journal.jsonl")
+PENDING_PATH = Path("models/zeus_arm_pending.jsonl")
+FRESH_MAX_SEC = 45 * 60  # 45 min — skip overnight stale retests
+
+
+def _seen_signal_ids(path: Path = ENTRIES_PATH) -> set[str]:
+    seen: set[str] = set()
+    if not path.exists():
+        return seen
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except Exception:
+                continue
+            sid = row.get("signal_id")
+            if sid:
+                seen.add(str(sid))
+    except Exception:
+        pass
+    return seen
+
+
+def append_entry_record(row: dict[str, Any], path: Path = ENTRIES_PATH) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
+
+
+def append_journal(event: dict[str, Any], path: Path = JOURNAL_PATH) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    event = {**event, "ts": event.get("ts") or time.time()}
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(event, ensure_ascii=False, default=str) + "\n")
+
+
+def _row_age_sec(row: dict[str, Any], now: float | None = None) -> float | None:
+    """Age from retest_ts / signal_ts / ts (seconds). None if unknown."""
+    now = now if now is not None else time.time()
+    for key in ("retest_ts", "signal_ts", "ts", "entry_ts"):
+        raw = row.get(key)
+        if raw is None:
+            continue
+        try:
+            v = float(raw)
+        except (TypeError, ValueError):
+            continue
+        # ms vs sec: epoch-ms timestamps are >=1e12, anything above ~1e10
+        # cannot be a plausible epoch-seconds value → treat as milliseconds.
+        if v > 1e10:
+            v = v / 1000.0
+        return max(0.0, now - v)
+    return None
+
+
+def is_fresh(row: dict[str, Any], max_sec: float = FRESH_MAX_SEC, now: float | None = None) -> bool:
+    age = _row_age_sec(row, now=now)
+    if age is None:
+        return True  # unknown age: allow (feed must set ts for production)
+    return age <= max_sec
+
+
+def candidate_from_signal_dict(
+    row: dict[str, Any],
+    *,
+    strategy: str = DEFAULT_STRATEGY,
+    step_size: Decimal = Decimal("0.001"),
+    leverage: int = 5,
+) -> SignalCandidate | None:
+    side = (row.get("side") or row.get("direction") or "").lower()
+    if side not in ("long", "short"):
+        return None
+    entry, stop = row.get("entry"), row.get("stop")
+    if entry is None or stop is None:
+        return None
+    try:
+        e, s = Decimal(str(entry)), Decimal(str(stop))
+    except Exception:
+        return None
+    if e <= 0 or s <= 0 or e == s:
+        return None
+    tp = row.get("tp") or row.get("target") or row.get("tp1")
+    tp_d = Decimal(str(tp)) if tp is not None else None
+    try:
+        conf_f = float(row["confidence"]) if row.get("confidence") is not None else None
+    except (TypeError, ValueError):
+        conf_f = None
+    sym = str(row.get("symbol") or "").strip()
+    if not sym:
+        return None
+    return SignalCandidate(
+        symbol=sym,
+        side=side,
+        entry=e,
+        stop=s,
+        take_profit=tp_d,
+        confidence=conf_f,
+        leverage=int(row.get("leverage") or leverage),
+        strategy=str(row.get("strategy") or strategy),
+        step_size=step_size,
+    )
+
+
+async def exchange_open_symbols(broker: LiveBroker) -> set[str]:
+    """Source of truth: exchange positions with qty > 0."""
+    positions = await broker.client.get_positions()
+    out: set[str] = set()
+    for p in positions:
+        qty = getattr(p, "quantity", None) or Decimal("0")
+        try:
+            q = Decimal(str(qty))
+        except Exception:
+            continue
+        if q > 0:
+            sym = getattr(p, "symbol", None)
+            if sym:
+                out.add(str(sym))
+    return out
+
+
+def load_pending_rows(path: Path = PENDING_PATH) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    rows: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rows.append(json.loads(line))
+        except Exception:
+            continue
+    return rows
+
+
+async def run_arm_entries(
+    broker: LiveBroker,
+    rows: Iterable[dict[str, Any]],
+    *,
+    max_entries: int = 1,
+    vst: bool | None = None,
+    send_tg: Any = None,
+    fresh_max_sec: float = FRESH_MAX_SEC,
+    entries_path: Path = ENTRIES_PATH,
+) -> list[dict[str, Any]]:
+    """At most max_entries opens. Exchange guards + signal_id dedup + freshness."""
+    if vst is None:
+        vst = (os.environ.get("ZEUS_MAINNET") or "").strip() != "1"
+
+    row_list = list(rows)
+    if not row_list:
+        logger.info("arm: empty feed — 0 entries (Stage A idle)")
+        return []
+
+    seen = _seen_signal_ids(entries_path)
+    open_syms = await exchange_open_symbols(broker)
+    open_n = len(open_syms)
+    results: list[dict[str, Any]] = []
+
+    for row in row_list:
+        if len(results) >= max_entries:
+            break
+        sid = str(row.get("signal_id") or "").strip()
+        if sid and sid in seen:
+            logger.info("arm: skip signal_id=%s — already in entries journal", sid)
+            continue
+        if not is_fresh(row, max_sec=fresh_max_sec):
+            logger.info(
+                "arm: skip %s — stale retest age>%ss",
+                row.get("symbol"),
+                int(fresh_max_sec),
+            )
+            continue
+        cand = candidate_from_signal_dict(row)
+        if cand is None:
+            continue
+        if cand.symbol in open_syms:
+            logger.info("arm: skip %s — already open on exchange", cand.symbol)
+            continue
+        if open_n >= MAX_OPEN:
+            logger.info("arm: skip — exchange max_open=%d", MAX_OPEN)
+            break
+
+        try:
+            plan = await plan_from_candidate(
+                broker,
+                cand,
+                exchange_symbols=open_syms,
+                exchange_open_count=open_n,
+            )
+            if plan is None:
+                continue
+            res = await broker.open_with_protection(plan)
+            upsert_plan(
+                plan.symbol,
+                side=plan.side,
+                qty=plan.quantity,
+                stop=plan.stop_price,
+                tp=plan.take_profit_price,
+                entry=cand.entry,
+                leverage=plan.leverage,
+            )
+            mark_cooldown(cand.strategy, plan.symbol, plan.side)
+        except Exception as exc:
+            logger.warning("arm entry %s failed: %s", cand.symbol, type(exc).__name__)
+            append_journal(
+                {
+                    "event": "entry_failed",
+                    "symbol": cand.symbol,
+                    "side": cand.side,
+                    "signal_id": sid or None,
+                    "error": type(exc).__name__,
+                }
+            )
+            continue
+
+        results.append(res)
+        open_syms.add(cand.symbol)
+        open_n += 1
+        if sid:
+            seen.add(sid)
+            append_entry_record(
+                {
+                    "signal_id": sid,
+                    "symbol": cand.symbol,
+                    "side": cand.side,
+                    "ts": time.time(),
+                },
+                entries_path,
+            )
+        msg = format_entry_tg(
+            cand.symbol,
+            cand.side,
+            plan.quantity,
+            cand.entry,
+            cand.stop,
+            cand.take_profit,
+            vst=vst,
+        )
+        append_journal(
+            {
+                "event": "entry",
+                "signal_id": sid or None,
+                "symbol": cand.symbol,
+                "side": cand.side,
+                "qty": str(plan.quantity),
+                "entry": str(cand.entry),
+                "stop": str(cand.stop),
+                "tp": str(cand.take_profit) if cand.take_profit else None,
+            }
+        )
+        if send_tg is not None:
+            try:
+                await send_tg(msg)
+            except Exception as exc:
+                logger.warning("arm TG send failed: %s", type(exc).__name__)
+        logger.info("arm entry done: %s", msg)
+    return results
