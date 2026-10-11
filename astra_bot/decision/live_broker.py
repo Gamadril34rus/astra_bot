@@ -48,22 +48,18 @@ async def _existing_protect(
     side: str,
     level: Decimal,
 ) -> Any | None:
-    """Return open reduce/protect order if same kind+side+level already exists."""
+    """Return open protect order if same kind+level already exists (±pct)."""
+    del side  # reserved for future side match; level+kind is enough now
     try:
         orders = await client.get_open_orders(symbol)
     except Exception:
         return None
-    side_u = side.upper()
     for o in orders:
         ot = str(getattr(o, "order_type", "") or "").upper()
-        if kind == "stop" and "STOP" in ot and "TAKE_PROFIT" not in ot:
-            pass
-        elif kind == "tp" and "TAKE_PROFIT" in ot:
-            pass
-        else:
+        is_stop = kind == "stop" and "STOP" in ot and "TAKE_PROFIT" not in ot
+        is_tp = kind == "tp" and "TAKE_PROFIT" in ot
+        if not (is_stop or is_tp):
             continue
-        oside = str(getattr(o, "side", "") or "").upper()
-        # BingX may put close side on order
         px = getattr(o, "stop_price", None) or getattr(o, "price", None)
         if px is None:
             continue
