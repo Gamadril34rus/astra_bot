@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-11T08:21:41.374080+00:00",
+ "updated": "2026-10-11T08:23:52.183876+00:00",
  "outcomes": {
   "ee0905ba0f325831850b": {
    "bar_time": 1790610900000,
@@ -872450,6 +872450,62 @@
     }
    },
    "computed_at": "2026-10-11T08:21:41.362670+00:00"
+  },
+  "5ba08165b7e5ac8f5acc": {
+   "bar_time": 1791706500000,
+   "symbol": "BTC-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": 2e-06,
+     "max_up": 4e-06,
+     "max_down": -1e-06
+    }
+   },
+   "computed_at": "2026-10-11T08:23:40.856866+00:00"
+  },
+  "e48dcc88ea8f5d1177f2": {
+   "bar_time": 1791706500000,
+   "symbol": "ETH-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -6.4e-05,
+     "max_up": 4e-06,
+     "max_down": -6.8e-05
+    }
+   },
+   "computed_at": "2026-10-11T08:23:43.934329+00:00"
+  },
+  "19ef87770dd70f8150c5": {
+   "bar_time": 1791706500000,
+   "symbol": "SOL-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000201,
+     "max_up": 9e-06,
+     "max_down": -0.000283
+    }
+   },
+   "computed_at": "2026-10-11T08:23:48.446288+00:00"
+  },
+  "a126e7e8ceb720250a8e": {
+   "bar_time": 1791706500000,
+   "symbol": "BNB-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000241,
+     "max_up": 0.0,
+     "max_down": -0.000254
+    }
+   },
+   "computed_at": "2026-10-11T08:23:52.174695+00:00"
   }
  }
 }
