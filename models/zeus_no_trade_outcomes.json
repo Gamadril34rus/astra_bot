@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-11T00:26:21.007418+00:00",
+ "updated": "2026-10-11T00:28:28.275855+00:00",
  "outcomes": {
   "ee0905ba0f325831850b": {
    "bar_time": 1790610900000,
@@ -833794,6 +833794,104 @@
     }
    },
    "computed_at": "2026-10-11T00:26:20.994571+00:00"
+  },
+  "b5e283ae97904e9092c6": {
+   "bar_time": 1791678000000,
+   "symbol": "BTC-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.00023,
+     "max_up": 0.0,
+     "max_down": -0.000233
+    }
+   },
+   "computed_at": "2026-10-11T00:28:09.385316+00:00"
+  },
+  "129dd5e5d761f7bb6e91": {
+   "bar_time": 1791678000000,
+   "symbol": "ETH-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000343,
+     "max_up": 4e-06,
+     "max_down": -0.000507
+    }
+   },
+   "computed_at": "2026-10-11T00:28:14.077495+00:00"
+  },
+  "b6ee4b7e98694f134dc5": {
+   "bar_time": 1791678000000,
+   "symbol": "SOL-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000728,
+     "max_up": 0.0,
+     "max_down": -0.000773
+    }
+   },
+   "computed_at": "2026-10-11T00:28:18.028147+00:00"
+  },
+  "8687ff56c4cbcb876b63": {
+   "bar_time": 1791678000000,
+   "symbol": "BNB-USDT",
+   "reason_code": "NO_VALID_SETUP",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000254,
+     "max_up": 1.3e-05,
+     "max_down": -0.000321
+    }
+   },
+   "computed_at": "2026-10-11T00:28:21.301163+00:00"
+  },
+  "b9adf7d5dc956c3d1e14": {
+   "bar_time": 1791678000000,
+   "symbol": "XRP-USDT",
+   "reason_code": "LOW_EV",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000714,
+     "max_up": 7.1e-05,
+     "max_down": -0.000857
+    }
+   },
+   "computed_at": "2026-10-11T00:28:24.585635+00:00"
+  },
+  "2b7624196df1fd499ab2": {
+   "bar_time": 1791678000000,
+   "symbol": "XRP-USDT",
+   "reason_code": "LOW_CONFIDENCE",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.000714,
+     "max_up": 7.1e-05,
+     "max_down": -0.000857
+    }
+   },
+   "computed_at": "2026-10-11T00:28:24.585684+00:00"
+  },
+  "b595a41a5f0ff48aa641": {
+   "bar_time": 1791678000000,
+   "symbol": "DOGE-USDT",
+   "reason_code": "LOW_EV",
+   "market_regime": "LOW_VOLATILITY",
+   "horizons": {
+    "1": {
+     "future_return": -0.00035,
+     "max_up": 0.0,
+     "max_down": -0.00035
+    }
+   },
+   "computed_at": "2026-10-11T00:28:28.264599+00:00"
   }
  }
 }
