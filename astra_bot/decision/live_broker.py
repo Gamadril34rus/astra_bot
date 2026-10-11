@@ -30,6 +30,53 @@ def unique_client_order_id(symbol: str, role: str) -> str:
     return f"arm-{ms}-{_ORDER_SEQ}-{base}-{role}"
 
 
+def _price_near(a: Decimal, b: Decimal, pct: float = 0.0005) -> bool:
+    """True if |a-b|/ref <= pct (default 0.05%)."""
+    if a is None or b is None:
+        return False
+    ref = abs(b) if b != 0 else abs(a)
+    if ref == 0:
+        return a == b
+    return abs(a - b) / ref <= Decimal(str(pct))
+
+
+async def _existing_protect(
+    client: Any,
+    symbol: str,
+    *,
+    kind: str,
+    side: str,
+    level: Decimal,
+) -> Any | None:
+    """Return open reduce/protect order if same kind+side+level already exists."""
+    try:
+        orders = await client.get_open_orders(symbol)
+    except Exception:
+        return None
+    side_u = side.upper()
+    for o in orders:
+        ot = str(getattr(o, "order_type", "") or "").upper()
+        if kind == "stop" and "STOP" in ot and "TAKE_PROFIT" not in ot:
+            pass
+        elif kind == "tp" and "TAKE_PROFIT" in ot:
+            pass
+        else:
+            continue
+        oside = str(getattr(o, "side", "") or "").upper()
+        # BingX may put close side on order
+        px = getattr(o, "stop_price", None) or getattr(o, "price", None)
+        if px is None:
+            continue
+        try:
+            px_d = Decimal(str(px))
+        except Exception:
+            continue
+        if _price_near(px_d, level):
+            return o
+    return None
+
+
+
 class LiveClientProto(Protocol):
     async def get_balance_usdt(self) -> Decimal: ...
     async def get_positions(self) -> list[Any]: ...
@@ -184,7 +231,7 @@ class LiveBroker:
                             quantity=q,
                             stop_price=Decimal(str(tp)),
                             position_side=ps,
-                            reduce_only=True,
+                            reduce_only=False,
                             client_order_id=unique_client_order_id(sym, "r"),
                         )
                     restored.append(sym)
@@ -211,7 +258,12 @@ class LiveBroker:
         return {"restored": restored, "closed_naked": closed}
 
     async def open_with_protection(self, plan: LiveEntryPlan) -> dict[str, Any]:
-        """Entry = position MARKET + STOP_MARKET + optional TP_MARKET."""
+        """Entry MARKET first, then STOP_MARKET + optional TP (hedge-safe).
+
+        Hedge mode: do NOT send reduceOnly on TP (BingX 109400). Use positionSide
+        + closePosition on stop. Dedup: skip stop/tp if same level already open.
+        Raises after entry if protect fails (caller must journal entry first).
+        """
         self._assert_can_trade()
         if not self._entries_allowed:
             raise RuntimeError("entries blocked (/stop)")
@@ -224,38 +276,71 @@ class LiveBroker:
         eq = await self.equity()
         buy_sell = "BUY" if side_long else "SELL"
         ps = "LONG" if side_long else "SHORT"
+        entry_cid = unique_client_order_id(plan.symbol, "e")
         entry = await self.client.place_order(
             symbol=plan.symbol,
             side=buy_sell,
             order_type="MARKET",
             quantity=plan.quantity,
             position_side=ps,
-            client_order_id=unique_client_order_id(plan.symbol, "e"),
+            client_order_id=entry_cid,
         )
         stop_side = "SELL" if side_long else "BUY"
-        stop = await self.client.place_order(
-            symbol=plan.symbol,
-            side=stop_side,
-            order_type="STOP_MARKET",
-            quantity=plan.quantity,
-            stop_price=plan.stop_price,
-            position_side=ps,
-            close_position=True,
-            client_order_id=unique_client_order_id(plan.symbol, "s"),
+        stop = None
+        existing_s = await _existing_protect(
+            self.client, plan.symbol, kind="stop", side=stop_side, level=plan.stop_price
         )
-        tp = None
-        if plan.take_profit_price is not None:
-            tp = await self.client.place_order(
+        if existing_s is not None:
+            logger.info("open_with_protection: %s stop already open @ %s — skip", plan.symbol, plan.stop_price)
+            stop = existing_s
+        else:
+            stop_cid = unique_client_order_id(plan.symbol, "s")
+            stop = await self.client.place_order(
                 symbol=plan.symbol,
                 side=stop_side,
-                order_type="TAKE_PROFIT_MARKET",
+                order_type="STOP_MARKET",
                 quantity=plan.quantity,
-                stop_price=plan.take_profit_price,
+                stop_price=plan.stop_price,
                 position_side=ps,
-                reduce_only=True,
-                client_order_id=unique_client_order_id(plan.symbol, "t"),
+                close_position=True,
+                client_order_id=stop_cid,
             )
-        return {"entry": entry, "stop": stop, "tp": tp, "equity": str(eq)}
+        tp = None
+        if plan.take_profit_price is not None:
+            existing_t = await _existing_protect(
+                self.client,
+                plan.symbol,
+                kind="tp",
+                side=stop_side,
+                level=plan.take_profit_price,
+            )
+            if existing_t is not None:
+                logger.info(
+                    "open_with_protection: %s tp already open @ %s — skip",
+                    plan.symbol,
+                    plan.take_profit_price,
+                )
+                tp = existing_t
+            else:
+                tp_cid = unique_client_order_id(plan.symbol, "t")
+                # Hedge mode: reduceOnly forbidden — positionSide is enough
+                tp = await self.client.place_order(
+                    symbol=plan.symbol,
+                    side=stop_side,
+                    order_type="TAKE_PROFIT_MARKET",
+                    quantity=plan.quantity,
+                    stop_price=plan.take_profit_price,
+                    position_side=ps,
+                    reduce_only=False,
+                    client_order_id=tp_cid,
+                )
+        return {
+            "entry": entry,
+            "stop": stop,
+            "tp": tp,
+            "equity": str(eq),
+            "entry_client_order_id": entry_cid,
+        }
 
     async def move_stop(self, symbol: str, side: str, quantity: Decimal, stop_price: Decimal) -> Any:
         """After partial close: cancel old stops, place new STOP_MARKET on remainder."""
