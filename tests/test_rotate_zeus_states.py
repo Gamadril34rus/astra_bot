@@ -59,3 +59,34 @@ def test_rotate_under_threshold_keeps_file_intact(tmp_path):
     assert res["archived_lines"] == 0
     assert src.read_bytes() == before
     assert not archive_dir.exists()
+
+
+def test_line_trigger_rotates_file_over_line_limit_below_size(tmp_path):
+    """Строчный триггер: 25k строк при лимите LIVE_JSONL_LIMITS=24k и весе < 20 МБ.
+
+    Размерный порог не срабатывает, строчный — срабатывает: хвост 20k, архив создан.
+    Проверяем через rotate_all, т.е. тем же путём, что и в тике (лимит из
+    LIVE_JSONL_LIMITS, а не из теста).
+    """
+    assert rot.LIVE_JSONL_LIMITS["zeus_wedge_1h_signals.jsonl"] == 24_000
+    src = tmp_path / "models" / "zeus_wedge_1h_signals.jsonl"
+    _write(src, 25_000)
+    assert src.stat().st_size < rot.MAX_BYTES
+    archive_dir = tmp_path / "models" / "archive"
+
+    results = rot.rotate_all(
+        ("models/zeus_wedge_1h_signals.jsonl",),
+        root=tmp_path,
+        archive_dir=archive_dir,
+    )
+
+    res = results[0]
+    assert res["rotated"] is True
+    assert res["archived_lines"] == 5_000
+    assert res["kept_lines"] == 20_000
+    archives = list(archive_dir.glob("*.jsonl.gz"))
+    assert len(archives) == 1
+    kept = src.read_text(encoding="utf-8").splitlines()
+    assert len(kept) == 20_000
+    assert kept[0] == '{"i": 5000}'
+    assert kept[-1] == '{"i": 24999}'
