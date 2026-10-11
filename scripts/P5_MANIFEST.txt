@@ -1,0 +1,20 @@
+P5 arm feed — channel parity with paper
+=======================================
+1) astra_bot/decision/live_arm_feed.py  p5_feed_p*.txt
+   ZeusChannelBoundaryStrategy + paper channel_capital_config fields
+   signal_id: zeus_channel_boundary|symbol|side|bar_ts
+   FEED_SYMBOLS: 31 pairs = paper-clock --symbols
+   asdict-diff vs defaults documented in module header
+   No orders; ≤1/symbol/tick; pending rewrite
+
+2) scripts/zeus_live_clock.py  p5_clk_p*.txt
+   produce_pending → load_pending_rows → run_arm_entries
+   _guard / live_broker / paper untouched
+
+3) tests/test_live_arm_feed.py  p5_tst_p*.txt
+   31 symbols, config parity, row format, dedup, freshness
+  p5_clk_p1.txt: 3678
+  p5_clk_p2.txt: 1118
+  p5_feed_p1.txt: 3671
+  p5_feed_p2.txt: 2145
+  p5_tst_p1.txt: 3565

@@ -1,0 +1,65 @@
+            f.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
+
+
+async def fetch_candles(client: Any, symbol: str, *, limit: int = CANDLE_LIMIT) -> list:
+    return await client.get_candles(symbol, TIMEFRAME, limit=limit)
+
+
+def _channel_strategy() -> ZeusChannelBoundaryStrategy:
+    return ZeusChannelBoundaryStrategy(paper_channel_config())
+
+
+async def scan_symbol(
+    client: Any,
+    symbol: str,
+    strategy: ZeusChannelBoundaryStrategy | None = None,
+) -> dict[str, Any] | None:
+    strat = strategy or _channel_strategy()
+    try:
+        candles = await fetch_candles(client, symbol)
+    except Exception as exc:
+        logger.warning("arm feed: %s candles failed: %s", symbol, type(exc).__name__)
+        return None
+    if not candles or len(candles) < 30:
+        return None
+    last = candles[-1]
+    bar_ts = int(getattr(last, "open_time", 0) or 0)
+    try:
+        sig = await strat.evaluate(symbol, candles)
+    except Exception as exc:
+        logger.warning("arm feed: %s evaluate failed: %s", symbol, type(exc).__name__)
+        return None
+    if sig is None:
+        return None
+    try:
+        return signal_to_row(sig, bar_ts=bar_ts)
+    except Exception as exc:
+        logger.warning("arm feed: %s row map failed: %s", symbol, type(exc).__name__)
+        return None
+
+
+async def produce_pending(
+    client: Any,
+    symbols: list[str] | tuple[str, ...] = FEED_SYMBOLS,
+    *,
+    path: Path = PENDING_PATH,
+    seen_ids: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    strat = _channel_strategy()
+    seen = set(seen_ids or ())
+    out: list[dict[str, Any]] = []
+    for sym in symbols:
+        row = await scan_symbol(client, sym, strategy=strat)
+        if row is None:
+            continue
+        sid = row["signal_id"]
+        if sid in seen:
+            logger.info("arm feed: skip %s — signal_id already seen", sid)
+            continue
+        if any(r["symbol"] == row["symbol"] for r in out):
+            continue
+        seen.add(sid)
+        out.append(row)
+    write_pending(out, path)
+    logger.info("arm feed: wrote %d channel candidate(s) → %s", len(out), path)
+    return out
