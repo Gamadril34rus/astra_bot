@@ -238,6 +238,13 @@ class LiveBroker:
                     await send_tg(msg)
                 except Exception as exc:
                     logger.warning("sync_closed TG: %s", type(exc).__name__)
+        logger.info(
+            "sync_closed_plans: plans=%d exchange_open=%d closed=%s cancelled=%d",
+            len(plans),
+            len(exchange_syms),
+            closed,
+            cancelled,
+        )
         return {"closed": closed, "cancelled": cancelled}
 
     async def restore_missing_stops(
@@ -292,10 +299,11 @@ class LiveBroker:
                             symbol=sym,
                             side=stop_side,
                             order_type="TAKE_PROFIT_MARKET",
-                            quantity=q,
+                            quantity=None,
                             stop_price=Decimal(str(tp)),
                             position_side=ps,
                             reduce_only=False,
+                            close_position=True,
                             client_order_id=unique_client_order_id(sym, "r"),
                         )
                     restored.append(sym)
@@ -394,15 +402,16 @@ class LiveBroker:
                 tp = existing_t
             else:
                 tp_cid = unique_client_order_id(plan.symbol, "t")
-                # Hedge mode: reduceOnly forbidden — positionSide is enough
+                # Hedge: closePosition without quantity — no margin lock (BingX 10424)
                 tp = await self.client.place_order(
                     symbol=plan.symbol,
                     side=stop_side,
                     order_type="TAKE_PROFIT_MARKET",
-                    quantity=plan.quantity,
+                    quantity=None,
                     stop_price=plan.take_profit_price,
                     position_side=ps,
                     reduce_only=False,
+                    close_position=True,
                     client_order_id=tp_cid,
                 )
         return {

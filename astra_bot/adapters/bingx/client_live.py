@@ -89,7 +89,7 @@ class LiveBingXClient(BingXClient):
         symbol: str,
         side: str,
         order_type: str,
-        quantity: Decimal,
+        quantity: Decimal | None = None,
         price: Decimal | None = None,
         stop_price: Decimal | None = None,
         client_order_id: str | None = None,
@@ -110,7 +110,10 @@ class LiveBingXClient(BingXClient):
             "type": order_type.upper(),
             "timestamp": int(time.time() * 1000),
         }
-        if quantity is not None:
+        # closePosition=true: do NOT send quantity (avoids margin lock / 10424)
+        if close_position:
+            params["closePosition"] = "true"
+        elif quantity is not None:
             params["quantity"] = float(quantity)
         if price is not None:
             params["price"] = float(price)
@@ -122,8 +125,6 @@ class LiveBingXClient(BingXClient):
             params["positionSide"] = position_side.upper()
         if reduce_only:
             params["reduceOnly"] = "true"
-        if close_position:
-            params["closePosition"] = "true"
         tif = time_in_force
         if post_only:
             tif = "PostOnly"
@@ -182,7 +183,10 @@ class LiveBingXClient(BingXClient):
         for item in data or []:
             if not isinstance(item, dict):
                 continue
-            amt = Decimal(str(item.get("positionAmt") or item.get("availableAmt") or "0"))
+            _raw_amt = item.get("positionAmt")
+            if _raw_amt is None:
+                _raw_amt = item.get("availableAmt") or "0"
+            amt = Decimal(str(_raw_amt))
             if amt == 0:
                 continue
             side = "long" if amt > 0 else "short"
