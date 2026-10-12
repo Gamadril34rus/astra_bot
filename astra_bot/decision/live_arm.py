@@ -23,6 +23,48 @@ from astra_bot.decision.live_positions import (
 logger = logging.getLogger(__name__)
 
 CONF_RISK_LADDER = ((0.88, 3.0), (0.80, 2.0), (0.70, 1.5))
+
+# A7 leverage ladder — byte-for-byte from trading_engine (do not "improve")
+LEVERAGE_LADDER: tuple[tuple[float, float, int], ...] = (
+    (0.95, 3.0, 100),
+    (0.90, 2.5, 50),
+    (0.85, 2.0, 20),
+    (0.80, 1.6, 10),
+    (0.70, 1.3, 5),
+    (0.55, 1.1, 3),
+)
+
+
+def leverage_for(
+    confidence: float,
+    ev_r: float,
+    entry_price: float,
+    stop_loss: float,
+    max_leverage: int,
+    min_ev_r: float,
+    maintenance_margin_pct: float = 0.005,
+) -> int:
+    """Плечо сделки: база 2x по EV, выше — только по уверенности. Copy of paper A7."""
+    if max_leverage <= 1:
+        return 1
+    if ev_r < min_ev_r:
+        return 1
+    lev = 2
+    for min_conf, min_ev, rung in LEVERAGE_LADDER:
+        if confidence >= min_conf and ev_r >= min_ev:
+            lev = max(lev, min(rung, max_leverage))
+            break
+    lev = min(lev, max_leverage)
+    entry = float(entry_price)
+    stop = float(stop_loss)
+    if entry > 0:
+        d = abs(entry - stop) / entry
+        if d > 0:
+            feasible = int(1.0 / (d + maintenance_margin_pct)) - 1
+            if lev > feasible:
+                lev = max(1, feasible)
+    return max(1, lev)
+
 MAX_OPEN = 5
 COOLDOWN_MS = 20 * 60 * 1000  # strategy|symbol|side as paper
 _COOLDOWN: dict[str, float] = {}  # key -> unblock_ts_ms
@@ -114,11 +156,35 @@ async def plan_from_candidate(
         logger.info("arm: skip — max_open=%d", MAX_OPEN)
         return None
     tier = conf_risk_pct(cand.confidence, CONF_RISK_LADDER, Decimal("0.01"))
+    # heat can cap risk to 1% (paper parity) — applied if governor active
+    try:
+        from astra_bot.decision.zeus_heat import DEFAULT_HEAT_PATH, ZeusHeatGovernor
+
+        heat = ZeusHeatGovernor(state_path=DEFAULT_HEAT_PATH)
+        ov = heat.risk_pct_override()
+        if ov is not None:
+            tier = Decimal(str(ov))
+            logger.info("arm: heat_active → risk_pct=%s", tier)
+    except Exception:
+        pass
     budget = await broker.risk_budget(tier)
     qty = size_qty(budget, cand.entry, cand.stop, cand.step_size)
     if qty <= 0:
         return None
-    lev = min(int(cand.leverage), int(broker.config.max_leverage))
+    # A7 leverage ladder byte-for-byte from paper (trading_engine.leverage_for)
+    conf = float(cand.confidence or 0.0)
+    dist = abs(float(cand.entry) - float(cand.stop))
+    reward = abs(float(cand.take_profit) - float(cand.entry)) if cand.take_profit else dist
+    ev_r = (reward / dist) if dist > 0 else 0.0  # R:R proxy when no model EV
+    lev = leverage_for(
+        confidence=conf,
+        ev_r=ev_r,
+        entry_price=float(cand.entry),
+        stop_loss=float(cand.stop),
+        max_leverage=int(broker.config.max_leverage),
+        min_ev_r=1.0,
+    )
+    lev = min(int(lev), int(broker.config.max_leverage))
     return LiveEntryPlan(
         symbol=cand.symbol,
         side=cand.side.lower(),
