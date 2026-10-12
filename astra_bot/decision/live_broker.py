@@ -230,9 +230,20 @@ class LiveBroker:
             side = str(plan.get("side") or "").lower()
             side_ru = "ЛОНГ" if side == "long" else "ШОРТ" if side == "short" else side.upper()
             base = (sym.split("-")[0] if "-" in sym else sym).replace("USDT", "")
-            # TG-spec owner format; pnl unknown at live sync → +?
-            msg = f"🏁 {base} {side_ru}: закрыта +? (сверка утром)"
-            logger.info("sync_closed: %s plan removed, orphan protects cancelled=%s", sym, cancelled)
+            pending = bool(plan.get("pending_verify"))
+            if pending:
+                # MARKET may never have filled — do not claim a confirmed exit
+                msg = f"🏁 {base} {side_ru}: план снят (pending_verify, сверка утром)"
+                logger.info(
+                    "sync_closed: %s pending_verify plan removed, no fill claim",
+                    sym,
+                )
+            else:
+                msg = f"🏁 {base} {side_ru}: закрыта +? (сверка утром)"
+                logger.info(
+                    "sync_closed: %s plan removed, orphan protects cancelled=%s",
+                    sym, cancelled,
+                )
             if send_tg is not None:
                 try:
                     await send_tg(msg)
@@ -282,8 +293,40 @@ class LiveBroker:
                 for o in orders
             )
             plan = get_plan(sym, path)
-            # stop without our plan still treated as unsupervised → close below
+            has_tp = any(
+                "take_profit" in str(getattr(o, "order_type", "")).lower()
+                for o in orders
+            )
+            # stop without our plan → unsupervised close below
             if has_stop and plan and plan.get("stop"):
+                # Follow-up #4: stop alive but TP missing → place TP only
+                tp = plan.get("tp")
+                if tp is not None and not has_tp:
+                    side = str(plan.get("side") or getattr(p, "side", "long")).lower()
+                    stop_side = "SELL" if side == "long" else "BUY"
+                    ps = "LONG" if side == "long" else "SHORT"
+                    try:
+                        await self.client.place_order(
+                            symbol=sym,
+                            side=stop_side,
+                            order_type="TAKE_PROFIT_MARKET",
+                            quantity=None,
+                            stop_price=Decimal(str(tp)),
+                            position_side=ps,
+                            reduce_only=False,
+                            close_position=True,
+                            client_order_id=unique_client_order_id(sym, "r"),
+                        )
+                        restored.append(sym)
+                        logger.info(
+                            "restore_missing_stops: %s TP re-placed @ %s (stop was live)",
+                            sym, tp,
+                        )
+                    except Exception as exc:
+                        logger.warning(
+                            "restore_missing_stops: %s TP-only failed: %s",
+                            sym, type(exc).__name__,
+                        )
                 continue
             if plan and plan.get("stop"):
                 side = str(plan.get("side") or getattr(p, "side", "long")).lower()
