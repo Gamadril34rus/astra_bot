@@ -193,6 +193,7 @@ async def plan_from_candidate(
         take_profit_price=cand.take_profit,
         leverage=lev,
         client_tag="arm",
+        entry_price=cand.entry,
     )
 
 
