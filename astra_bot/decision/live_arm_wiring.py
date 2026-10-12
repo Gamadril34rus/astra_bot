@@ -25,6 +25,7 @@ from astra_bot.decision.live_arm import (
 )
 from astra_bot.decision.live_broker import LiveBroker
 from astra_bot.decision.live_positions import upsert_plan
+from astra_bot.decision.live_broker import append_live_trade
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +248,8 @@ async def run_arm_entries(
                 )
                 continue
             res = await broker.open_with_protection(plan)
+            fill_px = (res or {}).get("fill_price")
+            slip = (res or {}).get("slip_pct")
             # Journal IMMEDIATELY after successful open (entry+protect returned)
             upsert_plan(
                 plan.symbol,
@@ -254,10 +257,31 @@ async def run_arm_entries(
                 qty=plan.quantity,
                 stop=plan.stop_price,
                 tp=plan.take_profit_price,
-                entry=cand.entry,
+                entry=fill_px or cand.entry,
                 leverage=plan.leverage,
             )
             mark_cooldown(cand.strategy, plan.symbol, plan.side)
+            try:
+                append_live_trade(
+                    {
+                        "event": "entry",
+                        "signal_id": sid or None,
+                        "symbol": cand.symbol,
+                        "side": cand.side,
+                        "plan_entry": str(cand.entry),
+                        "fill_price": fill_px,
+                        "slip_pct": slip,
+                        "qty": str(plan.quantity),
+                        "stop": str(plan.stop_price),
+                        "tp": str(plan.take_profit_price) if plan.take_profit_price else None,
+                        "leverage": plan.leverage,
+                        "ts": time.time(),
+                    }
+                )
+            except Exception:
+                pass
+            if slip is not None:
+                logger.info("arm entry slip %s %.4f%%", cand.symbol, slip)
         except Exception as exc:
             logger.exception(
                 "arm entry %s failed AFTER possible fill — job must go red: %s",
