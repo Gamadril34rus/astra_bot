@@ -28,7 +28,7 @@ from astra_bot.decision.live_positions import upsert_plan
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_STRATEGY = "zeus_wedge_retest"
+DEFAULT_STRATEGY = "zeus_channel_boundary"  # fallback; row.strategy from feed wins
 ENTRIES_PATH = Path("models/zeus_live_entries.jsonl")
 JOURNAL_PATH = Path("models/zeus_live_journal.jsonl")
 PENDING_PATH = Path("models/zeus_arm_pending.jsonl")
