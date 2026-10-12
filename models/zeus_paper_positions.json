@@ -22,8 +22,8 @@
       "initial_quantity": "1210.33780000",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "0.2264",
+      "lowest_price": "0.2178",
       "strategy": "zeus_channel_boundary_4h",
       "opened_at": 1791803869996,
       "notes": {
@@ -52,12 +52,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "4h",
       "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
-      "bars_held": 0,
+      "bars_held": 199,
       "leverage": "2",
       "margin_used": "131.866303310000",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.2144136",
-      "plan_last_bar_ts": 0
+      "plan_last_bar_ts": 1791777600000
     }
   ],
   "realized_pnl": "634.6887405534899344452587226",
@@ -79,7 +79,7 @@
     "HYPE-USDT": 1791061200000,
     "LTC-USDT": 1791341700000,
     "APT-USDT": 1791535500000,
-    "WIF-USDT": 1791744300000,
+    "WIF-USDT": 1791804000000,
     "BNB-USDT": 1791480000000,
     "XRP-USDT": 1790977500000,
     "BCH-USDT": 1791146700000,
