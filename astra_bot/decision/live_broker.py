@@ -173,6 +173,52 @@ class LiveBroker:
             "orders_raw": open_orders,
         }
 
+    async def sync_closed_plans(
+        self,
+        *,
+        positions_path: Path | None = None,
+        send_tg: Any = None,
+    ) -> dict[str, Any]:
+        """Plan without exchange position → drop plan, cancel orphans, TG 🏁."""
+        from pathlib import Path as _Path
+
+        from astra_bot.decision.live_positions import load_positions, remove_plan
+
+        path = positions_path or _Path("models/zeus_live_positions.json")
+        plans = load_positions(path)
+        if not plans:
+            return {"closed": [], "cancelled": 0}
+
+        exchange_syms: set[str] = set()
+        for pos in await self.client.get_positions():
+            qty = getattr(pos, "quantity", None) or Decimal("0")
+            if qty and qty > 0:
+                exchange_syms.add(getattr(pos, "symbol", "") or "")
+
+        closed: list[str] = []
+        cancelled = 0
+        for sym, plan in list(plans.items()):
+            if not sym or sym in exchange_syms:
+                continue
+            try:
+                n = await self.client.cancel_all_orders(sym)
+                cancelled += int(n or 0)
+            except Exception as exc:
+                logger.warning("sync_closed: cancel_all %s: %s", sym, type(exc).__name__)
+            remove_plan(sym, path)
+            closed.append(sym)
+            side = str(plan.get("side") or "").lower()
+            side_ru = "ЛОНГ" if side == "long" else "ШОРТ" if side == "short" else side
+            base = sym.split("-")[0] if "-" in sym else sym
+            msg = f"🏁 {base} {side_ru}: закрыта (биржа, план снят)"
+            logger.info("sync_closed: %s plan removed orphans cancelled", sym)
+            if send_tg is not None:
+                try:
+                    await send_tg(msg)
+                except Exception as exc:
+                    logger.warning("sync_closed TG: %s", type(exc).__name__)
+        return {"closed": closed, "cancelled": cancelled}
+
     async def restore_missing_stops(
         self,
         *,
@@ -207,9 +253,10 @@ class LiveBroker:
                 and "take_profit" not in str(getattr(o, "order_type", "")).lower()
                 for o in orders
             )
-            if has_stop:
-                continue
             plan = get_plan(sym, path)
+            # stop without our plan still treated as unsupervised → close below
+            if has_stop and plan and plan.get("stop"):
+                continue
             if plan and plan.get("stop"):
                 side = str(plan.get("side") or getattr(p, "side", "long")).lower()
                 stop_px = Decimal(str(plan["stop"]))
@@ -239,10 +286,17 @@ class LiveBroker:
                     )
             else:
                 logger.warning(
-                    "restore_missing_stops: %s naked position qty=%s — no plan, closing market",
-                    sym, qty,
+                    "restore_missing_stops: %s naked/no-plan qty=%s has_stop=%s — closing market",
+                    sym, qty, has_stop,
                 )
                 try:
+                    try:
+                        await self.client.cancel_all_orders(sym)
+                    except Exception as cexc:
+                        logger.warning(
+                            "restore_missing_stops: cancel_all %s: %s",
+                            sym, type(cexc).__name__,
+                        )
                     await self.client.close_position(sym, quantity=qty)
                     remove_plan(sym, path)
                     closed.append(sym)
