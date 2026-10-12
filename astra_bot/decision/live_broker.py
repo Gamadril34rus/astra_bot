@@ -179,7 +179,11 @@ class LiveBroker:
         positions_path: Path | None = None,
         send_tg: Any = None,
     ) -> dict[str, Any]:
-        """Plan without exchange position → drop plan, cancel orphans, TG 🏁."""
+        """Plan without exchange position → drop plan, cancel orphan SL/TP, TG 🏁.
+
+        Only runs when exchange confirms the symbol is flat (no open qty).
+        Orphan cancels are per-order (STOP / TAKE_PROFIT), not cancel_all.
+        """
         from pathlib import Path as _Path
 
         from astra_bot.decision.live_positions import load_positions, remove_plan
@@ -199,19 +203,36 @@ class LiveBroker:
         cancelled = 0
         for sym, plan in list(plans.items()):
             if not sym or sym in exchange_syms:
-                continue
+                continue  # still open on exchange — keep plan
+            # Pointwise cancel protect orphans for this symbol only
             try:
-                n = await self.client.cancel_all_orders(sym)
-                cancelled += int(n or 0)
+                orders = await self.client.get_open_orders(sym)
             except Exception as exc:
-                logger.warning("sync_closed: cancel_all %s: %s", sym, type(exc).__name__)
+                logger.warning("sync_closed: get_open_orders %s: %s", sym, type(exc).__name__)
+                orders = []
+            for o in orders:
+                ot = str(getattr(o, "order_type", "") or "").upper()
+                if "STOP" not in ot and "TAKE_PROFIT" not in ot:
+                    continue
+                oid = getattr(o, "id", None)
+                if not oid:
+                    continue
+                try:
+                    if await self.client.cancel_order(sym, str(oid)):
+                        cancelled += 1
+                except Exception as exc:
+                    logger.warning(
+                        "sync_closed: cancel %s %s: %s",
+                        sym, oid, type(exc).__name__,
+                    )
             remove_plan(sym, path)
             closed.append(sym)
             side = str(plan.get("side") or "").lower()
-            side_ru = "ЛОНГ" if side == "long" else "ШОРТ" if side == "short" else side
-            base = sym.split("-")[0] if "-" in sym else sym
-            msg = f"🏁 {base} {side_ru}: закрыта (биржа, план снят)"
-            logger.info("sync_closed: %s plan removed orphans cancelled", sym)
+            side_ru = "ЛОНГ" if side == "long" else "ШОРТ" if side == "short" else side.upper()
+            base = (sym.split("-")[0] if "-" in sym else sym).replace("USDT", "")
+            # TG-spec owner format; pnl unknown at live sync → +?
+            msg = f"🏁 {base} {side_ru}: закрыта +? (сверка утром)"
+            logger.info("sync_closed: %s plan removed, orphan protects cancelled=%s", sym, cancelled)
             if send_tg is not None:
                 try:
                     await send_tg(msg)
