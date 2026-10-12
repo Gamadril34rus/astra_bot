@@ -23,9 +23,8 @@ from astra_bot.decision.live_arm import (
     mark_cooldown,
     plan_from_candidate,
 )
-from astra_bot.decision.live_broker import LiveBroker
+from astra_bot.decision.live_broker import LiveBroker, append_live_trade
 from astra_bot.decision.live_positions import upsert_plan
-from astra_bot.decision.live_broker import append_live_trade
 
 logger = logging.getLogger(__name__)
 
