@@ -110,11 +110,12 @@ class LiveBingXClient(BingXClient):
             "type": order_type.upper(),
             "timestamp": int(time.time() * 1000),
         }
-        # closePosition=true: do NOT send quantity (avoids margin lock / 10424)
+        # STOP_MARKET needs quantity AND closePosition together (BingX).
+        # Suppressing qty when closePosition=True caused: "parameter quantity or stopPrice is must".
+        if quantity is not None:
+            params["quantity"] = float(quantity)
         if close_position:
             params["closePosition"] = "true"
-        elif quantity is not None:
-            params["quantity"] = float(quantity)
         if price is not None:
             params["price"] = float(price)
         if stop_price is not None:
