@@ -13,6 +13,15 @@ from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
 
+def append_live_trade(row: dict[str, Any], path: Path | None = None) -> None:
+    """Append one exit/entry row to models/zeus_live_trades.jsonl."""
+    p = path or Path("models/zeus_live_trades.jsonl")
+    p.parent.mkdir(parents=True, exist_ok=True)
+    import json as _json
+    with p.open("a", encoding="utf-8") as f:
+        f.write(_json.dumps(row, ensure_ascii=False, default=str) + "\n")
+
+
 HARD_CAP_USD = Decimal("100")
 
 _ORDER_SEQ = 0
@@ -231,6 +240,22 @@ class LiveBroker:
             side_ru = "ЛОНГ" if side == "long" else "ШОРТ" if side == "short" else side.upper()
             base = (sym.split("-")[0] if "-" in sym else sym).replace("USDT", "")
             pending = bool(plan.get("pending_verify"))
+            try:
+                append_live_trade(
+                    {
+                        "event": "exit",
+                        "symbol": sym,
+                        "side": side,
+                        "entry": plan.get("entry"),
+                        "exit": None,
+                        "exit_reason": "exchange_flat",
+                        "pnl": None,
+                        "pending_verify": pending,
+                        "ts": __import__("time").time(),
+                    }
+                )
+            except Exception as tex:
+                logger.warning("append_live_trade: %s", type(tex).__name__)
             if pending:
                 # MARKET may never have filled — do not claim a confirmed exit
                 msg = f"🏁 {base} {side_ru}: план снят (pending_verify, сверка утром)"
