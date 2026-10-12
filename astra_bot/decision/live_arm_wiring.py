@@ -264,7 +264,12 @@ async def run_arm_entries(
                 cand.symbol,
                 type(exc).__name__,
             )
-            # Durable: entries.jsonl is in Save-list (journal.jsonl is NOT)
+            # One attempt: cooldown so same strategy|symbol|side not retried this process
+            try:
+                mark_cooldown(cand.strategy, cand.symbol, cand.side)
+            except Exception:
+                pass
+            # Durable: entries.jsonl is in Save-list (blocks same signal_id next tick)
             append_entry_record(
                 {
                     "signal_id": sid or f"failed|{cand.symbol}|{int(time.time())}",
@@ -286,9 +291,9 @@ async def run_arm_entries(
                     "error": type(exc).__name__,
                 }
             )
-            # Best-effort plan so restore can re-place protect / not treat as alien
+            # Partial plan only if plan exists; pending_verify avoids false 🏁
             try:
-                if "plan" in dir() and plan is not None:
+                if plan is not None:
                     upsert_plan(
                         plan.symbol,
                         side=plan.side,
@@ -297,6 +302,7 @@ async def run_arm_entries(
                         tp=plan.take_profit_price,
                         entry=cand.entry,
                         leverage=plan.leverage,
+                        pending_verify=True,
                     )
             except Exception:
                 pass
