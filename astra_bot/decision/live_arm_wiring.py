@@ -216,6 +216,7 @@ async def run_arm_entries(
             logger.info("arm: skip — exchange max_open=%d", MAX_OPEN)
             break
 
+        plan = None
         try:
             plan = await plan_from_candidate(
                 broker,
@@ -263,6 +264,19 @@ async def run_arm_entries(
                 cand.symbol,
                 type(exc).__name__,
             )
+            # Durable: entries.jsonl is in Save-list (journal.jsonl is NOT)
+            append_entry_record(
+                {
+                    "signal_id": sid or f"failed|{cand.symbol}|{int(time.time())}",
+                    "symbol": cand.symbol,
+                    "side": cand.side,
+                    "ts": time.time(),
+                    "event": "entry_failed",
+                    "error": type(exc).__name__,
+                    "error_msg": str(exc)[:300],
+                },
+                entries_path,
+            )
             append_journal(
                 {
                     "event": "entry_failed",
@@ -272,6 +286,20 @@ async def run_arm_entries(
                     "error": type(exc).__name__,
                 }
             )
+            # Best-effort plan so restore can re-place protect / not treat as alien
+            try:
+                if "plan" in dir() and plan is not None:
+                    upsert_plan(
+                        plan.symbol,
+                        side=plan.side,
+                        qty=plan.quantity,
+                        stop=plan.stop_price,
+                        tp=plan.take_profit_price,
+                        entry=cand.entry,
+                        leverage=plan.leverage,
+                    )
+            except Exception:
+                pass
             # Do NOT continue to next symbol (would stack naked positions)
             raise
 

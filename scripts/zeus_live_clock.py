@@ -44,6 +44,29 @@ def _guard() -> None:
         logger.info("VST mode (demo futures) — default")
 
 
+
+async def _send_live_tg(msg: str) -> None:
+    token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
+    chat = (
+        (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
+        or (os.environ.get("TELEGRAM_ADMIN_ID") or "").strip()
+    )
+    if not token or not chat:
+        logger.warning("arm TG skip: no TELEGRAM_BOT_TOKEN/CHAT_ID/ADMIN_ID")
+        return
+    try:
+        import aiohttp
+
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json={"chat_id": chat, "text": msg[:4000]}) as resp:
+                if resp.status >= 400:
+                    logger.warning("arm TG HTTP %s", resp.status)
+    except Exception as exc:
+        logger.warning("arm TG failed: %s", type(exc).__name__)
+
+
+
 async def one_tick(*, dry: bool = False) -> int:
     _guard()
     # late imports so ABORT never loads broker on paper hosts by mistake path
@@ -93,6 +116,13 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception as exc:
         logger.warning("restore_missing_stops failed: %s", type(exc).__name__)
 
+    try:
+        synced = await broker.sync_closed_plans(send_tg=_send_live_tg)
+        if synced.get("closed"):
+            logger.info("sync_closed_plans: %s", synced)
+    except Exception as exc:
+        logger.warning("sync_closed_plans failed: %s", type(exc).__name__)
+
     # P2: signal→entry ONLY when ZEUS_ARM=1 (owner enables in separate PR)
     from astra_bot.decision.live_arm import arm_enabled
     if dry or not broker.entries_allowed:
@@ -115,29 +145,8 @@ async def one_tick(*, dry: bool = False) -> int:
         await produce_pending(client, FEED_SYMBOLS, seen_ids=seen)
         rows = load_pending_rows()
 
-        async def _tg(msg: str) -> None:
-            token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
-            chat = (
-                (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
-                or (os.environ.get("TELEGRAM_ADMIN_ID") or "").strip()
-            )
-            if not token or not chat:
-                logger.warning("arm TG skip: no TELEGRAM_BOT_TOKEN/CHAT_ID/ADMIN_ID")
-                return
-            try:
-                import aiohttp
-                url = f"https://api.telegram.org/bot{token}/sendMessage"
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(
-                        url, json={"chat_id": chat, "text": msg[:4000]}
-                    ) as resp:
-                        if resp.status >= 400:
-                            logger.warning("arm TG HTTP %s", resp.status)
-            except Exception as exc:
-                logger.warning("arm TG failed: %s", type(exc).__name__)
-
         entered = await run_arm_entries(
-            broker, rows, max_entries=1, send_tg=_tg
+            broker, rows, max_entries=1, send_tg=_send_live_tg
         )
         logger.info("arm tick entries=%d", len(entered))
 
