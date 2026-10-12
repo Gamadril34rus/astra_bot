@@ -118,10 +118,9 @@ async def one_tick(*, dry: bool = False) -> int:
 
     try:
         synced = await broker.sync_closed_plans(send_tg=_send_live_tg)
-        if synced.get("closed"):
-            logger.info("sync_closed_plans: %s", synced)
+        logger.info("sync_closed_plans: %s", synced)
     except Exception as exc:
-        logger.warning("sync_closed_plans failed: %s", type(exc).__name__)
+        logger.exception("sync_closed_plans failed: %s", type(exc).__name__)
 
     # P2: signal→entry ONLY when ZEUS_ARM=1 (owner enables in separate PR)
     from astra_bot.decision.live_arm import arm_enabled
