@@ -306,6 +306,7 @@ class LiveBroker:
                     stop_side = "SELL" if side == "long" else "BUY"
                     ps = "LONG" if side == "long" else "SHORT"
                     try:
+                        q = Decimal(str(plan.get("qty") or qty))
                         await self.client.place_order(
                             symbol=sym,
                             side=stop_side,
