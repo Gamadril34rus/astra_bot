@@ -65,7 +65,7 @@ jobs:
         run: |
           git config user.name "astra-bot" || true
           git config user.email "bot@users.noreply.github.com" || true
-          for F in models/zeus_live_commands.json models/zeus_live_entries.jsonl models/zeus_live_positions.json models/zeus_live_trades.jsonl; do
+          for F in models/zeus_live_commands.json models/zeus_live_entries.jsonl models/zeus_live_positions.json models/zeus_live_trades.jsonl models/zeus_heat_state.json; do
             [ -f "$F" ] && git add -f "$F" || true
           done
           if ! git diff --cached --quiet; then
