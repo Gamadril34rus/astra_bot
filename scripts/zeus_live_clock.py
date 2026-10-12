@@ -46,22 +46,26 @@ def _guard() -> None:
 
 
 async def _send_live_tg(msg: str) -> None:
+    """Same chat as paper: prefer TELEGRAM_ADMIN_ID (paper path), then CHAT_ID."""
     token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
     chat = (
-        (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
-        or (os.environ.get("TELEGRAM_ADMIN_ID") or "").strip()
+        (os.environ.get("TELEGRAM_ADMIN_ID") or "").strip()
+        or (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
     )
     if not token or not chat:
-        logger.warning("arm TG skip: no TELEGRAM_BOT_TOKEN/CHAT_ID/ADMIN_ID")
+        logger.warning("arm TG skip: no TELEGRAM_BOT_TOKEN/ADMIN_ID/CHAT_ID")
         return
     try:
         import aiohttp
 
         url = f"https://api.telegram.org/bot{token}/sendMessage"
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, json={"chat_id": chat, "text": msg[:4000]}) as resp:
+            async with session.post(
+                url, json={"chat_id": chat, "text": msg[:4000]}
+            ) as resp:
                 if resp.status >= 400:
-                    logger.warning("arm TG HTTP %s", resp.status)
+                    body = (await resp.text())[:200]
+                    logger.warning("arm TG HTTP %s body=%s", resp.status, body)
     except Exception as exc:
         logger.warning("arm TG failed: %s", type(exc).__name__)
 
@@ -79,6 +83,11 @@ async def one_tick(*, dry: bool = False) -> int:
     await client.initialize()
 
     broker = LiveBroker(client=client, config=LiveBrokerConfig())
+
+    # One-shot connectivity probe (set TG_TEST=1 in workflow / secrets)
+    if (os.environ.get("TG_TEST") or "").strip() == "1":
+        await _send_live_tg("✅ live TG связь есть")
+        logger.info("TG_TEST=1 probe sent")
     # kill / halt hooks (optional state files)
     try:
         from astra_bot.core.kill_switch import KillSwitch
