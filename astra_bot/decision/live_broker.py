@@ -306,11 +306,12 @@ class LiveBroker:
                     stop_side = "SELL" if side == "long" else "BUY"
                     ps = "LONG" if side == "long" else "SHORT"
                     try:
+                        q = Decimal(str(plan.get("qty") or qty))
                         await self.client.place_order(
                             symbol=sym,
                             side=stop_side,
                             order_type="TAKE_PROFIT_MARKET",
-                            quantity=None,
+                            quantity=q,
                             stop_price=Decimal(str(tp)),
                             position_side=ps,
                             reduce_only=False,
@@ -342,7 +343,7 @@ class LiveBroker:
                             symbol=sym,
                             side=stop_side,
                             order_type="TAKE_PROFIT_MARKET",
-                            quantity=None,
+                            quantity=q,
                             stop_price=Decimal(str(tp)),
                             position_side=ps,
                             reduce_only=False,
@@ -445,12 +446,12 @@ class LiveBroker:
                 tp = existing_t
             else:
                 tp_cid = unique_client_order_id(plan.symbol, "t")
-                # Hedge: closePosition without quantity — no margin lock (BingX 10424)
+                # Same shape as STOP: quantity + closePosition (no reduceOnly in hedge)
                 tp = await self.client.place_order(
                     symbol=plan.symbol,
                     side=stop_side,
                     order_type="TAKE_PROFIT_MARKET",
-                    quantity=None,
+                    quantity=plan.quantity,
                     stop_price=plan.take_profit_price,
                     position_side=ps,
                     reduce_only=False,
