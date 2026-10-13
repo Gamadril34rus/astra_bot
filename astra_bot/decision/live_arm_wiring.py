@@ -1,10 +1,3 @@
-"""Wire live wedge signals → SignalCandidate → execute_one (max 1/tick).
-
-Guards for open position / max_open use EXCHANGE get_positions (runner is
-ephemeral; local zeus_live_positions.json does not survive ticks).
-Durable dedup: models/zeus_live_entries.jsonl (signal_id).
-Freshness: skip candidates older than FRESH_MAX_SEC.
-"""
 from __future__ import annotations
 
 import json
@@ -24,8 +17,8 @@ from astra_bot.decision.live_arm import (
     plan_from_candidate,
 )
 from astra_bot.decision.live_broker import LiveBroker, append_live_trade
-from astra_bot.decision.live_tg_flags import try_claim
 from astra_bot.decision.live_positions import upsert_plan
+from astra_bot.decision.live_tg_flags import try_claim
 
 logger = logging.getLogger(__name__)
 
