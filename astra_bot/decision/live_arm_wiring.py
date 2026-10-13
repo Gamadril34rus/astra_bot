@@ -24,6 +24,7 @@ from astra_bot.decision.live_arm import (
     plan_from_candidate,
 )
 from astra_bot.decision.live_broker import LiveBroker, append_live_trade
+from astra_bot.decision.live_tg_flags import try_claim
 from astra_bot.decision.live_positions import upsert_plan
 
 logger = logging.getLogger(__name__)
@@ -258,6 +259,7 @@ async def run_arm_entries(
                 tp=plan.take_profit_price,
                 entry=fill_px or cand.entry,
                 leverage=plan.leverage,
+                signal_id=sid or None,
             )
             mark_cooldown(cand.strategy, plan.symbol, plan.side)
             try:
@@ -367,10 +369,12 @@ async def run_arm_entries(
                 "tp": str(cand.take_profit) if cand.take_profit else None,
             }
         )
-        if send_tg is not None:
+        if send_tg is not None and try_claim(cand.symbol, "entry", sid or None):
             try:
                 await send_tg(msg)
             except Exception as exc:
                 logger.warning("arm TG send failed: %s", type(exc).__name__)
+        elif send_tg is not None:
+            logger.info("arm TG skip dup entry %s %s", cand.symbol, sid)
         logger.info("arm entry done: %s", msg)
     return results
