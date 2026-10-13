@@ -379,7 +379,7 @@ class LiveBingXClient(BingXClient):
         end_ms = int(end_ms) if end_ms is not None else now
         start_ms = int(start_ms) if start_ms is not None else end_ms - 7 * 24 * 3600 * 1000
         rows: list[dict[str, Any]] = []
-        for income_type in ("REALIZED_PNL", "TRADING_FEE"):
+        for income_type in ("REALIZED_PNL", "TRADING_FEE", "FUNDING_FEE"):
             params: dict[str, Any] = {
                 "symbol": symbol,
                 "incomeType": income_type,
