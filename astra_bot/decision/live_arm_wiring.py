@@ -17,10 +17,47 @@ from astra_bot.decision.live_arm import (
     plan_from_candidate,
 )
 from astra_bot.decision.live_broker import LiveBroker, append_live_trade
-from astra_bot.decision.live_positions import upsert_plan
+from astra_bot.decision.live_positions import load_positions, remove_plan, upsert_plan
 from astra_bot.decision.live_tg_flags import try_claim
 
 logger = logging.getLogger(__name__)
+
+
+def _archive_prior_plan_if_any(symbol: str, new_signal_id: str | None) -> None:
+    """If a stale plan for symbol still in file, write interrupted exit before overwrite."""
+    plans = load_positions()
+    old = plans.get(symbol)
+    if not old:
+        return
+    old_sid = str(old.get("signal_id") or "")
+    if new_signal_id and old_sid and old_sid == new_signal_id:
+        return
+    logger.warning(
+        "arm: overwriting plan %s old_sid=%s new_sid=%s — archive interrupted exit",
+        symbol, old_sid, new_signal_id,
+    )
+    try:
+        append_live_trade(
+            {
+                "event": "exit",
+                "symbol": symbol,
+                "side": old.get("side"),
+                "entry": old.get("entry"),
+                "exit": None,
+                "exit_reason": "plan_overwritten",
+                "pnl": None,
+                "signal_id": old_sid or None,
+                "ts": time.time(),
+            }
+        )
+    except Exception:
+        pass
+    try:
+        remove_plan(symbol)
+    except Exception:
+        pass
+
+
 
 DEFAULT_STRATEGY = "zeus_channel_boundary"  # fallback; row.strategy from feed wins
 ENTRIES_PATH = Path("models/zeus_live_entries.jsonl")
@@ -244,6 +281,7 @@ async def run_arm_entries(
             fill_px = (res or {}).get("fill_price")
             slip = (res or {}).get("slip_pct")
             # Journal IMMEDIATELY after successful open (entry+protect returned)
+            _archive_prior_plan_if_any(plan.symbol, sid or None)
             upsert_plan(
                 plan.symbol,
                 side=plan.side,

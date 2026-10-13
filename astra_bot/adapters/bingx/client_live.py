@@ -28,6 +28,7 @@ _TRADE = {
     "margin_type": f"{BINGX_SWAP_V2_PREFIX}/trade/marginType",
     "balance_v3": "/openApi/swap/v3/user/balance",
     "all_fills": f"{BINGX_SWAP_V2_PREFIX}/trade/allFillOrders",
+    "fill_history": f"{BINGX_SWAP_V2_PREFIX}/trade/fillHistory",
     "income": f"{BINGX_SWAP_V2_PREFIX}/user/income",
 }
 
@@ -277,32 +278,137 @@ class LiveBingXClient(BingXClient):
         start_ms: int | None = None,
         end_ms: int | None = None,
     ) -> list[dict[str, Any]]:
-        """Closed trade fills for symbol (BingX allFillOrders)."""
+        """Trade fills for symbol.
+
+        BingX ``allFillOrders`` requires ``tradingUnit`` + ``startTs`` + ``endTs``
+        (symbol is optional filter on response). Fallback: ``fillHistory`` (symbol
+        required) then empty list.
+        """
         import time as _time
         now = int(_time.time() * 1000)
+        end_ms = int(end_ms) if end_ms is not None else now
+        start_ms = int(start_ms) if start_ms is not None else end_ms - 7 * 24 * 3600 * 1000
+        # Cap window 7d (exchange retention / API limits)
+        if end_ms - start_ms > 7 * 24 * 3600 * 1000:
+            start_ms = end_ms - 7 * 24 * 3600 * 1000
+
+        def _norm(data: Any) -> list[dict[str, Any]]:
+            if isinstance(data, dict):
+                data = (
+                    data.get("fill_orders")
+                    or data.get("fills")
+                    or data.get("orders")
+                    or data.get("list")
+                    or []
+                )
+            if not isinstance(data, list):
+                return []
+            out = [x for x in data if isinstance(x, dict)]
+            if symbol:
+                sym_u = symbol.upper()
+                filtered = [
+                    x
+                    for x in out
+                    if str(x.get("symbol") or "").upper() in ("", sym_u)
+                    or str(x.get("symbol") or "").upper() == sym_u
+                ]
+                # if API omitted symbol on rows, keep all
+                if any(str(x.get("symbol") or "").strip() for x in out):
+                    out = filtered
+            return out
+
+        # 1) allFillOrders — tradingUnit is REQUIRED by BingX docs
         params: dict[str, Any] = {
-            "symbol": symbol,
+            "tradingUnit": "COIN",
+            "startTs": start_ms,
+            "endTs": end_ms,
             "timestamp": now,
         }
-        if start_ms is not None:
-            params["startTs"] = int(start_ms)
-        if end_ms is not None:
-            params["endTs"] = int(end_ms)
-        else:
-            params["endTs"] = now
-        if start_ms is None:
-            params["startTs"] = now - 7 * 24 * 3600 * 1000  # 7d
-        resp = await self._request("GET", _TRADE["all_fills"], params=params, signed=True)
-        code = resp.get("code")
-        if code not in (0, "0", None):
-            logger.warning("get_all_fills %s code=%s msg=%s", symbol, code, resp.get("msg"))
-            return []
-        data = resp.get("data") or []
-        if isinstance(data, dict):
-            data = data.get("fill_orders") or data.get("orders") or data.get("list") or []
-        if not isinstance(data, list):
-            return []
-        return [x for x in data if isinstance(x, dict)]
+        try:
+            resp = await self._request("GET", _TRADE["all_fills"], params=params, signed=True)
+            code = resp.get("code")
+            if code in (0, "0", None):
+                rows = _norm(resp.get("data"))
+                if rows:
+                    return rows
+                logger.info("get_all_fills allFillOrders empty %s window=%s..%s", symbol, start_ms, end_ms)
+            else:
+                logger.warning(
+                    "get_all_fills allFillOrders %s code=%s msg=%s",
+                    symbol, code, resp.get("msg"),
+                )
+        except Exception as exc:
+            logger.warning("get_all_fills allFillOrders %s: %s", symbol, type(exc).__name__)
+
+        # 2) fillHistory — symbol required
+        params2: dict[str, Any] = {
+            "symbol": symbol,
+            "startTs": start_ms,
+            "endTs": end_ms,
+            "pageIndex": 1,
+            "pageSize": 100,
+            "timestamp": int(_time.time() * 1000),
+        }
+        try:
+            resp2 = await self._request("GET", _TRADE["fill_history"], params=params2, signed=True)
+            code2 = resp2.get("code")
+            if code2 in (0, "0", None):
+                rows = _norm(resp2.get("data"))
+                if rows:
+                    return rows
+                logger.info("get_all_fills fillHistory empty %s", symbol)
+            else:
+                logger.warning(
+                    "get_all_fills fillHistory %s code=%s msg=%s",
+                    symbol, code2, resp2.get("msg"),
+                )
+        except Exception as exc:
+            logger.warning("get_all_fills fillHistory %s: %s", symbol, type(exc).__name__)
+        return []
+
+    async def get_realized_income(
+        self,
+        symbol: str,
+        *,
+        start_ms: int | None = None,
+        end_ms: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """REALIZED_PNL + TRADING_FEE from user/income (fallback for exit $)."""
+        import time as _time
+        now = int(_time.time() * 1000)
+        end_ms = int(end_ms) if end_ms is not None else now
+        start_ms = int(start_ms) if start_ms is not None else end_ms - 7 * 24 * 3600 * 1000
+        rows: list[dict[str, Any]] = []
+        for income_type in ("REALIZED_PNL", "TRADING_FEE", "FUNDING_FEE"):
+            params: dict[str, Any] = {
+                "symbol": symbol,
+                "incomeType": income_type,
+                "startTime": start_ms,
+                "endTime": end_ms,
+                "limit": 1000,
+                "timestamp": int(_time.time() * 1000),
+            }
+            try:
+                resp = await self._request("GET", _TRADE["income"], params=params, signed=True)
+                if resp.get("code") not in (0, "0", None):
+                    logger.warning(
+                        "get_realized_income %s %s code=%s",
+                        symbol, income_type, resp.get("code"),
+                    )
+                    continue
+                data = resp.get("data") or []
+                if isinstance(data, list):
+                    for x in data:
+                        if isinstance(x, dict):
+                            x = dict(x)
+                            x["_incomeType"] = income_type
+                            rows.append(x)
+            except Exception as exc:
+                logger.warning(
+                    "get_realized_income %s %s: %s",
+                    symbol, income_type, type(exc).__name__,
+                )
+        return rows
 
     async def close_position(
         self,
