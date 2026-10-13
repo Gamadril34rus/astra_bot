@@ -110,6 +110,7 @@ class LiveEntryPlan:
     take_profit_price: Decimal | None = None
     leverage: int = 5
     client_tag: str = ""
+    entry_price: Decimal | None = None  # signal price for slip vs fill
 
 
 @dataclass
@@ -433,6 +434,18 @@ class LiveBroker:
             position_side=ps,
             client_order_id=entry_cid,
         )
+        fill_px = getattr(entry, "filled_price", None) or getattr(entry, "price", None)
+        plan_px = plan.entry_price
+        slip_pct: float | None = None
+        if fill_px is not None and plan_px is not None and float(plan_px) > 0:
+            raw = (float(fill_px) - float(plan_px)) / float(plan_px)
+            if not side_long:
+                raw = -raw  # short: lower fill is adverse
+            slip_pct = raw * 100.0
+            logger.info(
+                "slip entry %s plan=%s fill=%s adverse_pct=%.4f",
+                plan.symbol, plan_px, fill_px, slip_pct,
+            )
         stop_side = "SELL" if side_long else "BUY"
         stop = None
         existing_s = await _existing_protect(
@@ -489,6 +502,9 @@ class LiveBroker:
             "tp": tp,
             "equity": str(eq),
             "entry_client_order_id": entry_cid,
+            "fill_price": str(fill_px) if fill_px is not None else None,
+            "plan_price": str(plan_px) if plan_px is not None else None,
+            "slip_pct": slip_pct,
         }
 
     async def move_stop(self, symbol: str, side: str, quantity: Decimal, stop_price: Decimal) -> Any:
