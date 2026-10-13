@@ -11,6 +11,7 @@ from typing import Any
 
 from astra_bot.decision.live_arm import (
     MAX_OPEN,
+    MAX_OPEN_SAME_SIDE,
     SignalCandidate,
     format_entry_tg,
     mark_cooldown,
@@ -184,6 +185,24 @@ async def exchange_open_symbols(broker: LiveBroker) -> set[str]:
     return out
 
 
+async def exchange_side_counts(broker: LiveBroker) -> dict[str, int]:
+    """Count open positions by side (long/short) on exchange."""
+    counts = {"long": 0, "short": 0}
+    positions = await broker.client.get_positions()
+    for p in positions:
+        qty = getattr(p, "quantity", None) or Decimal("0")
+        try:
+            q = Decimal(str(qty))
+        except Exception:
+            continue
+        if q <= 0:
+            continue
+        side = str(getattr(p, "side", "") or "").lower()
+        if side in counts:
+            counts[side] += 1
+    return counts
+
+
 def load_pending_rows(path: Path = PENDING_PATH) -> list[dict[str, Any]]:
     if not path.exists():
         return []
@@ -221,6 +240,7 @@ async def run_arm_entries(
     seen = _seen_signal_ids(entries_path)
     open_syms = await exchange_open_symbols(broker)
     open_n = len(open_syms)
+    side_counts = await exchange_side_counts(broker)
     results: list[dict[str, Any]] = []
 
     for row in row_list:
@@ -246,6 +266,15 @@ async def run_arm_entries(
         if open_n >= MAX_OPEN:
             logger.info("arm: skip — exchange max_open=%d", MAX_OPEN)
             break
+        side_l = str(cand.side or "").lower()
+        if side_l in side_counts and side_counts[side_l] >= MAX_OPEN_SAME_SIDE:
+            logger.info(
+                "arm: skip %s — max_open_same_side=%d (%s)",
+                cand.symbol,
+                MAX_OPEN_SAME_SIDE,
+                side_l,
+            )
+            continue
 
         plan = None
         try:
@@ -368,6 +397,9 @@ async def run_arm_entries(
         results.append(res)
         open_syms.add(cand.symbol)
         open_n += 1
+        side_l = str(cand.side or "").lower()
+        if side_l in side_counts:
+            side_counts[side_l] += 1
         if sid:
             seen.add(sid)
             append_entry_record(
