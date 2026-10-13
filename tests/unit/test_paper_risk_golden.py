@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import re
 from decimal import Decimal
 from pathlib import Path
 
@@ -71,13 +72,22 @@ def test_drawdown_adaptation_ladder():
 
 
 def test_readme_universe_guard_follows_trading_universe():
+    """README must not advertise tickers outside the live trading universe.
+
+    After 13.10 README no longer lists the full pair set (owner text is final).
+    Guard is inverted: any PAIR/USDT or PAIR-USDT mentioned in README must
+    belong to TRADING_UNIVERSE. Example that must fail if present: ``ICP/USDT``
+    when ICP is not in TRADING_UNIVERSE.
+    """
     instruments = SystemConfig().instruments
     assert instruments == EXPECTED_INSTRUMENTS
     readme = Path("README.md").read_text(encoding="utf-8")
     tickers = [symbol.split("/")[0] for symbol in TRADING_UNIVERSE]
     assert len(set(tickers)) == len(tickers), "дубли тикеров в TRADING_UNIVERSE"
-    missing = [ticker for ticker in tickers if ticker not in readme]
-    assert not missing, f"README не упоминает тикеры живого юниверса: {missing}"
+    allowed = set(tickers)
+    mentioned = set(re.findall(r"\b([A-Z0-9]{2,10})[-/]USDT\b", readme))
+    extra = sorted(mentioned - allowed)
+    assert not extra, f"README упоминает тикеры вне живого юниверса: {extra}"
 
 
 def test_backup_restart_is_no_not_daily():
