@@ -10,7 +10,6 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 DEFAULT_PATH = Path("models/zeus_live_tg_flags.json")
-# prune flags older than 14d
 _MAX_AGE_SEC = 14 * 24 * 3600
 
 
@@ -38,24 +37,56 @@ def _save(flags: dict[str, float], path: Path = DEFAULT_PATH) -> None:
     )
 
 
-def flag_key(symbol: str, event: str, signal_id: str | None = None) -> str:
-    sid = (signal_id or "").strip() or "_"
+def flag_key(
+    symbol: str,
+    event: str,
+    signal_id: str | None = None,
+    *,
+    ts: float | int | None = None,
+) -> str:
+    """Key for dedup. If signal_id empty, require ts so re-entry is not muted 14d."""
+    sid = (signal_id or "").strip()
+    if not sid:
+        if ts is None:
+            ts = time.time()
+        sid = f"ts{int(float(ts))}"
     return f"{symbol}|{event}|{sid}"
 
 
-def already_sent(symbol: str, event: str, signal_id: str | None = None, path: Path = DEFAULT_PATH) -> bool:
-    return flag_key(symbol, event, signal_id) in _load(path)
+def already_sent(
+    symbol: str,
+    event: str,
+    signal_id: str | None = None,
+    path: Path = DEFAULT_PATH,
+    *,
+    ts: float | int | None = None,
+) -> bool:
+    return flag_key(symbol, event, signal_id, ts=ts) in _load(path)
 
 
-def mark_sent(symbol: str, event: str, signal_id: str | None = None, path: Path = DEFAULT_PATH) -> None:
+def mark_sent(
+    symbol: str,
+    event: str,
+    signal_id: str | None = None,
+    path: Path = DEFAULT_PATH,
+    *,
+    ts: float | int | None = None,
+) -> None:
     flags = _load(path)
-    flags[flag_key(symbol, event, signal_id)] = time.time()
+    flags[flag_key(symbol, event, signal_id, ts=ts)] = time.time()
     _save(flags, path)
 
 
-def try_claim(symbol: str, event: str, signal_id: str | None = None, path: Path = DEFAULT_PATH) -> bool:
+def try_claim(
+    symbol: str,
+    event: str,
+    signal_id: str | None = None,
+    path: Path = DEFAULT_PATH,
+    *,
+    ts: float | int | None = None,
+) -> bool:
     """Return True if this is the first claim (caller should send TG)."""
-    if already_sent(symbol, event, signal_id, path):
+    if already_sent(symbol, event, signal_id, path, ts=ts):
         return False
-    mark_sent(symbol, event, signal_id, path)
+    mark_sent(symbol, event, signal_id, path, ts=ts)
     return True
