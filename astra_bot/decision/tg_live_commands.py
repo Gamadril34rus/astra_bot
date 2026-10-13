@@ -78,18 +78,29 @@ def process_update(
     *,
     commands_path: Path | None = None,
     token: str | None = None,
+    admin_id: str | None = None,
 ) -> str | None:
-    """Parse one update; enqueue if command. Returns cmd or None."""
+    """Parse one update; enqueue if command. Returns cmd or None.
+
+    A-001: only TELEGRAM_ADMIN_ID may enqueue; others are ignored silently.
+    """
     msg = update.get("message") or update.get("edited_message") or {}
     text = msg.get("text")
     cmd = parse_command(text if isinstance(text, str) else None)
     if not cmd:
         return None
+    chat = (msg.get("chat") or {}).get("id")
+    admin = (admin_id if admin_id is not None else os.environ.get("TELEGRAM_ADMIN_ID") or "").strip()
+    if not admin:
+        logger.warning("tg cmd ignored: TELEGRAM_ADMIN_ID not set")
+        return None
+    if chat is None or str(chat) != str(admin):
+        logger.info("tg cmd ignored: chat_id=%s not admin", chat)
+        return None
     kwargs: dict[str, Any] = {"source": "tg"}
     if commands_path is not None:
         kwargs["path"] = commands_path
     enqueue(cmd, **kwargs)
-    chat = (msg.get("chat") or {}).get("id")
     if token and chat is not None:
         send_reply(token, chat, REPLIES.get(cmd, cmd))
     return cmd
@@ -128,7 +139,7 @@ def poll_once(
         uid = int(upd.get("update_id") or 0)
         if uid >= max_id:
             max_id = uid + 1
-        if process_update(upd, commands_path=commands_path, token=token):
+        if process_update(upd, commands_path=commands_path, token=token, admin_id=os.environ.get("TELEGRAM_ADMIN_ID")):
             handled += 1
     if max_id > offset:
         save_offset(max_id, offset_path)

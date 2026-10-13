@@ -68,3 +68,8 @@ jobs:
       - name: "State size gate (TZ §29, рост ограничен)"
         run: |
           python scripts/check_state_size.py --root models
+
+      - name: Gitleaks (blocking)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

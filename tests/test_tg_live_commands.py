@@ -22,7 +22,7 @@ def test_process_update_enqueues(tmp_path: Path):
         "update_id": 1,
         "message": {"text": "/stop", "chat": {"id": 42}},
     }
-    assert process_update(upd, commands_path=path, token=None) == "stop"
+    assert process_update(upd, commands_path=path, token=None, admin_id="42") == "stop"
     cmds = load_commands(path)
     pending = [c for c in cmds if c.get("status") == "pending"]
     assert len(pending) == 1
@@ -33,12 +33,27 @@ def test_process_update_enqueues(tmp_path: Path):
 def test_process_update_flat_resume(tmp_path: Path):
     path = tmp_path / "cmds.json"
     assert process_update(
-        {"update_id": 2, "message": {"text": "/flat"}},
+        {"update_id": 2, "message": {"text": "/flat", "chat": {"id": 7}}},
         commands_path=path,
+        admin_id="7",
     ) == "flat"
     assert process_update(
-        {"update_id": 3, "message": {"text": "/resume@bot"}},
+        {"update_id": 3, "message": {"text": "/resume@bot", "chat": {"id": 7}}},
         commands_path=path,
+        admin_id="7",
     ) == "resume"
     cmds = load_commands(path)
     assert [c["cmd"] for c in cmds if c.get("status") == "pending"] == ["flat", "resume"]
+
+
+def test_process_update_non_admin_silent(tmp_path: Path):
+    path = tmp_path / "cmds.json"
+    assert (
+        process_update(
+            {"update_id": 4, "message": {"text": "/stop", "chat": {"id": 99}}},
+            commands_path=path,
+            admin_id="42",
+        )
+        is None
+    )
+    assert load_commands(path) == []
