@@ -281,12 +281,13 @@ class LiveBingXClient(BingXClient):
         qty = quantity if quantity is not None else pos.quantity
         side = "SELL" if pos.side == "long" else "BUY"
         ps = "LONG" if pos.side == "long" else "SHORT"
+        # Hedge mode: reduceOnly forbidden (109400). Close via positionSide + qty.
         await self.place_order(
             symbol=symbol,
             side=side,
             order_type="MARKET",
             quantity=qty,
             position_side=ps,
-            reduce_only=True,
+            reduce_only=False,
         )
         return True

@@ -40,6 +40,9 @@ LIVE_JSONL_LIMITS: dict[str, int] = {
     "zeus_no_trade_outcomes.jsonl": 24_000,
     "zeus_wedge_1h_signals.jsonl": 24_000,
     "zeus_paper_trades.jsonl": 24_000,
+    "zeus_live_entries.jsonl": 24_000,
+    "zeus_live_trades.jsonl": 24_000,
+    "zeus_arm_pending.jsonl": 5_000,
 }
 
 # Допустимый разброс на время сессии для size-gate (TZ §29).
