@@ -120,11 +120,17 @@ def _aggregate_exit_fills(
     side: str,
     entry_px: float | None,
 ) -> tuple[float | None, float, str, float | None]:
-    """From fill list → (exit_avg, fees, reason, qty)."""
+    """From fill list → (exit_avg, fees_all, reason, qty).
+
+    Exit avg/qty: only close-side fills (strict). Fees: ALL fills in window
+    (open + close) so opening commission is not dropped.
+    """
     if not fills:
         return None, 0.0, "", None
     close_side = "BUY" if side == "short" else "SELL"
+    open_side = "SELL" if side == "short" else "BUY"
     chosen: list[tuple[float, float, float, str]] = []
+    fees_all = 0.0
     for f in fills:
         try:
             px = float(f.get("price") or f.get("avgPrice") or f.get("fillPrice") or 0)
@@ -135,15 +141,19 @@ def _aggregate_exit_fills(
                 or f.get("execQty")
                 or 0
             )
-            fee = float(f.get("commission") or f.get("fee") or f.get("commissionAmount") or 0)
+            fee = abs(float(f.get("commission") or f.get("fee") or f.get("commissionAmount") or 0))
         except (TypeError, ValueError):
             continue
+        # P3.2: every fill in the plan window contributes to fees
+        if fee > 0:
+            fees_all += fee
         if px <= 0 or q <= 0:
             continue
-        ot = str(f.get("type") or f.get("orderType") or f.get("origType") or "").upper()
         fside = str(f.get("side") or "").upper()
-        if fside and fside not in (close_side, "BUY", "SELL"):
+        # P2.1: strict — only closing side enters exit avg
+        if fside and fside != close_side:
             continue
+        ot = str(f.get("type") or f.get("orderType") or f.get("origType") or "").upper()
         reason = "выход"
         if "STOP" in ot and "TAKE_PROFIT" not in ot:
             reason = "стоп"
@@ -151,21 +161,20 @@ def _aggregate_exit_fills(
             reason = "тейк"
         elif "LIQUIDATION" in ot:
             reason = "ликвидация"
-        chosen.append((px, q, abs(fee), reason))
+        chosen.append((px, q, fee, reason))
     if not chosen:
-        return None, 0.0, "", None
+        return None, fees_all, "", None
     typed = [c for c in chosen if c[3] in ("стоп", "тейк", "ликвидация")]
     use = typed if typed else chosen
     tot_q = sum(c[1] for c in use)
     if tot_q <= 0:
-        return None, 0.0, "", None
+        return None, fees_all, "", None
     avg = sum(c[0] * c[1] for c in use) / tot_q
-    fees = sum(c[2] for c in use)
     reason_qty: dict[str, float] = {}
     for _px, q, _fee, r in use:
         reason_qty[r] = reason_qty.get(r, 0.0) + q
     reason = max(reason_qty.items(), key=lambda kv: kv[1])[0]
-    return avg, fees, reason, tot_q
+    return avg, fees_all, reason, tot_q
 
 
 @dataclass
