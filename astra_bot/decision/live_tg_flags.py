@@ -5,8 +5,6 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Any
-
 logger = logging.getLogger(__name__)
 
 DEFAULT_PATH = Path("models/zeus_live_tg_flags.json")
