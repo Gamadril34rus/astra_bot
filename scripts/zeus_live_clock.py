@@ -89,13 +89,12 @@ async def _send_live_tg(msg: str) -> None:
         import aiohttp
 
         url = f"https://api.telegram.org/bot{token}/sendMessage"
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url, json={"chat_id": chat, "text": msg[:4000]}
-            ) as resp:
-                if resp.status >= 400:
-                    body = (await resp.text())[:200]
-                    logger.warning("arm TG HTTP %s body=%s", resp.status, body)
+        async with aiohttp.ClientSession() as session, session.post(
+            url, json={"chat_id": chat, "text": msg[:4000]}
+        ) as resp:
+            if resp.status >= 400:
+                body = (await resp.text())[:200]
+                logger.warning("arm TG HTTP %s body=%s", resp.status, body)
     except Exception as exc:
         logger.warning("arm TG failed: %s", type(exc).__name__)
 
@@ -113,6 +112,33 @@ async def one_tick(*, dry: bool = False) -> int:
     await client.initialize()
 
     broker = LiveBroker(client=client, config=LiveBrokerConfig())
+
+    # A-002/A-004: day4%/week6% + PF kill from trades.jsonl
+    try:
+        from astra_bot.decision.live_risk import (
+            check_day_week_limits,
+            check_pf_kill,
+            load_kill_halted,
+        )
+
+        prior = load_kill_halted()
+        if prior:
+            broker.set_halt(prior)
+            logger.error("HALT from kill state: %s", prior)
+        else:
+            eq = await broker.equity()
+            reason = check_day_week_limits(eq)
+            if reason:
+                broker.set_halt(reason)
+                logger.error("HALT day/week: %s", reason)
+            else:
+                pf_reason = check_pf_kill()
+                if pf_reason:
+                    broker.set_halt(pf_reason)
+                    logger.error("HALT PF kill: %s", pf_reason)
+    except Exception as exc:
+        logger.warning("live_risk check failed: %s", type(exc).__name__)
+
 
     # One-shot connectivity probe (set TG_TEST=1 in workflow / secrets)
     if (os.environ.get("TG_TEST") or "").strip() == "1":
