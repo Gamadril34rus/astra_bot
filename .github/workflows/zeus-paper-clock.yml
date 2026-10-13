@@ -102,4 +102,7 @@ jobs:
             git rebase --autostash origin/master || { git rebase --abort || true; break; }
             sleep $((10 + RANDOM % 20))
           done
-          [ "$ok" = "1" ] || echo "push failed (will retry next run)"
+          if [ "$ok" != "1" ]; then
+            echo "Save Zeus state: push failed after retries" >&2
+            exit 1
+          fi
