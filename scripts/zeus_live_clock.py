@@ -21,22 +21,52 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger("zeus_live")
 
 
+
+def _abort_tg(reason: str) -> None:
+    """Best-effort alert on guard ABORT (sync; no broker)."""
+    token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
+    chat = (
+        (os.environ.get("TELEGRAM_ADMIN_ID") or "").strip()
+        or (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
+    )
+    if not token or not chat:
+        return
+    try:
+        import json
+        import urllib.request
+
+        body = json.dumps({"chat_id": chat, "text": f"⛔ live ABORT: {reason}"[:4000]}).encode()
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as exc:
+        logger.warning("abort TG failed: %s", type(exc).__name__)
+
+
 def _guard() -> None:
     env = (os.environ.get("ENVIRONMENT") or "").strip().lower()
     live = (os.environ.get("ZEUS_LIVE") or "").strip()
     if env == "live" and live != "1":
         logger.error("ABORT: ENVIRONMENT=live requires ZEUS_LIVE=1")
+        _abort_tg("ENVIRONMENT=live requires ZEUS_LIVE=1")
         sys.exit(2)
     if live != "1":
         logger.error("ABORT: ZEUS_LIVE!=1 — live clock inactive")
+        _abort_tg("ZEUS_LIVE!=1")
         sys.exit(2)
     if env != "live":
         logger.error("ABORT: ZEUS_LIVE=1 requires ENVIRONMENT=live (got %r)", env)
+        _abort_tg(f"ENVIRONMENT={env!r} not live")
         sys.exit(2)
     mainnet = (os.environ.get("ZEUS_MAINNET") or "").strip()
     vst = (os.environ.get("ZEUS_VST") or "1").strip()
     if mainnet == "1" and vst in ("1", "true", "yes"):
         logger.error("ABORT: ZEUS_MAINNET=1 conflicts with ZEUS_VST=1")
+        _abort_tg("MAINNET conflicts with VST")
         sys.exit(2)
     if mainnet == "1":
         logger.warning("MAINNET mode — real money path enabled by owner flag")
