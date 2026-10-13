@@ -113,6 +113,61 @@ class LiveEntryPlan:
     entry_price: Decimal | None = None  # signal price for slip vs fill
 
 
+
+def _aggregate_exit_fills(
+    fills: list,
+    *,
+    side: str,
+    entry_px: float | None,
+) -> tuple[float | None, float, str, float | None]:
+    """From fill list → (exit_avg, fees, reason, qty)."""
+    if not fills:
+        return None, 0.0, "", None
+    close_side = "BUY" if side == "short" else "SELL"
+    chosen: list[tuple[float, float, float, str]] = []
+    for f in fills:
+        try:
+            px = float(f.get("price") or f.get("avgPrice") or f.get("fillPrice") or 0)
+            q = float(
+                f.get("qty")
+                or f.get("quantity")
+                or f.get("filledQty")
+                or f.get("execQty")
+                or 0
+            )
+            fee = float(f.get("commission") or f.get("fee") or f.get("commissionAmount") or 0)
+        except (TypeError, ValueError):
+            continue
+        if px <= 0 or q <= 0:
+            continue
+        ot = str(f.get("type") or f.get("orderType") or f.get("origType") or "").upper()
+        fside = str(f.get("side") or "").upper()
+        if fside and fside not in (close_side, "BUY", "SELL"):
+            continue
+        reason = "выход"
+        if "STOP" in ot and "TAKE_PROFIT" not in ot:
+            reason = "стоп"
+        elif "TAKE_PROFIT" in ot:
+            reason = "тейк"
+        elif "LIQUIDATION" in ot:
+            reason = "ликвидация"
+        chosen.append((px, q, abs(fee), reason))
+    if not chosen:
+        return None, 0.0, "", None
+    typed = [c for c in chosen if c[3] in ("стоп", "тейк", "ликвидация")]
+    use = typed if typed else chosen
+    tot_q = sum(c[1] for c in use)
+    if tot_q <= 0:
+        return None, 0.0, "", None
+    avg = sum(c[0] * c[1] for c in use) / tot_q
+    fees = sum(c[2] for c in use)
+    reason_qty: dict[str, float] = {}
+    for _px, q, _fee, r in use:
+        reason_qty[r] = reason_qty.get(r, 0.0) + q
+    reason = max(reason_qty.items(), key=lambda kv: kv[1])[0]
+    return avg, fees, reason, tot_q
+
+
 @dataclass
 class LiveBroker:
     client: Any
@@ -189,19 +244,22 @@ class LiveBroker:
         positions_path: Path | None = None,
         send_tg: Any = None,
     ) -> dict[str, Any]:
-        """Plan without exchange position → drop plan, cancel orphan SL/TP, TG 🏁.
+        """Plan flat on exchange → fills → exact 🏁; TG dedup; heat; trades.
 
-        Only runs when exchange confirms the symbol is flat (no open qty).
-        Orphan cancels are per-order (STOP / TAKE_PROFIT), not cancel_all.
+        No fills yet → keep plan, retry next tick (no +? spam).
+        After 6h without fills → one soft rocket, drop plan.
         """
+        import time as _time
         from pathlib import Path as _Path
 
         from astra_bot.decision.live_positions import load_positions, remove_plan
+        from astra_bot.decision.live_tg_flags import try_claim
+        from astra_bot.decision.zeus_heat import DEFAULT_HEAT_PATH, ZeusHeatGovernor
 
         path = positions_path or _Path("models/zeus_live_positions.json")
         plans = load_positions(path)
         if not plans:
-            return {"closed": [], "cancelled": 0}
+            return {"closed": [], "cancelled": 0, "pending_fill": []}
 
         exchange_syms: set[str] = set()
         for pos in await self.client.get_positions():
@@ -210,11 +268,13 @@ class LiveBroker:
                 exchange_syms.add(getattr(pos, "symbol", "") or "")
 
         closed: list[str] = []
+        pending_fill: list[str] = []
         cancelled = 0
+        now = _time.time()
+
         for sym, plan in list(plans.items()):
             if not sym or sym in exchange_syms:
-                continue  # still open on exchange — keep plan
-            # Pointwise cancel protect orphans for this symbol only
+                continue
             try:
                 orders = await self.client.get_open_orders(sym)
             except Exception as exc:
@@ -235,54 +295,158 @@ class LiveBroker:
                         "sync_closed: cancel %s %s: %s",
                         sym, oid, type(exc).__name__,
                     )
-            remove_plan(sym, path)
-            closed.append(sym)
+
             side = str(plan.get("side") or "").lower()
             side_ru = "ЛОНГ" if side == "long" else "ШОРТ" if side == "short" else side.upper()
             base = (sym.split("-")[0] if "-" in sym else sym).replace("USDT", "")
             pending = bool(plan.get("pending_verify"))
+            signal_id = str(plan.get("signal_id") or plan.get("ts") or sym)
+
+            try:
+                entry_px = float(plan["entry"]) if plan.get("entry") is not None else None
+            except (TypeError, ValueError):
+                entry_px = None
+            try:
+                qty_plan = float(plan["qty"]) if plan.get("qty") is not None else None
+            except (TypeError, ValueError):
+                qty_plan = None
+
+            start_ms = None
+            try:
+                ts = float(plan.get("ts") or 0)
+                if ts > 1e12:
+                    ts /= 1000.0
+                if ts > 0:
+                    start_ms = int((ts - 60) * 1000)
+            except (TypeError, ValueError):
+                start_ms = None
+
+            fills: list = []
+            try:
+                if hasattr(self.client, "get_all_fills"):
+                    fills = await self.client.get_all_fills(sym, start_ms=start_ms)
+            except Exception as exc:
+                logger.warning("sync_closed fills %s: %s", sym, type(exc).__name__)
+
+            exit_fill, fees, exit_reason, qty_closed = _aggregate_exit_fills(
+                fills, side=side, entry_px=entry_px
+            )
+
+            pnl: float | None = None
+            slip_exit: float | None = None
+            if exit_fill is not None and entry_px is not None and entry_px > 0:
+                q = float(qty_closed or qty_plan or 0)
+                if q > 0:
+                    if side == "long":
+                        pnl = (exit_fill - entry_px) * q - float(fees or 0)
+                    else:
+                        pnl = (entry_px - exit_fill) * q - float(fees or 0)
+                ref = plan.get("stop") if exit_reason == "стоп" else plan.get("tp")
+                try:
+                    if ref is not None and float(ref) > 0:
+                        slip_exit = (exit_fill - float(ref)) / float(ref) * 100.0
+                        if side == "short":
+                            slip_exit = -slip_exit
+                except (TypeError, ValueError):
+                    pass
+
+            age_sec = now - float(plan.get("ts") or now)
+            have_pnl = pnl is not None
+
+            if pending and not have_pnl:
+                if try_claim(sym, "exit_pending_verify", signal_id):
+                    msg = f"🏁 {base} {side_ru}: план снят (pending_verify)"
+                    if send_tg is not None:
+                        try:
+                            await send_tg(msg)
+                        except Exception:
+                            pass
+                remove_plan(sym, path)
+                closed.append(sym)
+                continue
+
+            if not have_pnl:
+                if age_sec < 6 * 3600:
+                    pending_fill.append(sym)
+                    logger.info("sync_closed: %s no fills — keep plan (retry)", sym)
+                    continue
+                if try_claim(sym, "exit", signal_id):
+                    msg = f"🏁 {base} {side_ru}: закрыта +? (филлы недоступны)"
+                    if send_tg is not None:
+                        try:
+                            await send_tg(msg)
+                        except Exception as exc:
+                            logger.warning("sync_closed TG: %s", type(exc).__name__)
+                remove_plan(sym, path)
+                closed.append(sym)
+                try:
+                    append_live_trade(
+                        {
+                            "event": "exit",
+                            "symbol": sym,
+                            "side": side,
+                            "entry": entry_px,
+                            "exit": None,
+                            "exit_reason": "no_fills",
+                            "pnl": None,
+                            "signal_id": signal_id,
+                            "ts": now,
+                        }
+                    )
+                except Exception:
+                    pass
+                continue
+
+            reason = exit_reason or "выход"
+            sign = "+" if pnl >= 0 else "−"
+            msg = f"🏁 {base} {side_ru}: закрыта {sign}{abs(pnl):.2f}$ ({reason})"
+            if try_claim(sym, "exit", signal_id):
+                if send_tg is not None:
+                    try:
+                        await send_tg(msg)
+                    except Exception as exc:
+                        logger.warning("sync_closed TG: %s", type(exc).__name__)
+            else:
+                logger.info("sync_closed: skip dup TG %s", sym)
+
             try:
                 append_live_trade(
                     {
                         "event": "exit",
                         "symbol": sym,
                         "side": side,
-                        "entry": plan.get("entry"),
-                        "exit": None,
-                        "exit_reason": "exchange_flat",
-                        "pnl": None,
-                        "pending_verify": pending,
-                        "ts": __import__("time").time(),
+                        "entry": entry_px,
+                        "exit": exit_fill,
+                        "exit_reason": reason,
+                        "pnl": round(pnl, 4),
+                        "fees": float(fees or 0),
+                        "slip_exit_pct": slip_exit,
+                        "qty": qty_closed or qty_plan,
+                        "signal_id": signal_id,
+                        "ts": now,
                     }
                 )
             except Exception as tex:
                 logger.warning("append_live_trade: %s", type(tex).__name__)
-            if pending:
-                # MARKET may never have filled — do not claim a confirmed exit
-                msg = f"🏁 {base} {side_ru}: план снят (pending_verify, сверка утром)"
-                logger.info(
-                    "sync_closed: %s pending_verify plan removed, no fill claim",
-                    sym,
-                )
-            else:
-                msg = f"🏁 {base} {side_ru}: закрыта +? (сверка утром)"
-                logger.info(
-                    "sync_closed: %s plan removed, orphan protects cancelled=%s",
-                    sym, cancelled,
-                )
-            if send_tg is not None:
-                try:
-                    await send_tg(msg)
-                except Exception as exc:
-                    logger.warning("sync_closed TG: %s", type(exc).__name__)
+
+            try:
+                heat = ZeusHeatGovernor(state_path=DEFAULT_HEAT_PATH)
+                heat.record(float(pnl))
+            except Exception as hexc:
+                logger.warning("heat.record: %s", type(hexc).__name__)
+
+            remove_plan(sym, path)
+            closed.append(sym)
+            logger.info(
+                "sync_closed: %s pnl=%.4f exit=%s reason=%s",
+                sym, pnl, exit_fill, reason,
+            )
+
         logger.info(
-            "sync_closed_plans: plans=%d exchange_open=%d closed=%s cancelled=%d",
-            len(plans),
-            len(exchange_syms),
-            closed,
-            cancelled,
+            "sync_closed_plans: closed=%s pending_fill=%s cancelled=%d",
+            closed, pending_fill, cancelled,
         )
-        return {"closed": closed, "cancelled": cancelled}
+        return {"closed": closed, "cancelled": cancelled, "pending_fill": pending_fill}
 
     async def restore_missing_stops(
         self,
