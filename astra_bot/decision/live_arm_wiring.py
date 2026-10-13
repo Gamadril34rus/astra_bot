@@ -369,7 +369,10 @@ async def run_arm_entries(
                 "tp": str(cand.take_profit) if cand.take_profit else None,
             }
         )
-        if send_tg is not None and try_claim(cand.symbol, "entry", sid or None):
+        entry_ts = time.time()
+        if send_tg is not None and try_claim(
+            cand.symbol, "entry", sid or None, ts=None if sid else entry_ts
+        ):
             try:
                 await send_tg(msg)
             except Exception as exc:
