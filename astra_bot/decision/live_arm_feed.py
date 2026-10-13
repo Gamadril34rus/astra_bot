@@ -161,10 +161,17 @@ async def scan_symbol(
         return None
     if not candles or len(candles) < 30:
         return None
-    last = candles[-1]
+    # A-008: only closed bars — drop forming candle; require open_time on last closed
+    closed = list(candles[:-1]) if len(candles) >= 2 else list(candles)
+    if len(closed) < 30:
+        return None
+    last = closed[-1]
     bar_ts = int(getattr(last, "open_time", 0) or 0)
+    if bar_ts <= 0:
+        logger.warning("arm feed: %s closed bar missing open_time — skip", symbol)
+        return None
     try:
-        sig = await strat.evaluate(symbol, candles)
+        sig = await strat.evaluate(symbol, closed)
     except Exception as exc:
         logger.warning("arm feed: %s evaluate failed: %s", symbol, type(exc).__name__)
         return None
@@ -200,5 +207,26 @@ async def produce_pending(
         seen.add(sid)
         out.append(row)
     write_pending(out, path)
+    try:
+        jpath = Path("models/zeus_live_journal.jsonl")
+        jpath.parent.mkdir(parents=True, exist_ok=True)
+        with jpath.open("a", encoding="utf-8") as jf:
+            for row in out:
+                jf.write(
+                    json.dumps(
+                        {
+                            "event": "pending_signal",
+                            "signal_id": row.get("signal_id"),
+                            "symbol": row.get("symbol"),
+                            "side": row.get("side"),
+                            "ts": time.time(),
+                        },
+                        ensure_ascii=False,
+                        default=str,
+                    )
+                    + "\n"
+                )
+    except Exception as exc:
+        logger.warning("arm feed journal: %s", type(exc).__name__)
     logger.info("arm feed: wrote %d channel candidate(s) → %s", len(out), path)
     return out
