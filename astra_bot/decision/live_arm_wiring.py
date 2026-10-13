@@ -17,16 +17,14 @@ from astra_bot.decision.live_arm import (
     plan_from_candidate,
 )
 from astra_bot.decision.live_broker import LiveBroker, append_live_trade
-from astra_bot.decision.live_positions import upsert_plan
+from astra_bot.decision.live_positions import load_positions, remove_plan, upsert_plan
 from astra_bot.decision.live_tg_flags import try_claim
 
 logger = logging.getLogger(__name__)
 
+
 def _archive_prior_plan_if_any(symbol: str, new_signal_id: str | None) -> None:
     """If a stale plan for symbol still in file, write interrupted exit before overwrite."""
-    from astra_bot.decision.live_positions import load_positions, remove_plan
-    from astra_bot.decision.live_broker import append_live_trade
-
     plans = load_positions()
     old = plans.get(symbol)
     if not old:
