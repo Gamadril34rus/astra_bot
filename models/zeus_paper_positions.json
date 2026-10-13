@@ -1,70 +1,12 @@
 {
-  "positions": [
-    {
-      "id": "16e772a4-ecc2-43dc-af1c-b787350136e0",
-      "symbol": "ADA-USDT",
-      "direction": "short",
-      "entry_price": "0.2377",
-      "quantity": "1131.18571400",
-      "stop_loss": "0.245984282195122",
-      "take_profits": [
-        "0.229415717804878",
-        "0.2211314356097559800000000000"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "1131.18571400",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
-      "strategy": "zeus_channel_boundary_4h",
-      "opened_at": 1791901607789,
-      "notes": {
-        "signal_bar_close": 0.238,
-        "effective_entry": 0.2374623,
-        "initial_stop": 0.245984282195122,
-        "initial_take": 0.22113143560975598,
-        "stop_pct": 0.03588772699970479,
-        "confidence": 0.83,
-        "ml_probability": null,
-        "prior_r": 1.4039213291865054,
-        "costs_r": 0.08359403759465395,
-        "equity_before": 2686.139612975926,
-        "risk_budget": 53.72279225951852,
-        "binding_constraint": "none",
-        "score": 39.0,
-        "edge_pct": 130.9328,
-        "ev_r": 1.309327880761289,
-        "ev_confidence": 0.42857142857142855,
-        "rr": 2.000000000000002,
-        "leverage": 5
-      },
-      "fill_price": "0.2374623",
-      "entry_fee_per_unit": "0.00011873115",
-      "risk_distance": "0.008284282195122",
-      "regime": "LOW_VOLATILITY",
-      "timeframe": "4h",
-      "regime_axes": "T:RANGE/V:LOW/L:NORMAL",
-      "bars_held": 0,
-      "leverage": "5",
-      "margin_used": "53.776568843560",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "0.2211314356097559800000000000",
-      "plan_last_bar_ts": 0
-    }
-  ],
-  "realized_pnl": "686.1396129759261793473276283",
+  "positions": [],
+  "realized_pnl": "686.1929572084178047403057843",
   "initial_capital": "2000.0",
-  "cooldowns": {},
+  "cooldowns": {
+    "zeus_channel_boundary_4h|ADA-USDT|short": 1791903121934
+  },
   "last_extremes_bar": {
-    "ADA-USDT": 1791899400000,
+    "ADA-USDT": 1791901800000,
     "ARB-USDT": 1791036300000,
     "AVAX-USDT": 1791734400000,
     "OP-USDT": 1791340800000,
