@@ -50,6 +50,7 @@ def upsert_plan(
     entry: float | str | None = None,
     leverage: int = 5,
     pending_verify: bool = False,
+    signal_id: str | None = None,
     path: Path = DEFAULT_PATH,
 ) -> None:
     pos = load_positions(path)
@@ -62,6 +63,7 @@ def upsert_plan(
         "entry": str(entry) if entry is not None else None,
         "leverage": int(leverage),
         "pending_verify": bool(pending_verify),
+        "signal_id": signal_id,
         "ts": time.time(),
     }
     save_positions(pos, path)
