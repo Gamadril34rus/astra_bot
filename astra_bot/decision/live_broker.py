@@ -128,7 +128,6 @@ def _aggregate_exit_fills(
     if not fills:
         return None, 0.0, "", None
     close_side = "BUY" if side == "short" else "SELL"
-    open_side = "SELL" if side == "short" else "BUY"
     chosen: list[tuple[float, float, float, str]] = []
     fees_all = 0.0
     for f in fills:
