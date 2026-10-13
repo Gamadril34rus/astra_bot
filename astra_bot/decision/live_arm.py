@@ -105,15 +105,15 @@ def _load_cooldown() -> None:
 
 
 def _save_cooldown() -> None:
+    """Persist full map; expiry is checked at read time with caller now_ms.
+
+    Do not prune by wall-clock here — tests inject synthetic now_ms.
+    """
     try:
         COOLDOWN_PATH.parent.mkdir(parents=True, exist_ok=True)
-        now = time.time() * 1000
-        pruned = {k: v for k, v in _COOLDOWN.items() if v > now}
-        COOLDOWN_PATH.write_text(json.dumps(pruned), encoding="utf-8")
-        _COOLDOWN.clear()
-        _COOLDOWN.update(pruned)
-    except Exception as exc:
-        logger.warning("cooldown save: %s", type(exc).__name__)
+        COOLDOWN_PATH.write_text(json.dumps(_COOLDOWN), encoding="utf-8")
+    except Exception as exp:
+        logger.warning("cooldown save: %s", type(exp).__name__)
 
 
 def mark_cooldown(strategy: str, symbol: str, side: str, now_ms: float | None = None) -> None:
