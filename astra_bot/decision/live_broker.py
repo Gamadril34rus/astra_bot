@@ -340,15 +340,61 @@ class LiveBroker:
                 fills, side=side, entry_px=entry_px
             )
 
+            # Prefer realizedPnl sum from fill rows when exchange provides it
             pnl: float | None = None
             slip_exit: float | None = None
-            if exit_fill is not None and entry_px is not None and entry_px > 0:
+            rpnl_sum = 0.0
+            rpnl_n = 0
+            for f in fills:
+                try:
+                    if f.get("realizedPnl") is not None and str(f.get("realizedPnl")) != "":
+                        rpnl_sum += float(f["realizedPnl"])
+                        rpnl_n += 1
+                    # fee field on allFillOrders is often negative = paid
+                    if f.get("fee") is not None and not fees:
+                        fees = abs(float(f.get("fee") or 0))
+                except (TypeError, ValueError):
+                    pass
+            if rpnl_n:
+                # realizedPnl on BingX fills is usually already net of fee for that leg
+                pnl = rpnl_sum
+
+            if pnl is None and exit_fill is not None and entry_px is not None and entry_px > 0:
                 q = float(qty_closed or qty_plan or 0)
                 if q > 0:
                     if side == "long":
                         pnl = (exit_fill - entry_px) * q - float(fees or 0)
                     else:
                         pnl = (entry_px - exit_fill) * q - float(fees or 0)
+
+            # Fallback: user/income REALIZED_PNL + TRADING_FEE
+            if pnl is None and hasattr(self.client, "get_realized_income"):
+                try:
+                    inc = await self.client.get_realized_income(sym, start_ms=start_ms)
+                    rp = 0.0
+                    fee_i = 0.0
+                    for row in inc:
+                        try:
+                            val = float(row.get("income") or 0)
+                        except (TypeError, ValueError):
+                            continue
+                        it = str(row.get("_incomeType") or row.get("incomeType") or "")
+                        if it == "REALIZED_PNL":
+                            rp += val
+                        elif it == "TRADING_FEE":
+                            fee_i += abs(val)
+                    if rp != 0.0 or fee_i != 0.0:
+                        pnl = rp - fee_i if rp != 0.0 else None
+                        if fees is None or fees == 0:
+                            fees = fee_i
+                        if exit_reason == "":
+                            exit_reason = "income"
+                        logger.info(
+                            "sync_closed: %s pnl from income rp=%.4f fee=%.4f",
+                            sym, rp, fee_i,
+                        )
+                except Exception as exc:
+                    logger.warning("sync_closed income %s: %s", sym, type(exc).__name__)
                 ref = plan.get("stop") if exit_reason == "стоп" else plan.get("tp")
                 try:
                     if ref is not None and float(ref) > 0:
