@@ -51,5 +51,5 @@ def test_aggregate_ignores_open_side_in_avg() -> None:
 
 
 def test_aggregate_empty() -> None:
-    avg, fees, reason, q = _aggregate_exit_fills([], side="short", entry_px=1.0)
+    avg, _fees, _reason, _q = _aggregate_exit_fills([], side="short", entry_px=1.0)
     assert avg is None
