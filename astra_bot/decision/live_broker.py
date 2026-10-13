@@ -348,8 +348,10 @@ class LiveBroker:
             for f in fills:
                 try:
                     if f.get("realizedPnl") is not None and str(f.get("realizedPnl")) != "":
-                        rpnl_sum += float(f["realizedPnl"])
-                        rpnl_n += 1
+                        _rp = float(f["realizedPnl"])
+                        if abs(_rp) > 1e-12:  # ignore 0.0 on open/non-closing fills
+                            rpnl_sum += _rp
+                            rpnl_n += 1
                     # fee field on allFillOrders is often negative = paid
                     if f.get("fee") is not None and not fees:
                         fees = abs(float(f.get("fee") or 0))
@@ -373,6 +375,7 @@ class LiveBroker:
                     inc = await self.client.get_realized_income(sym, start_ms=start_ms)
                     rp = 0.0
                     fee_i = 0.0
+                    fp = 0.0
                     for row in inc:
                         try:
                             val = float(row.get("income") or 0)
@@ -383,18 +386,23 @@ class LiveBroker:
                             rp += val
                         elif it == "TRADING_FEE":
                             fee_i += abs(val)
-                    if rp != 0.0 or fee_i != 0.0:
-                        pnl = rp - fee_i if rp != 0.0 else None
+                        elif it == "FUNDING_FEE":
+                            fp += abs(val)
+                    if rp != 0.0 or fee_i != 0.0 or fp != 0.0:
+                        pnl = (rp - fee_i - fp) if rp != 0.0 else None
                         if fees is None or fees == 0:
-                            fees = fee_i
+                            fees = fee_i + fp
                         if exit_reason == "":
                             exit_reason = "income"
                         logger.info(
-                            "sync_closed: %s pnl from income rp=%.4f fee=%.4f",
-                            sym, rp, fee_i,
+                            "sync_closed: %s pnl from income rp=%.4f fee=%.4f fund=%.4f",
+                            sym, rp, fee_i, fp,
                         )
                 except Exception as exc:
                     logger.warning("sync_closed income %s: %s", sym, type(exc).__name__)
+
+            # slip vs plan stop/tp (all exit branches — not only income)
+            if exit_fill is not None:
                 ref = plan.get("stop") if exit_reason == "стоп" else plan.get("tp")
                 try:
                     if ref is not None and float(ref) > 0:
