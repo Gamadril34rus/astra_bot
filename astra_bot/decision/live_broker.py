@@ -280,7 +280,8 @@ class LiveBroker:
         cancelled = 0
         now = _time.time()
 
-        for sym, plan in list(plans.items()):
+        for _key, plan in list(plans.items()):
+            sym = str(plan.get("symbol") or _key.split("|")[0] or "")
             if not sym or sym in exchange_syms:
                 continue
             try:
@@ -336,6 +337,17 @@ class LiveBroker:
             except Exception as exc:
                 logger.warning("sync_closed fills %s: %s", sym, type(exc).__name__)
 
+            if start_ms is not None and fills:
+                filtered = []
+                for f in fills:
+                    try:
+                        fts = int(f.get("time") or f.get("ts") or f.get("T") or 0)
+                    except (TypeError, ValueError):
+                        fts = 0
+                    if fts and fts < start_ms:
+                        continue
+                    filtered.append(f)
+                fills = filtered
             exit_fill, fees, exit_reason, qty_closed = _aggregate_exit_fills(
                 fills, side=side, entry_px=entry_px
             )
@@ -343,6 +355,7 @@ class LiveBroker:
             # Prefer realizedPnl sum from fill rows when exchange provides it
             pnl: float | None = None
             slip_exit: float | None = None
+            funding_fee: float = 0.0
             rpnl_sum = 0.0
             rpnl_n = 0
             for f in fills:
@@ -388,14 +401,17 @@ class LiveBroker:
                             fee_i += abs(val)
                         elif it == "FUNDING_FEE":
                             fp += abs(val)
-                    if rp != 0.0 or fee_i != 0.0 or fp != 0.0:
-                        pnl = (rp - fee_i - fp) if rp != 0.0 else None
+                    if fp:
+                        funding_fee = float(fp)
+                    if rp != 0.0 or fee_i != 0.0:
+                        # A-011 Q3: PnL as paper — without funding; funding separate field
+                        pnl = (rp - fee_i) if rp != 0.0 else None
                         if fees is None or fees == 0:
-                            fees = fee_i + fp
+                            fees = fee_i
                         if exit_reason == "":
                             exit_reason = "income"
                         logger.info(
-                            "sync_closed: %s pnl from income rp=%.4f fee=%.4f fund=%.4f",
+                            "sync_closed: %s pnl from income rp=%.4f fee=%.4f fund=%.4f (fund excluded from pnl)",
                             sym, rp, fee_i, fp,
                         )
                 except Exception as exc:
@@ -482,6 +498,7 @@ class LiveBroker:
                         "exit_reason": reason,
                         "pnl": round(pnl, 4),
                         "fees": float(fees or 0),
+                        "funding_fee": float(funding_fee),
                         "slip_exit_pct": slip_exit,
                         "qty": qty_closed or qty_plan,
                         "signal_id": signal_id,
@@ -734,19 +751,12 @@ class LiveBroker:
         }
 
     async def move_stop(self, symbol: str, side: str, quantity: Decimal, stop_price: Decimal) -> Any:
-        """After partial close: cancel old stops, place new STOP_MARKET on remainder."""
+        """A-012: place new STOP first, then cancel old stops (never naked)."""
         self._assert_can_trade()
-        orders = await self.client.get_open_orders(symbol)
-        for o in orders:
-            ot = str(getattr(o, "order_type", "")).lower()
-            if "stop" in ot and getattr(o, "id", None):
-                try:
-                    await self.client.cancel_order(symbol, str(o.id))
-                except Exception as exc:
-                    logger.warning("move_stop: cancel_order %s failed: %s", o.id, exc)
         ps = "LONG" if side.lower() == "long" else "SHORT"
         stop_side = "SELL" if side.lower() == "long" else "BUY"
-        return await self.client.place_order(
+        new_oid = unique_client_order_id(symbol, "m")
+        placed = await self.client.place_order(
             symbol=symbol,
             side=stop_side,
             order_type="STOP_MARKET",
@@ -754,7 +764,29 @@ class LiveBroker:
             stop_price=stop_price,
             position_side=ps,
             close_position=True,
+            client_order_id=new_oid,
         )
+        new_id = str(getattr(placed, "id", None) or getattr(placed, "exchange_order_id", None) or "")
+        try:
+            orders = await self.client.get_open_orders(symbol)
+        except Exception as exc:
+            logger.warning("move_stop: get_open_orders %s: %s", symbol, type(exc).__name__)
+            orders = []
+        for o in orders:
+            ot = str(getattr(o, "order_type", "")).lower()
+            oid = str(getattr(o, "id", None) or "")
+            if "stop" not in ot or not oid:
+                continue
+            if new_id and oid == new_id:
+                continue
+            # keep take-profit legs
+            if "take_profit" in ot or "tp" in ot:
+                continue
+            try:
+                await self.client.cancel_order(symbol, oid)
+            except Exception as exc:
+                logger.warning("move_stop: cancel_order %s failed: %s", oid, type(exc).__name__)
+        return placed
 
     async def flat_all(self) -> dict[str, Any]:
         """cancel_all per symbol + close positions reduceOnly."""
