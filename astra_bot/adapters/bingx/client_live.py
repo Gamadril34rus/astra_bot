@@ -27,6 +27,8 @@ _TRADE = {
     "leverage": f"{BINGX_SWAP_V2_PREFIX}/trade/leverage",
     "margin_type": f"{BINGX_SWAP_V2_PREFIX}/trade/marginType",
     "balance_v3": "/openApi/swap/v3/user/balance",
+    "all_fills": f"{BINGX_SWAP_V2_PREFIX}/trade/allFillOrders",
+    "income": f"{BINGX_SWAP_V2_PREFIX}/user/income",
 }
 
 
@@ -266,6 +268,41 @@ class LiveBingXClient(BingXClient):
         except Exception as exc:
             # already isolated is ok
             logger.info("set_margin_isolated %s: %s", symbol, type(exc).__name__)
+
+
+    async def get_all_fills(
+        self,
+        symbol: str,
+        *,
+        start_ms: int | None = None,
+        end_ms: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Closed trade fills for symbol (BingX allFillOrders)."""
+        import time as _time
+        now = int(_time.time() * 1000)
+        params: dict[str, Any] = {
+            "symbol": symbol,
+            "timestamp": now,
+        }
+        if start_ms is not None:
+            params["startTs"] = int(start_ms)
+        if end_ms is not None:
+            params["endTs"] = int(end_ms)
+        else:
+            params["endTs"] = now
+        if start_ms is None:
+            params["startTs"] = now - 7 * 24 * 3600 * 1000  # 7d
+        resp = await self._request("GET", _TRADE["all_fills"], params=params, signed=True)
+        code = resp.get("code")
+        if code not in (0, "0", None):
+            logger.warning("get_all_fills %s code=%s msg=%s", symbol, code, resp.get("msg"))
+            return []
+        data = resp.get("data") or []
+        if isinstance(data, dict):
+            data = data.get("fill_orders") or data.get("orders") or data.get("list") or []
+        if not isinstance(data, list):
+            return []
+        return [x for x in data if isinstance(x, dict)]
 
     async def close_position(
         self,
