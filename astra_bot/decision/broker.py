@@ -690,6 +690,14 @@ class PaperBroker:
         for pos in self.positions:
             if pos.symbol != getattr(bar, "symbol", pos.symbol):
                 continue
+            # B-001: экстремумы только с бара входа — бары до opened_at не участвуют
+            # (иначе «фантомный стоп» по до-входовому high/low).
+            if bar_ts is not None and getattr(pos, "opened_at", None):
+                try:
+                    if int(bar_ts) < int(pos.opened_at):
+                        continue
+                except (TypeError, ValueError):
+                    pass
             # Экстремумы — каждый тик (живой трейлинг), а счётчик баров —
             # только на НОВОМ баре (блок G). Без open_time — как раньше.
             pos.highest_price = high if pos.highest_price is None else max(pos.highest_price, high)
@@ -713,7 +721,16 @@ class PaperBroker:
                 or (pos.direction == "short" and high >= pos.stop_loss)
             )
             if stop_hit:
-                closed.append(self._close(pos, pos.stop_loss, "stop_loss"))
+                # B-001 gap honesty: long fill = min(stop, bar.open), short = max
+                try:
+                    bar_open = Decimal(str(getattr(bar, "open", pos.stop_loss)))
+                except Exception:
+                    bar_open = pos.stop_loss
+                if pos.direction == "long":
+                    fill_px = min(pos.stop_loss, bar_open)
+                else:
+                    fill_px = max(pos.stop_loss, bar_open)
+                closed.append(self._close(pos, fill_px, "stop_loss"))
                 continue
 
             # Частичные тейки.
