@@ -20,7 +20,7 @@ def test_process_update_enqueues(tmp_path: Path):
     path = tmp_path / "cmds.json"
     upd = {
         "update_id": 1,
-        "message": {"text": "/stop", "chat": {"id": 42}},
+        "message": {"text": "/stop", "chat": {"id": 42}, "from": {"id": 42}},
     }
     assert process_update(upd, commands_path=path, token=None, admin_id="42") == "stop"
     cmds = load_commands(path)
@@ -33,12 +33,12 @@ def test_process_update_enqueues(tmp_path: Path):
 def test_process_update_flat_resume(tmp_path: Path):
     path = tmp_path / "cmds.json"
     assert process_update(
-        {"update_id": 2, "message": {"text": "/flat", "chat": {"id": 7}}},
+        {"update_id": 2, "message": {"text": "/flat", "chat": {"id": 7}, "from": {"id": 7}}},
         commands_path=path,
         admin_id="7",
     ) == "flat"
     assert process_update(
-        {"update_id": 3, "message": {"text": "/resume@bot", "chat": {"id": 7}}},
+        {"update_id": 3, "message": {"text": "/resume@bot", "chat": {"id": 7}, "from": {"id": 7}}},
         commands_path=path,
         admin_id="7",
     ) == "resume"
