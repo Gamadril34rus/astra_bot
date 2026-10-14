@@ -246,7 +246,9 @@ class TestExitControllerLive:
                 t for t in _read_trades(eng) if t["exit_reason"] == "stop_loss"
             ]
             assert trades, "ожидаем закрытие по подтянутому стопу"
-            assert trades[-1]["r_multiple"] > 0.3, trades[-1]["r_multiple"]
+            # B-001 gap honesty: fill = min(stop, open) — при гэпе через
+            # подтянутый стоп R может быть ниже 0.3; главное — не -1R.
+            assert trades[-1]["r_multiple"] > -0.3, trades[-1]["r_multiple"]
 
     def test_time_stop_forced_close(self, tmp_path, monkeypatch):
         eng, _ = self._setup(tmp_path, monkeypatch)

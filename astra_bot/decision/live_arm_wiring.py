@@ -23,6 +23,26 @@ from astra_bot.decision.live_tg_flags import try_claim
 
 logger = logging.getLogger(__name__)
 
+async def resolve_step_size(broker: LiveBroker, symbol: str, default: Decimal = Decimal("0.001")) -> Decimal:
+    """B-015: step from exchange instrument; fallback default."""
+    try:
+        client = broker.client
+        if hasattr(client, "get_instruments"):
+            insts = await client.get_instruments()
+            for it in insts or []:
+                sym = str(getattr(it, "symbol", None) or (it.get("symbol") if isinstance(it, dict) else "") or "")
+                if sym.replace("/", "-").upper() == symbol.replace("/", "-").upper():
+                    step = getattr(it, "step_size", None) or getattr(it, "lot_size", None)
+                    if step is None and isinstance(it, dict):
+                        step = it.get("stepSize") or it.get("quantityPrecision")
+                    if step is not None:
+                        return Decimal(str(step))
+    except Exception as exp:
+        logger.warning("resolve_step_size %s: %s", symbol, type(exp).__name__)
+    return default
+
+
+
 
 def _archive_prior_plan_if_any(symbol: str, new_signal_id: str | None) -> None:
     """If a stale plan for symbol still in file, write interrupted exit before overwrite."""
@@ -311,6 +331,10 @@ async def run_arm_entries(
                 float(st["upnl"]),
             )
             continue
+
+        # B-015: step from instrument when missing or still default 0.001
+        if cand.step_size is None or cand.step_size == Decimal("0.001"):
+            cand.step_size = await resolve_step_size(broker, cand.symbol)
 
         plan = None
         try:

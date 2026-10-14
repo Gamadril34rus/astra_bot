@@ -23,6 +23,6 @@ def test_admin_returns_cmd(monkeypatch) -> None:
     monkeypatch.setattr(
         "astra_bot.decision.tg_live_commands.enqueue", _fake_enqueue
     )
-    upd = {"update_id": 2, "message": {"text": "/flat", "chat": {"id": 42}}}
+    upd = {"update_id": 2, "message": {"text": "/flat", "chat": {"id": 42}, "from": {"id": 42}}}
     assert process_update(upd, admin_id="42") == "flat"
     assert calls == ["flat"]

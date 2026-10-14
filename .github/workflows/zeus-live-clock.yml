@@ -21,13 +21,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
         with:
-          python-version: "3.12"
+          python-version: "3.11"
       - name: Install deps
         run: |
-          pip install -q -r requirements.txt || pip install -q aiohttp python-dotenv
+          pip install -q -r requirements.txt
       - name: Guard flags
         env:
           ZEUS_LIVE: ${{ secrets.ZEUS_LIVE }}
@@ -37,13 +37,17 @@ jobs:
             exit 0
           fi
       - name: TG commands poll
-        continue-on-error: true
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_LIVE_BOT_TOKEN: ${{ secrets.TELEGRAM_LIVE_BOT_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_LIVE_BOT_TOKEN }}
           TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           set +x
+          if [ -z "${TELEGRAM_LIVE_BOT_TOKEN}" ]; then
+            echo "TELEGRAM_LIVE_BOT_TOKEN is required for live TG poll" >&2
+            exit 1
+          fi
           python -m astra_bot.decision.tg_live_commands --timeout 25
       - name: Run live clock
         env:
@@ -54,7 +58,8 @@ jobs:
           ENVIRONMENT: live
           BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
           BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_LIVE_BOT_TOKEN: ${{ secrets.TELEGRAM_LIVE_BOT_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_LIVE_BOT_TOKEN }}
           TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TG_TEST: ${{ secrets.TG_TEST }}
@@ -69,7 +74,7 @@ jobs:
         run: |
           git config user.name "astra-bot" || true
           git config user.email "bot@users.noreply.github.com" || true
-          for F in models/zeus_live_commands.json models/zeus_live_entries.jsonl models/zeus_live_positions.json models/zeus_live_trades.jsonl models/zeus_heat_state.json models/zeus_live_tg_flags.json models/zeus_live_journal.jsonl models/zeus_arm_pending.jsonl models/zeus_tg_commands_offset.json models/zeus_live_cooldown.json models/kill_switch_state.json; do
+          for F in models/zeus_live_commands.json models/zeus_live_entries.jsonl models/zeus_live_positions.json models/zeus_live_trades.jsonl models/zeus_heat_state.json models/zeus_live_tg_flags.json models/zeus_live_journal.jsonl models/zeus_arm_pending.jsonl models/zeus_tg_commands_offset.json models/zeus_live_cooldown.json models/kill_switch_state.json models/zeus_live_blocked.json; do
             [ -f "$F" ] && git add -f "$F" || true
           done
           if ! git diff --cached --quiet; then

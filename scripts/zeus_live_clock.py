@@ -113,33 +113,6 @@ async def one_tick(*, dry: bool = False) -> int:
 
     broker = LiveBroker(client=client, config=LiveBrokerConfig())
 
-    # A-002/A-004: day4%/week6% + PF kill from trades.jsonl
-    try:
-        from astra_bot.decision.live_risk import (
-            check_day_week_limits,
-            check_pf_kill,
-            load_kill_halted,
-        )
-
-        prior = load_kill_halted()
-        if prior:
-            broker.set_halt(prior)
-            logger.error("HALT from kill state: %s", prior)
-        else:
-            eq = await broker.equity()
-            reason = check_day_week_limits(eq)
-            if reason:
-                broker.set_halt(reason)
-                logger.error("HALT day/week: %s", reason)
-            else:
-                pf_reason = check_pf_kill()
-                if pf_reason:
-                    broker.set_halt(pf_reason)
-                    logger.error("HALT PF kill: %s", pf_reason)
-    except Exception as exc:
-        logger.warning("live_risk check failed: %s", type(exc).__name__)
-
-
     # One-shot connectivity probe (set TG_TEST=1 in workflow / secrets)
     if (os.environ.get("TG_TEST") or "").strip() == "1":
         await _send_live_tg("✅ live TG связь есть")
@@ -195,6 +168,40 @@ async def one_tick(*, dry: bool = False) -> int:
         logger.info("tick done — ZEUS_ARM!=1 (observe only)")
     else:
         logger.info("ZEUS_ARM=1 — entry hook active (candidates via arm pipeline)")
+
+    # B-003: risk AFTER sync (order: sync → risk → arm)
+    try:
+        from astra_bot.decision.live_commands import is_blocked
+        from astra_bot.decision.live_risk import (
+            check_day_week_limits,
+            check_pf_kill,
+            load_kill_halted,
+        )
+
+        if is_blocked():
+            broker.block_entries()
+            logger.info("entries blocked via zeus_live_blocked.json")
+
+        prior = load_kill_halted()
+        if prior:
+            broker.set_halt(prior)
+            logger.error("HALT from kill state: %s", prior)
+        else:
+            eq = await broker.equity()
+            reason = check_day_week_limits(eq)
+            if reason:
+                broker.set_halt(reason)
+                logger.error("HALT day/week: %s", reason)
+            else:
+                pf_reason = check_pf_kill()
+                if pf_reason:
+                    broker.set_halt(pf_reason)
+                    logger.error("HALT PF kill: %s", pf_reason)
+    except Exception as exc:
+        logger.error("risk_check_failed: %s", type(exc).__name__)
+        broker.set_halt("risk_check_failed")
+
+
         from astra_bot.decision.live_arm_feed import FEED_SYMBOLS, produce_pending
         from astra_bot.decision.live_arm_wiring import (
             ENTRIES_PATH,

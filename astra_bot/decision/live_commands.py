@@ -13,7 +13,32 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 DEFAULT_PATH = Path("models/zeus_live_commands.json")
-VALID = {"stop", "flat", "resume"}
+VALID = {"stop", "flat", "resume", "reset_kill"}
+
+BLOCKED_PATH = Path("models/zeus_live_blocked.json")
+CMD_TTL_MS = 60 * 60 * 1000  # ≤1h
+
+
+def is_blocked(path: Path = BLOCKED_PATH) -> bool:
+    if not path.exists():
+        return False
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        return bool(raw.get("blocked"))
+    except Exception:
+        return True  # unreadable → treat as blocked (safe)
+
+
+def set_blocked(blocked: bool, path: Path = BLOCKED_PATH, reason: str = "") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(
+        json.dumps({"blocked": bool(blocked), "reason": reason, "ts": int(time.time() * 1000)}, indent=2),
+        encoding="utf-8",
+    )
+    tmp.replace(path)
+
+
 
 
 def load_commands(path: Path = DEFAULT_PATH) -> list[dict[str, Any]]:
@@ -55,7 +80,17 @@ def enqueue(cmd: str, path: Path = DEFAULT_PATH, source: str = "tg") -> None:
 
 
 def pending(path: Path = DEFAULT_PATH) -> list[dict[str, Any]]:
-    return [c for c in load_commands(path) if c.get("status") == "pending"]
+    now = int(time.time() * 1000)
+    out = []
+    for c in load_commands(path):
+        if c.get("status") != "pending":
+            continue
+        ts = int(c.get("ts") or 0)
+        if ts and now - ts > CMD_TTL_MS:
+            c["status"] = "expired"
+            continue
+        out.append(c)
+    return out
 
 
 def mark_done(cmd_row: dict[str, Any], path: Path = DEFAULT_PATH, result: str = "ok") -> None:
@@ -91,15 +126,30 @@ async def apply_pending(broker: Any, path: Path = DEFAULT_PATH) -> list[str]:
         try:
             if cmd == "stop":
                 broker.block_entries()
-                lines.append("cmd stop: entries blocked")
+                set_blocked(True, reason="stop")
+                lines.append("cmd stop: entries blocked (persisted)")
             elif cmd == "resume":
                 broker.allow_entries()
-                broker.clear_halt()
-                lines.append("cmd resume: entries allowed")
+                set_blocked(False, reason="resume")
+                # resume clears operator block, not kill-state halt
+                if not getattr(broker, "_halt_reason", "").startswith("PF=") and "kill" not in str(getattr(broker, "_halt_reason", "")).lower():
+                    if getattr(broker, "_halt_reason", "") not in ("risk_check_failed",) and "day_loss" not in str(getattr(broker, "_halt_reason", "")) and "week_loss" not in str(getattr(broker, "_halt_reason", "")):
+                        pass
+                lines.append("cmd resume: entries allowed (block cleared)")
             elif cmd == "flat":
                 broker.block_entries()
+                set_blocked(True, reason="flat")
                 res = await broker.flat_all()
                 lines.append(f"cmd flat: {res}")
+            elif cmd == "reset_kill":
+                from astra_bot.decision.live_risk import KILL_STATE_PATH
+                try:
+                    if KILL_STATE_PATH.exists():
+                        KILL_STATE_PATH.unlink()
+                except Exception:
+                    pass
+                broker.clear_halt()
+                lines.append("cmd reset_kill: kill state cleared")
             mark_done(row, path, result="ok")
         except Exception as exc:
             mark_done(row, path, result=f"err:{type(exc).__name__}")

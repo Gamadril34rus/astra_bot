@@ -75,6 +75,9 @@ class PaperPosition:
             datetime.now(tz=UTC).timestamp() * 1000
         )
     )
+    # B-001: open_time бара входа (та же шкала, что у candle.open_time).
+    # Экстремумы/bars_held только с баров >= entry_bar_ts. None = без фильтра.
+    entry_bar_ts: int | None = None
     notes: dict[str, Any] = field(default_factory=dict)
     # Эффективная цена входа с учётом slippage (None для позиций,
     # открытых до введения издержек — тогда считается entry_price).
@@ -468,6 +471,7 @@ class PaperBroker:
         leverage: int | Decimal = 1,
         take_levels: list[Decimal] | None = None,
         tp_fractions: list[float] | None = None,
+        entry_bar_ts: int | None = None,
     ) -> PaperPosition:
         # Аудит эпохи-2 (блок F): fail-closed валидация стороны стопа/тейка.
         # Перевёрнутая сделка (как momentum-SHORT до блока E) отклоняется
@@ -590,6 +594,8 @@ class PaperBroker:
         # подтягиваться на баре открытия. Отсутствие экстремумов уже означает
         # «цена ещё не обновлялась», и _r_metrics даёт за это 0.0, а не None.
         pos.tp_filled = [False] * len(tps)
+        if entry_bar_ts is not None:
+            pos.entry_bar_ts = int(entry_bar_ts)
         if take_levels is not None:
             # Уровни и доли задаёт план выхода (2-уровневый тейк: 1R×30% +
             # кламп×70%). Без долей — единый тейк на весь объём.
@@ -690,6 +696,13 @@ class PaperBroker:
         for pos in self.positions:
             if pos.symbol != getattr(bar, "symbol", pos.symbol):
                 continue
+            # B-001: only bars at/after entry_bar_ts (same scale as candle.open_time)
+            if pos.entry_bar_ts is not None and bar_ts is not None:
+                try:
+                    if int(bar_ts) < int(pos.entry_bar_ts):
+                        continue
+                except (TypeError, ValueError):
+                    pass
             # Экстремумы — каждый тик (живой трейлинг), а счётчик баров —
             # только на НОВОМ баре (блок G). Без open_time — как раньше.
             pos.highest_price = high if pos.highest_price is None else max(pos.highest_price, high)
@@ -713,7 +726,16 @@ class PaperBroker:
                 or (pos.direction == "short" and high >= pos.stop_loss)
             )
             if stop_hit:
-                closed.append(self._close(pos, pos.stop_loss, "stop_loss"))
+                # B-001 gap honesty: long fill = min(stop, bar.open), short = max
+                try:
+                    bar_open = Decimal(str(getattr(bar, "open", pos.stop_loss)))
+                except Exception:
+                    bar_open = pos.stop_loss
+                if pos.direction == "long":
+                    fill_px = min(pos.stop_loss, bar_open)
+                else:
+                    fill_px = max(pos.stop_loss, bar_open)
+                closed.append(self._close(pos, fill_px, "stop_loss"))
                 continue
 
             # Частичные тейки.

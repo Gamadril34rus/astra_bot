@@ -499,6 +499,7 @@ class LiveBroker:
                         "pnl": round(pnl, 4),
                         "fees": float(fees or 0),
                         "funding_fee": float(funding_fee),
+                        "trade_id": signal_id or f"{sym}|{side}|{int(now)}",
                         "slip_exit_pct": slip_exit,
                         "qty": qty_closed or qty_plan,
                         "signal_id": signal_id,
@@ -789,23 +790,23 @@ class LiveBroker:
         return placed
 
     async def flat_all(self) -> dict[str, Any]:
-        """cancel_all per symbol + close positions reduceOnly."""
+        """B-008: close_position first, then cancel residual orders."""
         positions = await self.client.get_positions()
         cancelled = 0
         closed = 0
         failed = 0
         for p in positions:
             try:
-                cancelled += await self.client.cancel_all_orders(p.symbol)
-            except Exception as exc:
-                failed += 1
-                logger.warning("flat_all: cancel_all_orders %s failed: %s", p.symbol, exc)
-            try:
                 if await self.client.close_position(p.symbol):
                     closed += 1
             except Exception as exc:
                 failed += 1
                 logger.warning("flat_all: close_position %s failed: %s", p.symbol, exc)
+            try:
+                cancelled += await self.client.cancel_all_orders(p.symbol)
+            except Exception as exc:
+                failed += 1
+                logger.warning("flat_all: cancel_all_orders %s failed: %s", p.symbol, exc)
         for o in await self.client.get_open_orders():
             if getattr(o, "id", None) and getattr(o, "symbol", None):
                 try:
