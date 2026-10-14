@@ -69,6 +69,81 @@ def _parse_order(data: dict[str, Any], symbol: str = "") -> Order:
     )
 
 
+
+# A-014: settlement equity only from USDT (VST = demo twin of USDT).
+_SETTLEMENT_ASSETS = frozenset({"USDT", "VST"})
+_FOREIGN_BAL_TG_SENT = False
+
+
+def equity_from_balance_rows(rows: list | None) -> tuple[Decimal, list[str]]:
+    """Return (equity, foreign_assets_seen).
+
+    Only USDT/VST rows count. Any other currency is ignored for equity;
+    if only foreign rows exist, equity is 0 and foreign list is non-empty.
+    """
+    foreign: list[str] = []
+    usdt_val: Decimal | None = None
+    for item in rows or []:
+        if not isinstance(item, dict):
+            continue
+        asset = str(item.get("asset") or item.get("currency") or "").upper()
+        if not asset:
+            continue
+        try:
+            value = Decimal(str(item.get("equity") or item.get("balance") or item.get("availableMargin") or "0"))
+        except Exception:
+            continue
+        if asset in _SETTLEMENT_ASSETS:
+            if usdt_val is None:
+                usdt_val = value
+            else:
+                usdt_val += value
+        else:
+            if asset not in foreign:
+                foreign.append(asset)
+    if usdt_val is not None:
+        return usdt_val, foreign
+    return Decimal("0"), foreign
+
+
+def alert_foreign_balance_equity(foreign: list[str]) -> None:
+    """logger.error + one TG line (process lifetime)."""
+    global _FOREIGN_BAL_TG_SENT
+    logger.error(
+        "A-014 equity=0: no USDT/VST balance rows; foreign assets=%s (limits not inflated)",
+        foreign,
+    )
+    if _FOREIGN_BAL_TG_SENT or not foreign:
+        return
+    _FOREIGN_BAL_TG_SENT = True
+    token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
+    chat = (
+        (os.environ.get("TELEGRAM_ADMIN_ID") or "").strip()
+        or (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
+    )
+    if not token or not chat:
+        return
+    try:
+        import json as _json
+        import urllib.request as _urlreq
+
+        body = _json.dumps(
+            {
+                "chat_id": chat,
+                "text": f"⛔ equity=0: баланс без USDT/VST (assets={','.join(foreign)})",
+            }
+        ).encode()
+        req = _urlreq.Request(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        _urlreq.urlopen(req, timeout=10)
+    except Exception as exc:
+        logger.warning("A-014 TG alert failed: %s", type(exc).__name__)
+
+
 class LiveBingXClient(BingXClient):
     """BingX client with live trade methods. Base URL VST unless ZEUS_MAINNET=1."""
 
@@ -214,11 +289,10 @@ class LiveBingXClient(BingXClient):
         return out
 
     async def get_balance_usdt(self) -> Decimal:
-        """Wallet equity in USDT or VST (prefer v3 balance).
+        """Wallet equity in USDT or VST only (A-014).
 
-        Demo (VST) server names the coin "VST", so both assets are accepted.
-        If neither is present, fall back to the first row with equity > 0,
-        and then to get_account_balance() (which keys balances by asset too).
+        Demo (VST) names the coin "VST". Other assets never inflate equity —
+        return 0 + error log + one TG alert so day/week limits stay honest.
         """
         try:
             params = {"timestamp": int(time.time() * 1000)}
@@ -227,27 +301,27 @@ class LiveBingXClient(BingXClient):
             rows = data.get("balance", data) if isinstance(data, dict) else data
             if isinstance(rows, dict):
                 rows = [rows]
-            fallback: Decimal | None = None
-            for item in rows or []:
-                if not isinstance(item, dict):
-                    continue
-                asset = str(item.get("asset") or "").upper()
-                if asset in ("USDT", "VST"):
-                    return Decimal(str(item.get("equity") or item.get("balance") or "0"))
-                if fallback is None:
-                    try:
-                        value = Decimal(str(item.get("equity") or item.get("balance") or "0"))
-                    except Exception:
-                        continue
-                    if value > 0:
-                        fallback = value
-            if fallback is not None:
-                return fallback
+            row_list = list(rows) if rows else []
+            eq, foreign = equity_from_balance_rows(row_list)
+            has_settlement = any(
+                str(i.get("asset") or i.get("currency") or "").upper() in _SETTLEMENT_ASSETS
+                for i in row_list
+                if isinstance(i, dict)
+            )
+            if not has_settlement and foreign:
+                alert_foreign_balance_equity(foreign)
+                return Decimal("0")
+            return eq
         except Exception as exc:
             logger.warning("balance_v3 failed: %s", type(exc).__name__)
         bals = await self.get_account_balance()
         usdt = bals.get("USDT") or bals.get("VST")
-        return usdt.total if usdt else Decimal("0")
+        if usdt:
+            return usdt.total
+        other = [str(a) for a in (bals or {}) if str(a).upper() not in _SETTLEMENT_ASSETS]
+        if other:
+            alert_foreign_balance_equity(other)
+        return Decimal("0")
 
     async def set_leverage(self, symbol: str, leverage: int, side: str = "LONG") -> None:
         params = {
