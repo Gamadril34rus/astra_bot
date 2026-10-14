@@ -1,6 +1,6 @@
 {
   "positions": {
-    "DOT-USDT": {
+    "DOT-USDT|short": {
       "symbol": "DOT-USDT",
       "side": "short",
       "qty": "9.362",
@@ -11,7 +11,7 @@
       "pending_verify": false,
       "ts": 1791850010.9386492
     },
-    "LTC-USDT": {
+    "LTC-USDT|short": {
       "symbol": "LTC-USDT",
       "side": "short",
       "qty": "0.452",
@@ -22,7 +22,7 @@
       "pending_verify": false,
       "ts": 1791850327.2929
     },
-    "NEAR-USDT": {
+    "NEAR-USDT|short": {
       "symbol": "NEAR-USDT",
       "side": "short",
       "qty": "2.295",
@@ -34,19 +34,7 @@
       "signal_id": "zeus_channel_boundary|NEAR-USDT|short|1791878400000",
       "ts": 1791878794.76386
     },
-    "XRP-USDT": {
-      "symbol": "XRP-USDT",
-      "side": "short",
-      "qty": "38.151",
-      "stop": "1.3834111125609758",
-      "tp": "1.3047777748780482",
-      "entry": "1.3559",
-      "leverage": 3,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|XRP-USDT|short|1791892800000",
-      "ts": 1791892942.1543248
-    },
-    "AVAX-USDT": {
+    "AVAX-USDT|short": {
       "symbol": "AVAX-USDT",
       "side": "short",
       "qty": "3.358",
@@ -59,5 +47,5 @@
       "ts": 1791936150.330908
     }
   },
-  "ts": 1791936150.3309412
+  "ts": 1791965525.8591356
 }
