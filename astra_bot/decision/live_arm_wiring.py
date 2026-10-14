@@ -332,6 +332,10 @@ async def run_arm_entries(
             )
             continue
 
+        # B-015: step from instrument when missing or still default 0.001
+        if cand.step_size is None or cand.step_size == Decimal("0.001"):
+            cand.step_size = await resolve_step_size(broker, cand.symbol)
+
         plan = None
         try:
             plan = await plan_from_candidate(
