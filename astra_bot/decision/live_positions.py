@@ -1,10 +1,6 @@
 """Persist live entry plans: models/zeus_live_positions.json.
 
-Written on each successful open_with_protection; used by restore_missing_stops.
-
-Файл мал по построению (≤5 позиций, короткие планы) — отдельной крыши
-размера не требует. При появлении live-jsonl-журналов — добавить в
-rotate_zeus_states.py и LIVE_JSONL_LIMITS ОБА списка (один ротатор).
+Key = symbol|side (A-013). Legacy flat symbol keys migrated on load.
 """
 from __future__ import annotations
 
@@ -16,6 +12,25 @@ from typing import Any
 DEFAULT_PATH = Path("models/zeus_live_positions.json")
 
 
+def plan_key(symbol: str, side: str) -> str:
+    return f"{symbol}|{str(side).lower()}"
+
+
+def _normalize(raw_pos: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Migrate legacy symbol-only keys → symbol|side."""
+    out: dict[str, dict[str, Any]] = {}
+    for k, v in raw_pos.items():
+        if not isinstance(v, dict):
+            continue
+        if "|" in k:
+            out[k] = v
+            continue
+        side = str(v.get("side") or "long").lower()
+        sym = str(v.get("symbol") or k)
+        out[plan_key(sym, side)] = v
+    return out
+
+
 def load_positions(path: Path = DEFAULT_PATH) -> dict[str, dict[str, Any]]:
     if not path.exists():
         return {}
@@ -25,10 +40,9 @@ def load_positions(path: Path = DEFAULT_PATH) -> dict[str, dict[str, Any]]:
         return {}
     if isinstance(raw, dict) and "positions" in raw:
         pos = raw["positions"]
-        return pos if isinstance(pos, dict) else {}
+        return _normalize(pos) if isinstance(pos, dict) else {}
     if isinstance(raw, dict):
-        # flat symbol -> plan
-        return {k: v for k, v in raw.items() if isinstance(v, dict)}
+        return _normalize({k: v for k, v in raw.items() if isinstance(v, dict)})
     return {}
 
 
@@ -54,7 +68,10 @@ def upsert_plan(
     path: Path = DEFAULT_PATH,
 ) -> None:
     pos = load_positions(path)
-    pos[symbol] = {
+    key = plan_key(symbol, side)
+    # drop legacy symbol-only key if present
+    pos.pop(symbol, None)
+    pos[key] = {
         "symbol": symbol,
         "side": side.lower(),
         "qty": str(qty),
@@ -69,19 +86,34 @@ def upsert_plan(
     save_positions(pos, path)
 
 
-def remove_plan(symbol: str, path: Path = DEFAULT_PATH) -> None:
+def remove_plan(symbol: str, path: Path = DEFAULT_PATH, side: str | None = None) -> None:
     pos = load_positions(path)
-    if symbol in pos:
-        del pos[symbol]
+    if side:
+        key = plan_key(symbol, side)
+        if key in pos:
+            del pos[key]
+            save_positions(pos, path)
+            return
+    # remove all keys for symbol
+    keys = [k for k, v in pos.items() if k == symbol or k.startswith(symbol + "|") or v.get("symbol") == symbol]
+    for k in keys:
+        del pos[k]
+    if keys:
         save_positions(pos, path)
 
 
-def get_plan(symbol: str, path: Path = DEFAULT_PATH) -> dict[str, Any] | None:
-    return load_positions(path).get(symbol)
+def get_plan(symbol: str, path: Path = DEFAULT_PATH, side: str | None = None) -> dict[str, Any] | None:
+    pos = load_positions(path)
+    if side:
+        return pos.get(plan_key(symbol, side))
+    for k, v in pos.items():
+        if k == symbol or k.startswith(symbol + "|") or v.get("symbol") == symbol:
+            return v
+    return None
 
 
 def open_symbols(path: Path = DEFAULT_PATH) -> set[str]:
-    return set(load_positions(path).keys())
+    return {str(v.get("symbol") or k.split("|")[0]) for k, v in load_positions(path).items()}
 
 
 def count_open(path: Path = DEFAULT_PATH) -> int:

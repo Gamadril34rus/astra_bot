@@ -4,20 +4,19 @@ Without ZEUS_ARM=1 the live clock stays observation-only.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import time
 from dataclasses import dataclass
 from decimal import ROUND_DOWN, Decimal
 from pathlib import Path
-from typing import Any
 
 from astra_bot.decision.conf_risk_ladder import conf_risk_pct
 from astra_bot.decision.live_broker import LiveBroker, LiveEntryPlan
 from astra_bot.decision.live_positions import (
     count_open,
     open_symbols,
-    upsert_plan,
 )
 
 logger = logging.getLogger(__name__)
@@ -66,7 +65,9 @@ def leverage_for(
     return max(1, lev)
 
 MAX_OPEN = 5
+MAX_OPEN_SAME_SIDE = 3  # Q2 arbiter: ≤3 positions of one sign
 COOLDOWN_MS = 20 * 60 * 1000  # strategy|symbol|side as paper
+COOLDOWN_PATH = Path("models/zeus_live_cooldown.json")
 _COOLDOWN: dict[str, float] = {}  # key -> unblock_ts_ms
 
 
@@ -91,12 +92,39 @@ def _cooldown_key(strategy: str, symbol: str, side: str) -> str:
     return f"{strategy}|{symbol}|{side.lower()}"
 
 
+def _load_cooldown() -> None:
+    global _COOLDOWN
+    if not COOLDOWN_PATH.exists():
+        return
+    try:
+        raw = json.loads(COOLDOWN_PATH.read_text(encoding="utf-8"))
+        if isinstance(raw, dict):
+            _COOLDOWN = {str(k): float(v) for k, v in raw.items()}
+    except Exception:
+        pass
+
+
+def _save_cooldown() -> None:
+    """Persist full map; expiry is checked at read time with caller now_ms.
+
+    Do not prune by wall-clock here — tests inject synthetic now_ms.
+    """
+    try:
+        COOLDOWN_PATH.parent.mkdir(parents=True, exist_ok=True)
+        COOLDOWN_PATH.write_text(json.dumps(_COOLDOWN), encoding="utf-8")
+    except Exception as exp:
+        logger.warning("cooldown save: %s", type(exp).__name__)
+
+
 def mark_cooldown(strategy: str, symbol: str, side: str, now_ms: float | None = None) -> None:
+    _load_cooldown()
     now = now_ms if now_ms is not None else time.time() * 1000
     _COOLDOWN[_cooldown_key(strategy, symbol, side)] = now + COOLDOWN_MS
+    _save_cooldown()
 
 
 def cooldown_blocks(strategy: str, symbol: str, side: str, now_ms: float | None = None) -> bool:
+    _load_cooldown()
     now = now_ms if now_ms is not None else time.time() * 1000
     until = _COOLDOWN.get(_cooldown_key(strategy, symbol, side), 0)
     return now < until
@@ -161,15 +189,31 @@ async def plan_from_candidate(
         from astra_bot.decision.zeus_heat import DEFAULT_HEAT_PATH, ZeusHeatGovernor
 
         heat = ZeusHeatGovernor(state_path=DEFAULT_HEAT_PATH)
-        ov = heat.risk_pct_override()
-        if ov is not None:
-            tier = Decimal(str(ov))
-            logger.info("arm: heat_active → risk_pct=%s", tier)
+        if heat.is_heat_active():
+            # A-003-live / README: heat → risk ×0.5 of conf tier (not fixed 1%)
+            tier = (tier * Decimal("0.5")).quantize(Decimal("0.0001"))
+            logger.info("arm: heat_active → risk_pct=%s (tier×0.5)", tier)
     except Exception:
         pass
     budget = await broker.risk_budget(tier)
-    qty = size_qty(budget, cand.entry, cand.stop, cand.step_size)
+    step = cand.step_size
+    if step is None or step <= 0:
+        logger.error(
+            "arm: REJECT %s step_size missing/invalid=%s — qty=0 (A-014)",
+            cand.symbol,
+            step,
+        )
+        return None
+    qty = size_qty(budget, cand.entry, cand.stop, step)
     if qty <= 0:
+        logger.error(
+            "arm: REJECT %s sized qty=0 budget=%s entry=%s stop=%s step=%s",
+            cand.symbol,
+            budget,
+            cand.entry,
+            cand.stop,
+            step,
+        )
         return None
     # A7 leverage ladder byte-for-byte from paper (trading_engine.leverage_for)
     conf = float(cand.confidence or 0.0)
@@ -195,31 +239,6 @@ async def plan_from_candidate(
         client_tag="arm",
         entry_price=cand.entry,
     )
-
-
-async def execute_one(
-    broker: LiveBroker,
-    cand: SignalCandidate,
-    *,
-    positions_path: Path | None = None,
-) -> dict[str, Any] | None:
-    """At most one entry plan per tick (caller enforces)."""
-    plan = await plan_from_candidate(broker, cand, positions_path=positions_path)
-    if plan is None:
-        return None
-    result = await broker.open_with_protection(plan)
-    upsert_plan(
-        plan.symbol,
-        side=plan.side,
-        qty=plan.quantity,
-        stop=plan.stop_price,
-        tp=plan.take_profit_price,
-        entry=cand.entry,
-        leverage=plan.leverage,
-        path=positions_path or Path("models/zeus_live_positions.json"),
-    )
-    mark_cooldown(cand.strategy, plan.symbol, plan.side)
-    return result
 
 
 def format_entry_tg(
