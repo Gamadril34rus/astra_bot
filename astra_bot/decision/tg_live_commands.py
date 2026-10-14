@@ -90,12 +90,16 @@ def process_update(
     if not cmd:
         return None
     chat = (msg.get("chat") or {}).get("id")
+    from_id = (msg.get("from") or {}).get("id")
     admin = (admin_id if admin_id is not None else os.environ.get("TELEGRAM_ADMIN_ID") or "").strip()
     if not admin:
         logger.warning("tg cmd ignored: TELEGRAM_ADMIN_ID not set")
         return None
-    if chat is None or str(chat) != str(admin):
-        logger.info("tg cmd ignored: chat_id=%s not admin", chat)
+    # B-017: admin = from.id (user), not only chat.id (group)
+    if (from_id is not None and str(from_id) == str(admin)) or (chat is not None and str(chat) == str(admin)):
+        pass
+    else:
+        logger.info("tg cmd ignored: from_id=%s chat_id=%s not admin", from_id, chat)
         return None
     kwargs: dict[str, Any] = {"source": "tg"}
     if commands_path is not None:
