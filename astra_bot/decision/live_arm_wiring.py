@@ -11,11 +11,11 @@ from typing import Any
 
 from astra_bot.decision.live_arm import (
     MAX_OPEN,
-    MAX_OPEN_SAME_SIDE,
     SignalCandidate,
     format_entry_tg,
     mark_cooldown,
     plan_from_candidate,
+    same_side_cluster_blocks,
 )
 from astra_bot.decision.live_broker import LiveBroker, append_live_trade
 from astra_bot.decision.live_positions import load_positions, remove_plan, upsert_plan
@@ -185,9 +185,28 @@ async def exchange_open_symbols(broker: LiveBroker) -> set[str]:
     return out
 
 
-async def exchange_side_counts(broker: LiveBroker) -> dict[str, int]:
-    """Count open positions by side (long/short) on exchange."""
-    counts = {"long": 0, "short": 0}
+def _normalize_pos_side(p: Any) -> str:
+    """Robust side: attribute, else qty sign. Empty → '' (not counted)."""
+    side = str(getattr(p, "side", "") or "").lower()
+    if side in ("long", "short"):
+        return side
+    try:
+        q = Decimal(str(getattr(p, "quantity", None) or "0"))
+    except Exception:
+        return ""
+    if q > 0:
+        return "long"
+    if q < 0:
+        return "short"
+    return ""
+
+
+async def exchange_side_stats(broker: LiveBroker) -> dict[str, dict[str, Any]]:
+    """Per-side count + sum(unrealizedProfit) from exchange positions."""
+    stats: dict[str, dict[str, Any]] = {
+        "long": {"count": 0, "upnl": 0.0},
+        "short": {"count": 0, "upnl": 0.0},
+    }
     positions = await broker.client.get_positions()
     for p in positions:
         qty = getattr(p, "quantity", None) or Decimal("0")
@@ -195,12 +214,24 @@ async def exchange_side_counts(broker: LiveBroker) -> dict[str, int]:
             q = Decimal(str(qty))
         except Exception:
             continue
-        if q <= 0:
+        if q == 0:
             continue
-        side = str(getattr(p, "side", "") or "").lower()
-        if side in counts:
-            counts[side] += 1
-    return counts
+        side = _normalize_pos_side(p)
+        if side not in stats:
+            continue
+        stats[side]["count"] += 1
+        try:
+            upnl = float(getattr(p, "unrealized_pnl", None) or 0)
+        except (TypeError, ValueError):
+            upnl = 0.0
+        stats[side]["upnl"] += upnl
+    return stats
+
+
+async def exchange_side_counts(broker: LiveBroker) -> dict[str, int]:
+    """Compat wrapper: counts only."""
+    st = await exchange_side_stats(broker)
+    return {k: int(v["count"]) for k, v in st.items()}
 
 
 def load_pending_rows(path: Path = PENDING_PATH) -> list[dict[str, Any]]:
@@ -240,7 +271,7 @@ async def run_arm_entries(
     seen = _seen_signal_ids(entries_path)
     open_syms = await exchange_open_symbols(broker)
     open_n = len(open_syms)
-    side_counts = await exchange_side_counts(broker)
+    side_stats = await exchange_side_stats(broker)
     results: list[dict[str, Any]] = []
 
     for row in row_list:
@@ -267,12 +298,17 @@ async def run_arm_entries(
             logger.info("arm: skip — exchange max_open=%d", MAX_OPEN)
             break
         side_l = str(cand.side or "").lower()
-        if side_l in side_counts and side_counts[side_l] >= MAX_OPEN_SAME_SIDE:
+        st = side_stats.get(side_l) or {"count": 0, "upnl": 0.0}
+        if same_side_cluster_blocks(
+            side_l, side_count=int(st["count"]), side_upnl=st["upnl"]
+        ):
             logger.info(
-                "arm: skip %s — max_open_same_side=%d (%s)",
+                "arm: skip %s — same_side cluster %s n=%d upnl=%.4f < 0 "
+                "(4th/5th blocked while underwater)",
                 cand.symbol,
-                MAX_OPEN_SAME_SIDE,
                 side_l,
+                int(st["count"]),
+                float(st["upnl"]),
             )
             continue
 
@@ -398,8 +434,8 @@ async def run_arm_entries(
         open_syms.add(cand.symbol)
         open_n += 1
         side_l = str(cand.side or "").lower()
-        if side_l in side_counts:
-            side_counts[side_l] += 1
+        if side_l in side_stats:
+            side_stats[side_l]["count"] = int(side_stats[side_l]["count"]) + 1
         if sid:
             seen.add(sid)
             append_entry_record(

@@ -65,7 +65,10 @@ def leverage_for(
     return max(1, lev)
 
 MAX_OPEN = 5
-MAX_OPEN_SAME_SIDE = 3  # Q2 arbiter: ≤3 positions of one sign
+# Soft same-side cluster (owner 14.10): 0–3 of one sign always OK;
+# 4th/5th of same sign only if sum(unrealizedProfit) of that side >= 0.
+SAME_SIDE_SOFT_CAP = 3
+MAX_OPEN_SAME_SIDE = 3  # alias for soft threshold (compat)
 COOLDOWN_MS = 20 * 60 * 1000  # strategy|symbol|side as paper
 COOLDOWN_PATH = Path("models/zeus_live_cooldown.json")
 _COOLDOWN: dict[str, float] = {}  # key -> unblock_ts_ms
@@ -128,6 +131,35 @@ def cooldown_blocks(strategy: str, symbol: str, side: str, now_ms: float | None 
     now = now_ms if now_ms is not None else time.time() * 1000
     until = _COOLDOWN.get(_cooldown_key(strategy, symbol, side), 0)
     return now < until
+
+
+
+def same_side_cluster_blocks(
+    side: str,
+    *,
+    side_count: int,
+    side_upnl: float | Decimal,
+) -> bool:
+    """True → skip new entry on this side.
+
+    0–3 open on side: never block (caller still respects MAX_OPEN=5 total).
+    4th or 5th on side: block only when cluster unrealized PnL < 0.
+    net == 0 is allowed (boundary).
+    """
+    s = str(side or "").lower()
+    if s not in ("long", "short"):
+        return False
+    n = int(side_count)
+    if n < SAME_SIDE_SOFT_CAP:
+        return False
+    # n >= 3 means this entry would be 4th+ on the side
+    try:
+        upnl = float(side_upnl)
+    except (TypeError, ValueError):
+        upnl = 0.0
+    if upnl < 0:
+        return True
+    return False
 
 
 def quantize_qty(qty: Decimal, step: Decimal) -> Decimal:
