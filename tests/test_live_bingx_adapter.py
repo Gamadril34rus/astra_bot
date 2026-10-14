@@ -248,11 +248,11 @@ def test_get_balance_usdt_accepts_vst_asset():
 
 
 def test_get_balance_usdt_fallback_without_usdt_vst():
-    """Без USDT/VST: первая запись с equity>0, иначе get_account_balance (ключ VST)."""
+    """A-014: foreign-only rows → equity 0; account VST still accepted on v3 fail."""
     client = _BalanceStub(
         [{"asset": "BTC", "equity": "0"}, {"asset": "ETH", "equity": "2.5"}]
     )
-    assert asyncio.run(client.get_balance_usdt()) == Decimal("2.5")
+    assert asyncio.run(client.get_balance_usdt()) == Decimal("0")
 
     dead = _BalanceStub(
         [],
