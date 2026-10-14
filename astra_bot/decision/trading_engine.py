@@ -1735,6 +1735,11 @@ class TradingEngine:
                 _take_levels = [_tp1, _plan_take]
                 _tp_fractions = list(PLAN_TP_FRACTIONS)
             self._daily_trade_count = getattr(self, "_daily_trade_count", 0) + 1
+            _entry_bar_ts = None
+            try:
+                _entry_bar_ts = int(primary[-1].open_time)
+            except Exception:
+                pass
             pos = self.broker.open_position(
                 symbol=symbol,
                 direction=_dir,
@@ -1746,6 +1751,7 @@ class TradingEngine:
                 no_take_profit=bool(cand_features.get("no_take_profit")),
                 take_levels=_take_levels,
                 tp_fractions=_tp_fractions,
+                entry_bar_ts=_entry_bar_ts,
                 regime=str(regime_info.get("regime", "")),
                 timeframe=cand.timeframe,
                 # A2 (МТЗ §10): композитный ключ осей Regime 2.0 — прокидывается
