@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 def apply_paper_hooks(broker: Any) -> None:
     """Wrap paper broker: block open on cooldown; set on VOL_EXPANSION close."""
+    from astra_bot.decision.reentry_guard import check as vol_check
     from astra_bot.decision.reentry_guard import (
-        check as vol_check,
         is_vol_expansion_reason,
         note_skip,
         set_cooldown,
@@ -115,9 +115,9 @@ def apply_live_sync_hook(broker: Any) -> None:
     async def sync_with_vol_cd_v2(self, *args, **kwargs):  # type: ignore[no-untyped-def]
         result = await orig(*args, **kwargs)
         try:
-            from pathlib import Path
             import json
             import time
+            from pathlib import Path
 
             p = Path("models/zeus_live_trades.jsonl")
             if not p.exists():
