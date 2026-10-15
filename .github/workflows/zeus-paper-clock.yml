@@ -85,7 +85,9 @@ jobs:
             models/zeus_wedge_1h_shadow_state.json \
             models/zeus_hypotheses.json \
             models/zeus_heat_state.json \
-            models/zeus_tier_audit.json
+            models/zeus_tier_audit.json \
+            models/zeus_vol_cooldowns.json \
+            models/zeus_vol_cooldown_events.jsonl
           do
             [ -f "$f" ] && git add -f "$f" || true
           done
