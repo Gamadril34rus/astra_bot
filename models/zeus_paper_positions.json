@@ -1,5 +1,66 @@
 {
-  "positions": [],
+  "positions": [
+    {
+      "id": "d2fda19b-9212-4d77-9c3a-780bfada1f69",
+      "symbol": "SUI-USDT",
+      "direction": "short",
+      "entry_price": "1.0007",
+      "quantity": "231.805131",
+      "stop_loss": "1.0771148502439027",
+      "take_profits": [
+        "0.9242851497560973",
+        "0.8478702995121943000000000000"
+      ],
+      "tp_filled": [
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.3,
+        0.7
+      ],
+      "initial_quantity": "231.805131",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "zeus_channel_boundary_4h",
+      "opened_at": 1792030951397,
+      "entry_bar_ts": 1792030800000,
+      "notes": {
+        "signal_bar_close": 1.0126,
+        "effective_entry": 0.9996993,
+        "initial_stop": 1.0771148502439027,
+        "initial_take": 0.8478702995121943,
+        "stop_pct": 0.07743883610191854,
+        "confidence": 0.88,
+        "ml_probability": null,
+        "prior_r": 1.6007131337636884,
+        "costs_r": 0.03874025167490444,
+        "equity_before": 2691.7982684775657,
+        "risk_budget": 80.75394805432697,
+        "binding_constraint": "risk_engine",
+        "score": 71.0,
+        "edge_pct": 166.9074,
+        "ev_r": 1.669074421240765,
+        "ev_confidence": 0.25925925925925924,
+        "rr": 2.000000000000004,
+        "leverage": 10
+      },
+      "fill_price": "0.9996993",
+      "entry_fee_per_unit": "0.00049984965",
+      "risk_distance": "0.0764148502439027",
+      "regime": "LOW_VOLATILITY",
+      "timeframe": "4h",
+      "regime_axes": "T:RANGE/V:LOW/L:STRESSED",
+      "bars_held": 0,
+      "leverage": "10",
+      "margin_used": "23.19673945917",
+      "plan_variant": "STATIC_TP",
+      "plan_take": "0.8478702995121943000000000000",
+      "plan_last_bar_ts": 0
+    }
+  ],
   "realized_pnl": "691.7982684775655620646897007",
   "initial_capital": "2000.0",
   "cooldowns": {},
