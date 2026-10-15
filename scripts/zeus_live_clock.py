@@ -112,6 +112,13 @@ async def one_tick(*, dry: bool = False) -> int:
     await client.initialize()
 
     broker = LiveBroker(client=client, config=LiveBrokerConfig())
+    # VOL_EXPANSION live hook (v3): set cooldown after sync via trades scan
+    try:
+        from astra_bot.decision.vol_cd_hooks import apply_live_sync_hook
+
+        apply_live_sync_hook(broker)
+    except Exception as _vol_exc:
+        logger.warning("vol_cd live hook FAILED: %s", _vol_exc)
 
     # One-shot connectivity probe (set TG_TEST=1 in workflow / secrets)
     if (os.environ.get("TG_TEST") or "").strip() == "1":
