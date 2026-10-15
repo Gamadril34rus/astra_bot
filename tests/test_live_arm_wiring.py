@@ -1,1 +1,171 @@
-PLACEHOLDER_TESTS
+"""Wiring: exchange guards, signal_id dedup, freshness, empty feed."""
+from __future__ import annotations
+
+import asyncio
+import time
+from decimal import Decimal
+from types import SimpleNamespace
+
+from astra_bot.decision.live_arm_wiring import (
+    candidate_from_signal_dict,
+    is_fresh,
+    run_arm_entries,
+)
+from astra_bot.decision.live_broker import LiveBroker
+
+
+class MockClient:
+    def __init__(self, positions=None):
+        self._balance = Decimal("100")
+        self._positions = list(positions or [])
+        self._orders = []
+        self.placed = []
+
+    async def get_balance_usdt(self):
+        return self._balance
+
+    async def get_positions(self):
+        return list(self._positions)
+
+    async def get_open_orders(self, symbol=None):
+        return list(self._orders)
+
+    async def place_order(self, **kwargs):
+        self.placed.append(kwargs)
+        o = SimpleNamespace(
+            id=f"o{len(self.placed)}",
+            symbol=kwargs.get("symbol"),
+            order_type=str(kwargs.get("order_type", "")).lower(),
+        )
+        self._orders.append(o)
+        if str(kwargs.get("order_type", "")).upper() == "MARKET":
+            self._positions.append(
+                SimpleNamespace(
+                    symbol=kwargs["symbol"],
+                    quantity=kwargs["quantity"],
+                    side="long",
+                )
+            )
+        return o
+
+    async def cancel_order(self, *a, **k):
+        return True
+
+    async def cancel_all_orders(self, *a, **k):
+        return 0
+
+    async def set_leverage(self, *a, **k):
+        return None
+
+    async def set_margin_isolated(self, *a, **k):
+        return None
+
+    async def close_position(self, *a, **k):
+        return True
+
+
+def test_candidate_from_confirmed_retest():
+    c = candidate_from_signal_dict(
+        {"symbol": "BTC-USDT", "side": "long", "entry": 100, "stop": 95, "tp1": 110, "confidence": 0.9}
+    )
+    assert c is not None and c.symbol == "BTC-USDT"
+    assert candidate_from_signal_dict({"symbol": "X", "status": "no_retest"}) is None
+
+
+def test_freshness():
+    now = time.time()
+    assert is_fresh({"ts": now - 60}, max_sec=600)
+    assert not is_fresh({"ts": now - 3600}, max_sec=600)
+    assert is_fresh({"retest_ts": (now - 100) * 1000}, max_sec=600)  # ms
+
+
+def test_empty_feed(tmp_path, monkeypatch, caplog):
+    async def _():
+        monkeypatch.chdir(tmp_path)
+        import logging
+        with caplog.at_level(logging.INFO):
+            res, _sk = await run_arm_entries(LiveBroker(MockClient()), [], max_entries=1)
+        assert res == []
+        assert any("empty feed" in r.message for r in caplog.records)
+    asyncio.run(_())
+
+
+def test_dedup_signal_id(tmp_path, monkeypatch):
+    async def _():
+        monkeypatch.chdir(tmp_path)
+        entries = tmp_path / "models" / "zeus_live_entries.jsonl"
+        entries.parent.mkdir(parents=True)
+        entries.write_text(
+            '{"signal_id": "abc", "symbol": "A-USDT"}\n', encoding="utf-8"
+        )
+        rows = [
+            {
+                "signal_id": "abc",
+                "symbol": "A-USDT",
+                "side": "long",
+                "entry": 10,
+                "stop": 9,
+                "ts": time.time(),
+                "confidence": 0.95,
+            },
+            {
+                "signal_id": "new1",
+                "symbol": "B-USDT",
+                "side": "long",
+                "entry": 20,
+                "stop": 18,
+                "ts": time.time(),
+                "confidence": 0.95,
+            },
+        ]
+        c = MockClient()
+        res, _sk = await run_arm_entries(
+            LiveBroker(c), rows, max_entries=2, entries_path=entries
+        )
+        assert len(res) == 1
+        assert any(x.get("symbol") == "B-USDT" for x in c.placed)
+    asyncio.run(_())
+
+
+def test_exchange_blocks_symbol(tmp_path, monkeypatch):
+    async def _():
+        monkeypatch.chdir(tmp_path)
+        pos = SimpleNamespace(symbol="A-USDT", quantity=Decimal("1"), side="long")
+        c = MockClient(positions=[pos])
+        rows = [
+            {
+                "signal_id": "x1",
+                "symbol": "A-USDT",
+                "side": "long",
+                "entry": 10,
+                "stop": 9,
+                "ts": time.time(),
+                "confidence": 0.95,
+            }
+        ]
+        res, _sk = await run_arm_entries(LiveBroker(c), rows, max_entries=1)
+        assert res == []
+        assert c.placed == []
+    asyncio.run(_())
+
+
+def test_max_one_entry(tmp_path, monkeypatch):
+    async def _():
+        monkeypatch.chdir(tmp_path)
+        rows = [
+            {
+                "signal_id": f"s{i}",
+                "symbol": f"S{i}-USDT",
+                "side": "long",
+                "entry": 10,
+                "stop": 9,
+                "ts": time.time(),
+                "confidence": 0.95,
+            }
+            for i in range(3)
+        ]
+        c = MockClient()
+        res, _sk = await run_arm_entries(LiveBroker(c), rows, max_entries=1)
+        assert len(res) == 1
+        assert len(c.placed) >= 2
+    asyncio.run(_())
