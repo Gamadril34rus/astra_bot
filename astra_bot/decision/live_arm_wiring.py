@@ -332,6 +332,28 @@ async def run_arm_entries(
             )
             continue
 
+        # VOL_EXPANSION anti-chatter (owner 15.10) — same helper as paper
+        try:
+            from astra_bot.decision.reentry_guard import (
+                check as _vol_cd_check,
+            )
+            from astra_bot.decision.reentry_guard import (
+                note_skip as _vol_cd_skip,
+            )
+
+            _vb, _vu = _vol_cd_check(cand.symbol, side_l)
+            if _vb:
+                logger.info(
+                    "arm: skip %s %s — vol_cooldown until=%.0f",
+                    cand.symbol,
+                    side_l,
+                    _vu or 0,
+                )
+                _vol_cd_skip(cand.symbol, side_l, _vu)
+                continue
+        except Exception as exc:
+            logger.debug("arm vol_cooldown check: %s", type(exc).__name__)
+
         # B-015: step from instrument when missing or still default 0.001
         if cand.step_size is None or cand.step_size == Decimal("0.001"):
             cand.step_size = await resolve_step_size(broker, cand.symbol)
