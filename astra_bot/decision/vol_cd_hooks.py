@@ -43,7 +43,30 @@ def apply_paper_hooks(broker: Any) -> None:
                         until or 0,
                     )
                     note_skip(sym, side, until)
-                    return None
+                    # Engine call-site (trading_engine ~1743) does pos.strategy /
+                    # pos.id / risk.add_position without None-check. Stub has the
+                    # fields it touches; NOT appended to broker.positions.
+                    from decimal import Decimal
+                    from types import SimpleNamespace
+
+                    ep = kwargs.get("entry_price") or Decimal("0")
+                    return SimpleNamespace(
+                        id=f"vol_cd_skip|{sym}|{side}",
+                        symbol=sym,
+                        direction=side,
+                        entry_price=ep,
+                        quantity=Decimal("0"),  # notional 0 → risk slot ~noop
+                        stop_loss=kwargs.get("stop_loss") or Decimal("0"),
+                        take_profits=[],
+                        strategy=str(kwargs.get("strategy") or ""),
+                        notes=dict(kwargs.get("notes") or {}),
+                        plan_variant=None,
+                        plan_take=None,
+                        initial_quantity=Decimal("0"),
+                        fill_price=None,
+                        regime=str(kwargs.get("regime") or ""),
+                        timeframe=str(kwargs.get("timeframe") or ""),
+                    )
             except Exception as exc:
                 logger.debug("paper vol_cd check: %s", type(exc).__name__)
         return orig_open(*args, **kwargs)
