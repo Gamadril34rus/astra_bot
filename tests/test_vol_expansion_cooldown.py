@@ -145,7 +145,8 @@ def test_paper_hook_vol_close_sets_cooldown(cd_path: Path) -> None:
     broker._log_trade(trade)
     blocked, until = check("ADA", "short", now=closed + 1)
     assert blocked is True
-    assert until == closed + VOL_EXPANSION_COOLDOWN_SEC
+    # closed_at is ms int → float(sec) loses sub-ms; tolerate 1s
+    assert abs(until - (closed + VOL_EXPANSION_COOLDOWN_SEC)) < 1.0
 
 
 def test_paper_hook_non_vol_close_no_cooldown(cd_path: Path) -> None:
@@ -175,4 +176,5 @@ def test_paper_hook_repeated_close_same_trade_no_extend(cd_path: Path) -> None:
     u1 = check("ATOM", "long", now=closed + 1)[1]
     broker._log_trade(trade)
     u2 = check("ATOM", "long", now=closed + 60)[1]
-    assert u1 == u2 == closed + VOL_EXPANSION_COOLDOWN_SEC
+    assert u1 == u2
+    assert abs(u1 - (closed + VOL_EXPANSION_COOLDOWN_SEC)) < 1.0
