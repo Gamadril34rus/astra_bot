@@ -201,7 +201,8 @@ async def one_tick(*, dry: bool = False) -> int:
         logger.error("risk_check_failed: %s", type(exc).__name__)
         broker.set_halt("risk_check_failed")
 
-
+    # ARM: function-level (NOT inside risk except) — only when armed & allowed
+    if (not dry) and broker.entries_allowed and arm_enabled():
         from astra_bot.decision.live_arm_feed import FEED_SYMBOLS, produce_pending
         from astra_bot.decision.live_arm_wiring import (
             ENTRIES_PATH,
@@ -217,7 +218,7 @@ async def one_tick(*, dry: bool = False) -> int:
         rows = load_pending_rows()
 
         entered = await run_arm_entries(
-            broker, rows, max_entries=1, send_tg=_send_live_tg
+            broker, rows, max_entries=3, send_tg=_send_live_tg
         )
         logger.info("arm tick entries=%d", len(entered))
 
