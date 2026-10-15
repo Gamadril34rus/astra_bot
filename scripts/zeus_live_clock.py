@@ -167,6 +167,16 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception as exc:
         logger.exception("sync_closed_plans failed: %s", type(exc).__name__)
 
+    # P0 audit 438: fill null-pnl exits from user/income (week-HALT unlock)
+    try:
+        from astra_bot.adapters.bingx.income_backfill import run_income_backfill
+
+        bf = await run_income_backfill(client)
+        if bf.get("updated"):
+            logger.info("income_backfill: %s", bf)
+    except Exception as _bf_exc:
+        logger.warning("income_backfill FAILED: %s", type(_bf_exc).__name__)
+
     # P2: signal→entry ONLY when ZEUS_ARM=1 (owner enables in separate PR)
     from astra_bot.decision.live_arm import arm_enabled
     if dry or not broker.entries_allowed:
