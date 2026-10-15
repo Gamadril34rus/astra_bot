@@ -161,17 +161,18 @@ async def scan_symbol(
         return None
     if not candles or len(candles) < 30:
         return None
-    # A-008: only closed bars — drop forming candle; require open_time on last closed
-    closed = list(candles[:-1]) if len(candles) >= 2 else list(candles)
-    if len(closed) < 30:
+    # Live parity with paper: feed sees the SAME candle the paper engine uses
+    # (including the forming bar). bar_ts = open_time of that last candle.
+    series = list(candles)
+    if len(series) < 30:
         return None
-    last = closed[-1]
+    last = series[-1]
     bar_ts = int(getattr(last, "open_time", 0) or 0)
     if bar_ts <= 0:
-        logger.warning("arm feed: %s closed bar missing open_time — skip", symbol)
+        logger.warning("arm feed: %s bar missing open_time — skip", symbol)
         return None
     try:
-        sig = await strat.evaluate(symbol, closed)
+        sig = await strat.evaluate(symbol, series)
     except Exception as exc:
         logger.warning("arm feed: %s evaluate failed: %s", symbol, type(exc).__name__)
         return None
