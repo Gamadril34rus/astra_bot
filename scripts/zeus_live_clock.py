@@ -218,7 +218,7 @@ async def one_tick(*, dry: bool = False) -> int:
         rows = load_pending_rows()
 
         entered = await run_arm_entries(
-            broker, rows, max_entries=1, send_tg=_send_live_tg
+            broker, rows, max_entries=3, send_tg=_send_live_tg
         )
         logger.info("arm tick entries=%d", len(entered))
 
