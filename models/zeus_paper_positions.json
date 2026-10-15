@@ -1,5 +1,66 @@
 {
-  "positions": [],
+  "positions": [
+    {
+      "id": "6f7453de-6115-45ca-8850-81cca508b561",
+      "symbol": "WIF-USDT",
+      "direction": "short",
+      "entry_price": "0.1929",
+      "quantity": "965.605577",
+      "stop_loss": "0.21131338548780462",
+      "take_profits": [
+        "0.17448661451219538",
+        "0.1560732290243907200000000000"
+      ],
+      "tp_filled": [
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.3,
+        0.7
+      ],
+      "initial_quantity": "965.605577",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "zeus_channel_boundary_4h",
+      "opened_at": 1792031930975,
+      "entry_bar_ts": 1792031700000,
+      "notes": {
+        "signal_bar_close": 0.191,
+        "effective_entry": 0.1927071,
+        "initial_stop": 0.21131338548780462,
+        "initial_take": 0.15607322902439072,
+        "stop_pct": 0.09655215343806543,
+        "confidence": 0.88,
+        "ml_probability": null,
+        "prior_r": 1.6085717762014338,
+        "costs_r": 0.031071290418440922,
+        "equity_before": 2694.949955180715,
+        "risk_budget": 80.84849865542145,
+        "binding_constraint": "risk_engine",
+        "score": 81.0,
+        "edge_pct": 175.9375,
+        "ev_r": 1.7593754969499065,
+        "ev_confidence": 0.5652173913043478,
+        "rr": 2.000000000000002,
+        "leverage": 8
+      },
+      "fill_price": "0.1927071",
+      "entry_fee_per_unit": "0.00009635355",
+      "risk_distance": "0.01841338548780462",
+      "regime": "WEAK_BEAR_TREND",
+      "timeframe": "4h",
+      "regime_axes": "T:WEAK/V:LOW/L:NORMAL",
+      "bars_held": 0,
+      "leverage": "8",
+      "margin_used": "23.2831644754125",
+      "plan_variant": "STATIC_TP",
+      "plan_take": "0.1560732290243907200000000000",
+      "plan_last_bar_ts": 0
+    }
+  ],
   "realized_pnl": "694.9499551807149534579608008",
   "initial_capital": "2000.0",
   "cooldowns": {
