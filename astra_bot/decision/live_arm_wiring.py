@@ -273,13 +273,13 @@ async def run_arm_entries(
     broker: LiveBroker,
     rows: Iterable[dict[str, Any]],
     *,
-    max_entries: int = 1,
+    max_entries: int = 3,
     vst: bool | None = None,
     send_tg: Any = None,
     fresh_max_sec: float = FRESH_MAX_SEC,
     entries_path: Path = ENTRIES_PATH,
 ) -> list[dict[str, Any]]:
-    """At most max_entries opens. Exchange guards + signal_id dedup + freshness."""
+    """≤3 entries per tick (owner 15.10, arbiter optimum), 1 per symbol. Exchange guards + signal_id dedup + freshness."""
     if vst is None:
         vst = (os.environ.get("ZEUS_MAINNET") or "").strip() != "1"
 
