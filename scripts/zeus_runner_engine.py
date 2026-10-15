@@ -181,6 +181,13 @@ def zeus_build_pipeline_and_engine(
             _open_with_ladder, engine.broker
         )
         engine.broker._log_trade = _types.MethodType(_log_with_heat, engine.broker)
+        # VOL_EXPANSION paper hooks (v3): after heat wrap so chain is open→heat→vol
+        try:
+            from astra_bot.decision.vol_cd_hooks import apply_paper_hooks
+
+            apply_paper_hooks(engine.broker)
+        except Exception as _vol_exc:
+            logger.warning("vol_cd paper hooks FAILED: %s", _vol_exc)
     except Exception as _sz_exc:
         logger.warning("conf risk / heat wrap FAILED: %s", _sz_exc)
     logger.info(
