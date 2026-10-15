@@ -84,7 +84,7 @@ def test_empty_feed(tmp_path, monkeypatch, caplog):
         monkeypatch.chdir(tmp_path)
         import logging
         with caplog.at_level(logging.INFO):
-            res = await run_arm_entries(LiveBroker(MockClient()), [], max_entries=1)
+            res, _sk = await run_arm_entries(LiveBroker(MockClient()), [], max_entries=1)
         assert res == []
         assert any("empty feed" in r.message for r in caplog.records)
     asyncio.run(_())
@@ -119,7 +119,7 @@ def test_dedup_signal_id(tmp_path, monkeypatch):
             },
         ]
         c = MockClient()
-        res = await run_arm_entries(
+        res, _sk = await run_arm_entries(
             LiveBroker(c), rows, max_entries=2, entries_path=entries
         )
         assert len(res) == 1
@@ -143,7 +143,7 @@ def test_exchange_blocks_symbol(tmp_path, monkeypatch):
                 "confidence": 0.95,
             }
         ]
-        res = await run_arm_entries(LiveBroker(c), rows, max_entries=1)
+        res, _sk = await run_arm_entries(LiveBroker(c), rows, max_entries=1)
         assert res == []
         assert c.placed == []
     asyncio.run(_())
@@ -165,7 +165,7 @@ def test_max_one_entry(tmp_path, monkeypatch):
             for i in range(3)
         ]
         c = MockClient()
-        res = await run_arm_entries(LiveBroker(c), rows, max_entries=1)
+        res, _sk = await run_arm_entries(LiveBroker(c), rows, max_entries=1)
         assert len(res) == 1
         assert len(c.placed) >= 2
     asyncio.run(_())

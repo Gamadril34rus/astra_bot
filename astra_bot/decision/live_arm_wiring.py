@@ -23,14 +23,21 @@ from astra_bot.decision.live_tg_flags import try_claim
 
 logger = logging.getLogger(__name__)
 
-async def resolve_step_size(broker: LiveBroker, symbol: str, default: Decimal = Decimal("0.001")) -> Decimal:
+
+async def resolve_step_size(
+    broker: LiveBroker, symbol: str, default: Decimal = Decimal("0.001")
+) -> Decimal:
     """B-015: step from exchange instrument; fallback default."""
     try:
         client = broker.client
         if hasattr(client, "get_instruments"):
             insts = await client.get_instruments()
             for it in insts or []:
-                sym = str(getattr(it, "symbol", None) or (it.get("symbol") if isinstance(it, dict) else "") or "")
+                sym = str(
+                    getattr(it, "symbol", None)
+                    or (it.get("symbol") if isinstance(it, dict) else "")
+                    or ""
+                )
                 if sym.replace("/", "-").upper() == symbol.replace("/", "-").upper():
                     step = getattr(it, "step_size", None) or getattr(it, "lot_size", None)
                     if step is None and isinstance(it, dict):
@@ -42,10 +49,7 @@ async def resolve_step_size(broker: LiveBroker, symbol: str, default: Decimal = 
     return default
 
 
-
-
 def _archive_prior_plan_if_any(symbol: str, new_signal_id: str | None) -> None:
-    """If a stale plan for symbol still in file, write interrupted exit before overwrite."""
     plans = load_positions()
     old = plans.get(symbol)
     if not old:
@@ -55,7 +59,9 @@ def _archive_prior_plan_if_any(symbol: str, new_signal_id: str | None) -> None:
         return
     logger.warning(
         "arm: overwriting plan %s old_sid=%s new_sid=%s — archive interrupted exit",
-        symbol, old_sid, new_signal_id,
+        symbol,
+        old_sid,
+        new_signal_id,
     )
     try:
         append_live_trade(
@@ -79,12 +85,11 @@ def _archive_prior_plan_if_any(symbol: str, new_signal_id: str | None) -> None:
         pass
 
 
-
-DEFAULT_STRATEGY = "zeus_channel_boundary"  # fallback; row.strategy from feed wins
+DEFAULT_STRATEGY = "zeus_channel_boundary"
 ENTRIES_PATH = Path("models/zeus_live_entries.jsonl")
 JOURNAL_PATH = Path("models/zeus_live_journal.jsonl")
 PENDING_PATH = Path("models/zeus_arm_pending.jsonl")
-FRESH_MAX_SEC = 45 * 60  # 45 min — skip overnight stale retests
+FRESH_MAX_SEC = 45 * 60
 
 
 def _seen_signal_ids(path: Path = ENTRIES_PATH) -> set[str]:
@@ -114,7 +119,8 @@ def append_entry_record(row: dict[str, Any], path: Path = ENTRIES_PATH) -> None:
         f.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
 
 
-def append_journal(event: dict[str, Any], path: Path = JOURNAL_PATH) -> None:
+def append_journal(event: dict[str, Any], path: Path | None = None) -> None:
+    path = path or JOURNAL_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     event = {**event, "ts": event.get("ts") or time.time()}
     with path.open("a", encoding="utf-8") as f:
@@ -122,7 +128,6 @@ def append_journal(event: dict[str, Any], path: Path = JOURNAL_PATH) -> None:
 
 
 def _row_age_sec(row: dict[str, Any], now: float | None = None) -> float | None:
-    """Age from retest_ts / signal_ts / ts (seconds). None if unknown."""
     now = now if now is not None else time.time()
     for key in ("retest_ts", "signal_ts", "ts", "entry_ts"):
         raw = row.get(key)
@@ -132,18 +137,18 @@ def _row_age_sec(row: dict[str, Any], now: float | None = None) -> float | None:
             v = float(raw)
         except (TypeError, ValueError):
             continue
-        # ms vs sec: epoch-ms timestamps are >=1e12, anything above ~1e10
-        # cannot be a plausible epoch-seconds value → treat as milliseconds.
         if v > 1e10:
             v = v / 1000.0
         return max(0.0, now - v)
     return None
 
 
-def is_fresh(row: dict[str, Any], max_sec: float = FRESH_MAX_SEC, now: float | None = None) -> bool:
+def is_fresh(
+    row: dict[str, Any], max_sec: float = FRESH_MAX_SEC, now: float | None = None
+) -> bool:
     age = _row_age_sec(row, now=now)
     if age is None:
-        return True  # unknown age: allow (feed must set ts for production)
+        return True
     return age <= max_sec
 
 
@@ -189,7 +194,6 @@ def candidate_from_signal_dict(
 
 
 async def exchange_open_symbols(broker: LiveBroker) -> set[str]:
-    """Source of truth: exchange positions with qty > 0."""
     positions = await broker.client.get_positions()
     out: set[str] = set()
     for p in positions:
@@ -206,7 +210,6 @@ async def exchange_open_symbols(broker: LiveBroker) -> set[str]:
 
 
 def _normalize_pos_side(p: Any) -> str:
-    """Robust side: attribute, else qty sign. Empty → '' (not counted)."""
     side = str(getattr(p, "side", "") or "").lower()
     if side in ("long", "short"):
         return side
@@ -222,7 +225,6 @@ def _normalize_pos_side(p: Any) -> str:
 
 
 async def exchange_side_stats(broker: LiveBroker) -> dict[str, dict[str, Any]]:
-    """Per-side count + sum(unrealizedProfit) from exchange positions."""
     stats: dict[str, dict[str, Any]] = {
         "long": {"count": 0, "upnl": 0.0},
         "short": {"count": 0, "upnl": 0.0},
@@ -249,7 +251,6 @@ async def exchange_side_stats(broker: LiveBroker) -> dict[str, dict[str, Any]]:
 
 
 async def exchange_side_counts(broker: LiveBroker) -> dict[str, int]:
-    """Compat wrapper: counts only."""
     st = await exchange_side_stats(broker)
     return {k: int(v["count"]) for k, v in st.items()}
 
@@ -278,15 +279,29 @@ async def run_arm_entries(
     send_tg: Any = None,
     fresh_max_sec: float = FRESH_MAX_SEC,
     entries_path: Path = ENTRIES_PATH,
-) -> list[dict[str, Any]]:
-    """≤3 entries per tick (owner 15.10, arbiter optimum), 1 per symbol. Exchange guards + signal_id dedup + freshness."""
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    """≤3 entries per tick. Returns (entered, skip_counts)."""
     if vst is None:
         vst = (os.environ.get("ZEUS_MAINNET") or "").strip() != "1"
+
+    skipped: dict[str, int] = {
+        "same_side_guard": 0,
+        "vol_cooldown": 0,
+        "conf": 0,
+        "margin": 0,
+        "other": 0,
+    }
+
+    def _skip(reason: str) -> None:
+        if reason in skipped:
+            skipped[reason] += 1
+        else:
+            skipped["other"] += 1
 
     row_list = list(rows)
     if not row_list:
         logger.info("arm: empty feed — 0 entries (Stage A idle)")
-        return []
+        return [], skipped
 
     seen = _seen_signal_ids(entries_path)
     open_syms = await exchange_open_symbols(broker)
@@ -300,6 +315,7 @@ async def run_arm_entries(
         sid = str(row.get("signal_id") or "").strip()
         if sid and sid in seen:
             logger.info("arm: skip signal_id=%s — already in entries journal", sid)
+            _skip("other")
             continue
         if not is_fresh(row, max_sec=fresh_max_sec):
             logger.info(
@@ -307,15 +323,19 @@ async def run_arm_entries(
                 row.get("symbol"),
                 int(fresh_max_sec),
             )
+            _skip("other")
             continue
         cand = candidate_from_signal_dict(row)
         if cand is None:
+            _skip("conf")
             continue
         if cand.symbol in open_syms:
             logger.info("arm: skip %s — already open on exchange", cand.symbol)
+            _skip("other")
             continue
         if open_n >= MAX_OPEN:
             logger.info("arm: skip — exchange max_open=%d", MAX_OPEN)
+            _skip("other")
             break
         side_l = str(cand.side or "").lower()
         st = side_stats.get(side_l) or {"count": 0, "upnl": 0.0}
@@ -330,16 +350,12 @@ async def run_arm_entries(
                 int(st["count"]),
                 float(st["upnl"]),
             )
+            _skip("same_side_guard")
             continue
 
-        # VOL_EXPANSION anti-chatter (owner 15.10) — continue, no max_entries burn
         try:
-            from astra_bot.decision.reentry_guard import (
-                check as _vol_cd_check,
-            )
-            from astra_bot.decision.reentry_guard import (
-                note_skip as _vol_cd_skip,
-            )
+            from astra_bot.decision.reentry_guard import check as _vol_cd_check
+            from astra_bot.decision.reentry_guard import note_skip as _vol_cd_skip
 
             _vb, _vu = _vol_cd_check(cand.symbol, side_l)
             if _vb:
@@ -350,11 +366,11 @@ async def run_arm_entries(
                     _vu or 0,
                 )
                 _vol_cd_skip(cand.symbol, side_l, _vu)
+                _skip("vol_cooldown")
                 continue
         except Exception as exc:
             logger.debug("arm vol_cooldown check: %s", type(exc).__name__)
 
-        # B-015: step from instrument when missing or still default 0.001
         if cand.step_size is None or cand.step_size == Decimal("0.001"):
             cand.step_size = await resolve_step_size(broker, cand.symbol)
 
@@ -367,16 +383,21 @@ async def run_arm_entries(
                 exchange_open_count=open_n,
             )
             if plan is None:
+                _skip("margin")
                 continue
-            # Sanity: stop within 25% of entry (ghost-price guard)
             try:
-                dist = abs(float(cand.entry) - float(cand.stop)) / max(abs(float(cand.entry)), 1e-12)
+                dist = abs(float(cand.entry) - float(cand.stop)) / max(
+                    abs(float(cand.entry)), 1e-12
+                )
             except Exception:
                 dist = 0.0
             if dist > 0.25:
                 logger.error(
                     "arm: REJECT %s ghost stop entry=%s stop=%s dist=%.1f%%",
-                    cand.symbol, cand.entry, cand.stop, dist * 100,
+                    cand.symbol,
+                    cand.entry,
+                    cand.stop,
+                    dist * 100,
                 )
                 append_journal(
                     {
@@ -387,11 +408,11 @@ async def run_arm_entries(
                         "dist_pct": round(dist * 100, 3),
                     }
                 )
+                _skip("other")
                 continue
             res = await broker.open_with_protection(plan)
             fill_px = (res or {}).get("fill_price")
             slip = (res or {}).get("slip_pct")
-            # Journal IMMEDIATELY after successful open (entry+protect returned)
             _archive_prior_plan_if_any(plan.symbol, sid or None)
             upsert_plan(
                 plan.symbol,
@@ -416,7 +437,9 @@ async def run_arm_entries(
                         "slip_pct": slip,
                         "qty": str(plan.quantity),
                         "stop": str(plan.stop_price),
-                        "tp": str(plan.take_profit_price) if plan.take_profit_price else None,
+                        "tp": str(plan.take_profit_price)
+                        if plan.take_profit_price
+                        else None,
                         "leverage": plan.leverage,
                         "ts": time.time(),
                     }
@@ -431,12 +454,10 @@ async def run_arm_entries(
                 cand.symbol,
                 type(exc).__name__,
             )
-            # One attempt: cooldown so same strategy|symbol|side not retried this process
             try:
                 mark_cooldown(cand.strategy, cand.symbol, cand.side)
             except Exception:
                 pass
-            # Durable: entries.jsonl is in Save-list (blocks same signal_id next tick)
             append_entry_record(
                 {
                     "signal_id": sid or f"failed|{cand.symbol}|{int(time.time())}",
@@ -458,7 +479,6 @@ async def run_arm_entries(
                     "error": type(exc).__name__,
                 }
             )
-            # Partial plan only if plan exists; pending_verify avoids false 🏁
             try:
                 if plan is not None:
                     upsert_plan(
@@ -473,7 +493,6 @@ async def run_arm_entries(
                     )
             except Exception:
                 pass
-            # Do NOT continue to next symbol (would stack naked positions)
             raise
 
         results.append(res)
@@ -525,4 +544,4 @@ async def run_arm_entries(
         elif send_tg is not None:
             logger.info("arm TG skip dup entry %s %s", cand.symbol, sid)
         logger.info("arm entry done: %s", msg)
-    return results
+    return results, skipped

@@ -21,7 +21,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger("zeus_live")
 
 
-
 def _abort_tg(reason: str) -> None:
     """Best-effort alert on guard ABORT (sync; no broker)."""
     token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
@@ -74,7 +73,6 @@ def _guard() -> None:
         logger.info("VST mode (demo futures) — default")
 
 
-
 async def _send_live_tg(msg: str) -> None:
     """Same chat as paper: prefer TELEGRAM_ADMIN_ID (paper path), then CHAT_ID."""
     token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
@@ -99,20 +97,16 @@ async def _send_live_tg(msg: str) -> None:
         logger.warning("arm TG failed: %s", type(exc).__name__)
 
 
-
 async def one_tick(*, dry: bool = False) -> int:
     _guard()
-    # late imports so ABORT never loads broker on paper hosts by mistake path
     from astra_bot.adapters.bingx.client_live import LiveBingXClient
     from astra_bot.decision.live_broker import LiveBroker, LiveBrokerConfig
     from astra_bot.decision.live_commands import apply_pending
 
     client = LiveBingXClient({})
-    # Сессия создаётся самим клиентом; hasattr-проверки не нужны.
     await client.initialize()
 
     broker = LiveBroker(client=client, config=LiveBrokerConfig())
-    # VOL_EXPANSION live hook (v3): set cooldown after sync via trades scan
     try:
         from astra_bot.decision.vol_cd_hooks import apply_live_sync_hook
 
@@ -120,11 +114,9 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception as _vol_exc:
         logger.warning("vol_cd live hook FAILED: %s", _vol_exc)
 
-    # One-shot connectivity probe (set TG_TEST=1 in workflow / secrets)
     if (os.environ.get("TG_TEST") or "").strip() == "1":
         await _send_live_tg("✅ live TG связь есть")
         logger.info("TG_TEST=1 probe sent")
-    # kill / halt hooks (optional state files)
     try:
         from astra_bot.core.kill_switch import KillSwitch
 
@@ -138,7 +130,6 @@ async def one_tick(*, dry: bool = False) -> int:
     for ln in cmd_lines:
         logger.info("%s", ln)
 
-    # Temporary VST balance diagnostics — flag-gated, read-only.
     if Path("models/zeus_live_debug.json").exists():
         from astra_bot.adapters.bingx.vst_diag import dump as _diag
 
@@ -153,7 +144,6 @@ async def one_tick(*, dry: bool = False) -> int:
         rec.get("missing_stops"),
     )
 
-    # P1: restore protective stops AFTER reconcile (plan or naked-close)
     try:
         rest = await broker.restore_missing_stops()
         if rest.get("restored") or rest.get("closed_naked"):
@@ -167,7 +157,6 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception as exc:
         logger.exception("sync_closed_plans failed: %s", type(exc).__name__)
 
-    # P0 audit 438: fill null-pnl exits from user/income (week-HALT unlock)
     try:
         from astra_bot.adapters.bingx.income_backfill import run_income_backfill
 
@@ -177,8 +166,8 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception as _bf_exc:
         logger.warning("income_backfill FAILED: %s", type(_bf_exc).__name__)
 
-    # P2: signal→entry ONLY when ZEUS_ARM=1 (owner enables in separate PR)
     from astra_bot.decision.live_arm import arm_enabled
+
     if dry or not broker.entries_allowed:
         logger.info("tick done (no entries: dry=%s allowed=%s)", dry, broker.entries_allowed)
     elif not arm_enabled():
@@ -186,7 +175,6 @@ async def one_tick(*, dry: bool = False) -> int:
     else:
         logger.info("ZEUS_ARM=1 — entry hook active (candidates via arm pipeline)")
 
-    # B-003: risk AFTER sync (order: sync → risk → arm)
     try:
         from astra_bot.decision.live_commands import is_blocked
         from astra_bot.decision.live_risk import (
@@ -218,7 +206,6 @@ async def one_tick(*, dry: bool = False) -> int:
         logger.error("risk_check_failed: %s", type(exc).__name__)
         broker.set_halt("risk_check_failed")
 
-    # ARM: function-level (NOT inside risk except) — only when armed & allowed
     if (not dry) and broker.entries_allowed and arm_enabled():
         from astra_bot.decision.live_arm_feed import FEED_SYMBOLS, produce_pending
         from astra_bot.decision.live_arm_wiring import (
@@ -227,6 +214,7 @@ async def one_tick(*, dry: bool = False) -> int:
             load_pending_rows,
             run_arm_entries,
         )
+
         try:
             seen = _seen_signal_ids(ENTRIES_PATH)
         except Exception:
@@ -234,10 +222,42 @@ async def one_tick(*, dry: bool = False) -> int:
         await produce_pending(client, FEED_SYMBOLS, seen_ids=seen)
         rows = load_pending_rows()
 
-        entered = await run_arm_entries(
+        entered, skipped = await run_arm_entries(
             broker, rows, max_entries=3, send_tg=_send_live_tg
         )
-        logger.info("arm tick entries=%d", len(entered))
+        logger.info("arm tick entries=%d skipped=%s", len(entered), skipped)
+        try:
+            from astra_bot.decision.live_arm_wiring import append_journal
+
+            entered_syms = []
+            for e in entered:
+                if isinstance(e, dict):
+                    sym = e.get("symbol") or e.get("sym")
+                    side = e.get("side")
+                    if sym:
+                        entered_syms.append(f"{sym}|{side or ''}")
+            unrealized = None
+            try:
+                if hasattr(broker, "unrealized_total"):
+                    unrealized = float(broker.unrealized_total())  # type: ignore[operator]
+                elif hasattr(broker, "unrealized_sum"):
+                    unrealized = float(broker.unrealized_sum)  # type: ignore[arg-type]
+            except Exception:
+                unrealized = None
+            append_journal(
+                {
+                    "event": "arm_summary",
+                    "dry": bool(dry),
+                    "entries_allowed": bool(broker.entries_allowed),
+                    "halt": getattr(broker, "_halt_reason", None) or None,
+                    "candidates": len(rows),
+                    "entered": entered_syms,
+                    "skipped": dict(skipped),
+                    "unrealized_sum": unrealized,
+                }
+            )
+        except Exception as _sum_exc:
+            logger.warning("arm_summary FAILED: %s", type(_sum_exc).__name__)
 
     session = getattr(client, "_session", None)
     if session is not None:

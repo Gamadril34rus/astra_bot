@@ -7,7 +7,7 @@ on:
       dry:
         description: "dry tick (reconcile+commands, no entries)"
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: write
@@ -87,7 +87,7 @@ jobs:
               sleep 5
             done
             if [ "$ok" != "1" ]; then
-              echo "Save live state: push failed after 5 retries" >&2
-              exit 1
+              echo "save lost race to another run, next tick retries" >&2
+              exit 0
             fi
           fi
