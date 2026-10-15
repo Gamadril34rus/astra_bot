@@ -95,12 +95,41 @@ def test_paper_hook_blocks_open_and_logs_skip(cd_path: Path, tmp_path: Path) -> 
     broker = MagicMock()
     broker.open_position = MagicMock(return_value="POS")
     broker._log_trade = MagicMock()
+    broker.positions = []
     apply_paper_hooks(broker)
-    out = broker.open_position(symbol="WIF", direction="long", entry_price=1, stop_loss=0.9,
-                               take_profit=1.2, quantity=1)
-    assert out is None
+    out = broker.open_position(
+        symbol="WIF", direction="long", entry_price=1, stop_loss=0.9,
+        take_profit=1.2, quantity=1, strategy="zeus",
+    )
+    # Stub (not None): engine touches pos.id / strategy / quantity without guard
+    assert out is not None
+    assert out.id.startswith("vol_cd_skip|")
+    assert out.symbol == "WIF"
+    assert out.direction == "long"
+    assert out.strategy == "zeus"
+    assert float(out.quantity) == 0
+    assert len(broker.positions) == 0  # not appended
     events = (tmp_path / "zeus_vol_cooldown_events.jsonl").read_text(encoding="utf-8")
     assert "entry_skipped_vol_cooldown" in events
+
+
+def test_paper_hook_stub_engine_style_attrs(cd_path: Path) -> None:
+    """Mirror trading_engine post-open access pattern on cooldown stub."""
+    now = time.time()
+    set_cooldown("ADA", "short", trade_id="t-eng", closed_ts=now, now=now)
+    broker = MagicMock()
+    broker.open_position = MagicMock(return_value="REAL")
+    broker._log_trade = MagicMock()
+    broker.positions = []
+    apply_paper_hooks(broker)
+    pos = broker.open_position(
+        symbol="ADA", direction="short", entry_price=0.5, stop_loss=0.55,
+        take_profit=0.4, quantity=10, strategy="zeus_wedge",
+    )
+    _ = pos.id, pos.symbol, pos.direction, pos.entry_price, pos.quantity, pos.strategy
+    pos.plan_variant = "x"
+    pos.plan_take = 0.4
+    assert len(broker.positions) == 0
 
 
 def test_paper_hook_vol_close_sets_cooldown(cd_path: Path) -> None:
