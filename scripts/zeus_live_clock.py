@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Zeus LIVE clock — one tick. INACTIVE without ZEUS_LIVE=1.
+"""Zeus live clock — one tick: reconcile → signals → entries → exits.
 
-Paper path (run_paper_zeus / PaperBroker) is never imported here for trading.
-VST by default (ZEUS_VST=1). Main-net only with ZEUS_MAINNET=1.
+MANUAL ONLY (workflow_dispatch). Inactive unless ZEUS_LIVE=1.
+VST (demo) by default; main-net requires ZEUS_MAINNET=1.
 """
 from __future__ import annotations
 
@@ -13,91 +13,51 @@ import os
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-logger = logging.getLogger("zeus_live")
-
-
-
-def _abort_tg(reason: str) -> None:
-    """Best-effort alert on guard ABORT (sync; no broker)."""
-    token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
-    chat = (
-        (os.environ.get("TELEGRAM_ADMIN_ID") or "").strip()
-        or (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
-    )
-    if not token or not chat:
-        return
-    try:
-        import json
-        import urllib.request
-
-        body = json.dumps({"chat_id": chat, "text": f"⛔ live ABORT: {reason}"[:4000]}).encode()
-        req = urllib.request.Request(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            data=body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        urllib.request.urlopen(req, timeout=10)
-    except Exception as exc:
-        logger.warning("abort TG failed: %s", type(exc).__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("zeus_live_clock")
 
 
 def _guard() -> None:
-    env = (os.environ.get("ENVIRONMENT") or "").strip().lower()
-    live = (os.environ.get("ZEUS_LIVE") or "").strip()
-    if env == "live" and live != "1":
-        logger.error("ABORT: ENVIRONMENT=live requires ZEUS_LIVE=1")
-        _abort_tg("ENVIRONMENT=live requires ZEUS_LIVE=1")
-        sys.exit(2)
-    if live != "1":
-        logger.error("ABORT: ZEUS_LIVE!=1 — live clock inactive")
-        _abort_tg("ZEUS_LIVE!=1")
-        sys.exit(2)
-    if env != "live":
-        logger.error("ABORT: ZEUS_LIVE=1 requires ENVIRONMENT=live (got %r)", env)
-        _abort_tg(f"ENVIRONMENT={env!r} not live")
-        sys.exit(2)
-    mainnet = (os.environ.get("ZEUS_MAINNET") or "").strip()
-    vst = (os.environ.get("ZEUS_VST") or "1").strip()
-    if mainnet == "1" and vst in ("1", "true", "yes"):
-        logger.error("ABORT: ZEUS_MAINNET=1 conflicts with ZEUS_VST=1")
-        _abort_tg("MAINNET conflicts with VST")
-        sys.exit(2)
-    if mainnet == "1":
-        logger.warning("MAINNET mode — real money path enabled by owner flag")
-    else:
-        logger.info("VST mode (demo futures) — default")
+    """Hard ABORT unless ZEUS_LIVE=1 (and paper path untouched)."""
+    if (os.environ.get("ZEUS_LIVE") or "").strip() != "1":
+        logger.error("ABORT: ZEUS_LIVE!=1 — live clock refused")
+        raise SystemExit(2)
+    if (os.environ.get("ENVIRONMENT") or "").strip().lower() == "live":
+        if (os.environ.get("ZEUS_LIVE") or "").strip() != "1":
+            logger.error("ABORT: ENVIRONMENT=live requires ZEUS_LIVE=1")
+            raise SystemExit(2)
 
 
-
-async def _send_live_tg(msg: str) -> None:
-    """Same chat as paper: prefer TELEGRAM_ADMIN_ID (paper path), then CHAT_ID."""
-    token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
-    chat = (
-        (os.environ.get("TELEGRAM_ADMIN_ID") or "").strip()
-        or (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
-    )
+async def _send_live_tg(text: str) -> None:
+    """Minimal TG send for live rockets (token/chat from env)."""
+    token = (os.environ.get("TELEGRAM_BOT_TOKEN") or os.environ.get("TELEGRAM_LIVE_BOT_TOKEN") or "").strip()
+    chat = (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
     if not token or not chat:
-        logger.warning("arm TG skip: no TELEGRAM_BOT_TOKEN/ADMIN_ID/CHAT_ID")
+        logger.info("arm TG skip: no TELEGRAM_BOT_TOKEN/CHAT_ID")
         return
     try:
         import aiohttp
 
         url = f"https://api.telegram.org/bot{token}/sendMessage"
-        async with aiohttp.ClientSession() as session, session.post(
-            url, json={"chat_id": chat, "text": msg[:4000]}
-        ) as resp:
-            if resp.status >= 400:
-                body = (await resp.text())[:200]
-                logger.warning("arm TG HTTP %s body=%s", resp.status, body)
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url,
+                json={"chat_id": chat, "text": text[:4000], "disable_web_page_preview": True},
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as resp:
+                if resp.status >= 400:
+                    body = await resp.text()
+                    logger.warning("arm TG HTTP %s: %s", resp.status, body[:200])
     except Exception as exc:
         logger.warning("arm TG failed: %s", type(exc).__name__)
-
 
 
 async def one_tick(*, dry: bool = False) -> int:
@@ -108,7 +68,6 @@ async def one_tick(*, dry: bool = False) -> int:
     from astra_bot.decision.live_commands import apply_pending
 
     client = LiveBingXClient({})
-    # Сессия создаётся самим клиентом; hasattr-проверки не нужны.
     await client.initialize()
 
     broker = LiveBroker(client=client, config=LiveBrokerConfig())
@@ -201,7 +160,8 @@ async def one_tick(*, dry: bool = False) -> int:
         logger.error("risk_check_failed: %s", type(exc).__name__)
         broker.set_halt("risk_check_failed")
 
-
+    # ARM: function-level (NOT inside risk except) — only when armed & allowed
+    if (not dry) and broker.entries_allowed and arm_enabled():
         from astra_bot.decision.live_arm_feed import FEED_SYMBOLS, produce_pending
         from astra_bot.decision.live_arm_wiring import (
             ENTRIES_PATH,
