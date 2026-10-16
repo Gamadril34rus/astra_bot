@@ -4779,3 +4779,13 @@
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|ENA-USDT|short|1792166400000", "symbol": "ENA-USDT", "side": "short", "ts": 1792176117.8609498}
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|PENDLE-USDT|short|1792166400000", "symbol": "PENDLE-USDT", "side": "short", "ts": 1792176117.8609526}
 {"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 6, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 2}, "unrealized_sum": null, "ts": 1792176118.3071015}
+{"event": "order_audit", "symbol": "LTC-USDT", "side": "short", "n_stop": 1, "n_tp": 0, "be_moved": false, "ts": 1792176416.8438666}
+{"event": "order_audit", "symbol": "APT-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792176416.8440197}
+{"event": "order_audit", "symbol": "INJ-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792176416.8440664}
+{"event": "order_audit", "symbol": "AVAX-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792176416.8441024}
+{"event": "order_audit", "symbol": "DOT-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792176416.844136}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|AAVE-USDT|short|1792166400000", "symbol": "AAVE-USDT", "side": "short", "ts": 1792176430.1240578}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|ATOM-USDT|short|1792166400000", "symbol": "ATOM-USDT", "side": "short", "ts": 1792176430.1240664}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|WLD-USDT|short|1792166400000", "symbol": "WLD-USDT", "side": "short", "ts": 1792176430.124071}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|ENA-USDT|short|1792166400000", "symbol": "ENA-USDT", "side": "short", "ts": 1792176430.1240747}
+{"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 4, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 1}, "unrealized_sum": null, "ts": 1792176431.1793866}
