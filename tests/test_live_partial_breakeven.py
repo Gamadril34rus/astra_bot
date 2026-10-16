@@ -3,11 +3,8 @@ from __future__ import annotations
 
 import asyncio
 from decimal import Decimal
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
-
-import pytest
 
 from astra_bot.decision.live_arm import SignalCandidate, plan_from_candidate
 from astra_bot.decision.live_broker import LiveBroker, LiveEntryPlan
@@ -227,8 +224,8 @@ def test_sync_partial_skips_when_full_qty(tmp_path):
 
 def test_sync_partial_skips_legacy_no_tp1(tmp_path):
     async def _():
+        from astra_bot.decision.live_positions import plan_key, save_positions
         from scripts.zeus_live_clock import sync_partial_breakeven
-        from astra_bot.decision.live_positions import save_positions, plan_key
 
         path = tmp_path / "pos.json"
         # legacy plan without tp1
