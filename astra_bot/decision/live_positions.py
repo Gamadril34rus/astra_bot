@@ -65,13 +65,15 @@ def upsert_plan(
     leverage: int = 5,
     pending_verify: bool = False,
     signal_id: str | None = None,
+    tp1: float | str | None = None,
+    be_moved: bool = False,
     path: Path = DEFAULT_PATH,
 ) -> None:
     pos = load_positions(path)
     key = plan_key(symbol, side)
     # drop legacy symbol-only key if present
     pos.pop(symbol, None)
-    pos[key] = {
+    row = {
         "symbol": symbol,
         "side": side.lower(),
         "qty": str(qty),
@@ -82,7 +84,15 @@ def upsert_plan(
         "pending_verify": bool(pending_verify),
         "signal_id": signal_id,
         "ts": time.time(),
+        "be_moved": bool(be_moved),
     }
+    # tp1 level (1.5R partial); omit on legacy-style plans
+    if tp1 is not None:
+        row["tp1"] = str(tp1)
+    elif tp is not None:
+        # new opens: take_profit_price is TP1 @ 1.5R
+        row["tp1"] = str(tp)
+    pos[key] = row
     save_positions(pos, path)
 
 

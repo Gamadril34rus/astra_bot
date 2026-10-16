@@ -9,6 +9,7 @@ from typing import Any
 from astra_bot.adapters.bingx.client_live import LiveBingXClient
 from astra_bot.decision import live_commands as lc
 from astra_bot.decision.live_broker import HARD_CAP_USD, LiveBroker, LiveEntryPlan
+from astra_bot.decision.live_risk import check_day_week_limits
 
 
 class MockClient:
@@ -94,12 +95,15 @@ def test_hard_cap_100():
     asyncio.run(_())
 
 
-def test_risk_pct_from_real_equity():
+def test_risk_pct_from_full_wallet():
+    """Parity B: risk_budget = wallet * pct, no HARD_CAP clamp (equity still capped)."""
     async def _():
         b = LiveBroker(MockClient(Decimal("80")))
         assert await b.risk_budget(Decimal("0.03")) == Decimal("2.40")
-        b2 = LiveBroker(MockClient(Decimal("500")))
-        assert await b2.risk_budget(Decimal("0.01")) == Decimal("1.00")
+        b2 = LiveBroker(MockClient(Decimal("499.7")))
+        assert await b2.risk_budget(Decimal("0.01")) == Decimal("5.00")
+        # equity remains hard-capped
+        assert await b2.equity() == HARD_CAP_USD
     asyncio.run(_())
 
 
@@ -260,3 +264,29 @@ def test_get_balance_usdt_fallback_without_usdt_vst():
         raise_v3=True,
     )
     assert asyncio.run(dead.get_balance_usdt()) == Decimal("777")
+
+def test_day_week_limits_use_real_wallet_denominator(tmp_path):
+    """Owner 16.10: day/week % of REAL balance, not HARD_CAP equity.
+
+    One exit pnl=-350 today: vs equity 10000 → 3.5% < 4% → None;
+    vs equity 100 → 350% ≥ 4% → day_loss reason.
+    """
+    import json
+    import time as _time
+    from decimal import Decimal
+
+    trades = tmp_path / "zeus_live_trades.jsonl"
+    row = {
+        "event": "exit",
+        "symbol": "BTC-USDT",
+        "side": "long",
+        "pnl": -350.0,
+        "ts": _time.time(),
+    }
+    trades.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+    assert check_day_week_limits(Decimal("10000"), path=trades) is None
+    reason = check_day_week_limits(Decimal("100"), path=trades)
+    assert reason is not None
+    assert reason.startswith("day_loss")
+

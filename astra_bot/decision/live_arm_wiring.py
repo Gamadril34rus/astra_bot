@@ -129,7 +129,7 @@ def append_journal(event: dict[str, Any], path: Path | None = None) -> None:
 
 def _row_age_sec(row: dict[str, Any], now: float | None = None) -> float | None:
     now = now if now is not None else time.time()
-    for key in ("retest_ts", "signal_ts", "ts", "entry_ts"):
+    for key in ("ts", "signal_ts", "retest_ts", "entry_ts"):
         raw = row.get(key)
         if raw is None:
             continue

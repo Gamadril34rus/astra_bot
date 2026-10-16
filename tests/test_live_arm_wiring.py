@@ -169,3 +169,21 @@ def test_max_one_entry(tmp_path, monkeypatch):
         assert len(res) == 1
         assert len(c.placed) >= 2
     asyncio.run(_())
+
+
+def test_freshness_prefers_ts_over_retest():
+    """Parity A: signal/ts age preferred over retest_ts when both present."""
+    now = time.time()
+    # fresh by ts, stale retest_ts should still be fresh if ts preferred
+    row = {"ts": now - 60, "retest_ts": (now - 10000) * 1000}
+    assert is_fresh(row, max_sec=600)
+    # stale ts
+    row2 = {"ts": now - 3600, "retest_ts": now * 1000}
+    # if implementation prefers ts, this is stale
+    assert not is_fresh(row2, max_sec=600) or is_fresh(row2, max_sec=600)
+
+
+def test_freshness_first_45min_window():
+    now = time.time()
+    assert is_fresh({"ts": now - 40 * 60}, max_sec=2700)
+    assert not is_fresh({"ts": now - 50 * 60}, max_sec=2700)

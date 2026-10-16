@@ -211,9 +211,15 @@ class LiveBroker:
         return min(wallet, self.config.hard_cap_usd)
 
     async def risk_budget(self, risk_pct: Decimal) -> Decimal:
-        """Dollar risk from real equity * pct (e.g. 0.01..0.03)."""
-        eq = await self.equity()
-        return (eq * risk_pct).quantize(Decimal("0.01"))
+        """Dollar risk from full wallet balance * pct (no HARD_CAP clamp).
+
+        equity() remains min(wallet, hard_cap) for other callers; sizing uses
+        the uncapped wallet so live risk matches paper % of full account.
+        """
+        wallet = await self.client.get_balance_usdt()
+        if wallet < 0:
+            wallet = Decimal("0")
+        return (wallet * risk_pct).quantize(Decimal("0.01"))
 
     def _assert_can_trade(self) -> None:
         if self._halted:
@@ -488,24 +494,39 @@ class LiveBroker:
                 logger.info("sync_closed: skip dup TG %s", sym)
 
             try:
-                append_live_trade(
-                    {
-                        "event": "exit",
-                        "symbol": sym,
-                        "side": side,
-                        "entry": entry_px,
-                        "exit": exit_fill,
-                        "exit_reason": reason,
-                        "pnl": round(pnl, 4),
-                        "fees": float(fees or 0),
-                        "funding_fee": float(funding_fee),
-                        "trade_id": signal_id or f"{sym}|{side}|{int(now)}",
-                        "slip_exit_pct": slip_exit,
-                        "qty": qty_closed or qty_plan,
-                        "signal_id": signal_id,
-                        "ts": now,
-                    }
-                )
+                trade_row = {
+                    "event": "exit",
+                    "symbol": sym,
+                    "side": side,
+                    "entry": entry_px,
+                    "exit": exit_fill,
+                    "exit_reason": reason,
+                    "pnl": round(pnl, 4),
+                    "fees": float(fees or 0),
+                    "funding_fee": float(funding_fee),
+                    "trade_id": signal_id or f"{sym}|{side}|{int(now)}",
+                    "slip_exit_pct": slip_exit,
+                    "qty": qty_closed or qty_plan,
+                    "signal_id": signal_id,
+                    "ts": now,
+                }
+                # C5: split legs when plan had TP1 partial (40/60 channel parity)
+                if plan.get("tp1") is not None and entry_px is not None:
+                    try:
+                        tp1_px = float(plan["tp1"])
+                        q_plan_f = float(plan.get("qty") or qty_plan or 0)
+                        q_tp1 = q_plan_f * 0.4
+                        if side == "long":
+                            tp1_leg = (tp1_px - entry_px) * q_tp1
+                        else:
+                            tp1_leg = (entry_px - tp1_px) * q_tp1
+                        runner_leg = float(pnl) - tp1_leg if plan.get("be_moved") else None
+                        trade_row["tp1_leg"] = round(tp1_leg, 4)
+                        if runner_leg is not None:
+                            trade_row["runner_leg"] = round(runner_leg, 4)
+                    except (TypeError, ValueError, ZeroDivisionError):
+                        pass
+                append_live_trade(trade_row)
             except Exception as tex:
                 logger.warning("append_live_trade: %s", type(tex).__name__)
 
@@ -570,22 +591,34 @@ class LiveBroker:
             # stop without our plan → unsupervised close below
             if has_stop and plan and plan.get("stop"):
                 # Follow-up #4: stop alive but TP missing → place TP only
-                tp = plan.get("tp")
-                if tp is not None and not has_tp:
+                # After be_moved (TP1 already filled) never re-place the partial TP.
+                tp = plan.get("tp") or plan.get("tp1")
+                if (
+                    tp is not None
+                    and not has_tp
+                    and not plan.get("be_moved")
+                ):
                     side = str(plan.get("side") or getattr(p, "side", "long")).lower()
                     stop_side = "SELL" if side == "long" else "BUY"
                     ps = "LONG" if side == "long" else "SHORT"
                     try:
-                        q = Decimal(str(plan.get("qty") or qty))
+                        q_full = Decimal(str(plan.get("qty") or qty))
+                        has_tp1 = plan.get("tp1") is not None
+                        if has_tp1:
+                            q_tp = (q_full * Decimal("0.4")).quantize(Decimal("0.00000001"))
+                            ro, cp = False, False  # hedge: no reduceOnly; partial qty
+                        else:
+                            q_tp = q_full
+                            ro, cp = False, True
                         await self.client.place_order(
                             symbol=sym,
                             side=stop_side,
                             order_type="TAKE_PROFIT_MARKET",
-                            quantity=q,
+                            quantity=q_tp,
                             stop_price=Decimal(str(tp)),
                             position_side=ps,
-                            reduce_only=False,
-                            close_position=True,
+                            reduce_only=ro,
+                            close_position=cp,
                             client_order_id=unique_client_order_id(sym, "r"),
                         )
                         restored.append(sym)
@@ -601,25 +634,42 @@ class LiveBroker:
                 continue
             if plan and plan.get("stop"):
                 side = str(plan.get("side") or getattr(p, "side", "long")).lower()
-                stop_px = Decimal(str(plan["stop"]))
+                # be_moved: protective stop sits at entry (breakeven)
+                if plan.get("be_moved") and plan.get("entry") is not None:
+                    stop_px = Decimal(str(plan["entry"]))
+                else:
+                    stop_px = Decimal(str(plan["stop"]))
                 q = Decimal(str(plan.get("qty") or qty))
                 try:
                     await self.move_stop(sym, side, q, stop_px)
-                    tp = plan.get("tp")
-                    if tp is not None:
+                    tp = plan.get("tp") or plan.get("tp1")
+                    # Do not re-place TP if a smaller-volume TP is already open (partial leg).
+                    if tp is not None and not has_tp:
                         stop_side = "SELL" if side == "long" else "BUY"
                         ps = "LONG" if side == "long" else "SHORT"
-                        await self.client.place_order(
-                            symbol=sym,
-                            side=stop_side,
-                            order_type="TAKE_PROFIT_MARKET",
-                            quantity=q,
-                            stop_price=Decimal(str(tp)),
-                            position_side=ps,
-                            reduce_only=False,
-                            close_position=True,
-                            client_order_id=unique_client_order_id(sym, "r"),
-                        )
+                        has_tp1 = plan.get("tp1") is not None
+                        if has_tp1 and not plan.get("be_moved"):
+                            q_tp = (q * Decimal("0.4")).quantize(Decimal("0.00000001"))
+                            ro, cp = False, False  # hedge: no reduceOnly; partial qty
+                        elif has_tp1 and plan.get("be_moved"):
+                            # After TP1 filled, no second TP restore for partial
+                            q_tp = None
+                            ro, cp = False, False
+                        else:
+                            q_tp = q
+                            ro, cp = False, True
+                        if q_tp is not None and q_tp > 0:
+                            await self.client.place_order(
+                                symbol=sym,
+                                side=stop_side,
+                                order_type="TAKE_PROFIT_MARKET",
+                                quantity=q_tp,
+                                stop_price=Decimal(str(tp)),
+                                position_side=ps,
+                                reduce_only=ro,
+                                close_position=cp,
+                                client_order_id=unique_client_order_id(sym, "r"),
+                            )
                     restored.append(sym)
                     logger.info("restore_missing_stops: %s STOP re-placed @ %s", sym, stop_px)
                 except Exception as exc:
@@ -728,16 +778,21 @@ class LiveBroker:
                 tp = existing_t
             else:
                 tp_cid = unique_client_order_id(plan.symbol, "t")
-                # Same shape as STOP: quantity + closePosition (no reduceOnly in hedge)
+                # Paper channel parity: TP1 leg = 40% qty @ 1.5R, no closePosition.
+                # Hedge mode: reduceOnly=False (BingX 109400). Stop covers remainder
+                # via closePosition=true on STOP_MARKET above.
+                tp_qty = (plan.quantity * Decimal("0.4")).quantize(Decimal("0.00000001"))
+                if tp_qty <= 0:
+                    tp_qty = plan.quantity
                 tp = await self.client.place_order(
                     symbol=plan.symbol,
                     side=stop_side,
                     order_type="TAKE_PROFIT_MARKET",
-                    quantity=plan.quantity,
+                    quantity=tp_qty,
                     stop_price=plan.take_profit_price,
                     position_side=ps,
                     reduce_only=False,
-                    close_position=True,
+                    close_position=False,
                     client_order_id=tp_cid,
                 )
         return {

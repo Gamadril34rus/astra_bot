@@ -261,12 +261,25 @@ async def plan_from_candidate(
         min_ev_r=1.0,
     )
     lev = min(int(lev), int(broker.config.max_leverage))
+    # Channel exit parity: TP1 @ 1.5R (40% leg on exchange); runner @ 2R stored as note only.
+    # Stop / size / entry unchanged. R = |entry − stop|.
+    entry_d = Decimal(str(cand.entry))
+    stop_d = Decimal(str(cand.stop))
+    r_abs = abs(entry_d - stop_d)
+    side_l = cand.side.lower()
+    if r_abs > 0:
+        if side_l == "long":
+            tp1 = entry_d + (r_abs * Decimal("1.5"))
+        else:
+            tp1 = entry_d - (r_abs * Decimal("1.5"))
+    else:
+        tp1 = cand.take_profit  # fail-open: keep strategy TP if R=0
     return LiveEntryPlan(
         symbol=cand.symbol,
-        side=cand.side.lower(),
+        side=side_l,
         quantity=qty,
         stop_price=cand.stop,
-        take_profit_price=cand.take_profit,
+        take_profit_price=tp1,
         leverage=lev,
         client_tag="arm",
         entry_price=cand.entry,
