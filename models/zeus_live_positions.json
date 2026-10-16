@@ -1,4 +1,47 @@
 {
-  "positions": {},
-  "ts": 1792117612.281579
+  "positions": {
+    "LTC-USDT|short": {
+      "symbol": "LTC-USDT",
+      "side": "short",
+      "qty": "1039.82282482",
+      "stop": "60.59088",
+      "tp": "59.388680",
+      "entry": "59.99",
+      "leverage": 3,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|LTC-USDT|short|1792152000000",
+      "ts": 1792163225.7630522,
+      "be_moved": false,
+      "tp1": "59.388680"
+    },
+    "APT-USDT|long": {
+      "symbol": "APT-USDT",
+      "side": "long",
+      "qty": "9123.92456839",
+      "stop": "0.8032658780487802",
+      "tp": "0.94010118292682970",
+      "entry": "0.8566",
+      "leverage": 3,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|APT-USDT|long|1792152000000",
+      "ts": 1792163231.3914003,
+      "be_moved": false,
+      "tp1": "0.94010118292682970"
+    },
+    "SUI-USDT|short": {
+      "symbol": "SUI-USDT",
+      "side": "short",
+      "qty": "60469.73365617",
+      "stop": "1.04076",
+      "tp": "1.020110",
+      "entry": "1.0304",
+      "leverage": 3,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|SUI-USDT|short|1792152000000",
+      "ts": 1792163236.4839065,
+      "be_moved": false,
+      "tp1": "1.020110"
+    }
+  },
+  "ts": 1792163236.4839373
 }
