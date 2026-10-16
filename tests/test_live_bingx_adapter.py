@@ -9,6 +9,7 @@ from typing import Any
 from astra_bot.adapters.bingx.client_live import LiveBingXClient
 from astra_bot.decision import live_commands as lc
 from astra_bot.decision.live_broker import HARD_CAP_USD, LiveBroker, LiveEntryPlan
+from astra_bot.decision.live_risk import check_day_week_limits
 
 
 class MockClient:
@@ -263,3 +264,29 @@ def test_get_balance_usdt_fallback_without_usdt_vst():
         raise_v3=True,
     )
     assert asyncio.run(dead.get_balance_usdt()) == Decimal("777")
+
+def test_day_week_limits_use_real_wallet_denominator(tmp_path):
+    """Owner 16.10: day/week % of REAL balance, not HARD_CAP equity.
+
+    One exit pnl=-350 today: vs equity 10000 → 3.5% < 4% → None;
+    vs equity 100 → 350% ≥ 4% → day_loss reason.
+    """
+    import json
+    import time as _time
+    from decimal import Decimal
+
+    trades = tmp_path / "zeus_live_trades.jsonl"
+    row = {
+        "event": "exit",
+        "symbol": "BTC-USDT",
+        "side": "long",
+        "pnl": -350.0,
+        "ts": _time.time(),
+    }
+    trades.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+    assert check_day_week_limits(Decimal("10000"), path=trades) is None
+    reason = check_day_week_limits(Decimal("100"), path=trades)
+    assert reason is not None
+    assert reason.startswith("day_loss")
+
