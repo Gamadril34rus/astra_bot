@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from decimal import Decimal
+from decimal import Decimal, ROUND_DOWN
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -224,6 +224,53 @@ class LiveBroker:
     def _assert_can_trade(self) -> None:
         if self._halted:
             raise RuntimeError(f"HALT before place_order: {self._halt_reason}")
+
+    async def _qty_step_for_symbol(self, symbol: str) -> Decimal | None:
+        """Lot step from exchange instrument (quantityPrecision → 10^-p).
+
+        Fail-open: None if instruments unavailable (caller keeps legacy quantize).
+        """
+        try:
+            client = self.client
+            inst = None
+            if hasattr(client, "get_instrument"):
+                inst = await client.get_instrument(symbol)
+            elif hasattr(client, "get_instruments"):
+                insts = await client.get_instruments(symbol)
+                if insts:
+                    inst = insts[0]
+            if inst is None:
+                return None
+            qp = getattr(inst, "quantity_precision", None)
+            if qp is not None:
+                try:
+                    p = int(qp)
+                    if p >= 0:
+                        return (Decimal(10) ** -p)
+                except (TypeError, ValueError):
+                    pass
+            step = getattr(inst, "step_size", None)
+            if step is not None:
+                s = Decimal(str(step))
+                if s > 0:
+                    return s
+        except Exception as exp:
+            logger.warning(
+                "qty_step_for_symbol %s failed: %s — fail-open legacy quantize",
+                symbol, type(exp).__name__,
+            )
+        return None
+
+    def _quantize_to_step(self, qty: Decimal, step: Decimal | None) -> Decimal:
+        """Floor qty to lot step; if step unknown keep 8dp legacy."""
+        if qty <= 0:
+            return qty
+        if step is None or step <= 0:
+            return qty.quantize(Decimal("0.00000001"))
+        n = (qty / step).to_integral_value(rounding=ROUND_DOWN)
+        out = n * step
+        return out if out > 0 else qty.quantize(Decimal("0.00000001"))
+
 
     async def reconcile(self) -> dict[str, Any]:
         """Exchange is truth. Restore protective stops if missing."""
@@ -604,11 +651,12 @@ class LiveBroker:
                     try:
                         q_full = Decimal(str(plan.get("qty") or qty))
                         has_tp1 = plan.get("tp1") is not None
+                        step = await self._qty_step_for_symbol(sym)
                         if has_tp1:
-                            q_tp = (q_full * Decimal("0.4")).quantize(Decimal("0.00000001"))
+                            q_tp = self._quantize_to_step(q_full * Decimal("0.4"), step)
                             ro, cp = False, False  # hedge: no reduceOnly; partial qty
                         else:
-                            q_tp = q_full
+                            q_tp = self._quantize_to_step(q_full, step)
                             ro, cp = False, True
                         await self.client.place_order(
                             symbol=sym,
@@ -626,11 +674,22 @@ class LiveBroker:
                             "restore_missing_stops: %s TP re-placed @ %s (stop was live)",
                             sym, tp,
                         )
-                    except Exception as exc:
+                    except Exception as exp:
                         logger.warning(
                             "restore_missing_stops: %s TP-only failed: %s",
-                            sym, type(exc).__name__,
+                            sym, type(exp).__name__,
                         )
+                        try:
+                            append_live_trade(
+                                {
+                                    "event": "restore_tp_failed",
+                                    "symbol": sym,
+                                    "error": f"{type(exp).__name__}: {exp}",
+                                    "ts": time.time(),
+                                }
+                            )
+                        except Exception:
+                            pass
                 continue
             if plan and plan.get("stop"):
                 side = str(plan.get("side") or getattr(p, "side", "long")).lower()
@@ -648,15 +707,16 @@ class LiveBroker:
                         stop_side = "SELL" if side == "long" else "BUY"
                         ps = "LONG" if side == "long" else "SHORT"
                         has_tp1 = plan.get("tp1") is not None
+                        step = await self._qty_step_for_symbol(sym)
                         if has_tp1 and not plan.get("be_moved"):
-                            q_tp = (q * Decimal("0.4")).quantize(Decimal("0.00000001"))
+                            q_tp = self._quantize_to_step(q * Decimal("0.4"), step)
                             ro, cp = False, False  # hedge: no reduceOnly; partial qty
                         elif has_tp1 and plan.get("be_moved"):
                             # After TP1 filled, no second TP restore for partial
                             q_tp = None
                             ro, cp = False, False
                         else:
-                            q_tp = q
+                            q_tp = self._quantize_to_step(q, step)
                             ro, cp = False, True
                         if q_tp is not None and q_tp > 0:
                             await self.client.place_order(
@@ -672,11 +732,22 @@ class LiveBroker:
                             )
                     restored.append(sym)
                     logger.info("restore_missing_stops: %s STOP re-placed @ %s", sym, stop_px)
-                except Exception as exc:
+                except Exception as exp:
                     logger.warning(
                         "restore_missing_stops: %s move_stop failed: %s",
-                        sym, type(exc).__name__,
+                        sym, type(exp).__name__,
                     )
+                    try:
+                        append_live_trade(
+                            {
+                                "event": "restore_stop_failed",
+                                "symbol": sym,
+                                "error": f"{type(exp).__name__}: {exp}",
+                                "ts": time.time(),
+                            }
+                        )
+                    except Exception:
+                        pass
             else:
                 logger.warning(
                     "restore_missing_stops: %s naked/no-plan qty=%s has_stop=%s — closing market",
@@ -781,9 +852,11 @@ class LiveBroker:
                 # Paper channel parity: TP1 leg = 40% qty @ 1.5R, no closePosition.
                 # Hedge mode: reduceOnly=False (BingX 109400). Stop covers remainder
                 # via closePosition=true on STOP_MARKET above.
-                tp_qty = (plan.quantity * Decimal("0.4")).quantize(Decimal("0.00000001"))
+                # Floor to symbol quantityPrecision (AAVE qp=1 → step 0.1).
+                step = await self._qty_step_for_symbol(plan.symbol)
+                tp_qty = self._quantize_to_step(plan.quantity * Decimal("0.4"), step)
                 if tp_qty <= 0:
-                    tp_qty = plan.quantity
+                    tp_qty = self._quantize_to_step(plan.quantity, step)
                 tp = await self.client.place_order(
                     symbol=plan.symbol,
                     side=stop_side,
