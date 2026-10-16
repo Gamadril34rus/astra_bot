@@ -134,7 +134,7 @@ def test_open_tp1_is_40pct_reduce_only(tmp_path, monkeypatch):
         assert len(tp_orders) == 1
         tp = tp_orders[0]
         assert tp["quantity"] == Decimal("0.4")
-        assert tp.get("reduce_only") is True
+        assert tp.get("reduce_only") is False  # BingX hedge 109400
         assert tp.get("close_position") is False
         stop_orders = [o for o in c.placed if "STOP" in str(o.get("order_type", "")).upper() and "TAKE_PROFIT" not in str(o.get("order_type", "")).upper()]
         assert len(stop_orders) >= 1
@@ -258,4 +258,72 @@ def test_sync_partial_skips_legacy_no_tp1(tmp_path):
         b = LiveBroker(c)
         out = await sync_partial_breakeven(b, positions_path=path)
         assert out.get("moved") == []
+    asyncio.run(_())
+
+
+def test_open_tp1_close_position_false(tmp_path, monkeypatch):
+    """TP1 leg must not use closePosition (runner stays open)."""
+    async def _():
+        monkeypatch.chdir(tmp_path)
+        c = MockClient(Decimal("500"))
+        b = LiveBroker(c)
+        plan = LiveEntryPlan(
+            symbol="ETH-USDT",
+            side="short",
+            quantity=Decimal("2"),
+            stop_price=Decimal("110"),
+            take_profit_price=Decimal("85"),
+            leverage=5,
+            entry_price=Decimal("100"),
+        )
+        await b.open_with_protection(plan)
+        tp_orders = [o for o in c.placed if "TAKE_PROFIT" in str(o.get("order_type", "")).upper()]
+        assert len(tp_orders) == 1
+        assert tp_orders[0]["quantity"] == Decimal("0.8")  # 40% of 2
+        assert tp_orders[0].get("reduce_only") is False
+        assert tp_orders[0].get("close_position") is False
+    asyncio.run(_())
+
+
+def test_sync_partial_already_be_moved(tmp_path):
+    async def _():
+        from scripts.zeus_live_clock import sync_partial_breakeven
+
+        path = tmp_path / "pos.json"
+        upsert_plan(
+            "BTC-USDT",
+            side="long",
+            qty="1.0",
+            stop="100",
+            tp="115",
+            entry="100",
+            tp1="115",
+            be_moved=True,
+            path=path,
+        )
+        pos = [
+            SimpleNamespace(
+                symbol="BTC-USDT",
+                side="long",
+                quantity=Decimal("0.6"),
+                entry_price=Decimal("100"),
+            )
+        ]
+        c = MockClient(positions=pos)
+        b = LiveBroker(c)
+        out = await sync_partial_breakeven(b, positions_path=path)
+        assert out.get("moved") == []
+    asyncio.run(_())
+
+
+def test_risk_budget_uncapped_in_partial_context(tmp_path, monkeypatch):
+    """risk_budget uses full wallet, not HARD_CAP (parity B)."""
+    async def _():
+        monkeypatch.chdir(tmp_path)
+        c = MockClient(Decimal("499.7"))
+        b = LiveBroker(c)
+        # 1% of 499.7 = 5.00 (not clamped by hard_cap 100)
+        assert await b.risk_budget(Decimal("0.01")) == Decimal("5.00")
+        eq = await b.equity()
+        assert eq == Decimal("100")  # equity still capped
     asyncio.run(_())
