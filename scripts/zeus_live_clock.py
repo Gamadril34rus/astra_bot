@@ -320,7 +320,7 @@ async def one_tick(*, dry: bool = False) -> int:
             broker.set_halt(prior)
             logger.error("HALT from kill state: %s", prior)
         else:
-            eq = await broker.equity()
+            eq = await broker.client.get_balance_usdt()  # owner 16.10: day/week % от РЕАЛЬНОГО счёта
             reason = check_day_week_limits(eq)
             if reason:
                 broker.set_halt(reason)
