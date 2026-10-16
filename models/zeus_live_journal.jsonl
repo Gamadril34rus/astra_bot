@@ -4850,3 +4850,12 @@
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|WLD-USDT|short|1792166400000", "symbol": "WLD-USDT", "side": "short", "ts": 1792179740.2879663}
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|ENA-USDT|short|1792166400000", "symbol": "ENA-USDT", "side": "short", "ts": 1792179740.2879715}
 {"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 4, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 1}, "unrealized_sum": null, "ts": 1792179741.2050965}
+{"event": "order_audit", "symbol": "LTC-USDT", "side": "short", "n_stop": 1, "n_tp": 0, "be_moved": false, "ts": 1792180018.6546288}
+{"event": "order_audit", "symbol": "APT-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792180018.654808}
+{"event": "order_audit", "symbol": "INJ-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792180018.6548758}
+{"event": "order_audit", "symbol": "AVAX-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792180018.654934}
+{"event": "order_audit", "symbol": "DOT-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792180018.6549907}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|AAVE-USDT|short|1792166400000", "symbol": "AAVE-USDT", "side": "short", "ts": 1792180030.191265}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|ATOM-USDT|short|1792166400000", "symbol": "ATOM-USDT", "side": "short", "ts": 1792180030.1912804}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|WLD-USDT|short|1792166400000", "symbol": "WLD-USDT", "side": "short", "ts": 1792180030.1912897}
+{"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 3, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 1}, "unrealized_sum": null, "ts": 1792180031.1347072}
