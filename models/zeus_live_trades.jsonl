@@ -31,3 +31,5 @@
 {"event": "entry", "signal_id": "zeus_channel_boundary|INJ-USDT|long|1792152000000", "symbol": "INJ-USDT", "side": "long", "plan_entry": "9.001", "fill_price": "9.002", "slip_pct": 0.011109876680382427, "qty": "600.95444918", "stop": "8.174032164634149", "tp": "10.2414517530487765", "leverage": 3, "ts": 1792163541.733321}
 {"event": "restore_tp_failed", "symbol": "SUI-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792174918.9284027}
 {"event": "restore_tp_failed", "symbol": "AAVE-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792174926.4952855}
+{"event": "restore_tp_failed", "symbol": "SUI-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792175225.1381319}
+{"event": "restore_tp_failed", "symbol": "AAVE-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792175235.3206034}
