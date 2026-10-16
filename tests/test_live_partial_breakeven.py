@@ -3,11 +3,8 @@ from __future__ import annotations
 
 import asyncio
 from decimal import Decimal
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
-
-import pytest
 
 from astra_bot.decision.live_arm import SignalCandidate, plan_from_candidate
 from astra_bot.decision.live_broker import LiveBroker, LiveEntryPlan
@@ -227,8 +224,8 @@ def test_sync_partial_skips_when_full_qty(tmp_path):
 
 def test_sync_partial_skips_legacy_no_tp1(tmp_path):
     async def _():
+        from astra_bot.decision.live_positions import plan_key, save_positions
         from scripts.zeus_live_clock import sync_partial_breakeven
-        from astra_bot.decision.live_positions import save_positions, plan_key
 
         path = tmp_path / "pos.json"
         # legacy plan without tp1
@@ -326,4 +323,48 @@ def test_risk_budget_uncapped_in_partial_context(tmp_path, monkeypatch):
         assert await b.risk_budget(Decimal("0.01")) == Decimal("5.00")
         eq = await b.equity()
         assert eq == Decimal("100")  # equity still capped
+    asyncio.run(_())
+
+
+def test_quantize_tp_qty_aave_precision_1():
+    """AAVE quantityPrecision=1 → step 0.1; 156.59634760 → 156.5."""
+    b = LiveBroker(MockClient())
+    step = Decimal("0.1")
+    raw = Decimal("156.59634760")
+    out = b._quantize_to_step(raw, step)
+    assert out == Decimal("156.5")
+
+
+def test_open_with_protection_quantizes_tp_to_precision(tmp_path, monkeypatch):
+    """Mock instrument qp=1 → TP quantity has at most 1 decimal place."""
+    async def _():
+        monkeypatch.chdir(tmp_path)
+
+        class _Inst:
+            quantity_precision = 1
+            step_size = Decimal("0.1")
+
+        class _Client(MockClient):
+            async def get_instrument(self, symbol: str):
+                return _Inst()
+
+        c = _Client(Decimal("500"))
+        b = LiveBroker(c)
+        plan = LiveEntryPlan(
+            symbol="AAVE-USDT",
+            side="long",
+            quantity=Decimal("391.49086901"),
+            stop_price=Decimal("90"),
+            take_profit_price=Decimal("115"),
+            leverage=5,
+            entry_price=Decimal("100"),
+        )
+        await b.open_with_protection(plan)
+        tp_orders = [o for o in c.placed if "TAKE_PROFIT" in str(o.get("order_type", "")).upper()]
+        assert len(tp_orders) == 1
+        q = tp_orders[0]["quantity"]
+        # 40% of 391.49086901 = 156.596347604 → floor 0.1 → 156.5
+        assert q == Decimal("156.5")
+        # no long fractional tail
+        assert q == q.quantize(Decimal("0.1"))
     asyncio.run(_())
