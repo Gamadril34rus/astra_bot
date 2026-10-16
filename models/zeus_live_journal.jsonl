@@ -5270,3 +5270,8 @@
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|ENA-USDT|short|1792180800000", "symbol": "ENA-USDT", "side": "short", "ts": 1792191751.245954}
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|PENDLE-USDT|short|1792180800000", "symbol": "PENDLE-USDT", "side": "short", "ts": 1792191751.245957}
 {"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 13, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 1}, "unrealized_sum": null, "ts": 1792191752.010453}
+{"event": "order_audit", "symbol": "LTC-USDT", "side": "short", "n_stop": 1, "n_tp": 0, "be_moved": false, "ts": 1792192009.326567}
+{"event": "order_audit", "symbol": "APT-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792192009.326734}
+{"event": "order_audit", "symbol": "INJ-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792192009.3267999}
+{"event": "order_audit", "symbol": "AVAX-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792192009.3268573}
+{"event": "order_audit", "symbol": "DOT-USDT", "side": "short", "n_stop": 0, "n_tp": 0, "be_moved": false, "ts": 1792192009.3269105}
