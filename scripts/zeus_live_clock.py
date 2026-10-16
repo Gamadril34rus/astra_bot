@@ -11,6 +11,8 @@ import asyncio
 import logging
 import os
 import sys
+import time
+from decimal import Decimal
 from pathlib import Path
 
 PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
@@ -97,6 +99,124 @@ async def _send_live_tg(msg: str) -> None:
         logger.warning("arm TG failed: %s", type(exc).__name__)
 
 
+async def sync_partial_breakeven(
+    broker,
+    *,
+    positions_path: Path | None = None,
+    send_tg=None,
+) -> dict:
+    """C: after TP1 (~40% filled), remaining ~60% → move stop to entry (breakeven).
+
+    Called EVERY tick (owner rule). Detects exchange qty ≈ 0.6 * plan qty,
+    plan has tp1, not yet be_moved. Moves protective stop to entry via
+    broker.move_stop, sets be_moved in plan, journals + optional TG.
+    Fail-open: any exception → skip symbol, continue.
+    """
+    from astra_bot.decision.live_positions import load_positions, upsert_plan
+    from astra_bot.decision.live_arm_wiring import append_journal
+
+    path = positions_path or Path("models/zeus_live_positions.json")
+    moved: list[str] = []
+    skipped: list[str] = []
+
+    try:
+        positions = await broker.client.get_positions()
+    except Exception as exc:
+        logger.warning("sync_partial_breakeven: get_positions failed: %s", type(exc).__name__)
+        return {"moved": [], "skipped": [], "error": type(exc).__name__}
+
+    plans = load_positions(path)
+    if not plans:
+        return {"moved": [], "skipped": []}
+
+    by_sym: dict[str, object] = {}
+    for p in positions:
+        sym = getattr(p, "symbol", "") or ""
+        qty = getattr(p, "quantity", None) or Decimal("0")
+        if sym and qty and qty > 0:
+            by_sym[sym] = p
+
+    for _key, plan in list(plans.items()):
+        sym = str(plan.get("symbol") or _key.split("|")[0] or "")
+        if not sym:
+            continue
+        if plan.get("be_moved"):
+            continue
+        # need explicit tp1 (partial channel); legacy full-TP plans skip
+        if plan.get("tp1") is None:
+            continue
+        if plan.get("entry") is None:
+            skipped.append(sym)
+            continue
+        pos = by_sym.get(sym)
+        if pos is None:
+            continue
+        try:
+            exch_qty = Decimal(str(getattr(pos, "quantity", 0) or 0))
+            plan_qty = Decimal(str(plan.get("qty") or 0))
+        except Exception:
+            skipped.append(sym)
+            continue
+        if plan_qty <= 0 or exch_qty <= 0:
+            continue
+        # remaining ≈ 60% of original (TP1 took 40%); tolerance ±15%
+        ratio = float(exch_qty / plan_qty)
+        if not (0.45 <= ratio <= 0.75):
+            continue
+        side = str(plan.get("side") or "long").lower()
+        try:
+            entry_px = Decimal(str(plan["entry"]))
+            await broker.move_stop(sym, side, exch_qty, entry_px)
+            upsert_plan(
+                symbol=sym,
+                side=side,
+                entry=entry_px,
+                stop=entry_px,
+                qty=exch_qty,
+                path=path,
+                tp=plan.get("tp"),
+                tp1=plan.get("tp1"),
+                be_moved=True,
+                signal_id=plan.get("signal_id"),
+            )
+            moved.append(sym)
+            base = (sym.split("-")[0] if "-" in sym else sym).replace("USDT", "")
+            side_ru = "ЛОНГ" if side == "long" else "ШОРТ"
+            msg = f"🔒 {base} {side_ru}: BE после TP1 (stop→entry)"
+            try:
+                append_journal(
+                    {
+                        "event": "partial_breakeven",
+                        "symbol": sym,
+                        "side": side,
+                        "entry": str(entry_px),
+                        "qty_remaining": str(exch_qty),
+                        "plan_qty": str(plan_qty),
+                        "ratio": round(ratio, 4),
+                        "ts": time.time(),
+                    }
+                )
+            except Exception as jexc:
+                logger.warning("sync_partial journal: %s", type(jexc).__name__)
+            if send_tg is not None:
+                try:
+                    await send_tg(msg)
+                except Exception:
+                    pass
+            logger.info(
+                "sync_partial_breakeven: %s ratio=%.3f stop→entry %s",
+                sym, ratio, entry_px,
+            )
+        except Exception as exc:
+            logger.warning(
+                "sync_partial_breakeven: %s failed: %s",
+                sym, type(exc).__name__,
+            )
+            skipped.append(sym)
+
+    return {"moved": moved, "skipped": skipped}
+
+
 async def one_tick(*, dry: bool = False) -> int:
     _guard()
     from astra_bot.adapters.bingx.client_live import LiveBingXClient
@@ -150,6 +270,14 @@ async def one_tick(*, dry: bool = False) -> int:
             logger.info("restore_missing_stops: %s", rest)
     except Exception as exc:
         logger.warning("restore_missing_stops failed: %s", type(exc).__name__)
+
+    # C: partial TP1 → BE — EVERY tick (owner rule), after restore so stop is present
+    try:
+        partial = await sync_partial_breakeven(broker, send_tg=_send_live_tg)
+        if partial.get("moved") or partial.get("skipped"):
+            logger.info("sync_partial_breakeven: %s", partial)
+    except Exception as exc:
+        logger.warning("sync_partial_breakeven failed: %s", type(exc).__name__)
 
     try:
         synced = await broker.sync_closed_plans(send_tg=_send_live_tg)
