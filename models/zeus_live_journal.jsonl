@@ -4859,3 +4859,18 @@
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|ATOM-USDT|short|1792166400000", "symbol": "ATOM-USDT", "side": "short", "ts": 1792180030.1912804}
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|WLD-USDT|short|1792166400000", "symbol": "WLD-USDT", "side": "short", "ts": 1792180030.1912897}
 {"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 3, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 1}, "unrealized_sum": null, "ts": 1792180031.1347072}
+{"event": "order_audit", "symbol": "LTC-USDT", "side": "short", "n_stop": 1, "n_tp": 0, "be_moved": false, "ts": 1792180620.0826623}
+{"event": "order_audit", "symbol": "APT-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792180620.0828252}
+{"event": "order_audit", "symbol": "INJ-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792180620.0828714}
+{"event": "order_audit", "symbol": "AVAX-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792180620.0829418}
+{"event": "order_audit", "symbol": "DOT-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792180620.0829816}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|LTC-USDT|short|1792166400000", "symbol": "LTC-USDT", "side": "short", "ts": 1792180635.1474645}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|APT-USDT|long|1792166400000", "symbol": "APT-USDT", "side": "long", "ts": 1792180635.1474724}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|SUI-USDT|short|1792166400000", "symbol": "SUI-USDT", "side": "short", "ts": 1792180635.1474774}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|AAVE-USDT|short|1792166400000", "symbol": "AAVE-USDT", "side": "short", "ts": 1792180635.1474812}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|ATOM-USDT|short|1792166400000", "symbol": "ATOM-USDT", "side": "short", "ts": 1792180635.147485}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|WLD-USDT|short|1792166400000", "symbol": "WLD-USDT", "side": "short", "ts": 1792180635.1474886}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|WIF-USDT|short|1792166400000", "symbol": "WIF-USDT", "side": "short", "ts": 1792180635.147496}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|ENA-USDT|short|1792166400000", "symbol": "ENA-USDT", "side": "short", "ts": 1792180635.1474996}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|PENDLE-USDT|short|1792166400000", "symbol": "PENDLE-USDT", "side": "short", "ts": 1792180635.147503}
+{"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 9, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 3}, "unrealized_sum": null, "ts": 1792180636.0284781}
