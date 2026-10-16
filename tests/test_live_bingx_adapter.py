@@ -94,12 +94,15 @@ def test_hard_cap_100():
     asyncio.run(_())
 
 
-def test_risk_pct_from_real_equity():
+def test_risk_pct_from_full_wallet():
+    """Parity B: risk_budget = wallet * pct, no HARD_CAP clamp (equity still capped)."""
     async def _():
         b = LiveBroker(MockClient(Decimal("80")))
         assert await b.risk_budget(Decimal("0.03")) == Decimal("2.40")
-        b2 = LiveBroker(MockClient(Decimal("500")))
-        assert await b2.risk_budget(Decimal("0.01")) == Decimal("1.00")
+        b2 = LiveBroker(MockClient(Decimal("499.7")))
+        assert await b2.risk_budget(Decimal("0.01")) == Decimal("5.00")
+        # equity remains hard-capped
+        assert await b2.equity() == HARD_CAP_USD
     asyncio.run(_())
 
 
