@@ -28,34 +28,6 @@
       "be_moved": false,
       "tp1": "0.94010118292682970"
     },
-    "SUI-USDT|short": {
-      "symbol": "SUI-USDT",
-      "side": "short",
-      "qty": "60469.73365617",
-      "stop": "1.04076",
-      "tp": "1.020110",
-      "entry": "1.0304",
-      "leverage": 3,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|SUI-USDT|short|1792152000000",
-      "ts": 1792163236.4839065,
-      "be_moved": false,
-      "tp1": "1.020110"
-    },
-    "AAVE-USDT|short": {
-      "symbol": "AAVE-USDT",
-      "side": "short",
-      "qty": "391.49086901",
-      "stop": "160.0704",
-      "tp": "156.89440",
-      "entry": "158.61",
-      "leverage": 3,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|AAVE-USDT|short|1792152000000",
-      "ts": 1792163535.0557137,
-      "be_moved": false,
-      "tp1": "156.89440"
-    },
     "INJ-USDT|long": {
       "symbol": "INJ-USDT",
       "side": "long",
@@ -69,7 +41,35 @@
       "ts": 1792163541.7326326,
       "be_moved": false,
       "tp1": "10.2414517530487765"
+    },
+    "AVAX-USDT|short": {
+      "symbol": "AVAX-USDT",
+      "side": "short",
+      "qty": "12644.94561421",
+      "stop": "10.101168000000001",
+      "tp": "9.9007479999999985",
+      "entry": "10.014",
+      "leverage": 3,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|AVAX-USDT|short|1792166400000",
+      "ts": 1792175567.3067136,
+      "be_moved": false,
+      "tp1": "9.9007479999999985"
+    },
+    "DOT-USDT|short": {
+      "symbol": "DOT-USDT",
+      "side": "short",
+      "qty": "109563.02484633",
+      "stop": "1.1643408",
+      "tp": "1.14123880",
+      "entry": "1.1511",
+      "leverage": 3,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|DOT-USDT|short|1792166400000",
+      "ts": 1792175572.5747068,
+      "be_moved": false,
+      "tp1": "1.14123880"
     }
   },
-  "ts": 1792163541.7326655
+  "ts": 1792175572.5747392
 }
