@@ -112,8 +112,8 @@ async def sync_partial_breakeven(
     broker.move_stop, sets be_moved in plan, journals + optional TG.
     Fail-open: any exception → skip symbol, continue.
     """
-    from astra_bot.decision.live_positions import load_positions, upsert_plan
     from astra_bot.decision.live_arm_wiring import append_journal
+    from astra_bot.decision.live_positions import load_positions, upsert_plan
 
     path = positions_path or Path("models/zeus_live_positions.json")
     moved: list[str] = []
@@ -273,8 +273,8 @@ async def one_tick(*, dry: bool = False) -> int:
 
     # Telemetry: order_audit every tick — stop/tp counts per plan symbol
     try:
-        from astra_bot.decision.live_positions import load_positions
         from astra_bot.decision.live_arm_wiring import append_journal
+        from astra_bot.decision.live_positions import load_positions
 
         plans = load_positions()
         if plans:
