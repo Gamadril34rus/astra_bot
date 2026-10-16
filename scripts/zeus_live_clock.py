@@ -271,6 +271,51 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception as exc:
         logger.warning("restore_missing_stops failed: %s", type(exc).__name__)
 
+    # Telemetry: order_audit every tick — stop/tp counts per plan symbol
+    try:
+        from astra_bot.decision.live_positions import load_positions
+        from astra_bot.decision.live_arm_wiring import append_journal
+
+        plans = load_positions()
+        if plans:
+            try:
+                open_orders = await client.get_open_orders()
+            except Exception:
+                open_orders = []
+            by_sym: dict[str, list] = {}
+            for o in open_orders:
+                by_sym.setdefault(getattr(o, "symbol", "") or "", []).append(o)
+            for _key, plan in plans.items():
+                sym = str(plan.get("symbol") or _key.split("|")[0] or "")
+                if not sym:
+                    continue
+                orders = by_sym.get(sym, [])
+                n_stop = sum(
+                    1
+                    for o in orders
+                    if "stop" in str(getattr(o, "order_type", "")).lower()
+                    and "take_profit" not in str(getattr(o, "order_type", "")).lower()
+                )
+                n_tp = sum(
+                    1
+                    for o in orders
+                    if "take_profit" in str(getattr(o, "order_type", "")).lower()
+                )
+                append_journal(
+                    {
+                        "event": "order_audit",
+                        "symbol": sym,
+                        "side": plan.get("side"),
+                        "n_stop": n_stop,
+                        "n_tp": n_tp,
+                        "be_moved": bool(plan.get("be_moved")),
+                        "ts": time.time(),
+                    }
+                )
+    except Exception as _oa_exc:
+        logger.warning("order_audit FAILED: %s", type(_oa_exc).__name__)
+
+
     # C: partial TP1 → BE — EVERY tick (owner rule), after restore so stop is present
     try:
         partial = await sync_partial_breakeven(broker, send_tg=_send_live_tg)
