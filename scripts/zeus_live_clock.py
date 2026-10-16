@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import os
 import sys
@@ -215,6 +216,200 @@ async def sync_partial_breakeven(
             skipped.append(sym)
 
     return {"moved": moved, "skipped": skipped}
+
+
+
+DIGEST_PATH = Path("models/zeus_live_digest.json")
+TRADES_PATH = Path("models/zeus_live_trades.jsonl")
+
+
+def _msk_now(now_ts: float | None = None):
+    """Return timezone-aware datetime in Europe/Moscow."""
+    from datetime import datetime, timezone
+    try:
+        from zoneinfo import ZoneInfo
+        msk = ZoneInfo("Europe/Moscow")
+    except Exception:
+        from datetime import timedelta
+        msk = timezone(timedelta(hours=3))  # fallback fixed +3
+    if now_ts is None:
+        return datetime.now(msk)
+    return datetime.fromtimestamp(now_ts, tz=msk)
+
+
+def _digest_window_key(now_ts: float | None = None) -> str | None:
+    """Return dedup key for current MSK window, or None if outside windows.
+
+    Morning 08:55–09:15 → YYYY-MM-DD:am
+    Evening 20:55–21:15 → YYYY-MM-DD:pm
+    """
+    dt = _msk_now(now_ts)
+    hm = dt.hour * 60 + dt.minute
+    day = dt.strftime("%Y-%m-%d")
+    if 8 * 60 + 55 <= hm <= 9 * 60 + 15:
+        return f"{day}:am"
+    if 20 * 60 + 55 <= hm <= 21 * 60 + 15:
+        return f"{day}:pm"
+    return None
+
+
+def _load_digest_last(path: Path = DIGEST_PATH) -> str | None:
+    try:
+        if not path.exists():
+            return None
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        return str(raw.get("last") or "") or None
+    except Exception:
+        return None
+
+
+def _save_digest_last(key: str, path: Path = DIGEST_PATH) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"last": key, "ts": time.time()}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+def _day_exits_msk(trades_path: Path, now_ts: float | None = None) -> list[dict]:
+    """Exit rows from trades.jsonl with ts >= 00:00 current MSK day."""
+    dt = _msk_now(now_ts)
+    day_start = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_ts = day_start.timestamp()
+    out: list[dict] = []
+    if not trades_path.exists():
+        return out
+    try:
+        for line in trades_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except Exception:
+                continue
+            if str(row.get("event") or "") != "exit":
+                continue
+            try:
+                ts = float(row.get("ts") or 0)
+            except (TypeError, ValueError):
+                continue
+            if ts < start_ts:
+                continue
+            out.append(row)
+    except Exception:
+        return out
+    return out
+
+
+async def _maybe_send_digest(
+    broker,
+    client,
+    *,
+    now_ts: float | None = None,
+    digest_path: Path = DIGEST_PATH,
+    trades_path: Path = TRADES_PATH,
+    send_tg=None,
+) -> str | None:
+    """LIVE TG digest at 09:00 / 21:00 MSK windows. Telemetry only; fail-open.
+
+    Returns sent key on success, None if skipped/failed.
+    """
+    try:
+        from astra_bot.decision.live_arm_wiring import append_journal
+        from astra_bot.decision.live_positions import load_positions
+
+        key = _digest_window_key(now_ts)
+        if key is None:
+            return None
+        if _load_digest_last(digest_path) == key:
+            return None
+
+        try:
+            eq = await client.get_balance_usdt()
+        except Exception:
+            eq = Decimal("0")
+        eq_f = float(eq)
+
+        exits = _day_exits_msk(trades_path, now_ts)
+        pnls: list[float] = []
+        no_fill = 0
+        for row in exits:
+            if row.get("pnl") is None:
+                no_fill += 1
+                continue
+            try:
+                pnls.append(float(row["pnl"]))
+            except (TypeError, ValueError):
+                no_fill += 1
+        day_sum = sum(pnls) if pnls else 0.0
+        n_pos = sum(1 for p in pnls if p > 0)
+        n_neg = sum(1 for p in pnls if p < 0)
+        best = max(pnls) if pnls else None
+        worst = min(pnls) if pnls else None
+
+        open_n = 0
+        risk_sum = 0.0
+        try:
+            plans = load_positions()
+            open_n = len(plans)
+            for plan in plans.values():
+                try:
+                    entry = float(plan.get("entry") or 0)
+                    stop = float(plan.get("stop") or 0)
+                    qty = float(plan.get("qty") or 0)
+                    risk_sum += abs(entry - stop) * qty
+                except (TypeError, ValueError):
+                    continue
+        except Exception:
+            pass
+
+        halt_reason = getattr(broker, "_halt_reason", None) or ""
+        halt_txt = f"да: {halt_reason}" if halt_reason else "нет"
+
+        dt = _msk_now(now_ts)
+        when = "утро" if key.endswith(":am") else "вечер"
+        day_lbl = dt.strftime("%d.%m")
+        sign = "+" if day_sum >= 0 else "−"
+        msg = (
+            f"📊 LIVE-СВОД {day_lbl} ({when}): "
+            f"счёт {eq_f:.2f}$; "
+            f"день {sign}{abs(day_sum):.2f}$ ({n_pos}+/{n_neg}−)"
+        )
+        if best is not None:
+            msg += f"; лучший +{best:.2f}$" if best >= 0 else f"; лучший −{abs(best):.2f}$"
+        if worst is not None:
+            msg += f", худший +{worst:.2f}$" if worst >= 0 else f", худший −{abs(worst):.2f}$"
+        msg += f"; открыто {open_n} (риск {risk_sum:.0f}$); HALT: {halt_txt}"
+        if no_fill:
+            msg += f"; +{no_fill} без филлов"
+
+        tg = send_tg or _send_live_tg
+        await tg(msg)
+        _save_digest_last(key, digest_path)
+        try:
+            append_journal(
+                {
+                    "event": "live_digest",
+                    "key": key,
+                    "day_pnl": round(day_sum, 4),
+                    "n_pos": n_pos,
+                    "n_neg": n_neg,
+                    "open_n": open_n,
+                    "risk_sum": round(risk_sum, 2),
+                    "equity": eq_f,
+                    "halt": halt_reason or None,
+                    "ts": time.time(),
+                }
+            )
+        except Exception:
+            pass
+        logger.info("live_digest sent key=%s day_pnl=%.2f", key, day_sum)
+        return key
+    except Exception as exp:
+        logger.warning("live_digest FAILED: %s", type(exp).__name__)
+        return None
+
 
 
 async def one_tick(*, dry: bool = False) -> int:
@@ -431,6 +626,11 @@ async def one_tick(*, dry: bool = False) -> int:
             )
         except Exception as _sum_exc:
             logger.warning("arm_summary FAILED: %s", type(_sum_exc).__name__)
+
+    try:
+        await _maybe_send_digest(broker, client, send_tg=_send_live_tg)
+    except Exception as _dig_exc:
+        logger.warning("live_digest tick FAILED: %s", type(_dig_exc).__name__)
 
     session = getattr(client, "_session", None)
     if session is not None:
