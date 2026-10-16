@@ -1,5 +1,66 @@
 {
-  "positions": [],
+  "positions": [
+    {
+      "id": "a075e1cf-2a98-4bbd-924b-31e681142003",
+      "symbol": "ADA-USDT",
+      "direction": "short",
+      "entry_price": "0.2258",
+      "quantity": "1182.08208800",
+      "stop_loss": "0.22760640000000001",
+      "take_profits": [
+        "0.22399359999999999",
+        "0.2221871999999999700000000000"
+      ],
+      "tp_filled": [
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.3,
+        0.7
+      ],
+      "initial_quantity": "1182.08208800",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "zeus_channel_boundary_4h",
+      "opened_at": 1792167418391,
+      "entry_bar_ts": 1792167300000,
+      "notes": {
+        "signal_bar_close": 0.2256,
+        "effective_entry": 0.2255742,
+        "initial_stop": 0.22760640000000001,
+        "initial_take": 0.22218719999999997,
+        "stop_pct": 0.009009009009009054,
+        "confidence": 0.83,
+        "ml_probability": null,
+        "prior_r": 1.1150000000000024,
+        "costs_r": 0.33299999999999835,
+        "equity_before": 2666.4722141148773,
+        "risk_budget": 26.664722141148772,
+        "binding_constraint": "heat_cap",
+        "score": 58.0,
+        "edge_pct": 114.0851,
+        "ev_r": 1.1408511989504984,
+        "ev_confidence": 0.23076923076923078,
+        "rr": 2.0000000000000053,
+        "leverage": 3
+      },
+      "fill_price": "0.2255742",
+      "entry_fee_per_unit": "0.00011278710",
+      "risk_distance": "0.00180640000000001",
+      "regime": "STRONG_BEAR_TREND",
+      "timeframe": "4h",
+      "regime_axes": "T:STRONG/V:VERY_LOW/L:NORMAL",
+      "bars_held": 0,
+      "leverage": "3",
+      "margin_used": "88.97137849013333333333333333",
+      "plan_variant": "STATIC_TP",
+      "plan_take": "0.2221871999999999700000000000",
+      "plan_last_bar_ts": 0
+    }
+  ],
   "realized_pnl": "666.4722141148770917864879824",
   "initial_capital": "2000.0",
   "cooldowns": {
