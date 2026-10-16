@@ -1,31 +1,31 @@
 {
-  "audited_at": "2026-10-09T03:29:05.174659+00:00",
-  "next_run": "2026-10-16T03:29:05.174659+00:00",
+  "audited_at": "2026-10-16T03:35:51.674791+00:00",
+  "next_run": "2026-10-23T03:35:51.674791+00:00",
   "tiers": {
     "top_ge_0.88": {
-      "n": 109,
-      "sum_r": 2.598059,
-      "exp": 0.023835
+      "n": 131,
+      "sum_r": 2.358071,
+      "exp": 0.018001
     },
     "mid_0.80_0.88": {
-      "n": 60,
-      "sum_r": 4.365933,
-      "exp": 0.072766
+      "n": 72,
+      "sum_r": 5.295877,
+      "exp": 0.073554
     },
     "low_0.70_0.80": {
-      "n": 142,
-      "sum_r": 14.51369,
-      "exp": 0.102209
+      "n": 161,
+      "sum_r": 17.401287,
+      "exp": 0.108083
     },
     "base_lt_0.70": {
-      "n": 26,
-      "sum_r": 0.201471,
-      "exp": 0.007749
+      "n": 31,
+      "sum_r": 0.688246,
+      "exp": 0.022201
     }
   },
-  "verdict": "top_tier_ok",
-  "tier_calibration_warning": false,
+  "verdict": "top_tier_below_base",
+  "tier_calibration_warning": true,
   "min_top_n": 30,
   "trades_path": "models/zeus_paper_trades.jsonl",
-  "n_trades_scanned": 337
+  "n_trades_scanned": 395
 }
