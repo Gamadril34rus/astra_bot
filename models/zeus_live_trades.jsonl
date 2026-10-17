@@ -372,3 +372,5 @@
 {"event":"exit","symbol":"APT-USDT","side":"long","entry":0.8566,"exit":null,"exit_reason":"no_fills","pnl":-548.093808,"signal_id":"zeus_channel_boundary|APT-USDT|long|1792152000000","ts":1792253523.1513069,"pnl_source":"income_backfill","backfill_ts":1792254419.5053968}
 {"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792254406.225656}
 {"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792254415.8633356}
+{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792254740.654369}
+{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792254750.2346575}
