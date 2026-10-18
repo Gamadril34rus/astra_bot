@@ -14,6 +14,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from astra_bot.decision.zeus_divergence import div_zeus_like
+
 COST_PER_SIDE = 0.0015
 TOUCH_TOL = 0.0035
 RETEST_TOL = 0.003
@@ -330,10 +332,11 @@ def evaluate_bars(opens, highs, lows, closes, *, lb: int = 48, geom: str = "gold
     out.update({k: v for k, v in br.items() if k != "status"})
     if br.get("status") == "signal":
         side = br["side"]
-        out["div"] = _rsi_divergence(
-            highs[form.form_start:form.form_end], lows[form.form_start:form.form_end],
-            closes[form.form_start:form.form_end], side,
-        )
+        fh = highs[form.form_start:form.form_end]
+        fl = lows[form.form_start:form.form_end]
+        fc = closes[form.form_start:form.form_end]
+        out["div"] = _rsi_divergence(fh, fl, fc, side)
+        out["div_zeus"] = div_zeus_like(fh, fl, fc, side)
         out["side"] = side
     return out
 
@@ -377,10 +380,11 @@ def evaluate_bars_with_lag(
             out.update({k: v for k, v in br.items() if k != "status"})
             if st == "signal":
                 side = br["side"]
-                out["div"] = _rsi_divergence(
-                    highs[form.form_start:form.form_end], lows[form.form_start:form.form_end],
-                    closes[form.form_start:form.form_end], side,
-                )
+                fh = highs[form.form_start:form.form_end]
+                fl = lows[form.form_start:form.form_end]
+                fc = closes[form.form_start:form.form_end]
+                out["div"] = _rsi_divergence(fh, fl, fc, side)
+                out["div_zeus"] = div_zeus_like(fh, fl, fc, side)
                 out["side"] = side
             bias = htf_bias_4h(htf_closes)
             out["htf_bias"] = bias
