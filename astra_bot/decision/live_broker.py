@@ -452,7 +452,7 @@ class LiveBroker:
                         fees = abs(fee_signed)
                     if agg.get("has_realized") or abs(float(agg.get("net") or 0)) > 1e-9:
                         # TG net includes funding; trades.pnl keeps realized-fees style
-                        pnl = float(agg["net"])
+                        pnl = float(agg["pnl"]) + float(agg["fees"])
                         if exit_reason == "":
                             exit_reason = "income"
                         logger.info(
@@ -550,7 +550,7 @@ class LiveBroker:
             msg = format_rocket(
                 sym,
                 side,
-                net=float(pnl),
+                net=float(pnl) + float(funding_fee or 0),
                 reason=reason,
                 funding=float(funding_fee or 0),
                 fees=-abs(float(fees or 0)),
