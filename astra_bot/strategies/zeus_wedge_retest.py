@@ -20,6 +20,7 @@ from typing import Any
 
 from ..core import models
 from .base import BaseStrategy, Signal, SignalType, StrategyConfig
+from ..decision.zeus_divergence import div_zeus_like
 
 logger = logging.getLogger(__name__)
 
@@ -490,8 +491,15 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                 return None
 
             confidence = min(0.85, 0.55 + width_pct * 2.0)
+            side_s = "short" if direction == models.TradeDirection.SHORT else "long"
+            form_closes = [float(x.close) for x in formation]
+            div_z = div_zeus_like(highs, lows, form_closes, side_s)
+            if div_z:
+                confidence = min(confidence + 0.07, 0.95)
             features = {
                 "zeus_pattern": pattern,
+                "div_zeus": bool(div_z),
+                "rules_version": "v2",
                 "reason": (
                     f"{pattern}: wedge upper={upper:.4f} lower={lower:.4f} "
                     f"width_pct={width_pct:.4f} bars_outside={bars_after}"
