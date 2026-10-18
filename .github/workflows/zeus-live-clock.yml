@@ -74,7 +74,7 @@ jobs:
         run: |
           git config user.name "astra-bot" || true
           git config user.email "bot@users.noreply.github.com" || true
-          for F in models/zeus_live_commands.json models/zeus_live_entries.jsonl models/zeus_live_positions.json models/zeus_live_trades.jsonl models/zeus_heat_state.json models/zeus_live_tg_flags.json models/zeus_live_journal.jsonl models/zeus_arm_pending.jsonl models/zeus_tg_commands_offset.json models/zeus_live_cooldown.json models/kill_switch_state.json models/zeus_live_blocked.json models/zeus_vol_cooldowns.json models/zeus_vol_cooldown_events.jsonl models/zeus_live_digest.json models/zeus_live_tg_pending.json models/zeus_funding_tg_state.json; do
+          for F in models/zeus_live_commands.json models/zeus_live_entries.jsonl models/zeus_live_positions.json models/zeus_live_trades.jsonl models/zeus_heat_state.json models/zeus_live_tg_flags.json models/zeus_live_journal.jsonl models/zeus_arm_pending.jsonl models/zeus_tg_commands_offset.json models/zeus_live_cooldown.json models/kill_switch_state.json models/zeus_live_blocked.json models/zeus_vol_cooldowns.json models/zeus_vol_cooldown_events.jsonl models/zeus_live_digest.json models/zeus_live_tg_pending.json models/zeus_funding_tg_state.json models/zeus_funding_day.json; do
             [ -f "$F" ] && git add -f "$F" || true
           done
           if ! git diff --cached --quiet; then
