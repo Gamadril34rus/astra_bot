@@ -104,8 +104,15 @@ def mark_done(cmd_row: dict[str, Any], path: Path = DEFAULT_PATH, result: str = 
     save_commands(cmds, path)
 
 
-async def apply_pending(broker: Any, path: Path = DEFAULT_PATH) -> list[str]:
-    """Execute pending stop/flat/resume on broker. Returns log lines."""
+async def apply_pending(
+    broker: Any,
+    path: Path = DEFAULT_PATH,
+    send_tg: Any = None,
+) -> list[str]:
+    """Execute pending stop/flat/resume on broker. Returns log lines.
+
+    After each cmd: optional TG ack (owner №23) — no silent execution.
+    """
     lines: list[str] = []
     rows = pending(path)
     # Ревью арбитра: если в батче есть и stop, и resume — исполняем
@@ -151,8 +158,19 @@ async def apply_pending(broker: Any, path: Path = DEFAULT_PATH) -> list[str]:
                 broker.clear_halt()
                 lines.append("cmd reset_kill: kill state cleared")
             mark_done(row, path, result="ok")
+            lines.append(f"cmd {cmd}: ok")
+            if send_tg is not None:
+                try:
+                    await send_tg(f"✅ {cmd}: исполнен live-тиком")
+                except Exception as tg_exc:
+                    logger.warning("apply_pending TG ok: %s", type(tg_exc).__name__)
         except Exception as exc:
             mark_done(row, path, result=f"err:{type(exc).__name__}")
             lines.append(f"cmd {cmd} failed: {type(exc).__name__}")
             logger.exception("live command failed")
+            if send_tg is not None:
+                try:
+                    await send_tg(f"⚠️ {cmd}: не вышел — {type(exc).__name__}: {exc}")
+                except Exception as tg_exc:
+                    logger.warning("apply_pending TG err: %s", type(tg_exc).__name__)
     return lines
