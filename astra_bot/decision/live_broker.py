@@ -435,37 +435,33 @@ class LiveBroker:
                     else:
                         pnl = (entry_px - exit_fill) * q - float(fees or 0)
 
-            # Fallback: user/income REALIZED_PNL + TRADING_FEE
+            # Fallback: income REALIZED_PNL + fees + FUNDING (exact TG net, owner 18.10)
+            # Retries inside tick when still missing (~3 x 7s).
             if pnl is None and hasattr(self.client, "get_realized_income"):
                 try:
-                    inc = await self.client.get_realized_income(sym, start_ms=start_ms)
-                    rp = 0.0
-                    fee_i = 0.0
-                    fp = 0.0
-                    for row in inc:
-                        try:
-                            val = float(row.get("income") or 0)
-                        except (TypeError, ValueError):
-                            continue
-                        it = str(row.get("_incomeType") or row.get("incomeType") or "")
-                        if it == "REALIZED_PNL":
-                            rp += val
-                        elif it == "TRADING_FEE":
-                            fee_i += abs(val)
-                        elif it == "FUNDING_FEE":
-                            fp += abs(val)
-                    if fp:
-                        funding_fee = float(fp)
-                    if rp != 0.0 or fee_i != 0.0:
-                        # A-011 Q3: PnL as paper — without funding; funding separate field
-                        pnl = (rp - fee_i) if rp != 0.0 else None
-                        if fees is None or fees == 0:
-                            fees = fee_i
+                    from astra_bot.decision.live_income_report import (
+                        fetch_income_with_retries,
+                    )
+
+                    agg = await fetch_income_with_retries(
+                        self.client, sym, start_ms, attempts=3, delay_sec=7.0
+                    )
+                    funding_fee = float(agg.get("funding") or 0.0)
+                    fee_signed = float(agg.get("fees") or 0.0)
+                    if fees is None or fees == 0:
+                        fees = abs(fee_signed)
+                    if agg.get("has_realized") or abs(float(agg.get("net") or 0)) > 1e-9:
+                        # TG net includes funding; trades.pnl keeps realized-fees style
+                        pnl = float(agg["net"])
                         if exit_reason == "":
                             exit_reason = "income"
                         logger.info(
-                            "sync_closed: %s pnl from income rp=%.4f fee=%.4f fund=%.4f (fund excluded from pnl)",
-                            sym, rp, fee_i, fp,
+                            "sync_closed: %s income net=%.4f rp=%.4f fee=%.4f fund=%.4f",
+                            sym,
+                            float(agg["net"]),
+                            float(agg.get("pnl") or 0),
+                            fee_signed,
+                            funding_fee,
                         )
                 except Exception as exc:
                     logger.warning("sync_closed income %s: %s", sym, type(exc).__name__)
@@ -501,13 +497,33 @@ class LiveBroker:
                     pending_fill.append(sym)
                     logger.info("sync_closed: %s no fills — keep plan (retry)", sym)
                     continue
-                if try_claim(sym, "exit", signal_id):
-                    msg = f"🏁 {base} {side_ru}: закрыта +? (филлы недоступны)"
+                # Soft close after 6h: no sign / no '?'; queue follow-up (owner 18.10)
+                from astra_bot.decision.live_income_report import (
+                    enqueue_pending,
+                    format_pending_rocket,
+                )
+
+                if try_claim(sym, "exit_pending_sum", signal_id):
+                    msg = format_pending_rocket(sym, side)
                     if send_tg is not None:
                         try:
                             await send_tg(msg)
                         except Exception as exc:
                             logger.warning("sync_closed TG: %s", type(exc).__name__)
+                try:
+                    enqueue_pending(
+                        {
+                            "symbol": sym,
+                            "side": side,
+                            "signal_id": signal_id,
+                            "since_ms": start_ms,
+                            "reason": exit_reason or "no_fills",
+                            "entry": entry_px,
+                            "ts": now,
+                        }
+                    )
+                except Exception as exc:
+                    logger.warning("sync_closed enqueue pending: %s", type(exc).__name__)
                 remove_plan(sym, path)
                 closed.append(sym)
                 try:
@@ -529,8 +545,16 @@ class LiveBroker:
                 continue
 
             reason = exit_reason or "выход"
-            sign = "+" if pnl >= 0 else "−"
-            msg = f"🏁 {base} {side_ru}: закрыта {sign}{abs(pnl):.2f}$ ({reason})"
+            from astra_bot.decision.live_income_report import format_rocket
+
+            msg = format_rocket(
+                sym,
+                side,
+                net=float(pnl),
+                reason=reason,
+                funding=float(funding_fee or 0),
+                fees=-abs(float(fees or 0)),
+            )
             if try_claim(sym, "exit", signal_id):
                 if send_tg is not None:
                     try:
