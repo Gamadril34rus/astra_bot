@@ -184,6 +184,119 @@ def apply_backfill_to_rows(
     return out, n_upd
 
 
+def _est_from_entry_row(exit_row: dict[str, Any], all_rows: list[dict[str, Any]]) -> float | None:
+    """Plan risk from matching entry (same signal_id) or exit fields."""
+    try:
+        entry = exit_row.get("entry")
+        stop = exit_row.get("stop")
+        qty = exit_row.get("qty")
+        if entry is not None and stop is not None and qty is not None:
+            return abs(float(stop) - float(entry)) * abs(float(qty))
+    except (TypeError, ValueError):
+        pass
+    sid = str(exit_row.get("signal_id") or "")
+    if not sid:
+        return None
+    for r in all_rows:
+        if str(r.get("event") or "") != "entry":
+            continue
+        if str(r.get("signal_id") or "") != sid:
+            continue
+        try:
+            entry = r.get("entry") or r.get("price")
+            stop = r.get("stop")
+            qty = r.get("qty")
+            if entry is None or stop is None or qty is None:
+                return None
+            return abs(float(stop) - float(entry)) * abs(float(qty))
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def correct_tiny_income_rows(
+    rows: list[dict[str, Any]],
+    income_by_symbol: dict[str, list[dict[str, Any]]],
+    *,
+    now: float | None = None,
+) -> tuple[list[dict[str, Any]], int]:
+    """Re-match weak income/income_backfill rows (|pnl|<0.10·est, est>50).
+
+    Sets pnl_source=income_corrected. Skips income_confirmed/income_corrected.
+    Never deletes rows.
+    """
+    from astra_bot.decision.live_income_report import aggregate_income
+
+    now_ts = float(now if now is not None else time.time())
+    out: list[dict[str, Any]] = []
+    n_upd = 0
+    for row in rows:
+        if str(row.get("event") or "") != "exit":
+            out.append(row)
+            continue
+        src = str(row.get("pnl_source") or "")
+        if src in ("income_confirmed", "income_corrected"):
+            out.append(row)
+            continue
+        if src not in ("income", "income_backfill"):
+            out.append(row)
+            continue
+        est = _est_from_entry_row(row, rows)
+        if est is None or est <= 50:
+            out.append(row)
+            continue
+        try:
+            pnl_abs = abs(float(row.get("pnl")))
+        except (TypeError, ValueError):
+            out.append(row)
+            continue
+        if pnl_abs >= 0.10 * est:
+            out.append(row)
+            continue
+        sym = str(row.get("symbol") or "")
+        income_rows = income_by_symbol.get(sym) or []
+        # 48h window around exit ts
+        ts = _ts_sec(row.get("ts"))
+        if ts is None:
+            out.append(row)
+            continue
+        lo = ts - 48 * 3600
+        hi = ts + 3600
+        window = []
+        for r in income_rows:
+            t = _ts_sec(r.get("time") or r.get("ts"))
+            if t is None or t < lo or t > hi:
+                continue
+            window.append(r)
+        agg = aggregate_income(window)
+        if not agg.get("has_realized"):
+            out.append(row)
+            continue
+        rp = abs(float(agg.get("pnl") or 0))
+        if rp < 0.5 * est:
+            # still weak — leave as-is
+            out.append(row)
+            continue
+        patched = dict(row)
+        # trades.pnl = realized + fees (fees signed)
+        patched["pnl"] = round(float(agg["pnl"]) + float(agg["fees"]), 4)
+        patched["fees"] = float(agg.get("fees") or 0)
+        patched["funding_fee"] = float(agg.get("funding") or 0)
+        patched["pnl_source"] = "income_corrected"
+        patched["corrected_ts"] = now_ts
+        out.append(patched)
+        n_upd += 1
+        logger.info(
+            "income_backfill correct %s pnl %.4f → %.4f (est=%.2f)",
+            sym,
+            pnl_abs,
+            patched["pnl"],
+            est,
+        )
+    return out, n_upd
+
+
+
 def load_trades(path: Path = TRADES_PATH) -> list[dict[str, Any]]:
     if not path.exists():
         return []
@@ -217,19 +330,30 @@ async def run_income_backfill(
     path: Path = TRADES_PATH,
     now: float | None = None,
 ) -> dict[str, Any]:
-    """Fetch income for symbols with null-pnl exits and rewrite file. Fail-open."""
+    """Fetch income for null-pnl exits + correct tiny income rows. Fail-open."""
     rows = load_trades(path)
     null_exits = [
         r
         for r in rows
         if str(r.get("event") or "") == "exit" and r.get("pnl") is None
     ]
-    if not null_exits:
-        return {"updated": 0, "nulls": 0, "symbols": []}
-
+    weak_exits = [
+        r
+        for r in rows
+        if str(r.get("event") or "") == "exit"
+        and str(r.get("pnl_source") or "") in ("income", "income_backfill")
+        and r.get("pnl") is not None
+    ]
     symbols = sorted(
-        {str(r.get("symbol") or "") for r in null_exits if r.get("symbol")}
+        {
+            str(r.get("symbol") or "")
+            for r in (null_exits + weak_exits)
+            if r.get("symbol")
+        }
     )
+    if not symbols:
+        return {"updated": 0, "nulls": 0, "corrected": 0, "symbols": []}
+
     end_ms = int((now if now is not None else time.time()) * 1000)
     start_ms = end_ms - 7 * 24 * 3600 * 1000
     income_by_symbol: dict[str, list[dict[str, Any]]] = {}
@@ -243,6 +367,12 @@ async def run_income_backfill(
             income_by_symbol[sym] = []
 
     new_rows, n_upd = apply_backfill_to_rows(rows, income_by_symbol, now=now)
-    if n_upd:
+    new_rows, n_corr = correct_tiny_income_rows(new_rows, income_by_symbol, now=now)
+    if n_upd or n_corr:
         save_trades(new_rows, path)
-    return {"updated": n_upd, "nulls": len(null_exits), "symbols": symbols}
+    return {
+        "updated": n_upd,
+        "corrected": n_corr,
+        "nulls": len(null_exits),
+        "symbols": symbols,
+    }
