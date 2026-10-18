@@ -279,32 +279,71 @@ async def _resolve_pending_exit_sums(client, send_tg=None) -> int:
     return sent
 
 
-async def _maybe_send_funding_tg(broker, client, send_tg=None) -> int:
-    """New FUNDING_FEE events on open plans → TG. Dust |x|<0.10 silent."""
-    from astra_bot.decision.live_income_report import (
-        claim_funding_event,
-        format_funding_tg,
-    )
+async def _accumulate_funding_day(client) -> float:
+    """Poll FUNDING_FEE on open plans; dedup; accumulate MSK-day sum. No TG.
+
+    State: models/zeus_funding_day.json = {"date": "YYYY-MM-DD", "sum": float, "ts": ...}
+    New MSK day resets sum. Fail-open. Returns current day sum after update.
+    """
+    from astra_bot.decision.live_income_report import claim_funding_event
     from astra_bot.decision.live_positions import load_positions
 
-    tg = send_tg or _send_live_tg
-    plans = load_positions()
-    if not plans:
-        return 0
-    sent = 0
-    import time as _time
+    FUNDING_DAY_PATH = Path("models/zeus_funding_day.json")
 
+    def _load_day() -> dict:
+        try:
+            if not FUNDING_DAY_PATH.exists():
+                return {}
+            raw = json.loads(FUNDING_DAY_PATH.read_text(encoding="utf-8"))
+            return raw if isinstance(raw, dict) else {}
+        except Exception:
+            return {}
+
+    def _save_day(date_s: str, total: float) -> None:
+        try:
+            FUNDING_DAY_PATH.parent.mkdir(parents=True, exist_ok=True)
+            FUNDING_DAY_PATH.write_text(
+                json.dumps({"date": date_s, "sum": float(total), "ts": time.time()}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        except Exception as exc:
+            logger.warning("funding_day save: %s", type(exc).__name__)
+
+    try:
+        today = _msk_now().strftime("%Y-%m-%d")
+    except Exception:
+        from datetime import datetime, timezone, timedelta
+        today = (datetime.now(timezone(timedelta(hours=3)))).strftime("%Y-%m-%d")
+
+    st = _load_day()
+    if str(st.get("date") or "") != today:
+        total = 0.0
+    else:
+        try:
+            total = float(st.get("sum") or 0)
+        except (TypeError, ValueError):
+            total = 0.0
+
+    plans = {}
+    try:
+        plans = load_positions() or {}
+    except Exception as exc:
+        logger.warning("funding_day load_positions: %s", type(exc).__name__)
+        _save_day(today, total)
+        return total
+
+    import time as _time
     now_ms = int(_time.time() * 1000)
     start_ms = now_ms - 36 * 3600 * 1000
+
     for _key, plan in list(plans.items()):
         sym = str(plan.get("symbol") or "")
-        side = str(plan.get("side") or "long")
         if not sym or not hasattr(client, "get_realized_income"):
             continue
         try:
             rows = await client.get_realized_income(sym, start_ms=start_ms)
         except Exception as exc:
-            logger.warning("funding poll %s: %s", sym, type(exc).__name__)
+            logger.warning("funding_day poll %s: %s", sym, type(exc).__name__)
             continue
         for row in rows or []:
             it = str(row.get("_incomeType") or row.get("incomeType") or "")
@@ -321,17 +360,15 @@ async def _maybe_send_funding_tg(broker, client, send_tg=None) -> int:
                     tms_i = int(tms_i * 1000)
             except (TypeError, ValueError):
                 tms_i = now_ms
-            msg = format_funding_tg(sym, side, amount)
-            if not msg:
-                continue
-            if not claim_funding_event(sym, tms_i, amount):
-                continue
             try:
-                await tg(msg)
-                sent += 1
-            except Exception as exc:
-                logger.warning("funding TG %s: %s", sym, type(exc).__name__)
-    return sent
+                if not claim_funding_event(sym, tms_i, amount):
+                    continue
+            except Exception:
+                continue
+            total += amount
+
+    _save_day(today, total)
+    return total
 
 
 def _day_funding_sum(trades_path: Path, now_ts: float | None = None) -> float:
@@ -527,7 +564,18 @@ async def _maybe_send_digest(
             msg += f", худший +{worst:.2f}$" if worst >= 0 else f", худший −{abs(worst):.2f}$"
         msg += f"; открыто {open_n} (риск {risk_sum:.0f}$); HALT: {halt_txt}"
         try:
-            fund_day = _day_funding_sum(trades_path, now_ts)
+            fund_day = None
+            fday_path = Path("models/zeus_funding_day.json")
+            try:
+                if fday_path.exists():
+                    raw_fd = json.loads(fday_path.read_text(encoding="utf-8"))
+                    today = _msk_now(now_ts).strftime("%Y-%m-%d")
+                    if str(raw_fd.get("date") or "") == today:
+                        fund_day = float(raw_fd.get("sum") or 0)
+            except Exception:
+                fund_day = None
+            if fund_day is None:
+                fund_day = _day_funding_sum(trades_path, now_ts)
             if abs(fund_day) >= 0.005:
                 fund_s = f"+{fund_day:.2f}$" if fund_day > 0 else f"-{abs(fund_day):.2f}$"
                 msg += f"; funding {fund_s}"
@@ -696,11 +744,10 @@ async def one_tick(*, dry: bool = False) -> int:
         logger.warning("pending exit sums FAILED: %s", type(_pexc).__name__)
 
     try:
-        n_fund = await _maybe_send_funding_tg(broker, client, send_tg=_send_live_tg)
-        if n_fund:
-            logger.info("funding TG sent: %d", n_fund)
+        fund_sum = await _accumulate_funding_day(client)
+        logger.info("funding_day sum=%.4f", float(fund_sum or 0))
     except Exception as _fexc:
-        logger.warning("funding TG FAILED: %s", type(_fexc).__name__)
+        logger.warning("funding_day FAILED: %s", type(_fexc).__name__)
 
     from astra_bot.decision.live_arm import arm_enabled
 

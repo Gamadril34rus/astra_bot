@@ -6,11 +6,9 @@ import json
 from pathlib import Path
 
 from astra_bot.decision.live_income_report import (
-    FUNDING_DUST,
     aggregate_income,
     claim_funding_event,
     enqueue_pending,
-    format_funding_tg,
     format_pending_rocket,
     format_rocket,
     format_usd,
@@ -91,17 +89,6 @@ def test_pending_queue_roundtrip(tmp_path):
     assert load_pending(path) == []
 
 
-def test_funding_dust_and_format():
-    assert format_funding_tg("BTC-USDT", "short", 0.05) is None
-    assert format_funding_tg("BTC-USDT", "short", FUNDING_DUST - 0.01) is None
-    msg = format_funding_tg("BTC-USDT", "short", 0.25)
-    assert msg is not None
-    assert msg.startswith("💰 BTC ШОРТ: funding +0.25$")
-    assert "лонг платит шорту" in msg
-    msg2 = format_funding_tg("ETH-USDT", "long", -0.5)
-    assert msg2 is not None
-    assert "funding -0.50$" in msg2
-    assert "мы платим шорту" in msg2
 
 
 def test_funding_dedup(tmp_path):
@@ -145,3 +132,74 @@ def test_pending_then_exact_flow(tmp_path):
     assert "?" not in follow
     remove_pending("AAVE-USDT", "sig-a", path=path)
     assert load_pending(path) == []
+
+
+def test_funding_day_accumulate_and_reset(tmp_path, monkeypatch):
+    """New funding event adds to day sum; MSK date change resets."""
+    import asyncio
+    from scripts import zeus_live_clock as clock
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "models").mkdir(parents=True)
+    # empty positions → accumulate returns 0 for new day
+    pos = tmp_path / "models" / "zeus_live_positions.json"
+    pos.write_text(json.dumps({"positions": {}, "ts": 0}), encoding="utf-8")
+
+    class _C:
+        async def get_realized_income(self, symbol, start_ms=None):
+            return []
+
+    async def _run():
+        s = await clock._accumulate_funding_day(_C())
+        assert s == 0.0
+        day_path = tmp_path / "models" / "zeus_funding_day.json"
+        assert day_path.exists()
+        raw = json.loads(day_path.read_text(encoding="utf-8"))
+        assert "date" in raw and raw["sum"] == 0.0
+        # inject sum and claim-like manual
+        raw["sum"] = 1.25
+        day_path.write_text(json.dumps(raw), encoding="utf-8")
+        s2 = await clock._accumulate_funding_day(_C())
+        assert abs(s2 - 1.25) < 1e-9  # same day, no new events
+
+        # day rollover
+        raw["date"] = "2000-01-01"
+        raw["sum"] = 9.99
+        day_path.write_text(json.dumps(raw), encoding="utf-8")
+        s3 = await clock._accumulate_funding_day(_C())
+        assert abs(s3 - 0.0) < 1e-9  # reset
+
+    asyncio.run(_run())
+
+
+def test_funding_day_new_event_adds(tmp_path, monkeypatch):
+    import asyncio
+    from scripts import zeus_live_clock as clock
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "models").mkdir(parents=True)
+    pos = tmp_path / "models" / "zeus_live_positions.json"
+    pos.write_text(
+        json.dumps({
+            "positions": {
+                "BTC-USDT|short": {"symbol": "BTC-USDT", "side": "short", "qty": "1"}
+            },
+            "ts": 0,
+        }),
+        encoding="utf-8",
+    )
+
+    class _C:
+        async def get_realized_income(self, symbol, start_ms=None):
+            return [
+                {"_incomeType": "FUNDING_FEE", "income": "0.50", "time": 1_700_000_000_000},
+            ]
+
+    async def _run():
+        s = await clock._accumulate_funding_day(_C())
+        assert abs(s - 0.50) < 1e-9
+        # second call dedups
+        s2 = await clock._accumulate_funding_day(_C())
+        assert abs(s2 - 0.50) < 1e-9
+
+    asyncio.run(_run())
