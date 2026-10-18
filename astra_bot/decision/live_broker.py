@@ -1053,12 +1053,13 @@ class LiveBroker:
                     )
                 except Exception as exc:
                     if _is_tp_price_past_error(exc):
-                        # Level already through — market-close 40% leg, mark BE
+                        # Level already through — market-close 40% leg, then stop→entry
                         logger.warning(
                             "open_with_protection: %s TP price past — market leg qty=%s",
                             plan.symbol,
                             tp_qty,
                         )
+                        market_ok = False
                         try:
                             tp = await self.client.place_order(
                                 symbol=plan.symbol,
@@ -1070,17 +1071,7 @@ class LiveBroker:
                                 close_position=False,
                                 client_order_id=unique_client_order_id(plan.symbol, "tm"),
                             )
-                            be_moved = True
-                            append_live_trade(
-                                {
-                                    "event": "tp1_market_past_level",
-                                    "symbol": plan.symbol,
-                                    "side": plan.side,
-                                    "qty": str(tp_qty),
-                                    "tp": str(plan.take_profit_price),
-                                    "fact_qty": str(fact_qty),
-                                }
-                            )
+                            market_ok = True
                         except Exception as exc2:
                             logger.warning(
                                 "open_with_protection market TP leg failed %s: %s",
@@ -1090,6 +1081,39 @@ class LiveBroker:
                             alerts.append(
                                 f"⚠️ {plan.symbol}: TP/market-leg отклонён — {type(exc2).__name__}: {exc2}"
                             )
+                        be_entry = None
+                        try:
+                            be_entry = Decimal(str(fill_px if fill_px is not None else plan.entry_price))
+                        except Exception:
+                            be_entry = None
+                        if market_ok and be_entry is not None and be_entry > 0:
+                            try:
+                                await self.move_stop(
+                                    plan.symbol, plan.side, fact_qty, be_entry
+                                )
+                                be_moved = True
+                            except Exception as exc3:
+                                logger.warning(
+                                    "open_with_protection move_stop BE failed %s: %s",
+                                    plan.symbol,
+                                    exc3,
+                                )
+                                alerts.append(
+                                    f"⚠️ {plan.symbol}: не смог поставить стоп на вход — старый стоп остаётся"
+                                )
+                                be_moved = False
+                        append_live_trade(
+                            {
+                                "event": "tp1_market_past_level",
+                                "symbol": plan.symbol,
+                                "side": plan.side,
+                                "qty": str(tp_qty),
+                                "tp": str(plan.take_profit_price),
+                                "fact_qty": str(fact_qty),
+                                "be_moved": be_moved,
+                                "market_ok": market_ok,
+                            }
+                        )
                     else:
                         logger.warning("open_with_protection TP failed %s: %s", plan.symbol, exc)
                         alerts.append(
