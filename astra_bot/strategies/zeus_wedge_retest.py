@@ -19,8 +19,8 @@ from decimal import Decimal
 from typing import Any
 
 from ..core import models
-from .base import BaseStrategy, Signal, SignalType, StrategyConfig
 from ..decision.zeus_divergence import div_zeus_like
+from .base import BaseStrategy, Signal, SignalType, StrategyConfig
 
 logger = logging.getLogger(__name__)
 
