@@ -224,59 +224,11 @@ TRADES_PATH = Path("models/zeus_live_trades.jsonl")
 
 
 async def _resolve_pending_exit_sums(client, send_tg=None) -> int:
-    """Follow-up rockets for exits that lacked income last tick. Fail-open."""
-    from astra_bot.decision.live_income_report import (
-        exit_net_from_client,
-        format_rocket,
-        load_pending,
-        save_pending,
-    )
-    from astra_bot.decision.live_tg_flags import try_claim
+    """Follow-up rockets: dogon confirm (≥0.5·est) or 24h estimate. Fail-open."""
+    from astra_bot.decision.live_income_report import resolve_pending_dogon
 
-    items = load_pending()
-    if not items:
-        return 0
-    remaining = []
-    sent = 0
     tg = send_tg or _send_live_tg
-    for item in items:
-        sym = str(item.get("symbol") or "")
-        side = str(item.get("side") or "long")
-        sid = item.get("signal_id")
-        since_ms = item.get("since_ms")
-        reason = str(item.get("reason") or "выход")
-        if not sym:
-            continue
-        try:
-            agg = await exit_net_from_client(client, sym, since_ms)
-        except Exception as exc:
-            logger.warning("pending exit_net %s: %s", sym, type(exc).__name__)
-            remaining.append(item)
-            continue
-        if not agg.get("has_realized") and abs(float(agg.get("net") or 0)) < 1e-9:
-            remaining.append(item)
-            continue
-        msg = format_rocket(
-            sym,
-            side,
-            net=float(agg["net"]),
-            reason=reason,
-            funding=float(agg.get("funding") or 0),
-            fees=float(agg.get("fees") or 0),
-        )
-        if try_claim(sym, "exit_sum", sid):
-            try:
-                await tg(msg)
-                sent += 1
-            except Exception as exc:
-                logger.warning("pending TG %s: %s", sym, type(exc).__name__)
-                remaining.append(item)
-                continue
-    try:
-        save_pending(remaining)
-    except Exception as exc:
-        logger.warning("pending save: %s", type(exc).__name__)
-    return sent
+    return await resolve_pending_dogon(client, tg)
 
 
 async def _accumulate_funding_day(client) -> float:

@@ -261,3 +261,235 @@ async def fetch_income_with_retries(
             except Exception:
                 break
     return best
+
+
+# ---- dogon (catch-up) for incomplete income rockets ----
+
+TRADES_PATH = Path("models/zeus_live_trades.jsonl")
+DOGON_CONFIRM_FRAC = 0.5
+DOGON_TTL_SEC = 24 * 3600
+SANITY_FRAC = 0.10
+
+
+def plan_est_risk(entry: float | None, stop: float | None, qty: float | None) -> float | None:
+    """|(stop − entry) × qty| — plan risk in $."""
+    try:
+        e = float(entry)
+        s = float(stop)
+        q = abs(float(qty))
+    except (TypeError, ValueError):
+        return None
+    if q <= 0:
+        return None
+    return abs(s - e) * q
+
+
+def income_too_small(agg: dict[str, Any], est: float | None) -> bool:
+    """has_realized but |REALIZED_PNL| < 0.10·est and est > 50."""
+    if est is None or est <= 50:
+        return False
+    if not agg.get("has_realized"):
+        return False
+    try:
+        rp = abs(float(agg.get("pnl") or 0))
+    except (TypeError, ValueError):
+        return False
+    return rp < SANITY_FRAC * float(est)
+
+
+def format_rocket_correction(
+    symbol: str,
+    side: str,
+    *,
+    net: float,
+    reason: str = "выход",
+    funding: float = 0.0,
+    fees: float = 0.0,
+    prefix: str = "уточнение: ",
+) -> str:
+    return prefix + format_rocket(
+        symbol, side, net=net, reason=reason, funding=funding, fees=fees
+    )
+
+
+def format_estimate_rocket(
+    symbol: str,
+    side: str,
+    *,
+    est: float,
+    reason: str = "стоп",
+) -> str:
+    base = symbol.replace("-USDT", "").replace("USDT", "")
+    side_l = (side or "").lower()
+    side_ru = "ЛОНГ" if side_l == "long" else "ШОРТ"
+    net_s = format_usd(-abs(float(est))) or "0.00$"
+    return (
+        f"🏁 {base} {side_ru}: закрыта {net_s} нетто "
+        f"({reason}; оценка, сверь с UI)"
+    )
+
+
+def patch_trade_exit_pnl(
+    *,
+    symbol: str,
+    signal_id: str | None,
+    pnl: float,
+    fees: float,
+    funding: float,
+    pnl_source: str = "income_confirmed",
+    path: Path = TRADES_PATH,
+) -> bool:
+    """Patch matching exit row. Never deletes. Skip income_confirmed/corrected."""
+    if not path.exists():
+        return False
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except Exception as exc:
+        logger.warning("patch_trade load: %s", type(exc).__name__)
+        return False
+    sid = str(signal_id or "")
+    changed = False
+    out: list[str] = []
+    now = time.time()
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            out.append(line)
+            continue
+        if str(row.get("event") or "") != "exit":
+            out.append(line)
+            continue
+        if str(row.get("symbol") or "") != symbol:
+            out.append(line)
+            continue
+        if sid and str(row.get("signal_id") or "") != sid:
+            out.append(line)
+            continue
+        src = str(row.get("pnl_source") or "")
+        if src in ("income_confirmed", "income_corrected"):
+            out.append(line)
+            continue
+        # patch null / pending_dogon / weak income*
+        if row.get("pnl") is not None and src not in (
+            "pending_dogon",
+            "income",
+            "income_backfill",
+        ):
+            out.append(line)
+            continue
+        row["pnl"] = round(float(pnl), 4)
+        row["fees"] = float(fees)
+        row["funding_fee"] = float(funding)
+        row["pnl_source"] = pnl_source
+        row["corrected_ts"] = now
+        out.append(json.dumps(row, ensure_ascii=False, separators=(",", ":")))
+        changed = True
+    if not changed:
+        return False
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        body = "\n".join(out)
+        if body:
+            body += "\n"
+        path.write_text(body, encoding="utf-8")
+    except Exception as exc:
+        logger.warning("patch_trade save: %s", type(exc).__name__)
+        return False
+    return True
+
+
+async def resolve_pending_dogon(
+    client: Any,
+    send_tg: Any = None,
+    *,
+    path: Path = PENDING_PATH,
+    trades_path: Path = TRADES_PATH,
+    now: float | None = None,
+) -> int:
+    """Confirm income (≥0.5·est) → correction TG + trades patch; 24h → estimate TG."""
+    items = load_pending(path)
+    if not items:
+        return 0
+    now_ts = float(now if now is not None else time.time())
+    remaining: list[dict[str, Any]] = []
+    sent = 0
+    for item in items:
+        sym = str(item.get("symbol") or "")
+        side = str(item.get("side") or "long")
+        sid = item.get("signal_id")
+        since_ms = item.get("since_ms")
+        reason = str(item.get("reason") or "стоп")
+        try:
+            est_f = float(item["est"]) if item.get("est") is not None else None
+        except (TypeError, ValueError):
+            est_f = None
+        enqueued_ts = float(item.get("ts") or now_ts)
+        age = now_ts - enqueued_ts
+        if not sym:
+            continue
+        try:
+            agg = await exit_net_from_client(client, sym, since_ms)
+        except Exception as exc:
+            logger.warning("dogon exit_net %s: %s", sym, type(exc).__name__)
+            remaining.append(item)
+            continue
+
+        rp = abs(float(agg.get("pnl") or 0))
+        has = bool(agg.get("has_realized"))
+        confirmed = has and (est_f is None or est_f <= 0 or rp >= DOGON_CONFIRM_FRAC * est_f)
+
+        if confirmed:
+            msg = format_rocket_correction(
+                sym,
+                side,
+                net=float(agg["net"]),
+                reason=reason,
+                funding=float(agg.get("funding") or 0),
+                fees=float(agg.get("fees") or 0),
+            )
+            if send_tg is not None:
+                try:
+                    await send_tg(msg)
+                    sent += 1
+                except Exception as exc:
+                    logger.warning("dogon TG %s: %s", sym, type(exc).__name__)
+                    remaining.append(item)
+                    continue
+            trade_pnl = float(agg.get("pnl") or 0) + float(agg.get("fees") or 0)
+            try:
+                patch_trade_exit_pnl(
+                    symbol=sym,
+                    signal_id=str(sid) if sid is not None else None,
+                    pnl=trade_pnl,
+                    fees=float(agg.get("fees") or 0),
+                    funding=float(agg.get("funding") or 0),
+                    pnl_source="income_confirmed",
+                    path=trades_path,
+                )
+            except Exception as exc:
+                logger.warning("dogon patch %s: %s", sym, type(exc).__name__)
+            continue
+
+        if age >= DOGON_TTL_SEC:
+            if est_f is not None and est_f > 0 and send_tg is not None:
+                try:
+                    await send_tg(
+                        format_estimate_rocket(sym, side, est=est_f, reason=reason)
+                    )
+                    sent += 1
+                except Exception as exc:
+                    logger.warning("dogon estimate TG %s: %s", sym, type(exc).__name__)
+                    remaining.append(item)
+                    continue
+            continue
+
+        remaining.append(item)
+
+    try:
+        save_pending(remaining, path)
+    except Exception as exc:
+        logger.warning("dogon save_pending: %s", type(exc).__name__)
+    return sent
