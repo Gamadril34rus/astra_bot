@@ -1,0 +1,322 @@
+"""Qty-parity: exchange filled size drives protections (owner №21a)."""
+from __future__ import annotations
+
+import asyncio
+from decimal import Decimal
+from types import SimpleNamespace
+
+import pytest
+from astra_bot.decision.live_broker import (
+    LiveBroker,
+    LiveBrokerConfig,
+    LiveEntryPlan,
+    _is_tp_price_past_error,
+    _order_filled_qty,
+)
+
+
+def test_order_filled_qty_variants():
+    assert _order_filled_qty(SimpleNamespace(filledQty=Decimal("208"))) == Decimal("208")
+    assert _order_filled_qty({"executedQty": "100.5"}) == Decimal("100.5")
+    assert _order_filled_qty(SimpleNamespace(quantity=0)) is None
+    assert _order_filled_qty(SimpleNamespace()) is None
+    assert _order_filled_qty(None) is None
+
+
+def test_is_tp_price_past_error():
+    assert _is_tp_price_past_error(
+        Exception("Take Profit price should be lower than the current price")
+    )
+    assert not _is_tp_price_past_error(Exception("insufficient margin"))
+
+
+def test_fact_qty_drives_tp_and_stop():
+    placed = []
+
+    class Client:
+        async def set_margin_isolated(self, symbol):
+            return None
+
+        async def set_leverage(self, symbol, lev, side="LONG"):
+            return None
+
+        async def get_balance_usdt(self):
+            return Decimal("100000")
+
+        async def get_open_orders(self, symbol=None):
+            return []
+
+        async def place_order(self, **kw):
+            placed.append(kw)
+            if kw.get("order_type") == "MARKET" and kw.get("side") == "SELL":
+                return SimpleNamespace(
+                    filled_price=Decimal("60"),
+                    filledQty=Decimal("208"),
+                    quantity=Decimal("1040"),
+                    id="e1",
+                )
+            return SimpleNamespace(id="x")
+
+        async def get_instruments(self, symbol=None):
+            return []
+
+        async def cancel_order(self, symbol, oid):
+            return True
+
+    broker = LiveBroker(Client(), LiveBrokerConfig())
+    plan = LiveEntryPlan(
+        symbol="LTC-USDT",
+        side="short",
+        quantity=Decimal("1040"),
+        stop_price=Decimal("61"),
+        take_profit_price=Decimal("58"),
+        leverage=3,
+        entry_price=Decimal("60"),
+    )
+    res = asyncio.run(broker.open_with_protection(plan))
+    assert Decimal(str(res["fact_qty"])) == Decimal("208")
+    assert Decimal(str(res["plan_qty"])) == Decimal("1040")
+    assert res["qty_ratio"] == pytest.approx(0.2, rel=1e-3)
+    assert any("биржа дала" in a for a in res["alerts"])
+    stop_orders = [p for p in placed if p.get("order_type") == "STOP_MARKET"]
+    tp_orders = [p for p in placed if p.get("order_type") == "TAKE_PROFIT_MARKET"]
+    assert stop_orders and stop_orders[0]["quantity"] == Decimal("208")
+    assert tp_orders and tp_orders[0]["quantity"] == Decimal("83.2")
+
+
+def test_fail_open_no_filled_qty():
+    class Client:
+        async def set_margin_isolated(self, symbol):
+            return None
+
+        async def set_leverage(self, symbol, lev, side="LONG"):
+            return None
+
+        async def get_balance_usdt(self):
+            return Decimal("1000")
+
+        async def get_open_orders(self, symbol=None):
+            return []
+
+        async def place_order(self, **kw):
+            if kw.get("order_type") == "MARKET" and kw.get("side") == "BUY":
+                return SimpleNamespace(filled_price=10, id="e")
+            return SimpleNamespace(id="x")
+
+        async def get_instruments(self, symbol=None):
+            return []
+
+        async def cancel_order(self, symbol, oid):
+            return True
+
+    broker = LiveBroker(Client(), LiveBrokerConfig())
+    plan = LiveEntryPlan(
+        symbol="X-USDT",
+        side="long",
+        quantity=Decimal("50"),
+        stop_price=Decimal("9"),
+        take_profit_price=Decimal("12"),
+        leverage=3,
+        entry_price=Decimal("10"),
+    )
+    res = asyncio.run(broker.open_with_protection(plan))
+    assert Decimal(str(res["fact_qty"])) == Decimal("50")
+    assert not res["alerts"]
+
+
+def test_tp_past_level_market_leg_be_moved(monkeypatch):
+    placed = []
+
+    class Client:
+        async def set_margin_isolated(self, symbol):
+            return None
+
+        async def set_leverage(self, symbol, lev, side="LONG"):
+            return None
+
+        async def get_balance_usdt(self):
+            return Decimal("1000")
+
+        async def get_open_orders(self, symbol=None):
+            # existing stop from initial protect
+            return [
+                SimpleNamespace(
+                    id="old_stop",
+                    order_type="STOP_MARKET",
+                    stop_price=Decimal("61"),
+                )
+            ]
+
+        async def place_order(self, **kw):
+            placed.append(dict(kw))
+            if kw.get("order_type") == "MARKET" and kw.get("side") == "SELL":
+                return SimpleNamespace(
+                    filled_price=Decimal("60"), filledQty=Decimal("100"), id="e"
+                )
+            if kw.get("order_type") == "TAKE_PROFIT_MARKET":
+                raise Exception("Take Profit price should be lower than the current price")
+            if kw.get("order_type") == "STOP_MARKET":
+                return SimpleNamespace(id=f"s-{kw.get('stop_price')}")
+            if kw.get("order_type") == "MARKET" and kw.get("side") == "BUY":
+                return SimpleNamespace(id="mkt_tp")
+            return SimpleNamespace(id="x")
+
+        async def get_instruments(self, symbol=None):
+            return []
+
+        async def cancel_order(self, symbol, oid):
+            return True
+
+    import astra_bot.decision.live_broker as lb
+
+    rows = []
+    monkeypatch.setattr(lb, "append_live_trade", lambda row, path=None: rows.append(row))
+
+    broker = LiveBroker(Client(), LiveBrokerConfig())
+    plan = LiveEntryPlan(
+        symbol="LTC-USDT",
+        side="short",
+        quantity=Decimal("100"),
+        stop_price=Decimal("61"),
+        take_profit_price=Decimal("58"),
+        leverage=3,
+        entry_price=Decimal("60"),
+    )
+    res = asyncio.run(broker.open_with_protection(plan))
+    assert res["be_moved"] is True
+    assert any(
+        p.get("order_type") == "MARKET" and p.get("quantity") == Decimal("40")
+        for p in placed
+    )
+    # After market leg, move_stop places STOP at entry (60)
+    be_stops = [
+        p
+        for p in placed
+        if p.get("order_type") == "STOP_MARKET"
+        and Decimal(str(p.get("stop_price"))) == Decimal("60")
+    ]
+    assert be_stops, f"expected STOP_MARKET @ 60, got {placed}"
+    assert any(r.get("event") == "tp1_market_past_level" for r in rows)
+
+
+def test_tp_past_move_stop_rejected_be_false(monkeypatch):
+    placed = []
+
+    class Client:
+        async def set_margin_isolated(self, symbol):
+            return None
+
+        async def set_leverage(self, symbol, lev, side="LONG"):
+            return None
+
+        async def get_balance_usdt(self):
+            return Decimal("1000")
+
+        async def get_open_orders(self, symbol=None):
+            return []
+
+        async def place_order(self, **kw):
+            placed.append(dict(kw))
+            if kw.get("order_type") == "MARKET" and kw.get("side") == "SELL":
+                return SimpleNamespace(
+                    filled_price=Decimal("60"), filledQty=Decimal("100"), id="e"
+                )
+            if kw.get("order_type") == "TAKE_PROFIT_MARKET":
+                raise Exception("Take Profit price should be lower than the current price")
+            if kw.get("order_type") == "STOP_MARKET":
+                if Decimal(str(kw.get("stop_price") or 0)) == Decimal("60"):
+                    raise Exception("BE stop rejected")
+                return SimpleNamespace(id="s-init")
+            if kw.get("order_type") == "MARKET" and kw.get("side") == "BUY":
+                return SimpleNamespace(id="mkt_tp")
+            return SimpleNamespace(id="x")
+
+        async def get_instruments(self, symbol=None):
+            return []
+
+        async def cancel_order(self, symbol, oid):
+            return True
+
+    import astra_bot.decision.live_broker as lb
+
+    rows = []
+    monkeypatch.setattr(lb, "append_live_trade", lambda row, path=None: rows.append(row))
+
+    broker = LiveBroker(Client(), LiveBrokerConfig())
+    plan = LiveEntryPlan(
+        symbol="LTC-USDT",
+        side="short",
+        quantity=Decimal("100"),
+        stop_price=Decimal("61"),
+        take_profit_price=Decimal("58"),
+        leverage=3,
+        entry_price=Decimal("60"),
+    )
+    res = asyncio.run(broker.open_with_protection(plan))
+    assert res["be_moved"] is False
+    assert any("не смог поставить стоп на вход" in a for a in res["alerts"])
+    assert any(r.get("event") == "tp1_market_past_level" for r in rows)
+
+
+def test_stop_reject_alert_and_raise():
+    class Client:
+        async def set_margin_isolated(self, symbol):
+            return None
+
+        async def set_leverage(self, symbol, lev, side="LONG"):
+            return None
+
+        async def get_balance_usdt(self):
+            return Decimal("1000")
+
+        async def get_open_orders(self, symbol=None):
+            return []
+
+        async def place_order(self, **kw):
+            if kw.get("order_type") == "MARKET":
+                return SimpleNamespace(
+                    filled_price=Decimal("10"), filledQty=Decimal("50"), id="e"
+                )
+            if kw.get("order_type") == "STOP_MARKET":
+                raise Exception("stop rejected by exchange")
+            return SimpleNamespace(id="x")
+
+        async def get_instruments(self, symbol=None):
+            return []
+
+    broker = LiveBroker(Client(), LiveBrokerConfig())
+    plan = LiveEntryPlan(
+        symbol="X-USDT",
+        side="long",
+        quantity=Decimal("50"),
+        stop_price=Decimal("9"),
+        take_profit_price=None,
+        leverage=3,
+        entry_price=Decimal("10"),
+    )
+    with pytest.raises(Exception, match="stop rejected"):
+        asyncio.run(broker.open_with_protection(plan))
+
+
+def test_two_alerts_single_claim():
+    """Contract of wiring alert loop: one claim, all alerts sent."""
+    sent = []
+    journals = []
+    claims = []
+
+    def try_claim(symbol, kind, sid=None, ts=None):
+        claims.append((symbol, kind, sid))
+        return True
+
+    def append_journal(row):
+        journals.append(row)
+
+    alert_list = ["⚠️ A: cut", "⚠️ A: tp past"]
+    claim_ok = try_claim("A-USDT", "qty_parity_alert", "sid1")
+    for alert in alert_list:
+        if claim_ok:
+            sent.append(alert)
+        append_journal({"event": "qty_parity_alert", "text": alert})
+    assert len(claims) == 1
+    assert sent == alert_list
+    assert len(journals) == 2

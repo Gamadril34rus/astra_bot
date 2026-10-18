@@ -67,6 +67,8 @@ def upsert_plan(
     signal_id: str | None = None,
     tp1: float | str | None = None,
     be_moved: bool = False,
+    plan_qty: float | str | None = None,
+    qty_ratio: float | None = None,
     path: Path = DEFAULT_PATH,
 ) -> None:
     pos = load_positions(path)
@@ -86,6 +88,10 @@ def upsert_plan(
         "ts": time.time(),
         "be_moved": bool(be_moved),
     }
+    if plan_qty is not None:
+        row["plan_qty"] = str(plan_qty)
+    if qty_ratio is not None:
+        row["qty_ratio"] = float(qty_ratio)
     # tp1 level (1.5R partial); omit on legacy-style plans
     if tp1 is not None:
         row["tp1"] = str(tp1)

@@ -274,6 +274,26 @@ async def plan_from_candidate(
             tp1 = entry_d - (r_abs * Decimal("1.5"))
     else:
         tp1 = cand.take_profit  # fail-open: keep strategy TP if R=0
+    try:
+        heat_on = False
+        try:
+            from astra_bot.decision.zeus_heat import DEFAULT_HEAT_PATH, ZeusHeatGovernor
+
+            heat_on = ZeusHeatGovernor(state_path=DEFAULT_HEAT_PATH).is_heat_active()
+        except Exception:
+            heat_on = False
+        logger.info(
+            "arm size %s conf=%s tier=%s budget=%s qty=%s lev=%s heat_active=%s",
+            cand.symbol,
+            conf,
+            tier,
+            budget,
+            qty,
+            lev,
+            heat_on,
+        )
+    except Exception:
+        pass
     return LiveEntryPlan(
         symbol=cand.symbol,
         side=side_l,

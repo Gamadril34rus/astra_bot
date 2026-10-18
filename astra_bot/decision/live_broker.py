@@ -101,6 +101,63 @@ class LiveBrokerConfig:
     default_leverage: int = 5
 
 
+
+def _order_filled_qty(order: Any) -> Decimal | None:
+    """Extract executed size from exchange order response. None if unknown."""
+    if order is None:
+        return None
+    candidates = []
+    for name in (
+        "filled_qty",
+        "filledQty",
+        "executed_qty",
+        "executedQty",
+        "execQty",
+        "quantity",
+        "qty",
+        "origQty",
+        "orig_qty",
+    ):
+        v = getattr(order, name, None)
+        if v is None and isinstance(order, dict):
+            v = order.get(name)
+        if v is None:
+            continue
+        try:
+            d = Decimal(str(v))
+        except Exception:
+            continue
+        if d > 0:
+            candidates.append(d)
+    # Prefer explicit filled* over orig/quantity when both present
+    for name in ("filled_qty", "filledQty", "executed_qty", "executedQty", "execQty"):
+        v = getattr(order, name, None)
+        if v is None and isinstance(order, dict):
+            v = order.get(name)
+        if v is None:
+            continue
+        try:
+            d = Decimal(str(v))
+            if d > 0:
+                return d
+        except Exception:
+            continue
+    return candidates[0] if candidates else None
+
+
+def _is_tp_price_past_error(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    needles = (
+        "take profit price should be lower",
+        "take profit price should be higher",
+        "price should be lower than the current",
+        "price should be higher than the current",
+        "would immediately trigger",
+        "immediately trigger",
+    )
+    return any(n in msg for n in needles)
+
+
 @dataclass
 class LiveEntryPlan:
     symbol: str
@@ -872,9 +929,9 @@ class LiveBroker:
     async def open_with_protection(self, plan: LiveEntryPlan) -> dict[str, Any]:
         """Entry MARKET first, then STOP_MARKET + optional TP (hedge-safe).
 
-        Hedge mode: do NOT send reduceOnly on TP (BingX 109400). Use positionSide
-        + closePosition on stop. Dedup: skip stop/tp if same level already open.
-        Raises after entry if protect fails (caller must journal entry first).
+        Qty-parity (owner №21a): protections sized from exchange filled qty when
+        present; plan.quantity is fail-open fallback. TP already past trigger →
+        market-close 40% leg + be_moved (same geometry, immediate execution).
         """
         self._assert_can_trade()
         if not self._entries_allowed:
@@ -909,8 +966,34 @@ class LiveBroker:
                 "slip entry %s plan=%s fill=%s adverse_pct=%.4f",
                 plan.symbol, plan_px, fill_px, slip_pct,
             )
+
+        plan_qty = plan.quantity
+        filled = _order_filled_qty(entry)
+        fact_qty = filled if filled is not None and filled > 0 else plan_qty
+        try:
+            qty_ratio = float(fact_qty / plan_qty) if plan_qty > 0 else None
+        except Exception:
+            qty_ratio = None
+        logger.info(
+            "qty-parity %s plan_qty=%s fact_qty=%s ratio=%s orig=%s filled=%s",
+            plan.symbol,
+            plan_qty,
+            fact_qty,
+            qty_ratio,
+            getattr(entry, "origQty", None) or getattr(entry, "quantity", None),
+            filled,
+        )
+
+        alerts: list[str] = []
+        if plan_qty > 0 and fact_qty < plan_qty * Decimal("0.9"):
+            pct = float(fact_qty / plan_qty * 100) if plan_qty else 0.0
+            alerts.append(
+                f"⚠️ {plan.symbol}: биржа дала {fact_qty} из {plan_qty} ({pct:.0f}%) — защиты пересчитаны"
+            )
+
         stop_side = "SELL" if side_long else "BUY"
         stop = None
+        be_moved = False
         existing_s = await _existing_protect(
             self.client, plan.symbol, kind="stop", side=stop_side, level=plan.stop_price
         )
@@ -919,16 +1002,21 @@ class LiveBroker:
             stop = existing_s
         else:
             stop_cid = unique_client_order_id(plan.symbol, "s")
-            stop = await self.client.place_order(
-                symbol=plan.symbol,
-                side=stop_side,
-                order_type="STOP_MARKET",
-                quantity=plan.quantity,
-                stop_price=plan.stop_price,
-                position_side=ps,
-                close_position=True,
-                client_order_id=stop_cid,
-            )
+            try:
+                stop = await self.client.place_order(
+                    symbol=plan.symbol,
+                    side=stop_side,
+                    order_type="STOP_MARKET",
+                    quantity=fact_qty,
+                    stop_price=plan.stop_price,
+                    position_side=ps,
+                    close_position=True,
+                    client_order_id=stop_cid,
+                )
+            except Exception as exc:
+                logger.warning("open_with_protection stop failed %s: %s", plan.symbol, exc)
+                alerts.append(f"⚠️ {plan.symbol}: стоп отклонён — {type(exc).__name__}: {exc}")
+                raise
         tp = None
         if plan.take_profit_price is not None:
             existing_t = await _existing_protect(
@@ -947,25 +1035,90 @@ class LiveBroker:
                 tp = existing_t
             else:
                 tp_cid = unique_client_order_id(plan.symbol, "t")
-                # Paper channel parity: TP1 leg = 40% qty @ 1.5R, no closePosition.
-                # Hedge mode: reduceOnly=False (BingX 109400). Stop covers remainder
-                # via closePosition=true on STOP_MARKET above.
-                # Floor to symbol quantityPrecision (AAVE qp=1 → step 0.1).
                 step = await self._qty_step_for_symbol(plan.symbol)
-                tp_qty = self._quantize_to_step(plan.quantity * Decimal("0.4"), step)
+                tp_qty = self._quantize_to_step(fact_qty * Decimal("0.4"), step)
                 if tp_qty <= 0:
-                    tp_qty = self._quantize_to_step(plan.quantity, step)
-                tp = await self.client.place_order(
-                    symbol=plan.symbol,
-                    side=stop_side,
-                    order_type="TAKE_PROFIT_MARKET",
-                    quantity=tp_qty,
-                    stop_price=plan.take_profit_price,
-                    position_side=ps,
-                    reduce_only=False,
-                    close_position=False,
-                    client_order_id=tp_cid,
-                )
+                    tp_qty = self._quantize_to_step(fact_qty, step)
+                try:
+                    tp = await self.client.place_order(
+                        symbol=plan.symbol,
+                        side=stop_side,
+                        order_type="TAKE_PROFIT_MARKET",
+                        quantity=tp_qty,
+                        stop_price=plan.take_profit_price,
+                        position_side=ps,
+                        reduce_only=False,
+                        close_position=False,
+                        client_order_id=tp_cid,
+                    )
+                except Exception as exc:
+                    if _is_tp_price_past_error(exc):
+                        # Level already through — market-close 40% leg, then stop→entry
+                        logger.warning(
+                            "open_with_protection: %s TP price past — market leg qty=%s",
+                            plan.symbol,
+                            tp_qty,
+                        )
+                        market_ok = False
+                        try:
+                            tp = await self.client.place_order(
+                                symbol=plan.symbol,
+                                side=stop_side,
+                                order_type="MARKET",
+                                quantity=tp_qty,
+                                position_side=ps,
+                                reduce_only=False,
+                                close_position=False,
+                                client_order_id=unique_client_order_id(plan.symbol, "tm"),
+                            )
+                            market_ok = True
+                        except Exception as exc2:
+                            logger.warning(
+                                "open_with_protection market TP leg failed %s: %s",
+                                plan.symbol,
+                                exc2,
+                            )
+                            alerts.append(
+                                f"⚠️ {plan.symbol}: TP/market-leg отклонён — {type(exc2).__name__}: {exc2}"
+                            )
+                        be_entry = None
+                        try:
+                            be_entry = Decimal(str(fill_px if fill_px is not None else plan.entry_price))
+                        except Exception:
+                            be_entry = None
+                        if market_ok and be_entry is not None and be_entry > 0:
+                            try:
+                                await self.move_stop(
+                                    plan.symbol, plan.side, fact_qty, be_entry
+                                )
+                                be_moved = True
+                            except Exception as exc3:
+                                logger.warning(
+                                    "open_with_protection move_stop BE failed %s: %s",
+                                    plan.symbol,
+                                    exc3,
+                                )
+                                alerts.append(
+                                    f"⚠️ {plan.symbol}: не смог поставить стоп на вход — старый стоп остаётся"
+                                )
+                                be_moved = False
+                        append_live_trade(
+                            {
+                                "event": "tp1_market_past_level",
+                                "symbol": plan.symbol,
+                                "side": plan.side,
+                                "qty": str(tp_qty),
+                                "tp": str(plan.take_profit_price),
+                                "fact_qty": str(fact_qty),
+                                "be_moved": be_moved,
+                                "market_ok": market_ok,
+                            }
+                        )
+                    else:
+                        logger.warning("open_with_protection TP failed %s: %s", plan.symbol, exc)
+                        alerts.append(
+                            f"⚠️ {plan.symbol}: TP отклонён — {type(exc).__name__}: {exc}"
+                        )
         return {
             "entry": entry,
             "stop": stop,
@@ -975,6 +1128,11 @@ class LiveBroker:
             "fill_price": str(fill_px) if fill_px is not None else None,
             "plan_price": str(plan_px) if plan_px is not None else None,
             "slip_pct": slip_pct,
+            "fact_qty": str(fact_qty),
+            "plan_qty": str(plan_qty),
+            "qty_ratio": qty_ratio,
+            "be_moved": be_moved,
+            "alerts": alerts,
         }
 
     async def move_stop(self, symbol: str, side: str, quantity: Decimal, stop_price: Decimal) -> Any:
