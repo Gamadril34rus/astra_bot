@@ -110,6 +110,49 @@ def _rsi_divergence(highs, lows, closes, side: str) -> bool:
     return highs[i2] >= highs[i1] * 1.001 and rsi[i2] < rsi[i1] - 1.0
 
 
+def div_zeus_like(
+    highs: Sequence[float],
+    lows: Sequence[float],
+    closes: Sequence[float],
+    side: str,
+    *,
+    radius: int = 2,
+) -> bool:
+    """Zeus-like regular RSI divergence (K-DIV) on formation window.
+
+    Local swing high/low with radius=2; last 2–3 swings in the window.
+    long: price LL (strict <) and RSI HL (strict >).
+    short: price HH (strict >) and RSI LH (strict <).
+    Soft optional tol is not applied by default — Zeus draws by eye.
+    Fewer than 2 swings → False. Independent of legacy _rsi_divergence.
+    """
+    n = len(closes)
+    if n < 16 or side not in ("long", "short"):
+        return False
+    rsi = _rsi14(closes)
+    if side == "long":
+        swings = [
+            i
+            for i in range(radius, n - radius)
+            if all(lows[i] < lows[i + d] for d in range(-radius, radius + 1) if d != 0)
+        ]
+        swings = swings[-3:]
+        if len(swings) < 2:
+            return False
+        i1, i2 = swings[-2], swings[-1]
+        return lows[i2] < lows[i1] and rsi[i2] > rsi[i1]
+    swings = [
+        i
+        for i in range(radius, n - radius)
+        if all(highs[i] > highs[i + d] for d in range(-radius, radius + 1) if d != 0)
+    ]
+    swings = swings[-3:]
+    if len(swings) < 2:
+        return False
+    i1, i2 = swings[-2], swings[-1]
+    return highs[i2] > highs[i1] and rsi[i2] < rsi[i1]
+
+
 def wilder_adx(highs, lows, closes, period: int = 14) -> float | None:
     n = len(closes)
     if n < period * 2 + 1:
@@ -330,10 +373,11 @@ def evaluate_bars(opens, highs, lows, closes, *, lb: int = 48, geom: str = "gold
     out.update({k: v for k, v in br.items() if k != "status"})
     if br.get("status") == "signal":
         side = br["side"]
-        out["div"] = _rsi_divergence(
-            highs[form.form_start:form.form_end], lows[form.form_start:form.form_end],
-            closes[form.form_start:form.form_end], side,
-        )
+        fh = highs[form.form_start:form.form_end]
+        fl = lows[form.form_start:form.form_end]
+        fc = closes[form.form_start:form.form_end]
+        out["div"] = _rsi_divergence(fh, fl, fc, side)
+        out["div_zeus"] = div_zeus_like(fh, fl, fc, side)
         out["side"] = side
     return out
 
@@ -377,10 +421,11 @@ def evaluate_bars_with_lag(
             out.update({k: v for k, v in br.items() if k != "status"})
             if st == "signal":
                 side = br["side"]
-                out["div"] = _rsi_divergence(
-                    highs[form.form_start:form.form_end], lows[form.form_start:form.form_end],
-                    closes[form.form_start:form.form_end], side,
-                )
+                fh = highs[form.form_start:form.form_end]
+                fl = lows[form.form_start:form.form_end]
+                fc = closes[form.form_start:form.form_end]
+                out["div"] = _rsi_divergence(fh, fl, fc, side)
+                out["div_zeus"] = div_zeus_like(fh, fl, fc, side)
                 out["side"] = side
             bias = htf_bias_4h(htf_closes)
             out["htf_bias"] = bias
