@@ -25,6 +25,35 @@ STOP_BUF_LONG = 0.998
 STOP_BUF_SHORT = 1.002
 
 
+def htf_bias_4h(closes4h: Sequence[float] | None) -> str:
+    """4h trend bias from EMA8 vs EMA21 (same as zeus_channel_boundary._htf_bias).
+
+    Returns "up" | "down" | "neutral" | "unknown".
+    unknown = missing/short series (caller must NOT block on unknown).
+    """
+    if closes4h is None:
+        return "unknown"
+    closes = [float(x) for x in closes4h]
+    if len(closes) < 8:
+        return "unknown"
+
+    def ema(vals: list[float], n: int) -> float:
+        k = 2.0 / (n + 1)
+        e = vals[0]
+        for v in vals[1:]:
+            e = v * k + e * (1 - k)
+        return e
+
+    fast = ema(closes, 8)
+    slow = ema(closes, min(21, len(closes)))
+    if fast > slow * 1.001:
+        return "up"
+    if fast < slow * 0.999:
+        return "down"
+    return "neutral"
+
+
+
 def _linreg(ys: Sequence[float]) -> tuple[float, float]:
     n = len(ys)
     if n < 2:
@@ -312,6 +341,7 @@ def evaluate_bars(opens, highs, lows, closes, *, lb: int = 48, geom: str = "gold
 def evaluate_bars_with_lag(
     opens: Sequence[float], highs: Sequence[float], lows: Sequence[float], closes: Sequence[float],
     *, lb: int = 48, geom: str = "gold", max_lag: int | None = None,
+    htf_closes: Sequence[float] | None = None,
 ) -> dict[str, Any]:
     """Fit formation ending `lag` bars ago; scan breakout/retest on the FULL series.
 
@@ -352,6 +382,12 @@ def evaluate_bars_with_lag(
                     closes[form.form_start:form.form_end], side,
                 )
                 out["side"] = side
+            bias = htf_bias_4h(htf_closes)
+            out["htf_bias"] = bias
+            side = out.get("side")
+            if side in ("long", "short") and bias in ("up", "down"):
+                if (side == "long" and bias == "down") or (side == "short" and bias == "up"):
+                    out["status"] = "htf_gate_blocked"
             return out
         if best is None and st in ("no_breakout", "no_retest"):
             best = {
@@ -360,4 +396,8 @@ def evaluate_bars_with_lag(
                 "kind": form.kind, "lb": lb, "geom": geom, "lag": lag,
             }
             best.update({k: v for k, v in br.items() if k != "status"})
-    return best if best is not None else stage
+    out_final = best if best is not None else stage
+    if isinstance(out_final, dict) and "htf_bias" not in out_final:
+        out_final = dict(out_final)
+        out_final["htf_bias"] = htf_bias_4h(htf_closes)
+    return out_final
