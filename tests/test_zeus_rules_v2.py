@@ -1,11 +1,8 @@
 """Zeus rules v2: div_zeus_like + wedge_retest features + 1h shadow field."""
 from __future__ import annotations
 
-from decimal import Decimal
-from unittest.mock import MagicMock
-
-from astra_bot.decision.zeus_divergence import div_zeus_like
 from astra_bot import zeus_wedge_1h_core as core1h
+from astra_bot.decision.zeus_divergence import div_zeus_like
 
 
 def test_div_zeus_no_swings():
@@ -128,8 +125,8 @@ def test_wedge_retest_confidence_bump_logic():
 
 
 def test_wedge_retest_source_has_v2_marker():
-    from pathlib import Path
     import inspect
+    from pathlib import Path
     # Online CI: import strategy module text markers
     try:
         from astra_bot.strategies import zeus_wedge_retest as zw
