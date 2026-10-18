@@ -595,7 +595,7 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception:
         pass
 
-    cmd_lines = await apply_pending(broker)
+    cmd_lines = await apply_pending(broker, send_tg=_send_live_tg)
     for ln in cmd_lines:
         logger.info("%s", ln)
 
