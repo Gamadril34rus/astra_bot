@@ -451,6 +451,75 @@ class LiveBroker:
                     if fees is None or fees == 0:
                         fees = abs(fee_signed)
                     if agg.get("has_realized") or abs(float(agg.get("net") or 0)) > 1e-9:
+                        from astra_bot.decision.live_income_report import (
+                            income_too_small,
+                            plan_est_risk,
+                        )
+
+                        est = plan_est_risk(entry_px, plan.get("stop"), qty_plan or qty_closed)
+                        # Sanity: tiny REALIZED_PNL vs plan risk → dogon (owner №20)
+                        if income_too_small(agg, est):
+                            logger.warning(
+                                "sync_closed: %s income too small rp=%.4f est=%.2f → dogon",
+                                sym,
+                                float(agg.get("pnl") or 0),
+                                float(est or 0),
+                            )
+                            from astra_bot.decision.live_income_report import (
+                                enqueue_pending,
+                                format_pending_rocket,
+                            )
+
+                            dogon_reason = exit_reason or "стоп"
+                            if try_claim(sym, "exit_pending_sum", signal_id):
+                                msg = format_pending_rocket(sym, side)
+                                if send_tg is not None:
+                                    try:
+                                        await send_tg(msg)
+                                    except Exception as exc:
+                                        logger.warning(
+                                            "sync_closed TG: %s", type(exc).__name__
+                                        )
+                            try:
+                                enqueue_pending(
+                                    {
+                                        "symbol": sym,
+                                        "side": side,
+                                        "signal_id": signal_id,
+                                        "since_ms": start_ms,
+                                        "reason": dogon_reason,
+                                        "entry": entry_px,
+                                        "stop": plan.get("stop"),
+                                        "qty": qty_plan or qty_closed,
+                                        "est": est,
+                                        "ts": now,
+                                    }
+                                )
+                            except Exception as exc:
+                                logger.warning(
+                                    "sync_closed enqueue dogon: %s", type(exc).__name__
+                                )
+                            try:
+                                append_live_trade(
+                                    {
+                                        "event": "exit",
+                                        "symbol": sym,
+                                        "side": side,
+                                        "entry": entry_px,
+                                        "exit": None,
+                                        "exit_reason": dogon_reason,
+                                        "pnl": None,
+                                        "pnl_source": "pending_dogon",
+                                        "signal_id": signal_id,
+                                        "qty": qty_plan or qty_closed,
+                                        "ts": now,
+                                    }
+                                )
+                            except Exception:
+                                pass
+                            remove_plan(sym, path)
+                            closed.append(sym)
+                            continue
                         # TG net includes funding; trades.pnl keeps realized-fees style
                         pnl = float(agg["pnl"]) + float(agg["fees"])
                         if exit_reason == "":
@@ -476,6 +545,10 @@ class LiveBroker:
                             slip_exit = -slip_exit
                 except (TypeError, ValueError):
                     pass
+
+            # Position flat + protective gone: if no typed fill reason, treat as stop
+            if not exit_reason and plan.get("stop") is not None:
+                exit_reason = "стоп"
 
             age_sec = now - float(plan.get("ts") or now)
             have_pnl = pnl is not None
@@ -573,6 +646,7 @@ class LiveBroker:
                     "exit": exit_fill,
                     "exit_reason": reason,
                     "pnl": round(pnl, 4),
+                    "pnl_source": "income" if reason == "income" else "fills",
                     "fees": float(fees or 0),
                     "funding_fee": float(funding_fee),
                     "trade_id": signal_id or f"{sym}|{side}|{int(now)}",
