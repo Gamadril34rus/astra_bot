@@ -223,6 +223,151 @@ DIGEST_PATH = Path("models/zeus_live_digest.json")
 TRADES_PATH = Path("models/zeus_live_trades.jsonl")
 
 
+async def _resolve_pending_exit_sums(client, send_tg=None) -> int:
+    """Follow-up rockets for exits that lacked income last tick. Fail-open."""
+    from astra_bot.decision.live_income_report import (
+        exit_net_from_client,
+        format_rocket,
+        load_pending,
+        save_pending,
+    )
+    from astra_bot.decision.live_tg_flags import try_claim
+
+    items = load_pending()
+    if not items:
+        return 0
+    remaining = []
+    sent = 0
+    tg = send_tg or _send_live_tg
+    for item in items:
+        sym = str(item.get("symbol") or "")
+        side = str(item.get("side") or "long")
+        sid = item.get("signal_id")
+        since_ms = item.get("since_ms")
+        reason = str(item.get("reason") or "выход")
+        if not sym:
+            continue
+        try:
+            agg = await exit_net_from_client(client, sym, since_ms)
+        except Exception as exc:
+            logger.warning("pending exit_net %s: %s", sym, type(exc).__name__)
+            remaining.append(item)
+            continue
+        if not agg.get("has_realized") and abs(float(agg.get("net") or 0)) < 1e-9:
+            remaining.append(item)
+            continue
+        msg = format_rocket(
+            sym,
+            side,
+            net=float(agg["net"]),
+            reason=reason,
+            funding=float(agg.get("funding") or 0),
+            fees=float(agg.get("fees") or 0),
+        )
+        if try_claim(sym, "exit_sum", sid):
+            try:
+                await tg(msg)
+                sent += 1
+            except Exception as exc:
+                logger.warning("pending TG %s: %s", sym, type(exc).__name__)
+                remaining.append(item)
+                continue
+    try:
+        save_pending(remaining)
+    except Exception as exc:
+        logger.warning("pending save: %s", type(exc).__name__)
+    return sent
+
+
+async def _maybe_send_funding_tg(broker, client, send_tg=None) -> int:
+    """New FUNDING_FEE events on open plans → TG. Dust |x|<0.10 silent."""
+    from astra_bot.decision.live_income_report import (
+        claim_funding_event,
+        format_funding_tg,
+    )
+    from astra_bot.decision.live_positions import load_positions
+
+    tg = send_tg or _send_live_tg
+    plans = load_positions()
+    if not plans:
+        return 0
+    sent = 0
+    import time as _time
+
+    now_ms = int(_time.time() * 1000)
+    start_ms = now_ms - 36 * 3600 * 1000
+    for _key, plan in list(plans.items()):
+        sym = str(plan.get("symbol") or "")
+        side = str(plan.get("side") or "long")
+        if not sym or not hasattr(client, "get_realized_income"):
+            continue
+        try:
+            rows = await client.get_realized_income(sym, start_ms=start_ms)
+        except Exception as exc:
+            logger.warning("funding poll %s: %s", sym, type(exc).__name__)
+            continue
+        for row in rows or []:
+            it = str(row.get("_incomeType") or row.get("incomeType") or "")
+            if it != "FUNDING_FEE":
+                continue
+            try:
+                amount = float(row.get("income") or 0)
+            except (TypeError, ValueError):
+                continue
+            tms = row.get("time") or row.get("timestamp") or row.get("ts")
+            try:
+                tms_i = int(float(tms))
+                if tms_i < 1e12:
+                    tms_i = int(tms_i * 1000)
+            except (TypeError, ValueError):
+                tms_i = now_ms
+            msg = format_funding_tg(sym, side, amount)
+            if not msg:
+                continue
+            if not claim_funding_event(sym, tms_i, amount):
+                continue
+            try:
+                await tg(msg)
+                sent += 1
+            except Exception as exc:
+                logger.warning("funding TG %s: %s", sym, type(exc).__name__)
+    return sent
+
+
+def _day_funding_sum(trades_path: Path, now_ts: float | None = None) -> float:
+    """Sum funding_fee fields on exit rows for current MSK day (digest line)."""
+    dt = _msk_now(now_ts)
+    day_start = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_ts = day_start.timestamp()
+    total = 0.0
+    if not trades_path.exists():
+        return total
+    try:
+        for line in trades_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except Exception:
+                continue
+            if str(row.get("event") or "") != "exit":
+                continue
+            try:
+                ts = float(row.get("ts") or 0)
+            except (TypeError, ValueError):
+                continue
+            if ts < start_ts:
+                continue
+            try:
+                total += float(row.get("funding_fee") or 0)
+            except (TypeError, ValueError):
+                continue
+    except Exception:
+        return total
+    return total
+
+
 def _msk_now(now_ts: float | None = None):
     """Return timezone-aware datetime in Europe/Moscow."""
     from datetime import datetime, timezone
@@ -381,6 +526,15 @@ async def _maybe_send_digest(
         if worst is not None:
             msg += f", худший +{worst:.2f}$" if worst >= 0 else f", худший −{abs(worst):.2f}$"
         msg += f"; открыто {open_n} (риск {risk_sum:.0f}$); HALT: {halt_txt}"
+        try:
+            fund_day = _day_funding_sum(trades_path, now_ts)
+            if abs(fund_day) >= 0.005:
+                fund_s = f"+{fund_day:.2f}$" if fund_day > 0 else f"-{abs(fund_day):.2f}$"
+                msg += f"; funding {fund_s}"
+            else:
+                msg += "; funding 0.00$"
+        except Exception:
+            pass
         if no_fill:
             msg += f"; +{no_fill} без филлов"
 
@@ -533,6 +687,20 @@ async def one_tick(*, dry: bool = False) -> int:
             logger.info("income_backfill: %s", bf)
     except Exception as _bf_exc:
         logger.warning("income_backfill FAILED: %s", type(_bf_exc).__name__)
+
+    try:
+        n_pend = await _resolve_pending_exit_sums(client, send_tg=_send_live_tg)
+        if n_pend:
+            logger.info("pending exit sums sent: %d", n_pend)
+    except Exception as _pexc:
+        logger.warning("pending exit sums FAILED: %s", type(_pexc).__name__)
+
+    try:
+        n_fund = await _maybe_send_funding_tg(broker, client, send_tg=_send_live_tg)
+        if n_fund:
+            logger.info("funding TG sent: %d", n_fund)
+    except Exception as _fexc:
+        logger.warning("funding TG FAILED: %s", type(_fexc).__name__)
 
     from astra_bot.decision.live_arm import arm_enabled
 
