@@ -153,10 +153,11 @@ def _dedup_key(symbol: str, geom: str, side: str, lb: int) -> str:
     return f"{symbol}|{geom}|{side}|{int(lb)}"
 
 
-def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st):
+def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st, htf_closes=None):
     result = evaluate_bars_with_lag(
         o, h, l, c, lb=lb, geom=geom,
         max_lag=BREAKOUT_MAX_BARS + RETEST_MAX_BARS + 1,
+        htf_closes=htf_closes,
     )
     status = result.get("status") or "unknown"
     form = result.get("form")
@@ -177,7 +178,7 @@ def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st):
     entry_ts = ts[entry_i] if entry_i is not None and entry_i < len(ts) else None
 
     # Dedup BEFORE blocked_pause rewrite — suppress episode noise while paused
-    if status in ("signal", "signal_pending_entry") and side:
+    if status in ("signal", "signal_pending_entry", "htf_gate_blocked") and side:
         dkey = _dedup_key(symbol, geom, side, lb)
         if dkey in done:
             return None
@@ -225,8 +226,13 @@ def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st):
         "trend120_aligned": trend_aligned, "regime": regime,
         "counterfactual_pause": counterfactual_pause,
         "lag": result.get("lag"),
+        "htf_bias": result.get("htf_bias") or "unknown",
     }
     _append(row)
+    if status == "htf_gate_blocked" and side:
+        dkey = _dedup_key(symbol, geom, side, lb)
+        done[dkey] = now_ms
+        _save_state(st)
     if status == "signal" and side and result.get("entry") is not None and entry_ts is not None:
         key_open = _dedup_key(symbol, geom, side, lb)
         open_map[key_open] = {
@@ -247,6 +253,8 @@ def log_wedge_1h_shadow(
     bars_1h,
     btc_4h=None,
     btc_1h=None,
+    bars_4h=None,
+    htf_closes=None,
     lb: int | None = None,
     lbs: Sequence[int] | None = None,
     regime=None,
@@ -269,6 +277,14 @@ def log_wedge_1h_shadow(
         bars = bars[:-1]
     o, h, l, c, v, ts = _ohlc(bars)
     btc = _btc_ctx(btc_4h, btc_1h)
+    # Symbol 4h closes for K-HTF gate (optional)
+    closes_4h = htf_closes
+    if closes_4h is None and bars_4h is not None:
+        try:
+            _o4, _h4, _l4, c4, _v4, _t4 = _ohlc(list(bars_4h))
+            closes_4h = list(c4) if c4 else None
+        except Exception:
+            closes_4h = None
     st = _load_state()
     last = None
     for win in windows:
@@ -279,6 +295,7 @@ def log_wedge_1h_shadow(
             last = _log_one(
                 symbol=symbol, o=o, h=h, l=l, c=c, v=v, ts=ts,
                 btc=btc, lb=win, regime=regime, geom=geom, st=st,
+                htf_closes=closes_4h,
             )
     return last
 
@@ -419,13 +436,19 @@ async def observe_wedge_1h_shadow(
         klines = await bingx.get_candles(symbol, "1h", limit=need)
         bars = list(klines) if klines else []
         btc_1h = btc_4h = None
+        bars_4h = None
         try:
             btc_1h = list(await bingx.get_candles("BTC-USDT", "1h", limit=100) or [])
             btc_4h = list(await bingx.get_candles("BTC-USDT", "4h", limit=80) or [])
         except Exception:
             pass
+        try:
+            bars_4h = list(await bingx.get_candles(symbol, "4h", limit=80) or [])
+        except Exception:
+            bars_4h = None
         log_wedge_1h_shadow(
-            symbol=symbol, bars_1h=bars, btc_4h=btc_4h, btc_1h=btc_1h, lbs=windows, regime=regime,
+            symbol=symbol, bars_1h=bars, btc_4h=btc_4h, btc_1h=btc_1h,
+            bars_4h=bars_4h, lbs=windows, regime=regime,
         )
         update_open_shadows(symbol=symbol, bars_1h=bars)
     except Exception as exc:
