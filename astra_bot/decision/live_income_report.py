@@ -134,23 +134,6 @@ def format_pending_rocket(symbol: str, side: str) -> str:
     return f"🏁 {base} {side_ru}: закрыта — сумма уточняется, пришлю следом"
 
 
-def format_funding_tg(symbol: str, side: str, amount: float) -> str | None:
-    """💰 SYM SIDE: funding ±X.XX$ (role text). Dust |x|<0.10 → None."""
-    if amount is None or abs(float(amount)) < FUNDING_DUST:
-        return None
-    base = symbol.replace("-USDT", "").replace("USDT", "")
-    side_l = (side or "").lower()
-    side_ru = "ЛОНГ" if side_l == "long" else "ШОРТ"
-    amt_s = format_usd(float(amount))
-    if amt_s is None:
-        return None
-    if side_l == "short":
-        # positive funding for short = long pays short
-        role = "лонг платит шорту" if amount > 0 else "мы платим лонгу"
-    else:
-        role = "мы платим шорту" if amount < 0 else "шорт платит лонгу"
-    return f"💰 {base} {side_ru}: funding {amt_s} ({role})"
-
 
 # ---- pending exit queue (survives tick via models/) ----
 
