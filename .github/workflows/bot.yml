@@ -26,13 +26,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 6
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
           ref: master
           # Подтянем состояние от прошлого запуска (позиции, офсет и т.п.).
           fetch-depth: 1
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
         with:
           python-version: "3.11"
           cache: pip
@@ -46,7 +46,7 @@ jobs:
         run: |
           git config user.name "astra-bot"
           git config user.email "bot@users.noreply.github.com"
-          git pull --no-rebase origin master || true
+          git pull --no-rebase origin master
 
       - name: Write .env
         env:
@@ -54,7 +54,6 @@ jobs:
           BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
-          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
         run: |
           {
             echo "ENVIRONMENT=paper"
@@ -64,7 +63,6 @@ jobs:
             echo "TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN"
             echo "TELEGRAM_ADMIN_ID=$TELEGRAM_ADMIN_ID"
             echo "TELEGRAM_USER_ID=$TELEGRAM_ADMIN_ID"
-            echo "XAI_API_KEY=$XAI_API_KEY"
           } > .env
           chmod 600 .env
 
@@ -91,12 +89,12 @@ jobs:
                    models/htf_shadow_bans.jsonl \
                    models/pattern_exit_shadow.jsonl \
                    models/oi_history.json \
-                   models/no_trade_outcomes.json \
+                   models/no_trade_outcomes.jsonl \
                    models/research/hypotheses.json \
                    models/research/observations.jsonl \
                    models/halt_alerts.json \
-                   models/zeus_trade_journal.jsonl \
-                   models/grok_tg_chat.jsonl; do
+                   models/symbol_loss_guard.json \
+                   models/zeus_trade_journal.jsonl; do
             [ -f "$f" ] && git add -f "$f" || true
           done
           git diff --cached --quiet || \
