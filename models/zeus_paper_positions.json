@@ -1,67 +1,6 @@
 {
-  "positions": [
-    {
-      "id": "2b874dd4-8cfc-4655-9676-1ae273b563ae",
-      "symbol": "WIF-USDT",
-      "direction": "short",
-      "entry_price": "0.1957",
-      "quantity": "1362.61924600",
-      "stop_loss": "0.1972656",
-      "take_profits": [
-        "0.1941344",
-        "0.1925688"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "1362.61924600",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
-      "strategy": "zeus_channel_boundary_4h",
-      "opened_at": 1792363660875,
-      "entry_bar_ts": 1792363500000,
-      "notes": {
-        "signal_bar_close": 0.1958,
-        "effective_entry": 0.1955043,
-        "initial_stop": 0.1972656,
-        "initial_take": 0.1925688,
-        "stop_pct": 0.009009009009009009,
-        "confidence": 0.7799999999999999,
-        "ml_probability": null,
-        "prior_r": 0.9649999999999999,
-        "costs_r": 0.333,
-        "equity_before": 2663.9792179272754,
-        "risk_budget": 39.95968826890913,
-        "binding_constraint": "none",
-        "score": 39.0,
-        "edge_pct": 80.5267,
-        "ev_r": 0.8052671840905224,
-        "ev_confidence": 0.13043478260869565,
-        "rr": 2.0,
-        "leverage": 1
-      },
-      "fill_price": "0.1955043",
-      "entry_fee_per_unit": "0.00009775215",
-      "risk_distance": "0.0015656",
-      "regime": "RANGE",
-      "timeframe": "4h",
-      "regime_axes": "T:TRANSITION/V:VERY_LOW/L:NORMAL",
-      "bars_held": 0,
-      "leverage": "1",
-      "margin_used": "266.664586442200",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "0.1925688",
-      "plan_last_bar_ts": 0
-    }
-  ],
-  "realized_pnl": "663.9792179272754283495409845",
+  "positions": [],
+  "realized_pnl": "662.9065688945483701639159845",
   "initial_capital": "2000.0",
   "cooldowns": {},
   "last_extremes_bar": {
@@ -80,7 +19,7 @@
     "HYPE-USDT": 1791061200000,
     "LTC-USDT": 1791341700000,
     "APT-USDT": 1791535500000,
-    "WIF-USDT": 1792277400000,
+    "WIF-USDT": 1792363800000,
     "BNB-USDT": 1792077900000,
     "XRP-USDT": 1790977500000,
     "BCH-USDT": 1791146700000,
