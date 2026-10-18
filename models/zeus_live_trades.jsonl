@@ -757,3 +757,5 @@
 {"event": "exit", "symbol": "INJ-USDT", "side": "long", "entry": 9.002, "exit": null, "exit_reason": "income", "pnl": -2.7007, "fees": 5.152294, "funding_fee": -1.03774355, "trade_id": "zeus_channel_boundary|INJ-USDT|long|1792152000000", "slip_exit_pct": null, "qty": 600.95444918, "signal_id": "zeus_channel_boundary|INJ-USDT|long|1792152000000", "ts": 1792330618.6489687, "tp1_leg": 297.9416}
 {"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12355.18 USDT", "ts": 1792330921.4935443}
 {"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792330930.0997195}
+{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12438.38 USDT", "ts": 1792331216.392492}
+{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792331225.3848033}
