@@ -410,7 +410,26 @@ async def run_arm_entries(
                 )
                 _skip("other")
                 continue
-            res = await broker.open_with_protection(plan)
+            try:
+                res = await broker.open_with_protection(plan)
+            except Exception as protect_exc:
+                err_s = f"{type(protect_exc).__name__}: {protect_exc}"
+                append_journal(
+                    {
+                        "event": "entry_protect_failed",
+                        "symbol": cand.symbol,
+                        "signal_id": sid or None,
+                        "error": err_s,
+                    }
+                )
+                if send_tg is not None:
+                    try:
+                        await send_tg(
+                            f"⚠️ {cand.symbol}: защита при входе отклонена — {err_s}"
+                        )
+                    except Exception as tg_exc:
+                        logger.warning("arm protect TG: %s", type(tg_exc).__name__)
+                raise
             fill_px = (res or {}).get("fill_price")
             slip = (res or {}).get("slip_pct")
             fact_qty = (res or {}).get("fact_qty") or plan.quantity
@@ -431,26 +450,27 @@ async def run_arm_entries(
                 plan_qty=plan_qty,
                 qty_ratio=qty_ratio,
             )
-            # qty-parity / protect alerts (dedup via try_claim)
-            for alert in (res or {}).get("alerts") or []:
-                if send_tg is not None and try_claim(
-                    plan.symbol, "qty_parity_alert", sid or None
-                ):
-                    try:
-                        await send_tg(alert)
-                    except Exception as exc:
-                        logger.warning("arm alert TG: %s", type(exc).__name__)
-                append_journal(
-                    {
-                        "event": "qty_parity_alert",
-                        "symbol": plan.symbol,
-                        "signal_id": sid or None,
-                        "text": alert,
-                        "fact_qty": str(fact_qty),
-                        "plan_qty": str(plan_qty),
-                        "qty_ratio": qty_ratio,
-                    }
-                )
+            # qty-parity / protect alerts: one claim per signal, send ALL
+            alert_list = list((res or {}).get("alerts") or [])
+            if alert_list:
+                claim_ok = try_claim(plan.symbol, "qty_parity_alert", sid or None)
+                for alert in alert_list:
+                    if claim_ok and send_tg is not None:
+                        try:
+                            await send_tg(alert)
+                        except Exception as exc:
+                            logger.warning("arm alert TG: %s", type(exc).__name__)
+                    append_journal(
+                        {
+                            "event": "qty_parity_alert",
+                            "symbol": plan.symbol,
+                            "signal_id": sid or None,
+                            "text": alert,
+                            "fact_qty": str(fact_qty),
+                            "plan_qty": str(plan_qty),
+                            "qty_ratio": qty_ratio,
+                        }
+                    )
             mark_cooldown(cand.strategy, plan.symbol, plan.side)
             try:
                 append_live_trade(
