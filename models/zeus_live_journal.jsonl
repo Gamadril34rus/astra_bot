@@ -6585,3 +6585,14 @@
 {"event": "entry", "signal_id": "zeus_channel_boundary|OP-USDT|short|1792382400000", "symbol": "OP-USDT", "side": "short", "qty": "239622.26765479", "plan_qty": "239622.26765479", "qty_ratio": 1.0, "entry": "0.12518", "stop": "0.12948552640243893", "tp": "0.11656894719512217", "ts": 1792383151.2528937}
 {"event": "entry_protect_failed", "symbol": "TAO-USDT", "signal_id": "zeus_channel_boundary|TAO-USDT|short|1792382400000", "error": "ExchangeError: BingX API error: Insufficient margin", "ts": 1792383161.5367131}
 {"event": "entry_failed", "symbol": "TAO-USDT", "side": "short", "signal_id": "zeus_channel_boundary|TAO-USDT|short|1792382400000", "error": "ExchangeError", "ts": 1792383161.8253868}
+{"event": "order_audit", "symbol": "BTC-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792383388.090314}
+{"event": "order_audit", "symbol": "ETH-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792383388.0904896}
+{"event": "order_audit", "symbol": "DOT-USDT", "side": "short", "n_stop": 1, "n_tp": 0, "be_moved": false, "ts": 1792383388.0905228}
+{"event": "order_audit", "symbol": "OP-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792383388.0905511}
+{"event": "order_audit", "symbol": "TAO-USDT", "side": "short", "n_stop": 0, "n_tp": 0, "be_moved": false, "ts": 1792383388.0905735}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|BTC-USDT|long|1792382400000", "symbol": "BTC-USDT", "side": "long", "ts": 1792383448.9127605}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|AVAX-USDT|short|1792382400000", "symbol": "AVAX-USDT", "side": "short", "ts": 1792383448.9127665}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|DOT-USDT|short|1792382400000", "symbol": "DOT-USDT", "side": "short", "ts": 1792383448.9127703}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|ENA-USDT|short|1792382400000", "symbol": "ENA-USDT", "side": "short", "ts": 1792383448.9127736}
+{"event": "entry_protect_failed", "symbol": "ENA-USDT", "signal_id": "zeus_channel_boundary|ENA-USDT|short|1792382400000", "error": "ExchangeError: BingX API error: Insufficient margin", "ts": 1792383462.2622182}
+{"event": "entry_failed", "symbol": "ENA-USDT", "side": "short", "signal_id": "zeus_channel_boundary|ENA-USDT|short|1792382400000", "error": "ExchangeError", "ts": 1792383462.669639}
