@@ -211,7 +211,7 @@ def _enqueue_and_ack(
     if commands_path is not None:
         kwargs["path"] = commands_path
     ok = enqueue(cmd, **kwargs)
-    if not ok:
+    if ok is False:
         logger.info("enqueue dedup %s — no ack", cmd)
         return None
     st = _live_status_line()
