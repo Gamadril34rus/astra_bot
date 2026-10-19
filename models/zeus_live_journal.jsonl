@@ -6631,3 +6631,13 @@
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|PENDLE-USDT|short|1792382400000", "symbol": "PENDLE-USDT", "side": "short", "ts": 1792385225.258822}
 {"event": "entry_protect_failed", "symbol": "BCH-USDT", "signal_id": "zeus_channel_boundary|BCH-USDT|short|1792382400000", "error": "ExchangeError: BingX API error: Insufficient margin", "ts": 1792385236.6410136}
 {"event": "entry_failed", "symbol": "BCH-USDT", "side": "short", "signal_id": "zeus_channel_boundary|BCH-USDT|short|1792382400000", "error": "ExchangeError", "ts": 1792385237.0064464}
+{"event": "order_audit", "symbol": "BTC-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792385496.28741}
+{"event": "order_audit", "symbol": "ETH-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792385496.2875774}
+{"event": "order_audit", "symbol": "DOT-USDT", "side": "short", "n_stop": 1, "n_tp": 0, "be_moved": false, "ts": 1792385496.2876523}
+{"event": "order_audit", "symbol": "OP-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792385496.287721}
+{"event": "order_audit", "symbol": "BCH-USDT", "side": "short", "n_stop": 0, "n_tp": 0, "be_moved": false, "ts": 1792385496.2877803}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|BTC-USDT|long|1792382400000", "symbol": "BTC-USDT", "side": "long", "ts": 1792385536.047806}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|DOT-USDT|short|1792382400000", "symbol": "DOT-USDT", "side": "short", "ts": 1792385536.0478184}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|PENDLE-USDT|short|1792382400000", "symbol": "PENDLE-USDT", "side": "short", "ts": 1792385536.047825}
+{"event": "entry_protect_failed", "symbol": "PENDLE-USDT", "signal_id": "zeus_channel_boundary|PENDLE-USDT|short|1792382400000", "error": "ExchangeError: BingX API error: Insufficient margin", "ts": 1792385547.1423695}
+{"event": "entry_failed", "symbol": "PENDLE-USDT", "side": "short", "signal_id": "zeus_channel_boundary|PENDLE-USDT|short|1792382400000", "error": "ExchangeError", "ts": 1792385547.5104804}
