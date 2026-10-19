@@ -6606,3 +6606,11 @@
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|DOT-USDT|short|1792382400000", "symbol": "DOT-USDT", "side": "short", "ts": 1792383761.662236}
 {"event": "entry_protect_failed", "symbol": "AVAX-USDT", "signal_id": "zeus_channel_boundary|AVAX-USDT|short|1792382400000", "error": "ExchangeError: BingX API error: Insufficient margin", "ts": 1792383776.095422}
 {"event": "entry_failed", "symbol": "AVAX-USDT", "side": "short", "signal_id": "zeus_channel_boundary|AVAX-USDT|short|1792382400000", "error": "ExchangeError", "ts": 1792383776.5391934}
+{"event": "order_audit", "symbol": "BTC-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792383982.4657848}
+{"event": "order_audit", "symbol": "ETH-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792383982.4659522}
+{"event": "order_audit", "symbol": "DOT-USDT", "side": "short", "n_stop": 1, "n_tp": 0, "be_moved": false, "ts": 1792383982.4659925}
+{"event": "order_audit", "symbol": "OP-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792383982.4660232}
+{"event": "order_audit", "symbol": "AVAX-USDT", "side": "short", "n_stop": 0, "n_tp": 0, "be_moved": false, "ts": 1792383982.466044}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|BTC-USDT|long|1792382400000", "symbol": "BTC-USDT", "side": "long", "ts": 1792384031.763584}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|ETH-USDT|short|1792382400000", "symbol": "ETH-USDT", "side": "short", "ts": 1792384031.7635925}
+{"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 2, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 2}, "unrealized_sum": null, "ts": 1792384032.1968548}

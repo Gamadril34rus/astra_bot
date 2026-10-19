@@ -779,3 +779,4 @@
 {"event": "entry", "signal_id": "zeus_channel_boundary|OP-USDT|short|1792382400000", "symbol": "OP-USDT", "side": "short", "plan_entry": "0.12518", "fill_price": "0.12513", "slip_pct": 0.03994248282475016, "qty": "239622.26765479", "stop": "0.12948552640243893", "tp": "0.118721710396341605", "leverage": 3, "ts": 1792383151.2525969}
 {"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 24990.78 USDT", "ts": 1792383387.4265597}
 {"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792383702.2196019}
+{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792383982.2131743}
