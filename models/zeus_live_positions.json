@@ -47,7 +47,39 @@
       "plan_qty": "239622.26765479",
       "qty_ratio": 1.0,
       "tp1": "0.118721710396341605"
+    },
+    "SOL-USDT|long": {
+      "symbol": "SOL-USDT",
+      "side": "long",
+      "qty": "402.83658259",
+      "stop": "102.11446894390254",
+      "tp": "108.325796584146190",
+      "entry": "104.752",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|SOL-USDT|long|1792411200000",
+      "ts": 1792417327.8895602,
+      "be_moved": false,
+      "plan_qty": "402.83658259",
+      "qty_ratio": 1.0,
+      "tp1": "108.325796584146190"
+    },
+    "XRP-USDT|short": {
+      "symbol": "XRP-USDT",
+      "side": "short",
+      "qty": "95789.60471886",
+      "stop": "1.3158432",
+      "tp": "1.28973520",
+      "entry": "1.3053",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|XRP-USDT|short|1792411200000",
+      "ts": 1792417332.6431818,
+      "be_moved": false,
+      "plan_qty": "95789.60471886",
+      "qty_ratio": 1.0,
+      "tp1": "1.28973520"
     }
   },
-  "ts": 1792416377.061837
+  "ts": 1792417332.6432219
 }
