@@ -91,6 +91,67 @@ JOURNAL_PATH = Path("models/zeus_live_journal.jsonl")
 PENDING_PATH = Path("models/zeus_arm_pending.jsonl")
 FRESH_MAX_SEC = 45 * 60
 
+# ---- arm entry error guard (owner №25) ----
+MARGIN_FAIL_PATH = Path("models/zeus_arm_margin_fails.json")
+MARGIN_FAIL_LIMIT = 3
+
+
+def _is_margin_or_exchange_reject(exc: BaseException) -> bool:
+    name = type(exc).__name__
+    msg = str(exc).lower()
+    if "insufficient margin" in msg:
+        return True
+    if name in ("ExchangeError", "TimeoutError"):
+        return True
+    if "timeout" in msg:
+        return True
+    return False
+
+
+def _margin_fail_key(symbol: str, signal_id: str | None) -> str:
+    return f"{symbol}|{signal_id or ''}"
+
+
+def load_margin_fails(path: Path | None = None) -> dict[str, int]:
+    path = path or MARGIN_FAIL_PATH
+    if not path.exists():
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        fails = raw.get("fails") if isinstance(raw, dict) else raw
+        if isinstance(fails, dict):
+            return {str(k): int(v) for k, v in fails.items()}
+    except Exception:
+        pass
+    return {}
+
+
+def save_margin_fails(fails: dict[str, int], path: Path = MARGIN_FAIL_PATH) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = json.dumps({"fails": fails, "ts": time.time()}, ensure_ascii=False, indent=2)
+    path.write_text(body + "\n", encoding="utf-8")
+
+
+def bump_margin_fail(symbol: str, signal_id: str | None, path: Path | None = None) -> int:
+    path = path or MARGIN_FAIL_PATH
+    fails = load_margin_fails(path)
+    key = _margin_fail_key(symbol, signal_id)
+    n = int(fails.get(key) or 0) + 1
+    fails[key] = n
+    save_margin_fails(fails, path)
+    return n
+
+
+def clear_margin_fail(symbol: str, signal_id: str | None, path: Path | None = None) -> None:
+    path = path or MARGIN_FAIL_PATH
+    fails = load_margin_fails(path)
+    key = _margin_fail_key(symbol, signal_id)
+    if key in fails:
+        del fails[key]
+        save_margin_fails(fails, path)
+
+
+
 
 def _seen_signal_ids(path: Path = ENTRIES_PATH) -> set[str]:
     seen: set[str] = set()
@@ -374,6 +435,33 @@ async def run_arm_entries(
         if cand.step_size is None or cand.step_size == Decimal("0.001"):
             cand.step_size = await resolve_step_size(broker, cand.symbol)
 
+        # Anti-loop: skip symbols with ≥3 consecutive margin rejects
+        try:
+            _mf = load_margin_fails()
+            _mk = _margin_fail_key(cand.symbol, sid or None)
+            if int(_mf.get(_mk) or 0) >= MARGIN_FAIL_LIMIT:
+                logger.warning(
+                    "arm: skip %s — margin_fail_limit %d reached",
+                    cand.symbol,
+                    MARGIN_FAIL_LIMIT,
+                )
+                _skip("margin")
+                if sid:
+                    seen.add(sid)
+                    append_entry_record(
+                        {
+                            "signal_id": sid,
+                            "symbol": cand.symbol,
+                            "side": cand.side,
+                            "ts": time.time(),
+                            "event": "entry_rejected_margin_limit",
+                        },
+                        entries_path,
+                    )
+                continue
+        except Exception:
+            pass
+
         plan = None
         try:
             plan = await plan_from_candidate(
@@ -429,6 +517,30 @@ async def run_arm_entries(
                         )
                     except Exception as tg_exc:
                         logger.warning("arm protect TG: %s", type(tg_exc).__name__)
+                if _is_margin_or_exchange_reject(protect_exc):
+                    nfail = bump_margin_fail(cand.symbol, sid or None)
+                    _skip("margin")
+                    if sid:
+                        seen.add(sid)
+                        append_entry_record(
+                            {
+                                "signal_id": sid,
+                                "symbol": cand.symbol,
+                                "side": cand.side,
+                                "ts": time.time(),
+                                "event": "entry_rejected",
+                                "error": type(protect_exc).__name__,
+                                "error_msg": str(protect_exc)[:300],
+                                "margin_fails": nfail,
+                            },
+                            entries_path,
+                        )
+                    logger.warning(
+                        "arm: %s protect/entry reject swallowed (fail=%d) — tick continues",
+                        cand.symbol,
+                        nfail,
+                    )
+                    continue
                 raise
             fill_px = (res or {}).get("fill_price")
             slip = (res or {}).get("slip_pct")
@@ -497,7 +609,7 @@ async def run_arm_entries(
                 logger.info("arm entry slip %s %.4f%%", cand.symbol, slip)
         except Exception as exc:
             logger.exception(
-                "arm entry %s failed AFTER possible fill — job must go red: %s",
+                "arm entry %s failed: %s",
                 cand.symbol,
                 type(exc).__name__,
             )
@@ -505,43 +617,63 @@ async def run_arm_entries(
                 mark_cooldown(cand.strategy, cand.symbol, cand.side)
             except Exception:
                 pass
+            is_reject = _is_margin_or_exchange_reject(exc)
+            nfail = bump_margin_fail(cand.symbol, sid or None) if is_reject else 0
             append_entry_record(
                 {
                     "signal_id": sid or f"failed|{cand.symbol}|{int(time.time())}",
                     "symbol": cand.symbol,
                     "side": cand.side,
                     "ts": time.time(),
-                    "event": "entry_failed",
+                    "event": "entry_rejected" if is_reject else "entry_failed",
                     "error": type(exc).__name__,
                     "error_msg": str(exc)[:300],
+                    "margin_fails": nfail or None,
                 },
                 entries_path,
             )
             append_journal(
                 {
-                    "event": "entry_failed",
+                    "event": "entry_rejected" if is_reject else "entry_failed",
                     "symbol": cand.symbol,
                     "side": cand.side,
                     "signal_id": sid or None,
                     "error": type(exc).__name__,
+                    "error_msg": str(exc)[:200],
                 }
             )
-            try:
-                if plan is not None:
-                    upsert_plan(
-                        plan.symbol,
-                        side=plan.side,
-                        qty=plan.quantity,
-                        stop=plan.stop_price,
-                        tp=plan.take_profit_price,
-                        entry=cand.entry,
-                        leverage=plan.leverage,
-                        pending_verify=True,
+            if send_tg is not None:
+                try:
+                    await send_tg(
+                        f"⚠️ {cand.symbol}: вход отклонён — {type(exc).__name__}: {exc}"
                     )
-            except Exception:
-                pass
-            raise
+                except Exception:
+                    pass
+            if is_reject:
+                # No pending_verify ghost: exchange never filled / margin reject
+                _skip("margin")
+                if sid:
+                    seen.add(sid)
+                logger.warning(
+                    "arm: %s entry reject swallowed (fail=%d/%d) — tick continues",
+                    cand.symbol,
+                    nfail,
+                    MARGIN_FAIL_LIMIT,
+                )
+                continue
+            # Unknown error after possible fill — still do not kill whole tick
+            # (owner №25: tick always finishes). Log red, continue.
+            logger.error(
+                "arm entry %s unexpected error — continuing tick (no re-raise)",
+                cand.symbol,
+            )
+            _skip("other")
+            continue
 
+        try:
+            clear_margin_fail(cand.symbol, sid or None)
+        except Exception:
+            pass
         results.append(res)
         open_syms.add(cand.symbol)
         open_n += 1
