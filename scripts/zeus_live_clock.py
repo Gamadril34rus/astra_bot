@@ -105,16 +105,17 @@ async def sync_partial_breakeven(
     *,
     positions_path: Path | None = None,
     send_tg=None,
+    trigger_r: float = 0.8,
 ) -> dict:
-    """C: after TP1 (~40% filled), remaining ~60% → move stop to entry (breakeven).
+    """P2: BE when price reaches +trigger_r (net MFE), NOT when TP1 fills.
 
-    Called EVERY tick (owner rule). Detects exchange qty ≈ 0.6 * plan qty,
-    plan has tp1, not yet be_moved. Moves protective stop to entry via
-    broker.move_stop, sets be_moved in plan, journals + optional TG.
-    Fail-open: any exception → skip symbol, continue.
+    Owner 19.10: protection must not wait for TP fill (ETH was +1R with no TP).
+    One-shot via plan.be_moved + journal event=price_breakeven. Fail-open.
+    Still called every tick after restore_missing_stops.
     """
     from astra_bot.decision.live_arm_wiring import append_journal
     from astra_bot.decision.live_positions import load_positions, upsert_plan
+    from astra_bot.decision.live_stop_telemetry import record_stop_change
 
     path = positions_path or Path("models/zeus_live_positions.json")
     moved: list[str] = []
@@ -143,10 +144,7 @@ async def sync_partial_breakeven(
             continue
         if plan.get("be_moved"):
             continue
-        # need explicit tp1 (partial channel); legacy full-TP plans skip
-        if plan.get("tp1") is None:
-            continue
-        if plan.get("entry") is None:
+        if plan.get("entry") is None or plan.get("stop") is None:
             skipped.append(sym)
             continue
         pos = by_sym.get(sym)
@@ -154,25 +152,35 @@ async def sync_partial_breakeven(
             continue
         try:
             exch_qty = Decimal(str(getattr(pos, "quantity", 0) or 0))
-            plan_qty = Decimal(str(plan.get("qty") or 0))
-        except Exception:
-            skipped.append(sym)
-            continue
-        if plan_qty <= 0 or exch_qty <= 0:
-            continue
-        # remaining ≈ 60% of original (TP1 took 40%); tolerance ±15%
-        ratio = float(exch_qty / plan_qty)
-        if not (0.45 <= ratio <= 0.75):
-            continue
-        side = str(plan.get("side") or "long").lower()
-        try:
             entry_px = Decimal(str(plan["entry"]))
-            await broker.move_stop(sym, side, exch_qty, entry_px)
+            stop_px = Decimal(str(plan["stop"]))
+            mark = (
+                getattr(pos, "mark_price", None)
+                or getattr(pos, "markPrice", None)
+                or getattr(pos, "price", None)
+            )
+            if mark is None:
+                skipped.append(sym)
+                continue
+            mark_px = Decimal(str(mark))
+            r_abs = abs(entry_px - stop_px)
+            if r_abs <= 0 or exch_qty <= 0:
+                continue
+            side = str(plan.get("side") or "long").lower()
+            if side == "long":
+                mfe_r = float((mark_px - entry_px) / r_abs)
+            else:
+                mfe_r = float((entry_px - mark_px) / r_abs)
+            if mfe_r < float(trigger_r):
+                continue
+            # net BE ≈ entry (full cost model may refine later via broker)
+            be_px = entry_px
+            await broker.move_stop(sym, side, exch_qty, be_px)
             upsert_plan(
                 symbol=sym,
                 side=side,
                 entry=entry_px,
-                stop=entry_px,
+                stop=be_px,
                 qty=exch_qty,
                 path=path,
                 tp=plan.get("tp"),
@@ -181,32 +189,36 @@ async def sync_partial_breakeven(
                 signal_id=plan.get("signal_id"),
             )
             moved.append(sym)
-            base = (sym.split("-")[0] if "-" in sym else sym).replace("USDT", "")
-            side_ru = "ЛОНГ" if side == "long" else "ШОРТ"
-            msg = f"🔒 {base} {side_ru}: BE после TP1 (stop→entry)"
+            try:
+                record_stop_change(
+                    symbol=sym,
+                    stop_price=str(be_px),
+                    source="price_breakeven",
+                    reason=f"mfe_r>={trigger_r}",
+                    side=side,
+                )
+            except Exception:
+                pass
             try:
                 append_journal(
                     {
-                        "event": "partial_breakeven",
+                        "event": "price_breakeven",
                         "symbol": sym,
                         "side": side,
                         "entry": str(entry_px),
-                        "qty_remaining": str(exch_qty),
-                        "plan_qty": str(plan_qty),
-                        "ratio": round(ratio, 4),
+                        "stop": str(be_px),
+                        "mark": str(mark_px),
+                        "mfe_r": round(mfe_r, 4),
+                        "trigger_r": trigger_r,
+                        "qty": str(exch_qty),
                         "ts": time.time(),
                     }
                 )
             except Exception as jexc:
                 logger.warning("sync_partial journal: %s", type(jexc).__name__)
-            if send_tg is not None:
-                try:
-                    await send_tg(msg)
-                except Exception:
-                    pass
             logger.info(
-                "sync_partial_breakeven: %s ratio=%.3f stop→entry %s",
-                sym, ratio, entry_px,
+                "price_breakeven: %s mfe_r=%.3f stop→entry %s",
+                sym, mfe_r, be_px,
             )
         except Exception as exc:
             logger.warning(
@@ -630,7 +642,7 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception as exc:
         logger.warning("restore_missing_stops failed: %s", type(exc).__name__)
 
-    # Telemetry: order_audit every tick — stop/tp counts per plan symbol
+    # Telemetry: order_audit every tick — counts + price/qty/flags (P5 owner 19.10)
     try:
         from astra_bot.decision.live_arm_wiring import append_journal
         from astra_bot.decision.live_positions import load_positions
@@ -649,17 +661,40 @@ async def one_tick(*, dry: bool = False) -> int:
                 if not sym:
                     continue
                 orders = by_sym.get(sym, [])
-                n_stop = sum(
-                    1
-                    for o in orders
-                    if "stop" in str(getattr(o, "order_type", "")).lower()
-                    and "take_profit" not in str(getattr(o, "order_type", "")).lower()
-                )
-                n_tp = sum(
-                    1
-                    for o in orders
-                    if "take_profit" in str(getattr(o, "order_type", "")).lower()
-                )
+                detail = []
+                n_stop = n_tp = 0
+                for o in orders:
+                    ot = str(getattr(o, "order_type", "") or "").upper()
+                    is_stop = "STOP" in ot and "TAKE_PROFIT" not in ot
+                    is_tp = "TAKE_PROFIT" in ot
+                    if is_stop:
+                        n_stop += 1
+                    if is_tp:
+                        n_tp += 1
+                    if is_stop or is_tp:
+                        detail.append({
+                            "type": ot,
+                            "price": str(
+                                getattr(o, "stop_price", None)
+                                or getattr(o, "price", None)
+                                or ""
+                            ),
+                            "qty": str(
+                                getattr(o, "quantity", None)
+                                or getattr(o, "origQty", None)
+                                or ""
+                            ),
+                            "reduceOnly": bool(
+                                getattr(o, "reduce_only", None)
+                                if getattr(o, "reduce_only", None) is not None
+                                else getattr(o, "reduceOnly", False)
+                            ),
+                            "closePosition": bool(
+                                getattr(o, "close_position", None)
+                                if getattr(o, "close_position", None) is not None
+                                else getattr(o, "closePosition", False)
+                            ),
+                        })
                 append_journal(
                     {
                         "event": "order_audit",
@@ -668,6 +703,7 @@ async def one_tick(*, dry: bool = False) -> int:
                         "n_stop": n_stop,
                         "n_tp": n_tp,
                         "be_moved": bool(plan.get("be_moved")),
+                        "orders": detail,
                         "ts": time.time(),
                     }
                 )
