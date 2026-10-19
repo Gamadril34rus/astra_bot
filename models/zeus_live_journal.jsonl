@@ -6596,3 +6596,13 @@
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|ENA-USDT|short|1792382400000", "symbol": "ENA-USDT", "side": "short", "ts": 1792383448.9127736}
 {"event": "entry_protect_failed", "symbol": "ENA-USDT", "signal_id": "zeus_channel_boundary|ENA-USDT|short|1792382400000", "error": "ExchangeError: BingX API error: Insufficient margin", "ts": 1792383462.2622182}
 {"event": "entry_failed", "symbol": "ENA-USDT", "side": "short", "signal_id": "zeus_channel_boundary|ENA-USDT|short|1792382400000", "error": "ExchangeError", "ts": 1792383462.669639}
+{"event": "order_audit", "symbol": "BTC-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792383702.4727235}
+{"event": "order_audit", "symbol": "ETH-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792383702.4729369}
+{"event": "order_audit", "symbol": "DOT-USDT", "side": "short", "n_stop": 1, "n_tp": 0, "be_moved": false, "ts": 1792383702.4729989}
+{"event": "order_audit", "symbol": "OP-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792383702.4730487}
+{"event": "order_audit", "symbol": "ENA-USDT", "side": "short", "n_stop": 0, "n_tp": 0, "be_moved": false, "ts": 1792383702.4731014}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|BTC-USDT|long|1792382400000", "symbol": "BTC-USDT", "side": "long", "ts": 1792383761.6622183}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|AVAX-USDT|short|1792382400000", "symbol": "AVAX-USDT", "side": "short", "ts": 1792383761.6622295}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|DOT-USDT|short|1792382400000", "symbol": "DOT-USDT", "side": "short", "ts": 1792383761.662236}
+{"event": "entry_protect_failed", "symbol": "AVAX-USDT", "signal_id": "zeus_channel_boundary|AVAX-USDT|short|1792382400000", "error": "ExchangeError: BingX API error: Insufficient margin", "ts": 1792383776.095422}
+{"event": "entry_failed", "symbol": "AVAX-USDT", "side": "short", "signal_id": "zeus_channel_boundary|AVAX-USDT|short|1792382400000", "error": "ExchangeError", "ts": 1792383776.5391934}
