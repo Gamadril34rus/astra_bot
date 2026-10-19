@@ -16,7 +16,11 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from astra_bot.decision.live_commands import enqueue
+from astra_bot.decision.live_commands import (
+    enqueue,
+    get_last_tg_update_id,
+    set_last_tg_update_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -201,16 +205,21 @@ def _enqueue_and_ack(
     token: str | None,
     chat: Any,
     commands_path: Path | None,
-) -> str:
+) -> str | None:
+    """Enqueue + ack. None if deduped — no TG ack (owner №26)."""
     kwargs: dict[str, Any] = {"source": "tg"}
     if commands_path is not None:
         kwargs["path"] = commands_path
-    enqueue(cmd, **kwargs)
+    ok = enqueue(cmd, **kwargs)
+    if ok is False:
+        logger.info("enqueue dedup %s — no ack", cmd)
+        return None
     st = _live_status_line()
     ack = ACK.get(cmd, f"✅ Принято: {cmd}")
     if token and chat is not None:
-        send_reply(token, chat, f"{ack}\n({st})")
+        send_reply(token, chat, ack + "\n(" + st + ")")
     return cmd
+
 
 
 def process_callback(
@@ -348,27 +357,51 @@ def poll_once(
     handled = 0
     max_id = offset
     admin_id = os.environ.get("TELEGRAM_ADMIN_ID")
+    cmds_path = commands_path  # dual-store last_tg_update_id with commands file
+    last_uid = 0
+    try:
+        last_uid = get_last_tg_update_id(cmds_path) if cmds_path else get_last_tg_update_id()
+    except Exception:
+        last_uid = 0
+    # floor: never reprocess uid <= durable last
+    floor = max(offset - 1, last_uid)
     for upd in data.get("result") or []:
         if not isinstance(upd, dict):
             continue
         uid = int(upd.get("update_id") or 0)
         if uid >= max_id:
             max_id = uid + 1
-        # Audit: every processed update_id (owner №26 — diagnose triple enqueue)
         logger.info(
-            "tg_live_commands update_id=%s has_msg=%s has_cb=%s offset_was=%s",
+            "tg_live_commands update_id=%s floor=%s offset_was=%s last_uid=%s",
             uid,
-            bool(upd.get("message") or upd.get("edited_message")),
-            bool(upd.get("callback_query")),
+            floor,
             offset,
+            last_uid,
         )
+        if uid <= floor:
+            logger.info("tg_live_commands skip uid=%s <= floor=%s", uid, floor)
+            continue
         if process_update(
             upd, commands_path=commands_path, token=token, admin_id=admin_id
         ):
             handled += 1
+        # advance durable watermark even if not a command (consume update)
+        try:
+            set_last_tg_update_id(uid, cmds_path) if cmds_path else set_last_tg_update_id(uid)
+            last_uid = uid
+            floor = max(floor, uid)
+        except Exception as exc:
+            logger.warning("set_last_tg_update_id: %s", type(exc).__name__)
     if max_id > offset:
         save_offset(max_id, offset_path)
+    # always touch durable watermark to max seen
+    if max_id - 1 > last_uid:
+        try:
+            set_last_tg_update_id(max_id - 1, cmds_path) if cmds_path else set_last_tg_update_id(max_id - 1)
+        except Exception:
+            pass
     return handled
+
 
 
 def main() -> int:
