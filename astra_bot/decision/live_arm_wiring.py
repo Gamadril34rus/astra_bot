@@ -96,16 +96,27 @@ MARGIN_FAIL_PATH = Path("models/zeus_arm_margin_fails.json")
 MARGIN_FAIL_LIMIT = 3
 
 
-def _is_margin_or_exchange_reject(exc: BaseException) -> bool:
+def _is_clean_margin_reject(exc: BaseException) -> bool:
+    """Only explicit insufficient-margin — no fill possible (owner F1)."""
+    return "insufficient margin" in str(exc).lower()
+
+
+def _is_uncertain_entry_error(exc: BaseException) -> bool:
+    """Timeout / other ExchangeError — order may have filled; need pending_verify."""
+    if _is_clean_margin_reject(exc):
+        return False
     name = type(exc).__name__
     msg = str(exc).lower()
-    if "insufficient margin" in msg:
-        return True
     if name in ("ExchangeError", "TimeoutError"):
         return True
     if "timeout" in msg:
         return True
     return False
+
+
+def _is_margin_or_exchange_reject(exc: BaseException) -> bool:
+    """Any entry error that must not kill the tick (margin or uncertain)."""
+    return _is_clean_margin_reject(exc) or _is_uncertain_entry_error(exc)
 
 
 def _margin_fail_key(symbol: str, signal_id: str | None) -> str:
@@ -517,7 +528,7 @@ async def run_arm_entries(
                         )
                     except Exception as tg_exc:
                         logger.warning("arm protect TG: %s", type(tg_exc).__name__)
-                if _is_margin_or_exchange_reject(protect_exc):
+                if _is_clean_margin_reject(protect_exc):
                     nfail = bump_margin_fail(cand.symbol, sid or None)
                     _skip("margin")
                     if sid:
@@ -536,11 +547,12 @@ async def run_arm_entries(
                             entries_path,
                         )
                     logger.warning(
-                        "arm: %s protect/entry reject swallowed (fail=%d) — tick continues",
+                        "arm: %s clean margin reject swallowed (fail=%d) — tick continues",
                         cand.symbol,
                         nfail,
                     )
                     continue
+                # Timeout / other ExchangeError: fall through to outer except for pending_verify
                 raise
             fill_px = (res or {}).get("fill_price")
             slip = (res or {}).get("slip_pct")
@@ -617,15 +629,21 @@ async def run_arm_entries(
                 mark_cooldown(cand.strategy, cand.symbol, cand.side)
             except Exception:
                 pass
-            is_reject = _is_margin_or_exchange_reject(exc)
-            nfail = bump_margin_fail(cand.symbol, sid or None) if is_reject else 0
+            clean = _is_clean_margin_reject(exc)
+            uncertain = _is_uncertain_entry_error(exc)
+            nfail = bump_margin_fail(cand.symbol, sid or None) if clean else 0
+            event = (
+                "entry_rejected"
+                if clean
+                else ("entry_pending_verify" if uncertain else "entry_failed")
+            )
             append_entry_record(
                 {
                     "signal_id": sid or f"failed|{cand.symbol}|{int(time.time())}",
                     "symbol": cand.symbol,
                     "side": cand.side,
                     "ts": time.time(),
-                    "event": "entry_rejected" if is_reject else "entry_failed",
+                    "event": event,
                     "error": type(exc).__name__,
                     "error_msg": str(exc)[:300],
                     "margin_fails": nfail or None,
@@ -634,7 +652,7 @@ async def run_arm_entries(
             )
             append_journal(
                 {
-                    "event": "entry_rejected" if is_reject else "entry_failed",
+                    "event": event,
                     "symbol": cand.symbol,
                     "side": cand.side,
                     "signal_id": sid or None,
@@ -644,25 +662,54 @@ async def run_arm_entries(
             )
             if send_tg is not None:
                 try:
-                    await send_tg(
-                        f"⚠️ {cand.symbol}: вход отклонён — {type(exc).__name__}: {exc}"
-                    )
+                    if clean:
+                        await send_tg(
+                            f"⚠️ {cand.symbol}: вход отклонён — {type(exc).__name__}: {exc}"
+                        )
+                    elif uncertain:
+                        await send_tg(
+                            f"⚠️ {cand.symbol}: вход требует проверки"
+                        )
+                    else:
+                        await send_tg(
+                            f"⚠️ {cand.symbol}: вход ошибка — {type(exc).__name__}: {exc}"
+                        )
                 except Exception:
                     pass
-            if is_reject:
-                # No pending_verify ghost: exchange never filled / margin reject
+            if clean:
+                # Explicit insufficient margin — no fill, no ghost
                 _skip("margin")
                 if sid:
                     seen.add(sid)
                 logger.warning(
-                    "arm: %s entry reject swallowed (fail=%d/%d) — tick continues",
+                    "arm: %s clean margin reject (fail=%d/%d) — tick continues",
                     cand.symbol,
                     nfail,
                     MARGIN_FAIL_LIMIT,
                 )
                 continue
-            # Unknown error after possible fill — still do not kill whole tick
-            # (owner №25: tick always finishes). Log red, continue.
+            if uncertain and plan is not None:
+                # Timeout / other ExchangeError — order may exist; verify next tick
+                try:
+                    upsert_plan(
+                        plan.symbol,
+                        side=plan.side,
+                        qty=plan.quantity,
+                        stop=plan.stop_price,
+                        tp=plan.take_profit_price,
+                        entry=cand.entry,
+                        leverage=plan.leverage,
+                        pending_verify=True,
+                    )
+                except Exception:
+                    pass
+                _skip("other")
+                logger.warning(
+                    "arm: %s uncertain entry error — pending_verify ghost, tick continues",
+                    cand.symbol,
+                )
+                continue
+            # Unknown error — still do not kill whole tick (owner №25)
             logger.error(
                 "arm entry %s unexpected error — continuing tick (no re-raise)",
                 cand.symbol,
