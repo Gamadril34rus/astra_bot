@@ -56,12 +56,49 @@ def load_commands(path: Path = DEFAULT_PATH) -> list[dict[str, Any]]:
     return []
 
 
-def save_commands(cmds: list[dict[str, Any]], path: Path = DEFAULT_PATH) -> None:
+def load_meta(path: Path = DEFAULT_PATH) -> dict[str, Any]:
+    """Extra durable fields in commands file (owner №26 offset dual-store)."""
+    if not path.exists():
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if isinstance(raw, dict):
+        return {k: v for k, v in raw.items() if k != "commands"}
+    return {}
+
+
+def save_commands(
+    cmds: list[dict[str, Any]],
+    path: Path = DEFAULT_PATH,
+    *,
+    meta: dict[str, Any] | None = None,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    payload: dict[str, Any] = {"commands": cmds}
+    if meta is None:
+        meta = load_meta(path)
+    for k, v in (meta or {}).items():
+        if k != "commands":
+            payload[k] = v
     path.write_text(
-        json.dumps({"commands": cmds}, ensure_ascii=False, indent=2),
+        json.dumps(payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+
+def get_last_tg_update_id(path: Path = DEFAULT_PATH) -> int:
+    try:
+        return int(load_meta(path).get("last_tg_update_id") or 0)
+    except Exception:
+        return 0
+
+
+def set_last_tg_update_id(uid: int, path: Path = DEFAULT_PATH) -> None:
+    meta = load_meta(path)
+    meta["last_tg_update_id"] = int(uid)
+    save_commands(load_commands(path), path, meta=meta)
 
 
 def enqueue(cmd: str, path: Path = DEFAULT_PATH, source: str = "tg") -> bool:
