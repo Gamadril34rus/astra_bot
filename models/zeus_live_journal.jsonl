@@ -6621,3 +6621,13 @@
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|BTC-USDT|long|1792382400000", "symbol": "BTC-USDT", "side": "long", "ts": 1792384355.7080348}
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|DOT-USDT|short|1792382400000", "symbol": "DOT-USDT", "side": "short", "ts": 1792384355.7080474}
 {"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 2, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 2}, "unrealized_sum": null, "ts": 1792384357.0343745}
+{"event": "order_audit", "symbol": "BTC-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792385195.700061}
+{"event": "order_audit", "symbol": "ETH-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792385195.700216}
+{"event": "order_audit", "symbol": "DOT-USDT", "side": "short", "n_stop": 1, "n_tp": 0, "be_moved": false, "ts": 1792385195.7002501}
+{"event": "order_audit", "symbol": "OP-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792385195.7002795}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|BTC-USDT|long|1792382400000", "symbol": "BTC-USDT", "side": "long", "ts": 1792385225.2588062}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|DOT-USDT|short|1792382400000", "symbol": "DOT-USDT", "side": "short", "ts": 1792385225.2588139}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|BCH-USDT|short|1792382400000", "symbol": "BCH-USDT", "side": "short", "ts": 1792385225.2588184}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|PENDLE-USDT|short|1792382400000", "symbol": "PENDLE-USDT", "side": "short", "ts": 1792385225.258822}
+{"event": "entry_protect_failed", "symbol": "BCH-USDT", "signal_id": "zeus_channel_boundary|BCH-USDT|short|1792382400000", "error": "ExchangeError: BingX API error: Insufficient margin", "ts": 1792385236.6410136}
+{"event": "entry_failed", "symbol": "BCH-USDT", "side": "short", "signal_id": "zeus_channel_boundary|BCH-USDT|short|1792382400000", "error": "ExchangeError", "ts": 1792385237.0064464}
