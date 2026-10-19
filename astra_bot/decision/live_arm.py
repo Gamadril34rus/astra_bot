@@ -261,6 +261,13 @@ async def plan_from_candidate(
         min_ev_r=1.0,
     )
     lev = min(int(lev), int(broker.config.max_leverage))
+    # Live ENV override (owner: risk/qty unchanged, only margin). Cap by max_leverage (A7≤10).
+    force_lev = (os.environ.get("ZEUS_LIVE_FORCE_LEVERAGE") or "").strip()
+    if force_lev:
+        try:
+            lev = min(int(force_lev), int(broker.config.max_leverage))
+        except ValueError:
+            pass
     # Channel exit parity: TP1 @ 1.5R (40% leg on exchange); runner @ 2R stored as note only.
     # Stop / size / entry unchanged. R = |entry − stop|.
     entry_d = Decimal(str(cand.entry))

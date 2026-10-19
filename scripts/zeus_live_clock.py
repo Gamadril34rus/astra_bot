@@ -575,7 +575,17 @@ async def one_tick(*, dry: bool = False) -> int:
     client = LiveBingXClient({})
     await client.initialize()
 
-    broker = LiveBroker(client=client, config=LiveBrokerConfig())
+    _max_lev = 10
+    try:
+        _max_lev = int((os.environ.get("ZEUS_LIVE_MAX_LEVERAGE") or "10").strip() or "10")
+    except ValueError:
+        _max_lev = 10
+    _max_lev = max(1, min(_max_lev, 10))  # A7 ceiling 10
+    broker = LiveBroker(
+        client=client,
+        config=LiveBrokerConfig(max_leverage=_max_lev),
+    )
+
     try:
         from astra_bot.decision.vol_cd_hooks import apply_live_sync_hook
 
