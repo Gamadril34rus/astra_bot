@@ -6696,3 +6696,13 @@
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|AAVE-USDT|short|1792382400000", "symbol": "AAVE-USDT", "side": "short", "ts": 1792389411.1886396}
 {"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 3, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 3}, "unrealized_sum": null, "ts": 1792389411.6691241}
 {"event": "live_digest", "key": "2026-10-19:am", "day_pnl": 0.0, "n_pos": 0, "n_neg": 0, "open_n": 5, "risk_sum": 5483.67, "equity": 101669.8441, "halt": null, "ts": 1792389412.7257285}
+{"event": "order_audit", "symbol": "BTC-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792389988.3729222}
+{"event": "order_audit", "symbol": "ETH-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792389988.373077}
+{"event": "order_audit", "symbol": "DOT-USDT", "side": "short", "n_stop": 1, "n_tp": 0, "be_moved": false, "ts": 1792389988.3731186}
+{"event": "order_audit", "symbol": "OP-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792389988.3731549}
+{"event": "order_audit", "symbol": "ADA-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792389988.373186}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|BTC-USDT|long|1792382400000", "symbol": "BTC-USDT", "side": "long", "ts": 1792390019.7787387}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|DOT-USDT|short|1792382400000", "symbol": "DOT-USDT", "side": "short", "ts": 1792390019.778747}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|AAVE-USDT|short|1792382400000", "symbol": "AAVE-USDT", "side": "short", "ts": 1792390019.7787514}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|INJ-USDT|long|1792382400000", "symbol": "INJ-USDT", "side": "long", "ts": 1792390019.7787557}
+{"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 4, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 3}, "unrealized_sum": null, "ts": 1792390020.1836784}
