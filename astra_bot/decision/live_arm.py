@@ -89,6 +89,7 @@ class SignalCandidate:
     leverage: int = 5
     strategy: str = "zeus"
     step_size: Decimal = Decimal("0.001")
+    prior_r: float | None = None  # P7: rank by expected move (owner 19.10)
 
 
 def _cooldown_key(strategy: str, symbol: str, side: str) -> str:
@@ -327,3 +328,12 @@ def format_entry_tg(
     tp_s = str(tp) if tp is not None else "—"
     mode = "VST" if vst else "MAIN"
     return f"🚀 {symbol} {side_ru} {qty} @ {entry}; стоп {stop}; тейк {tp_s} ({mode})"
+
+
+def rank_candidates(cands: list[SignalCandidate]) -> list[SignalCandidate]:
+    """P7: sort by prior_r desc, tie-break confidence desc. None prior_r last."""
+    def key(c: SignalCandidate):
+        pr = c.prior_r if c.prior_r is not None else -1e9
+        conf = c.confidence if c.confidence is not None else -1e9
+        return (pr, conf)
+    return sorted(cands, key=key, reverse=True)
