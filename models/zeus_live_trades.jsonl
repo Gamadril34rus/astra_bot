@@ -6,7 +6,7 @@
 {"event":"entry","signal_id":"zeus_channel_boundary|ETH-USDT|short|1791864000000","symbol":"ETH-USDT","side":"short","plan_entry":"2518.8","fill_price":"2519.07","slip_pct":-0.010719390185802041,"qty":"0.049","stop":"2538.9504","tp":"2478.4992","leverage":3,"ts":1791864127.7617183}
 {"event":"entry","signal_id":"zeus_channel_boundary|AVAX-USDT|short|1791864000000","symbol":"AVAX-USDT","side":"short","plan_entry":"10.501","fill_price":"10.499","slip_pct":0.019045805161402644,"qty":"11.903","stop":"10.585008","tp":"10.332983999999998","leverage":3,"ts":1791864386.9404287}
 {"event":"exit","symbol":"AVAX-USDT","side":"short","entry":"10.499","exit":null,"exit_reason":"exchange_flat","pnl":-0.998212,"pending_verify":false,"ts":1791869185.7991464,"pnl_source":"income_backfill","backfill_ts":1792060577.6772628}
-{"event":"exit","symbol":"XRP-USDT","side":"short","entry":1.3432,"exit":null,"exit_reason":"no_fills","pnl":null,"signal_id":"1791849745.1059258","ts":1791876977.0748951}
+{"event":"exit","symbol":"XRP-USDT","side":"short","entry":1.3432,"exit":null,"exit_reason":"no_fills","pnl":-0.976882,"signal_id":"1791849745.1059258","ts":1791876977.0748951,"pnl_source":"income_backfill","backfill_ts":1792413398.5446668}
 {"event":"entry","signal_id":"zeus_channel_boundary|ETH-USDT|short|1791878400000","symbol":"ETH-USDT","side":"short","plan_entry":"2516.01","fill_price":"2515.60","slip_pct":0.016295642704135086,"qty":"0.049","stop":"2536.13808","tp":"2475.7538400000003","leverage":3,"ts":1791878528.2451818}
 {"event":"entry","signal_id":"zeus_channel_boundary|NEAR-USDT|short|1791878400000","symbol":"NEAR-USDT","side":"short","plan_entry":"5.194","fill_price":"5.194","slip_pct":-0.0,"qty":"2.295","stop":"5.629561340243903","tp":"4.322877319512194","leverage":3,"ts":1791878794.7643232}
 {"event":"entry","signal_id":"zeus_channel_boundary|OP-USDT|long|1791878400000","symbol":"OP-USDT","side":"long","plan_entry":"0.13965","fill_price":"0.13966","slip_pct":0.0071607590404654505,"qty":"895.094","stop":"0.13853279999999998","tp":"0.14188440000000002","leverage":3,"ts":1791879108.5791843}
@@ -372,479 +372,480 @@
 {"event":"exit","symbol":"APT-USDT","side":"long","entry":0.8566,"exit":null,"exit_reason":"no_fills","pnl":-548.093808,"signal_id":"zeus_channel_boundary|APT-USDT|long|1792152000000","ts":1792253523.1513069,"pnl_source":"income_backfill","backfill_ts":1792254419.5053968}
 {"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792254406.225656}
 {"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792254415.8633356}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792254740.654369}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792254750.2346575}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792255315.323526}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792255323.625677}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792256241.3401544}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792256251.1473498}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792256540.1893926}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792256549.570685}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792256810.961947}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792256819.0833044}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792257409.951344}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792257417.7276623}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792257715.821366}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792257725.7930834}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792258332.8569095}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792258342.3459244}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792258608.3566792}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792258616.6233125}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792258905.5630934}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792258914.44347}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792259203.6799262}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792259213.612947}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792259518.246569}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792259526.875455}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792259807.0594034}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792259815.5757692}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792260137.8647969}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792260146.8189752}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792260704.9980166}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792260713.3044057}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792261014.072989}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792261022.0987847}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792261318.5149293}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792261327.7940361}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792261606.992466}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792261616.1886659}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792261917.8885407}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792261926.7398722}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792262205.9654157}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792262214.841866}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792262816.133363}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792262824.6538527}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792263121.4338746}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792263129.6528385}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792263413.0309515}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792263421.0739086}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792263741.8053143}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792263749.987899}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792264006.7537394}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792264014.7901084}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792265205.976488}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792265215.6721766}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792265525.9678822}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792265536.4857547}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792266116.2033982}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792266125.670922}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792266414.2612193}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792266421.557646}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792266723.5746274}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792266734.9034178}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792267004.5883713}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792267013.4940221}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792267343.5334346}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792267353.314625}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792268215.1787486}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792268222.902706}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792268503.7280052}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792268512.9006429}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792269134.9365425}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792269143.3620703}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792269710.2375946}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792269718.0216634}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792270317.2495134}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792270326.0016797}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792270598.476105}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792270607.1545696}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792270931.7963042}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792270940.863361}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12356.64 USDT", "ts": 1792271207.0754085}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792271217.2442524}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792271519.4461563}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792271528.237859}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792272116.7974262}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792272125.8240461}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792272410.919938}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792272419.8620455}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792272732.8112485}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792272741.510695}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792273005.2596362}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792273012.7262506}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792273319.2793665}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792273329.2573404}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792273912.2880468}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792273921.993795}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792274544.9216063}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792274553.28015}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792274812.214233}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792274820.3685699}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792275119.2067425}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792275129.3609424}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792275411.2377443}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792275420.3429503}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792275714.4762094}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792275724.6600773}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792276003.248656}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792276012.3351362}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792276322.1038706}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792276330.802783}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792276923.8267128}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792276932.4627264}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792277212.7988822}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792277220.4152527}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792277545.300692}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792277553.3388193}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792277805.750203}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792277814.52436}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792278147.4530897}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792278156.4283743}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792278407.3026378}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792278415.6016507}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792278724.620405}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792278734.0265815}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792279014.0055904}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792279022.0432308}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792279610.9481623}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792279619.496351}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792279929.075317}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792279939.817893}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792280517.8828313}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792280526.572323}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792280822.6003904}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792280832.1231475}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792281407.1525075}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792281416.1035624}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792281749.7923293}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792281757.6888103}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792282003.1964433}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792282012.5716975}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792282318.0881855}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792282325.7550333}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792282919.475842}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792282927.3472443}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792283206.589986}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792283214.6071646}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792283530.7202947}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792283538.84804}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792283805.7083194}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792283814.4351578}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792284418.5738208}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792284427.329109}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792285008.7364526}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792285017.725731}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792285604.0047388}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792285614.2162452}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792285915.5795264}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792285925.6463494}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792286203.7934396}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792286213.8733354}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792286512.7715883}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792286522.4468148}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792286811.933983}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792286819.9974546}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792287125.9751759}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792287133.9275417}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792287404.8017812}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792287413.6797435}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792288017.130105}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792288026.704318}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792288320.225663}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792288328.1567454}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792288613.1232746}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792288622.4709558}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792288948.3814979}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792288957.7729964}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792289512.5590868}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792289522.0250652}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792289819.050722}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792289828.3668847}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792290107.0756273}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792290116.348147}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792290401.7050405}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792290410.437696}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792291012.6687016}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792291022.0556676}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792291313.6686175}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792291322.9542654}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792291621.9435077}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792291631.4820902}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792292546.9970043}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792292555.9180071}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792293422.2458508}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792293430.9377022}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792294015.3483436}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792294023.840092}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792294326.0694795}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792294335.4358428}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792294606.8649251}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792294615.1996467}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792294919.2512233}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792294927.825565}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792295206.443776}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792295214.2302802}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792295517.7002413}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792295526.5611243}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792295808.017116}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792295816.0879843}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792296143.4982967}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792296153.1221313}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792296400.1007872}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792296407.9520109}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792297318.0736558}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792297326.9841948}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792297597.9251637}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792297605.9080808}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792297931.407031}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792297940.5096867}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792298211.8347037}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792298220.828172}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792298520.3124387}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792298529.4178984}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792299405.9541202}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792299414.1781473}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792299744.2365155}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792299753.9752016}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792299995.2088337}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792300003.3682258}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792300310.5228949}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792300321.447857}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792300613.079075}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792300621.6628437}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792300924.413337}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792300934.9523609}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792301206.3098617}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792301214.3130183}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792301516.1577318}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792301524.943955}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792301800.7726223}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792301810.1425054}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792302113.7103348}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792302124.3708541}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792302427.2997334}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792302435.7958338}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792302713.9691343}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792302722.81017}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792303005.004515}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792303014.3613381}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792303343.0651512}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792303351.9885087}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792303604.9617817}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792303613.1401322}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792304220.3123631}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792304230.6835077}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792304513.891978}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792304523.0726573}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792304805.2757874}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792304813.574566}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792305126.9982212}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792305137.354389}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792305409.445409}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792305417.3404572}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792305714.827188}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792305723.4472744}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792306018.2338111}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792306027.1862893}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792306302.438702}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792306312.074457}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792306605.0510762}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792306614.7847795}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792306943.691477}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792306952.567763}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792308113.7093186}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792308122.463101}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792308404.3128653}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792308413.1414955}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792308728.6408198}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792308736.5318575}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792309614.7641706}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792309623.3238974}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792309917.8215485}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792309925.6278765}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792310210.9367516}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792310219.9564037}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792310808.1946058}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792310817.0420969}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792311115.4313765}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792311123.4943445}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792311419.1094549}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792311428.2880783}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792311716.2712972}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792311725.7519186}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792312012.5077977}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792312023.346465}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792312331.4347956}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792312340.849827}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792312606.0704942}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792312614.6466837}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792313221.1121151}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792313230.092299}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792314493.5291154}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792314501.8735325}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792314713.3404198}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792314721.9687488}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792315016.399461}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792315026.0278149}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792315322.397701}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792315329.6230638}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12353.1 USDT", "ts": 1792315605.1722012}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792315612.7405922}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12386.42 USDT", "ts": 1792316215.7171195}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792316224.463001}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12402.29 USDT", "ts": 1792316515.779785}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792316525.2005749}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12384.3 USDT", "ts": 1792316817.144706}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792316824.9918268}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12398.48 USDT", "ts": 1792317113.6442025}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792317122.0814338}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12386.38 USDT", "ts": 1792317407.0539958}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792317415.3761714}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12361.42 USDT", "ts": 1792317738.1087396}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792317745.5903764}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12357.26 USDT", "ts": 1792318008.9155622}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792318016.856699}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12371.82 USDT", "ts": 1792318316.4218638}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792318323.9479494}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12355.18 USDT", "ts": 1792318608.7576587}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792318617.6447654}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792318920.9781632}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792318929.9501915}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12357.83 USDT", "ts": 1792319525.9209497}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792319534.5356731}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12358.34 USDT", "ts": 1792319808.3109465}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792319817.663175}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792320115.962932}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792320125.6336014}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792321009.3979087}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792321018.3486726}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792321611.9519567}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792321620.9761329}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792321915.8047218}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792321926.019108}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792322206.7132103}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792322214.391571}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792322511.3708336}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792322520.2788997}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792322806.2715394}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792322815.8677843}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792323123.4889994}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792323133.4215016}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792323410.7603364}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792323419.1287038}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792323711.1455138}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792323719.967583}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792324013.3428164}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792324022.6240194}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792324317.9911563}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792324326.4381495}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792324616.558127}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792324625.086236}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12357.26 USDT", "ts": 1792324945.9096653}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792324955.6646929}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12369.74 USDT", "ts": 1792325204.9634929}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792325214.7831073}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12378.06 USDT", "ts": 1792325519.4948456}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792325528.0926874}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12375.98 USDT", "ts": 1792325818.2960618}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792325827.0777328}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12373.94 USDT", "ts": 1792327306.867286}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792327316.05991}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12368.12 USDT", "ts": 1792327612.790587}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792327621.2858365}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12376.14 USDT", "ts": 1792327917.501997}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792327925.444557}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12382.22 USDT", "ts": 1792328207.1728628}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792328216.6795576}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12405.1 USDT", "ts": 1792328545.1124682}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792328555.1691184}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12407.22 USDT", "ts": 1792329748.3766005}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792329755.7929199}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12388.46 USDT", "ts": 1792330008.5591598}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792330017.98724}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792330610.0503066}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792330617.548217}
-{"event": "exit", "symbol": "INJ-USDT", "side": "long", "entry": 9.002, "exit": null, "exit_reason": "income", "pnl": -2.7007, "fees": 5.152294, "funding_fee": -1.03774355, "trade_id": "zeus_channel_boundary|INJ-USDT|long|1792152000000", "slip_exit_pct": null, "qty": 600.95444918, "signal_id": "zeus_channel_boundary|INJ-USDT|long|1792152000000", "ts": 1792330618.6489687, "tp1_leg": 297.9416}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12355.18 USDT", "ts": 1792330921.4935443}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792330930.0997195}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12438.38 USDT", "ts": 1792331216.392492}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792331225.3848033}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12415.71 USDT", "ts": 1792331520.0800776}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792331527.9817667}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12396.78 USDT", "ts": 1792331811.0949304}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792331819.7217648}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 12369.74 USDT", "ts": 1792332144.6643798}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792332155.4013822}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792332413.2331219}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792332422.3596473}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792332713.4793534}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792332723.315227}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792333018.1401894}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792333026.8249183}
-{"event": "exit", "symbol": "LTC-USDT", "side": "short", "entry": 59.99, "exit": null, "exit_reason": "income", "pnl": 624.6005, "fees": 62.02949400000001, "funding_fee": 10.80386776, "trade_id": "zeus_channel_boundary|LTC-USDT|short|1792152000000", "slip_exit_pct": null, "qty": 1039.82282482, "signal_id": "zeus_channel_boundary|LTC-USDT|short|1792152000000", "ts": 1792333308.96098, "tp1_leg": 250.1065}
-{"event": "exit", "symbol": "AVAX-USDT", "side": "short", "entry": 10.014, "exit": null, "exit_reason": "income", "pnl": 2045.5929, "fees": 125.52605600000001, "funding_fee": 14.51028556, "trade_id": "zeus_channel_boundary|AVAX-USDT|short|1792166400000", "slip_exit_pct": null, "qty": 12644.94561421, "signal_id": "zeus_channel_boundary|AVAX-USDT|short|1792166400000", "ts": 1792333308.96098, "tp1_leg": 572.8262}
-{"event": "entry", "signal_id": "zeus_channel_boundary|BTC-USDT|long|1792368000000", "symbol": "BTC-USDT", "side": "long", "plan_entry": "82681.0", "fill_price": "82749.2", "slip_pct": 0.08248569804428718, "qty": "0.43460168", "stop": "80351.30355646342", "tp": "86175.544665304870", "leverage": 3, "ts": 1792378308.06488}
-{"event": "entry", "signal_id": "zeus_channel_boundary|ETH-USDT|short|1792368000000", "symbol": "ETH-USDT", "side": "short", "plan_entry": "2432.44", "fill_price": "2428.13", "slip_pct": 0.17718833763628067, "qty": "52.02029649", "stop": "2451.89952", "tp": "2403.250720", "leverage": 3, "ts": 1792378312.9235008}
-{"event": "entry", "signal_id": "zeus_channel_boundary|DOT-USDT|short|1792368000000", "symbol": "DOT-USDT", "side": "short", "plan_entry": "1.1312", "fill_price": "1.1301", "slip_pct": 0.09724186704383654, "qty": "111797.20650636", "stop": "1.1402496", "tp": "1.11762560", "leverage": 3, "ts": 1792378318.9474554}
-{"event": "entry", "signal_id": "zeus_channel_boundary|OP-USDT|short|1792382400000", "symbol": "OP-USDT", "side": "short", "plan_entry": "0.12518", "fill_price": "0.12513", "slip_pct": 0.03994248282475016, "qty": "239622.26765479", "stop": "0.12948552640243893", "tp": "0.118721710396341605", "leverage": 3, "ts": 1792383151.2525969}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 24990.78 USDT", "ts": 1792383387.4265597}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792383702.2196019}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792383982.2131743}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1792384314.8500721}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25102.47 USDT", "ts": 1792385195.4615462}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25098.91 USDT", "ts": 1792385496.0464191}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25101.46 USDT", "ts": 1792386787.713589}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25011.22 USDT", "ts": 1792387589.662085}
-{"event": "entry", "signal_id": "zeus_channel_boundary|ADA-USDT|short|1792382400000", "symbol": "ADA-USDT", "side": "short", "plan_entry": "0.22", "fill_price": "0.2200", "slip_pct": -0.0, "qty": "583329.54545454", "stop": "0.22176", "tp": "0.217360", "leverage": 6, "ts": 1792387627.5252383}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25111.04 USDT", "ts": 1792388190.471355}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25108.21 USDT", "ts": 1792388798.3839803}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25117.91 USDT", "ts": 1792389093.8407264}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25111.84 USDT", "ts": 1792389383.0598853}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25180.2 USDT", "ts": 1792389987.7830284}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25142.98 USDT", "ts": 1792390585.6267805}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25158.25 USDT", "ts": 1792390891.2345397}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25146.18 USDT", "ts": 1792391187.9781332}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25133.24 USDT", "ts": 1792391512.3942778}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25091.88 USDT", "ts": 1792392097.3044581}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25091.39 USDT", "ts": 1792392383.4925113}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25106.27 USDT", "ts": 1792392991.3333085}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25113.92 USDT", "ts": 1792393322.086549}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25214.54 USDT", "ts": 1792394197.9719114}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25161.67 USDT", "ts": 1792394490.5451005}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25190.11 USDT", "ts": 1792394783.7973166}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25174.29 USDT", "ts": 1792395691.1006513}
-{"event": "exit", "symbol": "ADA-USDT", "side": "short", "entry": 0.22, "exit": null, "exit_reason": "income", "pnl": -1500.7544, "pnl_source": "income", "fees": 193.332791, "funding_fee": 0.0, "trade_id": "zeus_channel_boundary|ADA-USDT|short|1792382400000", "slip_exit_pct": null, "qty": 583329.54545454, "signal_id": "zeus_channel_boundary|ADA-USDT|short|1792382400000", "ts": 1792395692.9306574, "tp1_leg": 615.996}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25224.01 USDT", "ts": 1792396384.8984516}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25169.98 USDT", "ts": 1792396583.8869388}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25121.86 USDT", "ts": 1792396929.3946588}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25119.09 USDT", "ts": 1792397187.249915}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25138.09 USDT", "ts": 1792397503.7860634}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25137.69 USDT", "ts": 1792397790.707922}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25142.19 USDT", "ts": 1792398386.1086226}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25145.38 USDT", "ts": 1792399075.8596284}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25123.32 USDT", "ts": 1792399961.9632435}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25140.89 USDT", "ts": 1792400176.9158514}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25086.39 USDT", "ts": 1792400518.467633}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25140.89 USDT", "ts": 1792400792.4827256}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25133.09 USDT", "ts": 1792402064.4494073}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25140.89 USDT", "ts": 1792402296.6366663}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25132.63 USDT", "ts": 1792402578.346236}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25116.9 USDT", "ts": 1792402893.2169127}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25131.92 USDT", "ts": 1792403497.4428504}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25138.01 USDT", "ts": 1792403790.7058566}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25129.01 USDT", "ts": 1792404120.5363793}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25140.89 USDT", "ts": 1792404384.9579847}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25097.62 USDT", "ts": 1792404695.342846}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25138.7 USDT", "ts": 1792405000.4355505}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25138.7 USDT", "ts": 1792405588.224578}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25085 USDT", "ts": 1792405917.2353468}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25120.94 USDT", "ts": 1792406183.0133612}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25117.56 USDT", "ts": 1792406796.2559144}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25134.39 USDT", "ts": 1792407093.843916}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25140.89 USDT", "ts": 1792407384.7560778}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25108.03 USDT", "ts": 1792407721.9085581}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25133.84 USDT", "ts": 1792407971.640622}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25065.38 USDT", "ts": 1792408586.1839297}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25139.71 USDT", "ts": 1792408892.046285}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25140.89 USDT", "ts": 1792409181.0333803}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25091.7 USDT", "ts": 1792409508.510944}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25138.42 USDT", "ts": 1792409791.1023588}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25140.89 USDT", "ts": 1792410392.8215086}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25138.7 USDT", "ts": 1792410693.3544106}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25134.26 USDT", "ts": 1792410985.7406905}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25138.7 USDT", "ts": 1792411323.093043}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25128.75 USDT", "ts": 1792411982.9457533}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25138.7 USDT", "ts": 1792412199.7103977}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25077.32 USDT", "ts": 1792412496.8355823}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25140.89 USDT", "ts": 1792412783.6775534}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 25140.89 USDT", "ts": 1792413126.842499}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792254740.654369}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792254750.2346575}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792255315.323526}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792255323.625677}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792256241.3401544}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792256251.1473498}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792256540.1893926}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792256549.570685}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792256810.961947}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792256819.0833044}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792257409.951344}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792257417.7276623}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792257715.821366}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792257725.7930834}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792258332.8569095}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792258342.3459244}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792258608.3566792}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792258616.6233125}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792258905.5630934}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792258914.44347}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792259203.6799262}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792259213.612947}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792259518.246569}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792259526.875455}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792259807.0594034}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792259815.5757692}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792260137.8647969}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792260146.8189752}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792260704.9980166}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792260713.3044057}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792261014.072989}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792261022.0987847}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792261318.5149293}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792261327.7940361}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792261606.992466}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792261616.1886659}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792261917.8885407}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792261926.7398722}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792262205.9654157}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792262214.841866}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792262816.133363}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792262824.6538527}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792263121.4338746}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792263129.6528385}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792263413.0309515}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792263421.0739086}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792263741.8053143}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792263749.987899}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792264006.7537394}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792264014.7901084}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792265205.976488}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792265215.6721766}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792265525.9678822}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792265536.4857547}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792266116.2033982}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792266125.670922}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792266414.2612193}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792266421.557646}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792266723.5746274}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792266734.9034178}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792267004.5883713}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792267013.4940221}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792267343.5334346}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792267353.314625}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792268215.1787486}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792268222.902706}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792268503.7280052}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792268512.9006429}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792269134.9365425}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792269143.3620703}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792269710.2375946}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792269718.0216634}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792270317.2495134}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792270326.0016797}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792270598.476105}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792270607.1545696}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792270931.7963042}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792270940.863361}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12356.64 USDT","ts":1792271207.0754085}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792271217.2442524}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792271519.4461563}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792271528.237859}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792272116.7974262}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792272125.8240461}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792272410.919938}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792272419.8620455}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792272732.8112485}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792272741.510695}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792273005.2596362}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792273012.7262506}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792273319.2793665}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792273329.2573404}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792273912.2880468}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792273921.993795}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792274544.9216063}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792274553.28015}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792274812.214233}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792274820.3685699}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792275119.2067425}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792275129.3609424}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792275411.2377443}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792275420.3429503}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792275714.4762094}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792275724.6600773}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792276003.248656}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792276012.3351362}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792276322.1038706}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792276330.802783}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792276923.8267128}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792276932.4627264}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792277212.7988822}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792277220.4152527}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792277545.300692}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792277553.3388193}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792277805.750203}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792277814.52436}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792278147.4530897}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792278156.4283743}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792278407.3026378}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792278415.6016507}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792278724.620405}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792278734.0265815}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792279014.0055904}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792279022.0432308}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792279610.9481623}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792279619.496351}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792279929.075317}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792279939.817893}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792280517.8828313}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792280526.572323}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792280822.6003904}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792280832.1231475}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792281407.1525075}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792281416.1035624}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792281749.7923293}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792281757.6888103}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792282003.1964433}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792282012.5716975}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792282318.0881855}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792282325.7550333}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792282919.475842}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792282927.3472443}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792283206.589986}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792283214.6071646}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792283530.7202947}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792283538.84804}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792283805.7083194}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792283814.4351578}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792284418.5738208}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792284427.329109}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792285008.7364526}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792285017.725731}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792285604.0047388}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792285614.2162452}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792285915.5795264}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792285925.6463494}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792286203.7934396}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792286213.8733354}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792286512.7715883}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792286522.4468148}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792286811.933983}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792286819.9974546}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792287125.9751759}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792287133.9275417}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792287404.8017812}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792287413.6797435}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792288017.130105}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792288026.704318}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792288320.225663}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792288328.1567454}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792288613.1232746}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792288622.4709558}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792288948.3814979}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792288957.7729964}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792289512.5590868}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792289522.0250652}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792289819.050722}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792289828.3668847}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792290107.0756273}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792290116.348147}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792290401.7050405}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792290410.437696}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792291012.6687016}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792291022.0556676}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792291313.6686175}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792291322.9542654}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792291621.9435077}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792291631.4820902}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792292546.9970043}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792292555.9180071}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792293422.2458508}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792293430.9377022}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792294015.3483436}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792294023.840092}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792294326.0694795}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792294335.4358428}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792294606.8649251}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792294615.1996467}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792294919.2512233}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792294927.825565}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792295206.443776}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792295214.2302802}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792295517.7002413}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792295526.5611243}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792295808.017116}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792295816.0879843}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792296143.4982967}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792296153.1221313}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792296400.1007872}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792296407.9520109}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792297318.0736558}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792297326.9841948}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792297597.9251637}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792297605.9080808}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792297931.407031}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792297940.5096867}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792298211.8347037}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792298220.828172}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792298520.3124387}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792298529.4178984}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792299405.9541202}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792299414.1781473}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792299744.2365155}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792299753.9752016}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792299995.2088337}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792300003.3682258}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792300310.5228949}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792300321.447857}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792300613.079075}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792300621.6628437}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792300924.413337}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792300934.9523609}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792301206.3098617}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792301214.3130183}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792301516.1577318}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792301524.943955}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792301800.7726223}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792301810.1425054}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792302113.7103348}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792302124.3708541}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792302427.2997334}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792302435.7958338}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792302713.9691343}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792302722.81017}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792303005.004515}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792303014.3613381}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792303343.0651512}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792303351.9885087}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792303604.9617817}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792303613.1401322}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792304220.3123631}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792304230.6835077}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792304513.891978}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792304523.0726573}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792304805.2757874}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792304813.574566}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792305126.9982212}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792305137.354389}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792305409.445409}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792305417.3404572}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792305714.827188}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792305723.4472744}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792306018.2338111}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792306027.1862893}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792306302.438702}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792306312.074457}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792306605.0510762}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792306614.7847795}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792306943.691477}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792306952.567763}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792308113.7093186}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792308122.463101}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792308404.3128653}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792308413.1414955}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792308728.6408198}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792308736.5318575}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792309614.7641706}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792309623.3238974}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792309917.8215485}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792309925.6278765}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792310210.9367516}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792310219.9564037}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792310808.1946058}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792310817.0420969}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792311115.4313765}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792311123.4943445}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792311419.1094549}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792311428.2880783}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792311716.2712972}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792311725.7519186}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792312012.5077977}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792312023.346465}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792312331.4347956}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792312340.849827}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792312606.0704942}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792312614.6466837}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792313221.1121151}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792313230.092299}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792314493.5291154}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792314501.8735325}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792314713.3404198}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792314721.9687488}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792315016.399461}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792315026.0278149}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792315322.397701}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792315329.6230638}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12353.1 USDT","ts":1792315605.1722012}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792315612.7405922}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12386.42 USDT","ts":1792316215.7171195}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792316224.463001}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12402.29 USDT","ts":1792316515.779785}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792316525.2005749}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12384.3 USDT","ts":1792316817.144706}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792316824.9918268}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12398.48 USDT","ts":1792317113.6442025}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792317122.0814338}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12386.38 USDT","ts":1792317407.0539958}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792317415.3761714}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12361.42 USDT","ts":1792317738.1087396}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792317745.5903764}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12357.26 USDT","ts":1792318008.9155622}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792318016.856699}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12371.82 USDT","ts":1792318316.4218638}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792318323.9479494}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12355.18 USDT","ts":1792318608.7576587}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792318617.6447654}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792318920.9781632}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792318929.9501915}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12357.83 USDT","ts":1792319525.9209497}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792319534.5356731}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12358.34 USDT","ts":1792319808.3109465}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792319817.663175}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792320115.962932}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792320125.6336014}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792321009.3979087}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792321018.3486726}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792321611.9519567}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792321620.9761329}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792321915.8047218}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792321926.019108}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792322206.7132103}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792322214.391571}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792322511.3708336}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792322520.2788997}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792322806.2715394}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792322815.8677843}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792323123.4889994}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792323133.4215016}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792323410.7603364}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792323419.1287038}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792323711.1455138}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792323719.967583}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792324013.3428164}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792324022.6240194}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792324317.9911563}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792324326.4381495}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792324616.558127}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792324625.086236}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12357.26 USDT","ts":1792324945.9096653}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792324955.6646929}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12369.74 USDT","ts":1792325204.9634929}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792325214.7831073}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12378.06 USDT","ts":1792325519.4948456}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792325528.0926874}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12375.98 USDT","ts":1792325818.2960618}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792325827.0777328}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12373.94 USDT","ts":1792327306.867286}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792327316.05991}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12368.12 USDT","ts":1792327612.790587}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792327621.2858365}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12376.14 USDT","ts":1792327917.501997}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792327925.444557}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12382.22 USDT","ts":1792328207.1728628}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792328216.6795576}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12405.1 USDT","ts":1792328545.1124682}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792328555.1691184}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12407.22 USDT","ts":1792329748.3766005}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792329755.7929199}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12388.46 USDT","ts":1792330008.5591598}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792330017.98724}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792330610.0503066}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792330617.548217}
+{"event":"exit","symbol":"INJ-USDT","side":"long","entry":9.002,"exit":null,"exit_reason":"income","pnl":-2.7007,"fees":5.152294,"funding_fee":-1.03774355,"trade_id":"zeus_channel_boundary|INJ-USDT|long|1792152000000","slip_exit_pct":null,"qty":600.95444918,"signal_id":"zeus_channel_boundary|INJ-USDT|long|1792152000000","ts":1792330618.6489687,"tp1_leg":297.9416}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12355.18 USDT","ts":1792330921.4935443}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792330930.0997195}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12438.38 USDT","ts":1792331216.392492}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792331225.3848033}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12415.71 USDT","ts":1792331520.0800776}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792331527.9817667}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12396.78 USDT","ts":1792331811.0949304}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792331819.7217648}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 12369.74 USDT","ts":1792332144.6643798}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792332155.4013822}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792332413.2331219}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792332422.3596473}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792332713.4793534}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792332723.315227}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792333018.1401894}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792333026.8249183}
+{"event":"exit","symbol":"LTC-USDT","side":"short","entry":59.99,"exit":null,"exit_reason":"income","pnl":624.6005,"fees":62.02949400000001,"funding_fee":10.80386776,"trade_id":"zeus_channel_boundary|LTC-USDT|short|1792152000000","slip_exit_pct":null,"qty":1039.82282482,"signal_id":"zeus_channel_boundary|LTC-USDT|short|1792152000000","ts":1792333308.96098,"tp1_leg":250.1065}
+{"event":"exit","symbol":"AVAX-USDT","side":"short","entry":10.014,"exit":null,"exit_reason":"income","pnl":2045.5929,"fees":125.52605600000001,"funding_fee":14.51028556,"trade_id":"zeus_channel_boundary|AVAX-USDT|short|1792166400000","slip_exit_pct":null,"qty":12644.94561421,"signal_id":"zeus_channel_boundary|AVAX-USDT|short|1792166400000","ts":1792333308.96098,"tp1_leg":572.8262}
+{"event":"entry","signal_id":"zeus_channel_boundary|BTC-USDT|long|1792368000000","symbol":"BTC-USDT","side":"long","plan_entry":"82681.0","fill_price":"82749.2","slip_pct":0.08248569804428718,"qty":"0.43460168","stop":"80351.30355646342","tp":"86175.544665304870","leverage":3,"ts":1792378308.06488}
+{"event":"entry","signal_id":"zeus_channel_boundary|ETH-USDT|short|1792368000000","symbol":"ETH-USDT","side":"short","plan_entry":"2432.44","fill_price":"2428.13","slip_pct":0.17718833763628067,"qty":"52.02029649","stop":"2451.89952","tp":"2403.250720","leverage":3,"ts":1792378312.9235008}
+{"event":"entry","signal_id":"zeus_channel_boundary|DOT-USDT|short|1792368000000","symbol":"DOT-USDT","side":"short","plan_entry":"1.1312","fill_price":"1.1301","slip_pct":0.09724186704383654,"qty":"111797.20650636","stop":"1.1402496","tp":"1.11762560","leverage":3,"ts":1792378318.9474554}
+{"event":"entry","signal_id":"zeus_channel_boundary|OP-USDT|short|1792382400000","symbol":"OP-USDT","side":"short","plan_entry":"0.12518","fill_price":"0.12513","slip_pct":0.03994248282475016,"qty":"239622.26765479","stop":"0.12948552640243893","tp":"0.118721710396341605","leverage":3,"ts":1792383151.2525969}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 24990.78 USDT","ts":1792383387.4265597}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792383702.2196019}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792383982.2131743}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: Take Profit price should be lower than the current price","ts":1792384314.8500721}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25102.47 USDT","ts":1792385195.4615462}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25098.91 USDT","ts":1792385496.0464191}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25101.46 USDT","ts":1792386787.713589}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25011.22 USDT","ts":1792387589.662085}
+{"event":"entry","signal_id":"zeus_channel_boundary|ADA-USDT|short|1792382400000","symbol":"ADA-USDT","side":"short","plan_entry":"0.22","fill_price":"0.2200","slip_pct":-0.0,"qty":"583329.54545454","stop":"0.22176","tp":"0.217360","leverage":6,"ts":1792387627.5252383}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25111.04 USDT","ts":1792388190.471355}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25108.21 USDT","ts":1792388798.3839803}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25117.91 USDT","ts":1792389093.8407264}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25111.84 USDT","ts":1792389383.0598853}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25180.2 USDT","ts":1792389987.7830284}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25142.98 USDT","ts":1792390585.6267805}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25158.25 USDT","ts":1792390891.2345397}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25146.18 USDT","ts":1792391187.9781332}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25133.24 USDT","ts":1792391512.3942778}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25091.88 USDT","ts":1792392097.3044581}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25091.39 USDT","ts":1792392383.4925113}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25106.27 USDT","ts":1792392991.3333085}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25113.92 USDT","ts":1792393322.086549}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25214.54 USDT","ts":1792394197.9719114}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25161.67 USDT","ts":1792394490.5451005}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25190.11 USDT","ts":1792394783.7973166}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25174.29 USDT","ts":1792395691.1006513}
+{"event":"exit","symbol":"ADA-USDT","side":"short","entry":0.22,"exit":null,"exit_reason":"income","pnl":-1500.7544,"pnl_source":"income","fees":193.332791,"funding_fee":0.0,"trade_id":"zeus_channel_boundary|ADA-USDT|short|1792382400000","slip_exit_pct":null,"qty":583329.54545454,"signal_id":"zeus_channel_boundary|ADA-USDT|short|1792382400000","ts":1792395692.9306574,"tp1_leg":615.996}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25224.01 USDT","ts":1792396384.8984516}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25169.98 USDT","ts":1792396583.8869388}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25121.86 USDT","ts":1792396929.3946588}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25119.09 USDT","ts":1792397187.249915}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25138.09 USDT","ts":1792397503.7860634}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25137.69 USDT","ts":1792397790.707922}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25142.19 USDT","ts":1792398386.1086226}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25145.38 USDT","ts":1792399075.8596284}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25123.32 USDT","ts":1792399961.9632435}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25140.89 USDT","ts":1792400176.9158514}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25086.39 USDT","ts":1792400518.467633}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25140.89 USDT","ts":1792400792.4827256}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25133.09 USDT","ts":1792402064.4494073}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25140.89 USDT","ts":1792402296.6366663}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25132.63 USDT","ts":1792402578.346236}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25116.9 USDT","ts":1792402893.2169127}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25131.92 USDT","ts":1792403497.4428504}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25138.01 USDT","ts":1792403790.7058566}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25129.01 USDT","ts":1792404120.5363793}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25140.89 USDT","ts":1792404384.9579847}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25097.62 USDT","ts":1792404695.342846}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25138.7 USDT","ts":1792405000.4355505}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25138.7 USDT","ts":1792405588.224578}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25085 USDT","ts":1792405917.2353468}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25120.94 USDT","ts":1792406183.0133612}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25117.56 USDT","ts":1792406796.2559144}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25134.39 USDT","ts":1792407093.843916}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25140.89 USDT","ts":1792407384.7560778}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25108.03 USDT","ts":1792407721.9085581}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25133.84 USDT","ts":1792407971.640622}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25065.38 USDT","ts":1792408586.1839297}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25139.71 USDT","ts":1792408892.046285}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25140.89 USDT","ts":1792409181.0333803}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25091.7 USDT","ts":1792409508.510944}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25138.42 USDT","ts":1792409791.1023588}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25140.89 USDT","ts":1792410392.8215086}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25138.7 USDT","ts":1792410693.3544106}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25134.26 USDT","ts":1792410985.7406905}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25138.7 USDT","ts":1792411323.093043}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25128.75 USDT","ts":1792411982.9457533}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25138.7 USDT","ts":1792412199.7103977}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25077.32 USDT","ts":1792412496.8355823}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25140.89 USDT","ts":1792412783.6775534}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25140.89 USDT","ts":1792413126.842499}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 25138.7 USDT","ts":1792413385.1899676}
