@@ -48,20 +48,36 @@
       "qty_ratio": 1.0,
       "tp1": "1.11762560"
     },
-    "APT-USDT|short": {
-      "symbol": "APT-USDT",
+    "OP-USDT|short": {
+      "symbol": "OP-USDT",
       "side": "short",
-      "qty": "26427.73231771",
-      "stop": "0.8147491317073163",
-      "tp": "0.71712630243902555",
-      "entry": "0.7757",
+      "qty": "239622.26765479",
+      "stop": "0.12948552640243893",
+      "tp": "0.118721710396341605",
+      "entry": "0.12513",
+      "leverage": 3,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|OP-USDT|short|1792382400000",
+      "ts": 1792383151.2519166,
+      "be_moved": false,
+      "plan_qty": "239622.26765479",
+      "qty_ratio": 1.0,
+      "tp1": "0.118721710396341605"
+    },
+    "TAO-USDT|short": {
+      "symbol": "TAO-USDT",
+      "side": "short",
+      "qty": "474.05885813",
+      "stop": "274.18608",
+      "tp": "268.745880",
+      "entry": "272.01",
       "leverage": 3,
       "pending_verify": true,
       "signal_id": null,
-      "ts": 1792382562.3326404,
+      "ts": 1792383161.8255937,
       "be_moved": false,
-      "tp1": "0.71712630243902555"
+      "tp1": "268.745880"
     }
   },
-  "ts": 1792382562.3326492
+  "ts": 1792383161.8256238
 }
