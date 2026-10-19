@@ -354,6 +354,14 @@ def poll_once(
         uid = int(upd.get("update_id") or 0)
         if uid >= max_id:
             max_id = uid + 1
+        # Audit: every processed update_id (owner №26 — diagnose triple enqueue)
+        logger.info(
+            "tg_live_commands update_id=%s has_msg=%s has_cb=%s offset_was=%s",
+            uid,
+            bool(upd.get("message") or upd.get("edited_message")),
+            bool(upd.get("callback_query")),
+            offset,
+        )
         if process_update(
             upd, commands_path=commands_path, token=token, admin_id=admin_id
         ):
