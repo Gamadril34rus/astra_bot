@@ -757,10 +757,21 @@ async def one_tick(*, dry: bool = False) -> int:
         await produce_pending(client, FEED_SYMBOLS, seen_ids=seen)
         rows = load_pending_rows()
 
-        entered, skipped = await run_arm_entries(
-            broker, rows, max_entries=3, send_tg=_send_live_tg
-        )
-        logger.info("arm tick entries=%d skipped=%s", len(entered), skipped)
+        try:
+            entered, skipped = await run_arm_entries(
+                broker, rows, max_entries=3, send_tg=_send_live_tg
+            )
+            logger.info("arm tick entries=%d skipped=%s", len(entered), skipped)
+        except Exception as arm_exc:
+            # Belt-and-suspenders: arm must never kill the tick (owner №25)
+            logger.exception("arm tick FAILED (swallowed): %s", type(arm_exc).__name__)
+            entered, skipped = [], {"other": 1}
+            try:
+                await _send_live_tg(
+                    f"⚠️ arm tick error — {type(arm_exc).__name__}: {arm_exc}"
+                )
+            except Exception:
+                pass
         try:
             from astra_bot.decision.live_arm_wiring import append_journal
 

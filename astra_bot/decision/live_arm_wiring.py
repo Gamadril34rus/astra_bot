@@ -91,6 +91,78 @@ JOURNAL_PATH = Path("models/zeus_live_journal.jsonl")
 PENDING_PATH = Path("models/zeus_arm_pending.jsonl")
 FRESH_MAX_SEC = 45 * 60
 
+# ---- arm entry error guard (owner №25) ----
+MARGIN_FAIL_PATH = Path("models/zeus_arm_margin_fails.json")
+MARGIN_FAIL_LIMIT = 3
+
+
+def _is_clean_margin_reject(exc: BaseException) -> bool:
+    """Only explicit insufficient-margin — no fill possible (owner F1)."""
+    return "insufficient margin" in str(exc).lower()
+
+
+def _is_uncertain_entry_error(exc: BaseException) -> bool:
+    """Timeout / other ExchangeError — order may have filled; need pending_verify."""
+    if _is_clean_margin_reject(exc):
+        return False
+    name = type(exc).__name__
+    msg = str(exc).lower()
+    if name in ("ExchangeError", "TimeoutError"):
+        return True
+    if "timeout" in msg:
+        return True
+    return False
+
+
+def _is_margin_or_exchange_reject(exc: BaseException) -> bool:
+    """Any entry error that must not kill the tick (margin or uncertain)."""
+    return _is_clean_margin_reject(exc) or _is_uncertain_entry_error(exc)
+
+
+def _margin_fail_key(symbol: str, signal_id: str | None) -> str:
+    return f"{symbol}|{signal_id or ''}"
+
+
+def load_margin_fails(path: Path | None = None) -> dict[str, int]:
+    path = path or MARGIN_FAIL_PATH
+    if not path.exists():
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        fails = raw.get("fails") if isinstance(raw, dict) else raw
+        if isinstance(fails, dict):
+            return {str(k): int(v) for k, v in fails.items()}
+    except Exception:
+        pass
+    return {}
+
+
+def save_margin_fails(fails: dict[str, int], path: Path = MARGIN_FAIL_PATH) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = json.dumps({"fails": fails, "ts": time.time()}, ensure_ascii=False, indent=2)
+    path.write_text(body + "\n", encoding="utf-8")
+
+
+def bump_margin_fail(symbol: str, signal_id: str | None, path: Path | None = None) -> int:
+    path = path or MARGIN_FAIL_PATH
+    fails = load_margin_fails(path)
+    key = _margin_fail_key(symbol, signal_id)
+    n = int(fails.get(key) or 0) + 1
+    fails[key] = n
+    save_margin_fails(fails, path)
+    return n
+
+
+def clear_margin_fail(symbol: str, signal_id: str | None, path: Path | None = None) -> None:
+    path = path or MARGIN_FAIL_PATH
+    fails = load_margin_fails(path)
+    key = _margin_fail_key(symbol, signal_id)
+    if key in fails:
+        del fails[key]
+        save_margin_fails(fails, path)
+
+
+
 
 def _seen_signal_ids(path: Path = ENTRIES_PATH) -> set[str]:
     seen: set[str] = set()
@@ -374,6 +446,33 @@ async def run_arm_entries(
         if cand.step_size is None or cand.step_size == Decimal("0.001"):
             cand.step_size = await resolve_step_size(broker, cand.symbol)
 
+        # Anti-loop: skip symbols with ≥3 consecutive margin rejects
+        try:
+            _mf = load_margin_fails()
+            _mk = _margin_fail_key(cand.symbol, sid or None)
+            if int(_mf.get(_mk) or 0) >= MARGIN_FAIL_LIMIT:
+                logger.warning(
+                    "arm: skip %s — margin_fail_limit %d reached",
+                    cand.symbol,
+                    MARGIN_FAIL_LIMIT,
+                )
+                _skip("margin")
+                if sid:
+                    seen.add(sid)
+                    append_entry_record(
+                        {
+                            "signal_id": sid,
+                            "symbol": cand.symbol,
+                            "side": cand.side,
+                            "ts": time.time(),
+                            "event": "entry_rejected_margin_limit",
+                        },
+                        entries_path,
+                    )
+                continue
+        except Exception:
+            pass
+
         plan = None
         try:
             plan = await plan_from_candidate(
@@ -429,6 +528,31 @@ async def run_arm_entries(
                         )
                     except Exception as tg_exc:
                         logger.warning("arm protect TG: %s", type(tg_exc).__name__)
+                if _is_clean_margin_reject(protect_exc):
+                    nfail = bump_margin_fail(cand.symbol, sid or None)
+                    _skip("margin")
+                    if sid:
+                        seen.add(sid)
+                        append_entry_record(
+                            {
+                                "signal_id": sid,
+                                "symbol": cand.symbol,
+                                "side": cand.side,
+                                "ts": time.time(),
+                                "event": "entry_rejected",
+                                "error": type(protect_exc).__name__,
+                                "error_msg": str(protect_exc)[:300],
+                                "margin_fails": nfail,
+                            },
+                            entries_path,
+                        )
+                    logger.warning(
+                        "arm: %s clean margin reject swallowed (fail=%d) — tick continues",
+                        cand.symbol,
+                        nfail,
+                    )
+                    continue
+                # Timeout / other ExchangeError: fall through to outer except for pending_verify
                 raise
             fill_px = (res or {}).get("fill_price")
             slip = (res or {}).get("slip_pct")
@@ -497,7 +621,7 @@ async def run_arm_entries(
                 logger.info("arm entry slip %s %.4f%%", cand.symbol, slip)
         except Exception as exc:
             logger.exception(
-                "arm entry %s failed AFTER possible fill — job must go red: %s",
+                "arm entry %s failed: %s",
                 cand.symbol,
                 type(exc).__name__,
             )
@@ -505,29 +629,68 @@ async def run_arm_entries(
                 mark_cooldown(cand.strategy, cand.symbol, cand.side)
             except Exception:
                 pass
+            clean = _is_clean_margin_reject(exc)
+            uncertain = _is_uncertain_entry_error(exc)
+            nfail = bump_margin_fail(cand.symbol, sid or None) if clean else 0
+            event = (
+                "entry_rejected"
+                if clean
+                else ("entry_pending_verify" if uncertain else "entry_failed")
+            )
             append_entry_record(
                 {
                     "signal_id": sid or f"failed|{cand.symbol}|{int(time.time())}",
                     "symbol": cand.symbol,
                     "side": cand.side,
                     "ts": time.time(),
-                    "event": "entry_failed",
+                    "event": event,
                     "error": type(exc).__name__,
                     "error_msg": str(exc)[:300],
+                    "margin_fails": nfail or None,
                 },
                 entries_path,
             )
             append_journal(
                 {
-                    "event": "entry_failed",
+                    "event": event,
                     "symbol": cand.symbol,
                     "side": cand.side,
                     "signal_id": sid or None,
                     "error": type(exc).__name__,
+                    "error_msg": str(exc)[:200],
                 }
             )
-            try:
-                if plan is not None:
+            if send_tg is not None:
+                try:
+                    if clean:
+                        await send_tg(
+                            f"⚠️ {cand.symbol}: вход отклонён — {type(exc).__name__}: {exc}"
+                        )
+                    elif uncertain:
+                        await send_tg(
+                            f"⚠️ {cand.symbol}: вход требует проверки"
+                        )
+                    else:
+                        await send_tg(
+                            f"⚠️ {cand.symbol}: вход ошибка — {type(exc).__name__}: {exc}"
+                        )
+                except Exception:
+                    pass
+            if clean:
+                # Explicit insufficient margin — no fill, no ghost
+                _skip("margin")
+                if sid:
+                    seen.add(sid)
+                logger.warning(
+                    "arm: %s clean margin reject (fail=%d/%d) — tick continues",
+                    cand.symbol,
+                    nfail,
+                    MARGIN_FAIL_LIMIT,
+                )
+                continue
+            if uncertain and plan is not None:
+                # Timeout / other ExchangeError — order may exist; verify next tick
+                try:
                     upsert_plan(
                         plan.symbol,
                         side=plan.side,
@@ -538,10 +701,26 @@ async def run_arm_entries(
                         leverage=plan.leverage,
                         pending_verify=True,
                     )
-            except Exception:
-                pass
-            raise
+                except Exception:
+                    pass
+                _skip("other")
+                logger.warning(
+                    "arm: %s uncertain entry error — pending_verify ghost, tick continues",
+                    cand.symbol,
+                )
+                continue
+            # Unknown error — still do not kill whole tick (owner №25)
+            logger.error(
+                "arm entry %s unexpected error — continuing tick (no re-raise)",
+                cand.symbol,
+            )
+            _skip("other")
+            continue
 
+        try:
+            clear_margin_fail(cand.symbol, sid or None)
+        except Exception:
+            pass
         results.append(res)
         open_syms.add(cand.symbol)
         open_n += 1
