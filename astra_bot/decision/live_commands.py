@@ -17,6 +17,7 @@ VALID = {"stop", "flat", "resume", "reset_kill"}
 
 BLOCKED_PATH = Path("models/zeus_live_blocked.json")
 CMD_TTL_MS = 60 * 60 * 1000  # ≤1h
+DEDUP_WINDOW_MS = 15 * 60 * 1000  # owner №26: same cmd within 15m → skip
 
 
 def is_blocked(path: Path = BLOCKED_PATH) -> bool:
@@ -63,20 +64,39 @@ def save_commands(cmds: list[dict[str, Any]], path: Path = DEFAULT_PATH) -> None
     )
 
 
-def enqueue(cmd: str, path: Path = DEFAULT_PATH, source: str = "tg") -> None:
+def enqueue(cmd: str, path: Path = DEFAULT_PATH, source: str = "tg") -> bool:
+    """Enqueue cmd. Returns False if deduped (pending or done within 15m)."""
     c = str(cmd).strip().lower().lstrip("/")
     if c not in VALID:
         raise ValueError(f"unknown command: {cmd}")
+    now = int(time.time() * 1000)
     cmds = load_commands(path)
+    for existing in cmds:
+        if existing.get("cmd") != c:
+            continue
+        st = existing.get("status")
+        ts = int(existing.get("ts") or 0)
+        if st == "pending":
+            logger.info("enqueue dedup: %s already pending ts=%s", c, ts)
+            return False
+        if st == "done" and now - ts < DEDUP_WINDOW_MS:
+            logger.info(
+                "enqueue dedup: %s done within %dms window ts=%s",
+                c,
+                DEDUP_WINDOW_MS,
+                ts,
+            )
+            return False
     cmds.append(
         {
             "cmd": c,
-            "ts": int(time.time() * 1000),
+            "ts": now,
             "source": source,
             "status": "pending",
         }
     )
     save_commands(cmds, path)
+    return True
 
 
 def pending(path: Path = DEFAULT_PATH) -> list[dict[str, Any]]:
@@ -150,9 +170,13 @@ async def apply_pending(
                 lines.append(f"cmd flat: {res}")
             elif cmd == "reset_kill":
                 from astra_bot.decision.live_risk import KILL_STATE_PATH
+                # Idempotent: no kill file → already clear, no TG spam (owner №26)
+                if not KILL_STATE_PATH.exists():
+                    mark_done(row, path, result="already_clear")
+                    lines.append("cmd reset_kill: already_clear (no kill file)")
+                    continue
                 try:
-                    if KILL_STATE_PATH.exists():
-                        KILL_STATE_PATH.unlink()
+                    KILL_STATE_PATH.unlink()
                 except Exception:
                     pass
                 broker.clear_halt()
