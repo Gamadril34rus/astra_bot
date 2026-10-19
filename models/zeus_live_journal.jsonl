@@ -6649,3 +6649,13 @@
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|BTC-USDT|long|1792382400000", "symbol": "BTC-USDT", "side": "long", "ts": 1792387075.8570426}
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|DOT-USDT|short|1792382400000", "symbol": "DOT-USDT", "side": "short", "ts": 1792387075.8570554}
 {"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 2, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 2}, "unrealized_sum": null, "ts": 1792387076.2151225}
+{"event": "order_audit", "symbol": "BTC-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792387590.663129}
+{"event": "order_audit", "symbol": "ETH-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792387590.6633172}
+{"event": "order_audit", "symbol": "DOT-USDT", "side": "short", "n_stop": 1, "n_tp": 0, "be_moved": false, "ts": 1792387590.6633527}
+{"event": "order_audit", "symbol": "OP-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792387590.663392}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|BTC-USDT|long|1792382400000", "symbol": "BTC-USDT", "side": "long", "ts": 1792387621.3826754}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|ADA-USDT|short|1792382400000", "symbol": "ADA-USDT", "side": "short", "ts": 1792387621.382684}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|DOT-USDT|short|1792382400000", "symbol": "DOT-USDT", "side": "short", "ts": 1792387621.3826885}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|AAVE-USDT|short|1792382400000", "symbol": "AAVE-USDT", "side": "short", "ts": 1792387621.3826923}
+{"event": "entry", "signal_id": "zeus_channel_boundary|ADA-USDT|short|1792382400000", "symbol": "ADA-USDT", "side": "short", "qty": "583329.54545454", "plan_qty": "583329.54545454", "qty_ratio": 1.0, "entry": "0.22", "stop": "0.22176", "tp": "0.21647999999999998", "ts": 1792387627.5254812}
+{"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 4, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 3}, "unrealized_sum": null, "ts": 1792387627.9850612}
