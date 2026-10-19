@@ -6641,3 +6641,11 @@
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|PENDLE-USDT|short|1792382400000", "symbol": "PENDLE-USDT", "side": "short", "ts": 1792385536.047825}
 {"event": "entry_protect_failed", "symbol": "PENDLE-USDT", "signal_id": "zeus_channel_boundary|PENDLE-USDT|short|1792382400000", "error": "ExchangeError: BingX API error: Insufficient margin", "ts": 1792385547.1423695}
 {"event": "entry_failed", "symbol": "PENDLE-USDT", "side": "short", "signal_id": "zeus_channel_boundary|PENDLE-USDT|short|1792382400000", "error": "ExchangeError", "ts": 1792385547.5104804}
+{"event": "order_audit", "symbol": "BTC-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792386788.2176228}
+{"event": "order_audit", "symbol": "ETH-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792386788.2177927}
+{"event": "order_audit", "symbol": "DOT-USDT", "side": "short", "n_stop": 1, "n_tp": 0, "be_moved": false, "ts": 1792386788.2178552}
+{"event": "order_audit", "symbol": "OP-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792386788.2179136}
+{"event": "order_audit", "symbol": "PENDLE-USDT", "side": "short", "n_stop": 0, "n_tp": 0, "be_moved": false, "ts": 1792386788.2179642}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|BTC-USDT|long|1792382400000", "symbol": "BTC-USDT", "side": "long", "ts": 1792387075.8570426}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|DOT-USDT|short|1792382400000", "symbol": "DOT-USDT", "side": "short", "ts": 1792387075.8570554}
+{"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 2, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 2}, "unrealized_sum": null, "ts": 1792387076.2151225}
