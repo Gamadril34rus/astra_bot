@@ -400,23 +400,26 @@ async def run_arm_entries(
     side_stats = await exchange_side_stats(broker)
     results: list[dict[str, Any]] = []
 
-    # Equity for M2-M4 (fail-closed if unknown)
-    try:
-        equity = await broker.client.get_balance_usdt()
-        equity = Decimal(str(equity))
-    except Exception:
-        equity = Decimal("0")
+    # Equity for M2-M4: None = cannot read wallet → skip pre-check (exchange enforces).
+    # Successful read with equity<=0 → fail-closed equity_unknown inside check_margin_gates.
+    equity = None
     free_margin = None
     used_margin = None
-    try:
-        free_margin = Decimal(str(await broker.client.get_available_margin())) if hasattr(broker.client, "get_available_margin") else None
-    except Exception:
-        free_margin = None
-    try:
-        if free_margin is not None and equity > 0:
-            used_margin = equity - free_margin
-    except Exception:
-        used_margin = None
+    if hasattr(broker, "client") and hasattr(getattr(broker, "client", None), "get_balance_usdt"):
+        try:
+            equity = Decimal(str(await broker.client.get_balance_usdt()))
+        except Exception:
+            equity = None
+        try:
+            if hasattr(broker.client, "get_available_margin"):
+                free_margin = Decimal(str(await broker.client.get_available_margin()))
+        except Exception:
+            free_margin = None
+        try:
+            if free_margin is not None and equity is not None and equity > 0:
+                used_margin = equity - free_margin
+        except Exception:
+            used_margin = None
 
     # Rank by prior_r before budget (P7 lives in A wiring so M2 sees best first)
     built: list[tuple[Any, dict]] = []
@@ -536,74 +539,79 @@ async def run_arm_entries(
         except Exception:
             pass
 
-        # P3 M2/M3/M4 — estimate margin from plan qty after we size; pre-check with provisional qty
-        try:
-            from astra_bot.decision.live_arm import size_qty, CONF_RISK_LADDER
-            from astra_bot.decision.conf_risk_ladder import conf_risk_pct
-            risk_pct = conf_risk_pct(cand.confidence, CONF_RISK_LADDER)
-            # heat ×0.5 same as plan_from_candidate
+        # P3 M2/M3/M4 — only when wallet readable AND risk_budget exists
+        # (tests/mocks without client skip pre-check; exchange still rejects)
+        if equity is not None and hasattr(broker, "risk_budget"):
             try:
-                from astra_bot.decision.zeus_heat import DEFAULT_HEAT_PATH, ZeusHeatGovernor
-                if ZeusHeatGovernor(state_path=DEFAULT_HEAT_PATH).is_heat_active():
-                    risk_pct = (risk_pct * Decimal("0.5")).quantize(Decimal("0.0001"))
-            except Exception:
-                pass
-            budget = await broker.risk_budget(risk_pct)
-            entry_budget = budget  # for post-fill same budget
-            prov_qty = size_qty(budget, cand.entry, cand.stop, cand.step_size)
-            # same leverage as plan_from_candidate (A7 ladder + ZEUS_LIVE_FORCE_LEVERAGE)
-            from astra_bot.decision.live_arm import leverage_for
-            import os as _os
-            _conf = float(cand.confidence or 0.0)
-            _dist = abs(float(cand.entry) - float(cand.stop))
-            _reward = (
-                abs(float(cand.take_profit) - float(cand.entry))
-                if cand.take_profit
-                else _dist
-            )
-            _ev = (_reward / _dist) if _dist > 0 else 0.0
-            _max_lev = int(getattr(broker.config, "max_leverage", 10) or 10)
-            _lev = leverage_for(
-                confidence=_conf,
-                ev_r=_ev,
-                entry_price=float(cand.entry),
-                stop_loss=float(cand.stop),
-                max_leverage=_max_lev,
-                min_ev_r=1.0,
-            )
-            _lev = min(int(_lev), _max_lev)
-            _force = (_os.environ.get("ZEUS_LIVE_FORCE_LEVERAGE") or "").strip()
-            if _force:
+                from astra_bot.decision.live_arm import size_qty, CONF_RISK_LADDER, leverage_for
+                from astra_bot.decision.conf_risk_ladder import conf_risk_pct
+                import os as _os
+                risk_pct = conf_risk_pct(cand.confidence, CONF_RISK_LADDER)
                 try:
-                    _lev = min(int(_force), _max_lev)
-                except ValueError:
-                    pass
-            new_m = initial_margin_usdt(cand.entry, prov_qty, int(_lev))
-            mg = check_margin_gates(
-                equity=equity,
-                free_margin=free_margin,
-                used_margin=used_margin,
-                new_margin=new_m,
-            )
-            if mg:
-                logger.info("arm: skip %s — %s (margin_est=%s equity=%s)", cand.symbol, mg, new_m, equity)
-                _skip(mg)
-                try:
-                    append_journal({
-                        "event": "entry_skipped_margin_budget",
-                        "symbol": cand.symbol,
-                        "reason": mg,
-                        "new_margin": str(new_m),
-                        "equity": str(equity),
-                        "ts": time.time(),
-                    })
+                    from astra_bot.decision.zeus_heat import DEFAULT_HEAT_PATH, ZeusHeatGovernor
+                    if ZeusHeatGovernor(state_path=DEFAULT_HEAT_PATH).is_heat_active():
+                        risk_pct = (risk_pct * Decimal("0.5")).quantize(Decimal("0.0001"))
                 except Exception:
                     pass
+                budget = await broker.risk_budget(risk_pct)
+                entry_budget = budget
+                prov_qty = size_qty(budget, cand.entry, cand.stop, cand.step_size)
+                _conf = float(cand.confidence or 0.0)
+                _dist = abs(float(cand.entry) - float(cand.stop))
+                _reward = (
+                    abs(float(cand.take_profit) - float(cand.entry))
+                    if getattr(cand, "take_profit", None)
+                    else _dist
+                )
+                _ev = (_reward / _dist) if _dist > 0 else 0.0
+                _max_lev = int(getattr(getattr(broker, "config", None), "max_leverage", 10) or 10)
+                _lev = leverage_for(
+                    confidence=_conf,
+                    ev_r=_ev,
+                    entry_price=float(cand.entry),
+                    stop_loss=float(cand.stop),
+                    max_leverage=_max_lev,
+                    min_ev_r=1.0,
+                )
+                _lev = min(int(_lev), _max_lev)
+                _force = (_os.environ.get("ZEUS_LIVE_FORCE_LEVERAGE") or "").strip()
+                if _force:
+                    try:
+                        _lev = min(int(_force), _max_lev)
+                    except ValueError:
+                        pass
+                new_m = initial_margin_usdt(cand.entry, prov_qty, int(_lev))
+                mg = check_margin_gates(
+                    equity=equity,
+                    free_margin=free_margin,
+                    used_margin=used_margin,
+                    new_margin=new_m,
+                )
+                if mg:
+                    logger.info(
+                        "arm: skip %s — %s (margin_est=%s equity=%s)",
+                        cand.symbol, mg, new_m, equity,
+                    )
+                    _skip(mg)
+                    try:
+                        append_journal({
+                            "event": "entry_skipped_margin_budget",
+                            "symbol": cand.symbol,
+                            "reason": mg,
+                            "new_margin": str(new_m),
+                            "equity": str(equity),
+                            "ts": time.time(),
+                        })
+                    except Exception:
+                        pass
+                    continue
+            except Exception as _mg_exc:
+                logger.warning(
+                    "arm: margin gate error %s — fail-closed equity_unknown",
+                    type(_mg_exc).__name__,
+                )
+                _skip("equity_unknown")
                 continue
-        except Exception as _mg_exc:
-            logger.warning("arm: margin gate error %s — fail-closed equity_unknown", type(_mg_exc).__name__)
-            _skip("equity_unknown")
-            continue
 
         plan = None
         try:
