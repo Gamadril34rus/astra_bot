@@ -10591,3 +10591,9 @@
 {"event": "entry", "signal_id": "zeus_channel_boundary|LINK-USDT|short|1792497600000", "symbol": "LINK-USDT", "side": "short", "qty": "9994.92653624", "plan_qty": "9994.92653624", "qty_ratio": 1.0, "entry": "12.319", "stop": "12.417552", "tp": "12.121896000000001", "ts": 1792505584.5616193}
 {"event": "entry", "signal_id": "zeus_channel_boundary|LTC-USDT|short|1792497600000", "symbol": "LTC-USDT", "side": "short", "qty": "2044.291175", "plan_qty": "2044.29117500", "qty_ratio": 1.0, "entry": "60.17", "stop": "60.651360000000004", "tp": "59.20728", "ts": 1792505588.7348373}
 {"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 8, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 0}, "unrealized_sum": null, "ts": 1792505589.075886}
+{"event": "order_audit", "symbol": "BTC-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792506729.3166099}
+{"event": "order_audit", "symbol": "SOL-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792506729.3167777}
+{"event": "order_audit", "symbol": "ADA-USDT", "side": "short", "n_stop": 0, "n_tp": 0, "be_moved": false, "ts": 1792506729.3168395}
+{"event": "order_audit", "symbol": "ETH-USDT", "side": "short", "n_stop": 0, "n_tp": 0, "be_moved": false, "ts": 1792506729.3169365}
+{"event": "order_audit", "symbol": "LINK-USDT", "side": "short", "n_stop": 0, "n_tp": 0, "be_moved": false, "ts": 1792506729.3169966}
+{"event": "order_audit", "symbol": "LTC-USDT", "side": "short", "n_stop": 0, "n_tp": 0, "be_moved": false, "ts": 1792506729.3170466}
