@@ -445,7 +445,9 @@ async def run_arm_entries(
     )
     # keep unparsed rows at end for attribution
     ranked_rows = [r for _, r in ranked_pairs]
-    leftover = [r for r in row_list if r not in ranked_rows]
+    # identity by index (not dict value): duplicate signal rows must not vanish
+    ranked_ids = {id(r) for r in ranked_rows}
+    leftover = [r for r in row_list if id(r) not in ranked_ids]
     row_list = ranked_rows + leftover
 
     for row in row_list:
