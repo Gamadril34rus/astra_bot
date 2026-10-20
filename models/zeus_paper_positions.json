@@ -6,7 +6,7 @@
       "direction": "short",
       "entry_price": "0.8155",
       "quantity": "324.67265200",
-      "stop_loss": "0.822024",
+      "stop_loss": "0.8217000000000001",
       "take_profits": [
         "0.808976",
         "0.802452"
@@ -23,7 +23,7 @@
       "trailing_activated": false,
       "trailing_distance": null,
       "highest_price": "0.8170",
-      "lowest_price": "0.8124",
+      "lowest_price": "0.8112",
       "strategy": "zeus_channel_boundary_4h",
       "opened_at": 1792515150890,
       "entry_bar_ts": 1792515000000,
@@ -53,7 +53,7 @@
       "regime": "RANGE",
       "timeframe": "4h",
       "regime_axes": "T:RANGE/V:LOW/L:STRESSED",
-      "bars_held": 2,
+      "bars_held": 3,
       "leverage": "1",
       "margin_used": "264.770547706000",
       "plan_variant": "STATIC_TP",
@@ -64,7 +64,6 @@
   "realized_pnl": "641.8685796616887057620855906",
   "initial_capital": "2000.0",
   "cooldowns": {
-    "zeus_channel_boundary_4h|TAO-USDT|short": 1792515458371,
     "zeus_channel_boundary_4h|SUI-USDT|short": 1792516352585
   },
   "last_extremes_bar": {
@@ -82,7 +81,7 @@
     "AAVE-USDT": 1791341100000,
     "HYPE-USDT": 1792506000000,
     "LTC-USDT": 1791341700000,
-    "APT-USDT": 1792515300000,
+    "APT-USDT": 1792515600000,
     "WIF-USDT": 1792510200000,
     "BNB-USDT": 1792077900000,
     "XRP-USDT": 1790977500000,
