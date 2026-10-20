@@ -356,11 +356,30 @@ async def run_arm_entries(
     if vst is None:
         vst = (os.environ.get("ZEUS_MAINNET") or "").strip() != "1"
 
+    from astra_bot.decision.live_margin_budget import (
+        check_margin_gates,
+        initial_margin_usdt,
+        actual_risk_usdt,
+        slip_in_r,
+    )
+    from astra_bot.decision.live_arm import rank_candidates
+
     skipped: dict[str, int] = {
         "same_side_guard": 0,
         "vol_cooldown": 0,
         "conf": 0,
         "margin": 0,
+        "margin_M2": 0,
+        "margin_M3": 0,
+        "margin_M4": 0,
+        "equity_unknown": 0,
+        "max_open": 0,
+        "cooldown": 0,
+        "symbol_conflict": 0,
+        "retest_not_triggered": 0,
+        "htf_gate": 0,
+        "filters": 0,
+        "entries_per_tick_limit": 0,
         "other": 0,
     }
 
@@ -380,6 +399,49 @@ async def run_arm_entries(
     open_n = len(open_syms)
     side_stats = await exchange_side_stats(broker)
     results: list[dict[str, Any]] = []
+
+    # Equity for M2-M4 (fail-closed if unknown)
+    try:
+        equity = await broker.client.get_balance_usdt()
+        equity = Decimal(str(equity))
+    except Exception:
+        equity = Decimal("0")
+    free_margin = None
+    used_margin = None
+    try:
+        free_margin = Decimal(str(await broker.client.get_available_margin())) if hasattr(broker.client, "get_available_margin") else None
+    except Exception:
+        free_margin = None
+    try:
+        if free_margin is not None and equity > 0:
+            used_margin = equity - free_margin
+    except Exception:
+        used_margin = None
+
+    # Rank by prior_r before budget (P7 lives in A wiring so M2 sees best first)
+    built: list[tuple[Any, dict]] = []
+    for row in row_list:
+        cand0 = candidate_from_signal_dict(row)
+        if cand0 is not None:
+            # prior_r from pending row if present
+            if getattr(cand0, "prior_r", None) is None and row.get("prior_r") is not None:
+                try:
+                    cand0.prior_r = float(row["prior_r"])
+                except Exception:
+                    pass
+            built.append((cand0, row))
+    ranked_pairs = sorted(
+        built,
+        key=lambda cr: (
+            cr[0].prior_r if cr[0].prior_r is not None else -1e9,
+            cr[0].confidence if cr[0].confidence is not None else -1e9,
+        ),
+        reverse=True,
+    )
+    # keep unparsed rows at end for attribution
+    ranked_rows = [r for _, r in ranked_pairs]
+    leftover = [r for r in row_list if r not in ranked_rows]
+    row_list = ranked_rows + leftover
 
     for row in row_list:
         if len(results) >= max_entries:
@@ -407,7 +469,7 @@ async def run_arm_entries(
             continue
         if open_n >= MAX_OPEN:
             logger.info("arm: skip — exchange max_open=%d", MAX_OPEN)
-            _skip("other")
+            _skip("max_open")
             break
         side_l = str(cand.side or "").lower()
         st = side_stats.get(side_l) or {"count": 0, "upnl": 0.0}
@@ -472,6 +534,40 @@ async def run_arm_entries(
                 continue
         except Exception:
             pass
+
+        # P3 M2/M3/M4 — estimate margin from plan qty after we size; pre-check with provisional qty
+        try:
+            from astra_bot.decision.live_arm import size_qty, CONF_RISK_LADDER
+            from astra_bot.decision.conf_risk_ladder import conf_risk_pct
+            risk_pct = conf_risk_pct(cand.confidence, CONF_RISK_LADDER)
+            budget = await broker.risk_budget(risk_pct)
+            prov_qty = size_qty(budget, cand.entry, cand.stop, cand.step_size)
+            new_m = initial_margin_usdt(cand.entry, prov_qty, int(cand.leverage or 3))
+            mg = check_margin_gates(
+                equity=equity,
+                free_margin=free_margin,
+                used_margin=used_margin,
+                new_margin=new_m,
+            )
+            if mg:
+                logger.info("arm: skip %s — %s (margin_est=%s equity=%s)", cand.symbol, mg, new_m, equity)
+                _skip(mg)
+                try:
+                    append_journal({
+                        "event": "entry_skipped_margin_budget",
+                        "symbol": cand.symbol,
+                        "reason": mg,
+                        "new_margin": str(new_m),
+                        "equity": str(equity),
+                        "ts": time.time(),
+                    })
+                except Exception:
+                    pass
+                continue
+        except Exception as _mg_exc:
+            logger.warning("arm: margin gate error %s — fail-closed equity_unknown", type(_mg_exc).__name__)
+            _skip("equity_unknown")
+            continue
 
         plan = None
         try:
@@ -606,6 +702,15 @@ async def run_arm_entries(
                         "plan_entry": str(cand.entry),
                         "fill_price": fill_px,
                         "slip_pct": slip,
+                        "slip_r": (
+                            slip_in_r(
+                                Decimal(str(cand.entry)),
+                                Decimal(str(fill_px or cand.entry)),
+                                Decimal(str(plan.stop_price)),
+                            )
+                            if fill_px is not None
+                            else None
+                        ),
                         "qty": str(plan.quantity),
                         "stop": str(plan.stop_price),
                         "tp": str(plan.take_profit_price)
@@ -721,6 +826,11 @@ async def run_arm_entries(
             clear_margin_fail(cand.symbol, sid or None)
         except Exception:
             pass
+        if isinstance(res, dict):
+            res.setdefault("symbol", cand.symbol)
+            res.setdefault("side", cand.side)
+            res.setdefault("prior_r", getattr(cand, "prior_r", None))
+            res.setdefault("confidence", cand.confidence)
         results.append(res)
         open_syms.add(cand.symbol)
         open_n += 1
