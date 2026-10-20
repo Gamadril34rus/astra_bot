@@ -10534,3 +10534,26 @@
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|WIF-USDT|long|1792497600000", "symbol": "WIF-USDT", "side": "long", "ts": 1792504360.0968854}
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|ENA-USDT|short|1792497600000", "symbol": "ENA-USDT", "side": "short", "ts": 1792504360.0968895}
 {"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 12, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 2}, "unrealized_sum": null, "ts": 1792504360.575252}
+{"event": "order_audit", "symbol": "BTC-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792504945.027936}
+{"event": "order_audit", "symbol": "OP-USDT", "side": "short", "n_stop": 0, "n_tp": 0, "be_moved": false, "ts": 1792504945.028068}
+{"event": "order_audit", "symbol": "SOL-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792504945.0280993}
+{"event": "order_audit", "symbol": "XRP-USDT", "side": "short", "n_stop": 0, "n_tp": 0, "be_moved": false, "ts": 1792504945.0281203}
+{"event": "order_audit", "symbol": "ETH-USDT", "side": "short", "n_stop": 1, "n_tp": 0, "be_moved": false, "ts": 1792504945.028141}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|ETH-USDT|short|1792497600000", "symbol": "ETH-USDT", "side": "short", "ts": 1792504977.1695936}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|XRP-USDT|short|1792497600000", "symbol": "XRP-USDT", "side": "short", "ts": 1792504977.1696026}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|DOGE-USDT|short|1792497600000", "symbol": "DOGE-USDT", "side": "short", "ts": 1792504977.169606}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|ADA-USDT|short|1792497600000", "symbol": "ADA-USDT", "side": "short", "ts": 1792504977.169609}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|AVAX-USDT|short|1792497600000", "symbol": "AVAX-USDT", "side": "short", "ts": 1792504977.1696122}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|LTC-USDT|short|1792497600000", "symbol": "LTC-USDT", "side": "short", "ts": 1792504977.1696153}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|NEAR-USDT|short|1792497600000", "symbol": "NEAR-USDT", "side": "short", "ts": 1792504977.1696186}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|SUI-USDT|long|1792497600000", "symbol": "SUI-USDT", "side": "long", "ts": 1792504977.1696215}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|OP-USDT|short|1792497600000", "symbol": "OP-USDT", "side": "short", "ts": 1792504977.1696243}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|UNI-USDT|short|1792497600000", "symbol": "UNI-USDT", "side": "short", "ts": 1792504977.1696272}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|AAVE-USDT|short|1792497600000", "symbol": "AAVE-USDT", "side": "short", "ts": 1792504977.16963}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|WLD-USDT|long|1792497600000", "symbol": "WLD-USDT", "side": "long", "ts": 1792504977.1696327}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|HYPE-USDT|short|1792497600000", "symbol": "HYPE-USDT", "side": "short", "ts": 1792504977.1696355}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|1000PEPE-USDT|long|1792497600000", "symbol": "1000PEPE-USDT", "side": "long", "ts": 1792504977.1696384}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|ENA-USDT|short|1792497600000", "symbol": "ENA-USDT", "side": "short", "ts": 1792504977.1696415}
+{"event": "entry", "signal_id": "zeus_channel_boundary|XRP-USDT|short|1792497600000", "symbol": "XRP-USDT", "side": "short", "qty": "95609.85337688", "plan_qty": "95609.85337688", "qty_ratio": 1.0, "entry": "1.3163", "stop": "1.3268304", "tp": "1.2952392000000001", "ts": 1792504983.363808}
+{"event": "entry", "signal_id": "zeus_channel_boundary|DOGE-USDT|short|1792497600000", "symbol": "DOGE-USDT", "side": "short", "qty": "1561747.17496582", "plan_qty": "1561747.17496582", "qty_ratio": 1.0, "entry": "0.08053", "stop": "0.08117424000000001", "tp": "0.07924152", "ts": 1792504988.4409404}
+{"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 15, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 2}, "unrealized_sum": null, "ts": 1792504988.8040683}

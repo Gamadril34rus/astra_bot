@@ -16,22 +16,6 @@
       "qty_ratio": 1.0,
       "tp1": "86175.544665304870"
     },
-    "OP-USDT|short": {
-      "symbol": "OP-USDT",
-      "side": "short",
-      "qty": "239622.26765479",
-      "stop": "0.12948552640243893",
-      "tp": "0.118721710396341605",
-      "entry": "0.12513",
-      "leverage": 3,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|OP-USDT|short|1792382400000",
-      "ts": 1792383151.2519166,
-      "be_moved": false,
-      "plan_qty": "239622.26765479",
-      "qty_ratio": 1.0,
-      "tp1": "0.118721710396341605"
-    },
     "SOL-USDT|long": {
       "symbol": "SOL-USDT",
       "side": "long",
@@ -48,22 +32,6 @@
       "qty_ratio": 1.0,
       "tp1": "108.325796584146190"
     },
-    "XRP-USDT|short": {
-      "symbol": "XRP-USDT",
-      "side": "short",
-      "qty": "95789.60471886",
-      "stop": "1.3158432",
-      "tp": "1.28973520",
-      "entry": "1.3053",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|XRP-USDT|short|1792411200000",
-      "ts": 1792417332.6431818,
-      "be_moved": false,
-      "plan_qty": "95789.60471886",
-      "qty_ratio": 1.0,
-      "tp1": "1.28973520"
-    },
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
       "side": "short",
@@ -79,7 +47,39 @@
       "plan_qty": "52.30554421",
       "qty_ratio": 1.0,
       "tp1": "2372.247280"
+    },
+    "XRP-USDT|short": {
+      "symbol": "XRP-USDT",
+      "side": "short",
+      "qty": "95609.85337688",
+      "stop": "1.3268304",
+      "tp": "1.30050440",
+      "entry": "1.3188",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|XRP-USDT|short|1792497600000",
+      "ts": 1792504983.3622196,
+      "be_moved": false,
+      "plan_qty": "95609.85337688",
+      "qty_ratio": 1.0,
+      "tp1": "1.30050440"
+    },
+    "DOGE-USDT|short": {
+      "symbol": "DOGE-USDT",
+      "side": "short",
+      "qty": "1561747.17496582",
+      "stop": "0.08117424000000001",
+      "tp": "0.079563639999999985",
+      "entry": "0.08071",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|DOGE-USDT|short|1792497600000",
+      "ts": 1792504988.435129,
+      "be_moved": false,
+      "plan_qty": "1561747.17496582",
+      "qty_ratio": 1.0,
+      "tp1": "0.079563639999999985"
     }
   },
-  "ts": 1792434133.888232
+  "ts": 1792504988.4351628
 }
