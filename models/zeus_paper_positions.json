@@ -6,7 +6,7 @@
       "direction": "short",
       "entry_price": "1.1542",
       "quantity": "230.19230400",
-      "stop_loss": "1.1634335999999998",
+      "stop_loss": "1.1607714285714288",
       "take_profits": [
         "1.1449664000000002",
         "1.135732800000000000000000000"
@@ -22,8 +22,8 @@
       "initial_quantity": "230.19230400",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
+      "highest_price": "1.1542",
+      "lowest_price": "1.1486",
       "strategy": "zeus_channel_boundary_4h",
       "opened_at": 1792465343111,
       "entry_bar_ts": 1792465200000,
@@ -53,12 +53,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "4h",
       "regime_axes": "T:RANGE/V:LOW/L:STRESSED",
-      "bars_held": 0,
+      "bars_held": 2,
       "leverage": "1",
       "margin_used": "265.687957276800",
       "plan_variant": "STATIC_TP",
       "plan_take": "1.135732800000000000000000000",
-      "plan_last_bar_ts": 0
+      "plan_last_bar_ts": 1792440000000
     }
   ],
   "realized_pnl": "654.2226892667450375550409845",
@@ -91,7 +91,7 @@
     "SUI-USDT": 1792421400000,
     "WLD-USDT": 1792438500000,
     "ENA-USDT": 1792448400000,
-    "DOT-USDT": 1792209300000,
+    "DOT-USDT": 1792465500000,
     "PENDLE-USDT": 1791138600000,
     "BTC-USDT": 1791477600000
   }
