@@ -187,11 +187,13 @@ def test_sync_partial_breakeven_moves_stop(tmp_path, monkeypatch):
         assert "BTC-USDT" in out.get("moved", [])
         plans = load_positions(path)
         assert plans["BTC-USDT|long"]["be_moved"] is True
-        assert plans["BTC-USDT|long"]["stop"] == "100"
-        # move_stop places new STOP
+        # net-BE (BINGX_PERPS_TAKER_FEE×2) > entry; never gross-only "100"
+        stop_s = plans["BTC-USDT|long"]["stop"]
+        assert Decimal(stop_s) >= Decimal("100")
+        assert Decimal(stop_s) <= Decimal("100.2")  # ~100.10 at 0.05%×2
         stops = [o for o in c.placed if "STOP" in str(o.get("order_type", "")).upper()]
         assert stops
-        assert stops[-1]["stop_price"] == Decimal("100")
+        assert Decimal(str(stops[-1]["stop_price"])) >= Decimal("100")
     asyncio.run(_())
 
 
