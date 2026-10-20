@@ -6,6 +6,7 @@ Does not change paper thresholds — live-only accounting.
 from __future__ import annotations
 
 import json
+import os
 import logging
 import time
 from datetime import UTC, datetime, timedelta
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 TRADES_PATH = Path("models/zeus_live_trades.jsonl")
 KILL_STATE_PATH = Path("models/kill_switch_state.json")
+KILL_EPOCH_PATH = Path("models/zeus_kill_epoch.json")
 
 DAY_LOSS_LIMIT = Decimal("0.04")  # README 4%
 WEEK_LOSS_LIMIT = Decimal("0.06")  # README 6%
@@ -114,12 +116,59 @@ def utc_week_start_ts(now: datetime | None = None) -> float:
     return start.timestamp()
 
 
-def profit_factor(path: Path = TRADES_PATH) -> tuple[Decimal | None, int]:
-    """PF = gross_win / abs(gross_loss); only exits with pnl. Returns (pf, n)."""
+def load_kill_epoch(path: Path = KILL_EPOCH_PATH) -> float | None:
+    """Owner 20.10: explicit epoch ts; missing/invalid → None (cumulative PF rule)."""
+    try:
+        if not path.exists():
+            return None
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        ts = raw.get("kill_epoch_ts")
+        if ts is None:
+            return None
+        return float(ts)
+    except Exception:
+        return None
+
+
+def kill_pf_window_size() -> int:
+    """ZEUS_KILL_PF_WINDOW=20 → last N exits after epoch; empty/0 → cumulative."""
+    raw = (os.environ.get("ZEUS_KILL_PF_WINDOW") or "").strip()
+    if not raw or raw == "0":
+        return 0
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return 0
+
+
+def profit_factor(
+    path: Path = TRADES_PATH,
+    *,
+    after_ts: float | None = None,
+    window: int | None = None,
+) -> tuple[Decimal | None, int]:
+    """PF = gross_win / abs(gross_loss); only exits with pnl. Returns (pf, n).
+
+    after_ts: only exits with ts >= after_ts (kill epoch).
+    window: if >0, keep only the last `window` such exits (newest by ts).
+    """
+    rows = list(_read_exit_pnls(path))
+    if after_ts is not None:
+        filtered = []
+        for row in rows:
+            try:
+                ts = float(row.get("ts") or 0)
+            except (TypeError, ValueError):
+                continue
+            if ts >= float(after_ts):
+                filtered.append(row)
+        rows = filtered
+    if window is not None and window > 0:
+        rows = sorted(rows, key=lambda r: float(r.get("ts") or 0))[-int(window) :]
     wins = Decimal("0")
     losses = Decimal("0")
     n = 0
-    for row in _read_exit_pnls(path):
+    for row in rows:
         p = Decimal(str(row["pnl"]))
         n += 1
         if p > 0:
@@ -151,13 +200,25 @@ def check_day_week_limits(
 
 
 def check_pf_kill(path: Path = TRADES_PATH, state_path: Path = KILL_STATE_PATH) -> str | None:
-    """If n>=5 and PF<1 → persist halt and return reason."""
-    pf, n = profit_factor(path)
+    """If n>=5 and PF<1 → persist halt and return reason.
+
+    Owner 20.10 window: ZEUS_KILL_PF_WINDOW>0 AND kill_epoch_ts set →
+    PF over last N exits with ts >= epoch. Else cumulative (legacy).
+    Thresholds PF_TRIGGER and PF_MIN_N unchanged.
+    """
+    win = kill_pf_window_size()
+    epoch = load_kill_epoch()
+    if win > 0 and epoch is not None:
+        pf, n = profit_factor(path, after_ts=epoch, window=win)
+        mode = f"window={win}"
+    else:
+        pf, n = profit_factor(path)
+        mode = "cumulative"
     if pf is None:
         return None
     if pf >= PF_TRIGGER:
         return None
-    reason = f"PF={float(pf):.3f} n={n} < 1"
+    reason = f"PF={float(pf):.3f} n={n} < 1 ({mode})"
     try:
         state_path.parent.mkdir(parents=True, exist_ok=True)
         state = {
