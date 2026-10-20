@@ -1,70 +1,9 @@
 {
-  "positions": [
-    {
-      "id": "bb655efb-0f10-466b-943e-e8833b8733b9",
-      "symbol": "APT-USDT",
-      "direction": "short",
-      "entry_price": "0.8155",
-      "quantity": "324.67265200",
-      "stop_loss": "0.8212",
-      "take_profits": [
-        "0.808976",
-        "0.802452"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "324.67265200",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": "0.8208",
-      "lowest_price": "0.8112",
-      "strategy": "zeus_channel_boundary_4h",
-      "opened_at": 1792515150890,
-      "entry_bar_ts": 1792515000000,
-      "notes": {
-        "signal_bar_close": 0.8136,
-        "effective_entry": 0.8146845,
-        "initial_stop": 0.822024,
-        "initial_take": 0.802452,
-        "stop_pct": 0.009009009009009009,
-        "confidence": 0.7799999999999999,
-        "ml_probability": null,
-        "prior_r": 0.9649999999999984,
-        "costs_r": 0.333,
-        "equity_before": 2645.0577694971107,
-        "risk_budget": 26.450577694971106,
-        "binding_constraint": "heat_cap",
-        "score": 35.0,
-        "edge_pct": 77.3626,
-        "ev_r": 0.7736256521774897,
-        "ev_confidence": 0.47368421052631576,
-        "rr": 2.0,
-        "leverage": 1
-      },
-      "fill_price": "0.8146845",
-      "entry_fee_per_unit": "0.00040734225",
-      "risk_distance": "0.006524",
-      "regime": "RANGE",
-      "timeframe": "4h",
-      "regime_axes": "T:RANGE/V:LOW/L:STRESSED",
-      "bars_held": 4,
-      "leverage": "1",
-      "margin_used": "264.770547706000",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "0.802452",
-      "plan_last_bar_ts": 1792497600000
-    }
-  ],
-  "realized_pnl": "641.8685796616887057620855906",
+  "positions": [],
+  "realized_pnl": "638.6044309956378609433355906",
   "initial_capital": "2000.0",
   "cooldowns": {
-    "zeus_channel_boundary_4h|SUI-USDT|short": 1792516352585
+    "zeus_channel_boundary_4h|APT-USDT|short": 1792517566173
   },
   "last_extremes_bar": {
     "ADA-USDT": 1792507800000,
@@ -81,7 +20,7 @@
     "AAVE-USDT": 1791341100000,
     "HYPE-USDT": 1792506000000,
     "LTC-USDT": 1791341700000,
-    "APT-USDT": 1792515900000,
+    "APT-USDT": 1792516200000,
     "WIF-USDT": 1792510200000,
     "BNB-USDT": 1792077900000,
     "XRP-USDT": 1790977500000,
