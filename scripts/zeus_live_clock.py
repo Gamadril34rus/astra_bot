@@ -238,6 +238,7 @@ async def sync_partial_breakeven(
                     {
                         "event": "price_breakeven",
                         "be_gross_fallback": used_gross_fallback,
+                        "be_mode": ("gross" if used_gross_fallback else "net"),
                         "symbol": sym,
                         "side": side,
                         "entry": str(entry_px),
