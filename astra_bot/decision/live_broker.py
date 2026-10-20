@@ -278,6 +278,67 @@ class LiveBroker:
             wallet = Decimal("0")
         return (wallet * risk_pct).quantize(Decimal("0.01"))
 
+
+    # BingX taker fee (live) — same order of magnitude as paper CostModel
+    _TAKER_FEE = Decimal("0.0005")
+
+    def net_breakeven_price(self, pos: Any) -> Decimal:
+        """Live net BE: entry ± entry_fee + exit_fee estimate (no paper CostModel).
+
+        Uses entry from plan/fill; optional funding_accum on pos (USDT, signed:
+        positive = we paid). Bars_held not used — funding is accumulated from
+        income state when available.
+        """
+        direction = getattr(pos, "direction", None) or getattr(pos, "side", "long")
+        entry = Decimal(str(
+            getattr(pos, "fill_price", None)
+            or getattr(pos, "entry_price", None)
+            or getattr(pos, "entry", None)
+            or 0
+        ))
+        if entry <= 0:
+            return entry
+        fee = self._TAKER_FEE
+        # round-trip taker on entry+exit ≈ 2*fee of price
+        funding = Decimal(str(getattr(pos, "funding_accum", 0) or 0))
+        qty = Decimal(str(getattr(pos, "quantity", None) or getattr(pos, "qty", 1) or 1))
+        fund_per_unit = (funding / qty) if qty > 0 else Decimal("0")
+        if str(direction).lower() in ("long", "buy"):
+            # need higher exit to cover fees+funding paid
+            return entry * (Decimal("1") + fee + fee) + fund_per_unit
+        return entry * (Decimal("1") - fee - fee) - fund_per_unit
+
+    async def reduce_position_qty(
+        self, symbol: str, side: str, quantity: Decimal
+    ) -> bool:
+        """Partial market reduce via LiveBingXClient path (not stub client.py).
+
+        Hedge: MARKET opposite + positionSide, reduce_only=False (109400).
+        """
+        self._assert_can_trade()
+        qty = abs(Decimal(str(quantity)))
+        if qty <= 0:
+            return True
+        side_l = str(side).lower()
+        order_side = "SELL" if side_l == "long" else "BUY"
+        pos_side = "LONG" if side_l == "long" else "SHORT"
+        # Prefer client.close_position(qty) when LiveBingXClient
+        close = getattr(self.client, "close_position", None)
+        if close is not None:
+            try:
+                return bool(await close(symbol, quantity=qty))
+            except NotImplementedError:
+                pass
+        await self.client.place_order(
+            symbol=symbol,
+            side=order_side,
+            order_type="MARKET",
+            quantity=qty,
+            position_side=pos_side,
+            reduce_only=False,
+        )
+        return True
+
     def _assert_can_trade(self) -> None:
         if self._halted:
             raise RuntimeError(f"HALT before place_order: {self._halt_reason}")
