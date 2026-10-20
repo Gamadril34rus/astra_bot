@@ -4,19 +4,17 @@ from __future__ import annotations
 import subprocess
 from decimal import Decimal
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
+from astra_bot.decision.live_arm import SignalCandidate, rank_candidates
+from astra_bot.decision.live_funnel import bump, empty_skipped, identity_ok
 from astra_bot.decision.live_margin_budget import (
+    actual_risk_usdt,
     check_margin_gates,
     only_tighter_stop,
-    actual_risk_usdt,
-    slip_in_r,
 )
-from astra_bot.decision.live_arm import SignalCandidate, rank_candidates
 from astra_bot.decision.live_stop_telemetry import record_stop_change
-from astra_bot.decision.live_funnel import identity_ok, empty_skipped, bump
 
 
 def test_m2_m3_m4_and_equity_unknown():
@@ -86,8 +84,8 @@ def test_margin_gates_invoked_in_run_arm_entries_source():
 
 @pytest.mark.asyncio
 async def test_price_breakeven_once_at_08r_without_tp_fill(tmp_path, monkeypatch):
-    from scripts import zeus_live_clock as zc
     from astra_bot.decision import live_positions as lp
+    from scripts import zeus_live_clock as zc
 
     plan = {
         "BTC-USDT|long": {
