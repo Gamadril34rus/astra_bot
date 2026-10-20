@@ -434,6 +434,8 @@ async def run_arm_entries(
                     cand0.prior_r = float(row["prior_r"])
                 except Exception:
                     pass
+            if not hasattr(cand0, "prior_r"):
+                cand0.prior_r = None
             built.append((cand0, row))
     # one rank implementation (live_arm.rank_candidates) — no parallel sorted()
     cands_only = [c for c, _ in built]
