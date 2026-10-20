@@ -38,7 +38,7 @@ jobs:
 
       - name: Tests (unit + integration, TZ §33/§34)
         run: |
-          python -m pytest tests -q --maxfail=1
+          python -m pytest tests -q --maxfail=25
 
       - name: "Ruff: new/changed files"
         run: |
