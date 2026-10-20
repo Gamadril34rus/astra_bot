@@ -373,6 +373,7 @@ async def run_arm_entries(
         "margin_M3": 0,
         "margin_M4": 0,
         "equity_unknown": 0,
+        "sized_qty_zero": 0,
         "max_open": 0,
         "cooldown": 0,
         "symbol_conflict": 0,
@@ -539,8 +540,10 @@ async def run_arm_entries(
         except Exception:
             pass
 
-        # P3 M2/M3/M4 — only when wallet readable AND risk_budget exists
-        # (tests/mocks without client skip pre-check; exchange still rejects)
+        # P3 M2/M3/M4 — only when wallet readable AND risk_budget exists.
+        # hasattr(risk_budget) is a TEST escape hatch: mock brokers omit the method.
+        # LiveBroker always defines risk_budget, so on the live tick M2–M4 ALWAYS
+        # run whenever equity was read successfully (protection is not disabled).
         if equity is not None and hasattr(broker, "risk_budget"):
             try:
                 from astra_bot.decision.live_arm import size_qty, CONF_RISK_LADDER, leverage_for
@@ -622,7 +625,13 @@ async def run_arm_entries(
                 exchange_open_count=open_n,
             )
             if plan is None:
-                _skip("margin")
+                # plan_from_candidate returns None for sized qty=0 (budget 0 when
+                # wallet unreadable / step invalid / cooldown inside). Attribute
+                # for funnel identity — not "other".
+                if equity is None:
+                    _skip("equity_unknown")
+                else:
+                    _skip("sized_qty_zero")
                 continue
             try:
                 dist = abs(float(cand.entry) - float(cand.stop)) / max(
