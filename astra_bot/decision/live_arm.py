@@ -331,9 +331,15 @@ def format_entry_tg(
 
 
 def rank_candidates(cands: list[SignalCandidate]) -> list[SignalCandidate]:
-    """P7: sort by prior_r desc, tie-break confidence desc. None prior_r last."""
+    """P7: sort by prior_r desc, tie-break confidence desc. None prior_r last.
+
+    getattr: mocks/SimpleNamespace may omit prior_r (tests, partial rows).
+    """
     def key(c: SignalCandidate):
-        pr = c.prior_r if c.prior_r is not None else -1e9
-        conf = c.confidence if c.confidence is not None else -1e9
-        return (pr, conf)
+        pr = getattr(c, "prior_r", None)
+        conf = getattr(c, "confidence", None)
+        return (
+            pr if pr is not None else -1e9,
+            conf if conf is not None else -1e9,
+        )
     return sorted(cands, key=key, reverse=True)
