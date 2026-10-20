@@ -23,7 +23,7 @@ def test_m2_m3_m4_and_equity_unknown():
     eq = Decimal("100000")
     assert check_margin_gates(equity=eq, free_margin=Decimal("50000"), used_margin=Decimal("50000"), new_margin=Decimal("30000")) == "margin_M2"
     assert check_margin_gates(equity=eq, free_margin=Decimal("50000"), used_margin=Decimal("50000"), new_margin=Decimal("10000")) == "margin_M3"
-    assert check_margin_gates(equity=eq, free_margin=Decimal("30000"), used_margin=Decimal("70000"), new_margin=Decimal("10000")) == "margin_M4"
+    assert check_margin_gates(equity=eq, free_margin=Decimal("30000"), used_margin=Decimal("40000"), new_margin=Decimal("10000")) == "margin_M4"  # isolate M4: M3 50k<=55k
     assert check_margin_gates(equity=Decimal("0"), free_margin=None, used_margin=None, new_margin=Decimal("1")) == "equity_unknown"
 
 
