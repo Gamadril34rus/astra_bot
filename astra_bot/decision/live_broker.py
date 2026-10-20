@@ -326,8 +326,7 @@ class LiveBroker:
         qty = abs(Decimal(str(quantity)))
         if qty <= 0:
             return True
-        # clamp to live exchange size
-        exch_qty = qty
+        # clamp to live exchange size — fail-closed if positions unknown
         try:
             positions = await self.client.get_positions()
             pos = next(
@@ -339,10 +338,11 @@ class LiveBroker:
                 ),
                 None,
             )
-            if pos is not None:
-                exch_qty = abs(Decimal(str(pos.quantity)))
+            if pos is None:
+                return False
+            exch_qty = abs(Decimal(str(pos.quantity)))
         except Exception:
-            pass
+            return False
         qty = min(qty, exch_qty)
         if qty <= 0:
             return True
