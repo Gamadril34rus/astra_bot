@@ -5,6 +5,7 @@ from typing import Any
 SKIP_KEYS = (
     "same_side_guard", "vol_cooldown", "conf", "margin",
     "margin_M2", "margin_M3", "margin_M4", "equity_unknown",
+    "sized_qty_zero",
     "max_open", "cooldown", "symbol_conflict", "retest_not_triggered",
     "htf_gate", "filters", "entries_per_tick_limit", "other",
 )
