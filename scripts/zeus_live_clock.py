@@ -107,15 +107,15 @@ async def sync_partial_breakeven(
     send_tg=None,
     trigger_r: float = 0.8,
 ) -> dict:
-    """P2: BE when price reaches +trigger_r (net MFE), NOT when TP1 fills.
+    """P2: BE when mark reaches +trigger_r MFE (not TP1 fill). Net BE + only-tighten.
 
-    Owner 19.10: protection must not wait for TP fill (ETH was +1R with no TP).
-    One-shot via plan.be_moved + journal event=price_breakeven. Fail-open.
-    Still called every tick after restore_missing_stops.
+    Owner 19.10 / arena B2-B3: net_breakeven_price when available; never widen stop.
+    One-shot via plan.be_moved + journal event=price_breakeven.
     """
     from astra_bot.decision.live_arm_wiring import append_journal
     from astra_bot.decision.live_positions import load_positions, upsert_plan
     from astra_bot.decision.live_stop_telemetry import record_stop_change
+    from astra_bot.decision.live_margin_budget import only_tighter_stop
 
     path = positions_path or Path("models/zeus_live_positions.json")
     moved: list[str] = []
@@ -173,14 +173,37 @@ async def sync_partial_breakeven(
                 mfe_r = float((entry_px - mark_px) / r_abs)
             if mfe_r < float(trigger_r):
                 continue
-            # net BE ≈ entry (full cost model may refine later via broker)
+
+            # B2: net BE (paper parity). LiveBroker may lack method → fall back entry.
             be_px = entry_px
-            await broker.move_stop(sym, side, exch_qty, be_px)
+            if hasattr(broker, "net_breakeven_price"):
+                try:
+                    # duck-typed pos for paper helper
+                    class _P:
+                        pass
+                    _p = _P()
+                    _p.direction = side
+                    _p.entry_price = entry_px
+                    _p.fill_price = entry_px
+                    _p.quantity = exch_qty
+                    _p.entry_fee_per_unit = Decimal("0")
+                    _p.bars_held = 0
+                    be_px = Decimal(str(broker.net_breakeven_price(_p)))
+                except Exception:
+                    be_px = entry_px
+
+            # B3: only tighten
+            target = only_tighter_stop(side, stop_px, be_px)
+            if target is None:
+                skipped.append(sym)
+                continue
+
+            await broker.move_stop(sym, side, exch_qty, target)
             upsert_plan(
                 symbol=sym,
                 side=side,
                 entry=entry_px,
-                stop=be_px,
+                stop=target,
                 qty=exch_qty,
                 path=path,
                 tp=plan.get("tp"),
@@ -192,7 +215,7 @@ async def sync_partial_breakeven(
             try:
                 record_stop_change(
                     symbol=sym,
-                    stop_price=str(be_px),
+                    stop_price=str(target),
                     source="price_breakeven",
                     reason=f"mfe_r>={trigger_r}",
                     side=side,
@@ -206,7 +229,8 @@ async def sync_partial_breakeven(
                         "symbol": sym,
                         "side": side,
                         "entry": str(entry_px),
-                        "stop": str(be_px),
+                        "stop": str(target),
+                        "stop_before": str(stop_px),
                         "mark": str(mark_px),
                         "mfe_r": round(mfe_r, 4),
                         "trigger_r": trigger_r,
@@ -217,8 +241,8 @@ async def sync_partial_breakeven(
             except Exception as jexc:
                 logger.warning("sync_partial journal: %s", type(jexc).__name__)
             logger.info(
-                "price_breakeven: %s mfe_r=%.3f stop→entry %s",
-                sym, mfe_r, be_px,
+                "price_breakeven: %s mfe_r=%.3f stop %s→%s",
+                sym, mfe_r, stop_px, target,
             )
         except Exception as exc:
             logger.warning(
@@ -846,8 +870,24 @@ async def one_tick(*, dry: bool = False) -> int:
                     "entered": entered_syms,
                     "skipped": dict(skipped),
                     "unrealized_sum": unrealized,
+                    "identity_ok": (
+                        len(rows)
+                        == len(entered_syms) + sum(int(v or 0) for v in (skipped or {}).values())
+                    ),
+                    "ts": time.time(),
                 }
             )
+            _id_ok = len(rows) == len(entered_syms) + sum(int(v or 0) for v in (skipped or {}).values())
+            if not _id_ok:
+                logger.warning(
+                    "arm_summary identity broken: cand=%s entered=%s skipped_sum=%s skipped=%s",
+                    len(rows),
+                    len(entered_syms),
+                    sum(int(v or 0) for v in (skipped or {}).values()),
+                    skipped,
+                )
+            if int((skipped or {}).get("other") or 0) > 0:
+                logger.warning("arm_summary unattributed other=%s", skipped.get("other"))
         except Exception as _sum_exc:
             logger.warning("arm_summary FAILED: %s", type(_sum_exc).__name__)
 
