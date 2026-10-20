@@ -10407,3 +10407,17 @@
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|WIF-USDT|long|1792497600000", "symbol": "WIF-USDT", "side": "long", "ts": 1792499847.6888535}
 {"event": "pending_signal", "signal_id": "zeus_channel_boundary|ENA-USDT|short|1792497600000", "symbol": "ENA-USDT", "side": "short", "ts": 1792499847.6888561}
 {"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 9, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 2}, "unrealized_sum": null, "ts": 1792499849.0057821}
+{"event": "order_audit", "symbol": "BTC-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792500125.789689}
+{"event": "order_audit", "symbol": "OP-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792500125.789832}
+{"event": "order_audit", "symbol": "SOL-USDT", "side": "long", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792500125.7898757}
+{"event": "order_audit", "symbol": "XRP-USDT", "side": "short", "n_stop": 1, "n_tp": 1, "be_moved": false, "ts": 1792500125.789912}
+{"event": "order_audit", "symbol": "ETH-USDT", "side": "short", "n_stop": 1, "n_tp": 0, "be_moved": false, "ts": 1792500125.789947}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|XRP-USDT|short|1792497600000", "symbol": "XRP-USDT", "side": "short", "ts": 1792500167.3523204}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|DOGE-USDT|short|1792497600000", "symbol": "DOGE-USDT", "side": "short", "ts": 1792500167.3523297}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|ADA-USDT|short|1792497600000", "symbol": "ADA-USDT", "side": "short", "ts": 1792500167.3523352}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|NEAR-USDT|short|1792497600000", "symbol": "NEAR-USDT", "side": "short", "ts": 1792500167.3523393}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|OP-USDT|short|1792497600000", "symbol": "OP-USDT", "side": "short", "ts": 1792500167.3523426}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|WLD-USDT|long|1792497600000", "symbol": "WLD-USDT", "side": "long", "ts": 1792500167.3523464}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|WIF-USDT|long|1792497600000", "symbol": "WIF-USDT", "side": "long", "ts": 1792500167.3523498}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|ENA-USDT|short|1792497600000", "symbol": "ENA-USDT", "side": "short", "ts": 1792500167.352353}
+{"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 8, "entered": [], "skipped": {"same_side_guard": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "other": 2}, "unrealized_sum": null, "ts": 1792500168.1181157}
