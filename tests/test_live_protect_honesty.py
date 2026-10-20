@@ -63,7 +63,7 @@ def test_stop_telemetry(tmp_path: Path):
 
 
 def test_workflow_save_bash_n():
-    yml = Path("/home/workdir/artifacts/pr_work/.github/workflows/zeus-live-clock.yml")
+    yml = Path(".github/workflows/zeus-live-clock.yml")
     text = yml.read_text()
     for_lines = [ln for ln in text.splitlines() if "for F in models/zeus_live_commands" in ln]
     assert len(for_lines) == 1
@@ -77,7 +77,7 @@ def test_workflow_save_bash_n():
 
 def test_margin_gates_invoked_in_run_arm_entries_source():
     """Behavior: wiring source must call check_margin_gates (not dead helper)."""
-    src = Path("/home/workdir/artifacts/pr_work/astra_bot/decision/live_arm_wiring.py").read_text()
+    src = Path("astra_bot/decision/live_arm_wiring.py").read_text()
     assert "check_margin_gates(" in src
     assert "actual_risk_usdt(" in src
     assert "slip_in_r(" in src
