@@ -356,13 +356,13 @@ async def run_arm_entries(
     if vst is None:
         vst = (os.environ.get("ZEUS_MAINNET") or "").strip() != "1"
 
+    from astra_bot.decision.live_arm import rank_candidates
     from astra_bot.decision.live_margin_budget import (
+        actual_risk_usdt,
         check_margin_gates,
         initial_margin_usdt,
-        actual_risk_usdt,
         slip_in_r,
     )
-    from astra_bot.decision.live_arm import rank_candidates
 
     skipped: dict[str, int] = {
         "same_side_guard": 0,
@@ -431,12 +431,11 @@ async def run_arm_entries(
             # prior_r from pending row if present
             if getattr(cand0, "prior_r", None) is None and row.get("prior_r") is not None:
                 try:
-                    setattr(cand0, "prior_r", float(row["prior_r"]))
+                    cand0.prior_r = float(row["prior_r"])
                 except Exception:
                     pass
             built.append((cand0, row))
     # one rank implementation (live_arm.rank_candidates) — no parallel sorted()
-    from astra_bot.decision.live_arm import rank_candidates
     cands_only = [c for c, _ in built]
     row_by_cid = {id(c): r for c, r in built}
     ranked_cands = rank_candidates(cands_only)
@@ -544,9 +543,10 @@ async def run_arm_entries(
         # run whenever equity was read successfully (protection is not disabled).
         if equity is not None and hasattr(broker, "risk_budget"):
             try:
-                from astra_bot.decision.live_arm import size_qty, CONF_RISK_LADDER, leverage_for
-                from astra_bot.decision.conf_risk_ladder import conf_risk_pct
                 import os as _os
+
+                from astra_bot.decision.conf_risk_ladder import conf_risk_pct
+                from astra_bot.decision.live_arm import CONF_RISK_LADDER, leverage_for, size_qty
                 risk_pct = conf_risk_pct(cand.confidence, CONF_RISK_LADDER)
                 try:
                     from astra_bot.decision.zeus_heat import DEFAULT_HEAT_PATH, ZeusHeatGovernor
