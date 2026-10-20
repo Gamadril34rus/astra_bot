@@ -435,17 +435,13 @@ async def run_arm_entries(
                 except Exception:
                     pass
             built.append((cand0, row))
-    ranked_pairs = sorted(
-        built,
-        key=lambda cr: (
-            getattr(cr[0], "prior_r", None) if getattr(cr[0], "prior_r", None) is not None else -1e9,
-            getattr(cr[0], "confidence", None) if getattr(cr[0], "confidence", None) is not None else -1e9,
-        ),
-        reverse=True,
-    )
-    # keep unparsed rows at end for attribution
-    ranked_rows = [r for _, r in ranked_pairs]
-    # identity by object id (not dict value): duplicate signal rows keep funnel identity
+    # one rank implementation (live_arm.rank_candidates) — no parallel sorted()
+    from astra_bot.decision.live_arm import rank_candidates
+    cands_only = [c for c, _ in built]
+    row_by_cid = {id(c): r for c, r in built}
+    ranked_cands = rank_candidates(cands_only)
+    ranked_rows = [row_by_cid[id(c)] for c in ranked_cands]
+    # identity by object id: duplicate signal rows keep funnel identity
     ranked_ids = {id(r) for r in ranked_rows}
     leftover = [r for r in row_list if id(r) not in ranked_ids]
     row_list = ranked_rows + leftover
