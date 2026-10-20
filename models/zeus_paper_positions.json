@@ -1,67 +1,6 @@
 {
-  "positions": [
-    {
-      "id": "c79e89ff-2c92-4941-aae9-5a0ee6a8625c",
-      "symbol": "OP-USDT",
-      "direction": "short",
-      "entry_price": "0.12915",
-      "quantity": "2053.82856600",
-      "stop_loss": "0.1301832",
-      "take_profits": [
-        "0.1281168",
-        "0.1270835999999999600000000000"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "2053.82856600",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
-      "strategy": "zeus_channel_boundary_4h",
-      "opened_at": 1792510359656,
-      "entry_bar_ts": 1792510200000,
-      "notes": {
-        "signal_bar_close": 0.12952,
-        "effective_entry": 0.12902085,
-        "initial_stop": 0.1301832,
-        "initial_take": 0.12708359999999996,
-        "stop_pct": 0.009009009009009009,
-        "confidence": 0.7799999999999999,
-        "ml_probability": null,
-        "prior_r": 0.9650000000000042,
-        "costs_r": 0.333,
-        "equity_before": 2649.8670733980616,
-        "risk_budget": 26.498670733980617,
-        "binding_constraint": "heat_cap",
-        "score": 52.0,
-        "edge_pct": 70.0133,
-        "ev_r": 0.7001334993305399,
-        "ev_confidence": 0.16666666666666666,
-        "rr": 2.0000000000000386,
-        "leverage": 1
-      },
-      "fill_price": "0.12902085",
-      "entry_fee_per_unit": "0.000064510425",
-      "risk_distance": "0.0010332",
-      "regime": "RANGE",
-      "timeframe": "4h",
-      "regime_axes": "T:TRANSITION/V:LOW/L:STRESSED",
-      "bars_held": 0,
-      "leverage": "1",
-      "margin_used": "265.2519592989000",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "0.1270835999999999600000000000",
-      "plan_last_bar_ts": 0
-    }
-  ],
-  "realized_pnl": "649.2021390256925822510635314",
+  "positions": [],
+  "realized_pnl": "647.9749840329258836566885314",
   "initial_capital": "2000.0",
   "cooldowns": {
     "zeus_channel_boundary_4h|DOGE-USDT|short": 1792510893213
@@ -70,7 +9,7 @@
     "ADA-USDT": 1792507800000,
     "ARB-USDT": 1791995100000,
     "AVAX-USDT": 1792509600000,
-    "OP-USDT": 1792366200000,
+    "OP-USDT": 1792510500000,
     "INJ-USDT": 1791843600000,
     "SOL-USDT": 1791735900000,
     "TIA-USDT": 1791483600000,
