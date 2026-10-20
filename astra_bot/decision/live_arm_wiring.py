@@ -551,7 +551,34 @@ async def run_arm_entries(
             budget = await broker.risk_budget(risk_pct)
             entry_budget = budget  # for post-fill same budget
             prov_qty = size_qty(budget, cand.entry, cand.stop, cand.step_size)
-            new_m = initial_margin_usdt(cand.entry, prov_qty, int(cand.leverage or 3))
+            # same leverage as plan_from_candidate (A7 ladder + ZEUS_LIVE_FORCE_LEVERAGE)
+            from astra_bot.decision.live_arm import leverage_for
+            import os as _os
+            _conf = float(cand.confidence or 0.0)
+            _dist = abs(float(cand.entry) - float(cand.stop))
+            _reward = (
+                abs(float(cand.take_profit) - float(cand.entry))
+                if cand.take_profit
+                else _dist
+            )
+            _ev = (_reward / _dist) if _dist > 0 else 0.0
+            _max_lev = int(getattr(broker.config, "max_leverage", 10) or 10)
+            _lev = leverage_for(
+                confidence=_conf,
+                ev_r=_ev,
+                entry_price=float(cand.entry),
+                stop_loss=float(cand.stop),
+                max_leverage=_max_lev,
+                min_ev_r=1.0,
+            )
+            _lev = min(int(_lev), _max_lev)
+            _force = (_os.environ.get("ZEUS_LIVE_FORCE_LEVERAGE") or "").strip()
+            if _force:
+                try:
+                    _lev = min(int(_force), _max_lev)
+                except ValueError:
+                    pass
+            new_m = initial_margin_usdt(cand.entry, prov_qty, int(_lev))
             mg = check_margin_gates(
                 equity=equity,
                 free_margin=free_margin,
