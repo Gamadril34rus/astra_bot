@@ -1,6 +1,5 @@
-from pathlib import Path
-
 from decimal import Decimal
+from pathlib import Path
 from types import SimpleNamespace
 
 from astra_bot.decision.live_broker import LiveBroker, LiveBrokerConfig
@@ -22,6 +21,7 @@ def test_live_net_breakeven_differs_from_entry():
         quantity=Decimal("1"), funding_accum=Decimal("0"),
     )
     assert broker.net_breakeven_price(pos_s) < Decimal("100")
+
 
 def test_fee_from_config_not_hardcode():
     src = Path("astra_bot/decision/live_broker.py").read_text()
