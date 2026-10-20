@@ -4,12 +4,12 @@ M2: initial margin of ONE position ≤ 25% equity
 M3: sum initial margin of ALL positions ≤ 55% equity
 M4: free margin AFTER open ≥ 25% equity
 
-Does NOT change leverage or risk_pct. Fail-open only when equity unknown.
+Does NOT change leverage or risk_pct.
+Fail-CLOSED when equity unknown (reason equity_unknown) — arena D4.
 """
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
 
 M2_MAX_POS_FRAC = Decimal("0.25")
 M3_MAX_BOOK_FRAC = Decimal("0.55")
@@ -36,10 +36,10 @@ def check_margin_gates(
 ) -> str | None:
     """Return reject reason code or None if OK.
 
-    free_margin/used_margin from exchange when available; else estimate.
+    equity<=0 → fail-CLOSED «equity_unknown» (arena D4, not fail-open).
     """
-    if equity <= 0:
-        return None  # fail-open
+    if equity is None or equity <= 0:
+        return "equity_unknown"
     if new_margin > equity * M2_MAX_POS_FRAC:
         return "margin_M2"
     used = used_margin if used_margin is not None else Decimal("0")
@@ -49,7 +49,6 @@ def check_margin_gates(
         if free_margin - new_margin < equity * M4_MIN_FREE_FRAC:
             return "margin_M4"
     else:
-        # estimate free = equity - used
         est_free = equity - used
         if est_free - new_margin < equity * M4_MIN_FREE_FRAC:
             return "margin_M4"
@@ -65,3 +64,13 @@ def slip_in_r(plan_entry: Decimal, fill: Decimal, stop: Decimal) -> float | None
     if dist <= 0:
         return None
     return float(abs(fill - plan_entry) / dist)
+
+
+def only_tighter_stop(
+    side: str, current_stop: Decimal, candidate: Decimal
+) -> Decimal | None:
+    """Return candidate if it tightens stop, else None (never widen)."""
+    side = side.lower()
+    if side == "long":
+        return candidate if candidate > current_stop else None
+    return candidate if candidate < current_stop else None
