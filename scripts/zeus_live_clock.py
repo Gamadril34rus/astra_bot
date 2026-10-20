@@ -174,11 +174,11 @@ async def sync_partial_breakeven(
             if mfe_r < float(trigger_r):
                 continue
 
-            # B2: net BE (paper parity). LiveBroker may lack method → fall back entry.
+            # B2: net BE (paper parity). Missing method → LOUD gross fallback.
             be_px = entry_px
+            used_gross_fallback = False
             if hasattr(broker, "net_breakeven_price"):
                 try:
-                    # duck-typed pos for paper helper
                     class _P:
                         pass
                     _p = _P()
@@ -189,8 +189,19 @@ async def sync_partial_breakeven(
                     _p.entry_fee_per_unit = Decimal("0")
                     _p.bars_held = 0
                     be_px = Decimal(str(broker.net_breakeven_price(_p)))
-                except Exception:
+                except Exception as _nb_exc:
+                    used_gross_fallback = True
                     be_px = entry_px
+                    logger.warning(
+                        "be_gross_fallback %s: net_breakeven_price failed (%s) — using entry",
+                        sym, type(_nb_exc).__name__,
+                    )
+            else:
+                used_gross_fallback = True
+                logger.warning(
+                    "be_gross_fallback %s: broker has no net_breakeven_price — using entry (gross)",
+                    sym,
+                )
 
             # B3: only tighten
             target = only_tighter_stop(side, stop_px, be_px)
@@ -226,6 +237,7 @@ async def sync_partial_breakeven(
                 append_journal(
                     {
                         "event": "price_breakeven",
+                        "be_gross_fallback": used_gross_fallback,
                         "symbol": sym,
                         "side": side,
                         "entry": str(entry_px),
@@ -240,6 +252,20 @@ async def sync_partial_breakeven(
                 )
             except Exception as jexc:
                 logger.warning("sync_partial journal: %s", type(jexc).__name__)
+            if used_gross_fallback:
+                try:
+                    append_journal(
+                        {
+                            "event": "be_gross_fallback",
+                            "symbol": sym,
+                            "side": side,
+                            "entry": str(entry_px),
+                            "be_px": str(be_px),
+                            "ts": time.time(),
+                        }
+                    )
+                except Exception:
+                    pass
             logger.info(
                 "price_breakeven: %s mfe_r=%.3f stop %s→%s",
                 sym, mfe_r, stop_px, target,
@@ -810,6 +836,16 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception as exc:
         logger.error("risk_check_failed: %s", type(exc).__name__)
         broker.set_halt("risk_check_failed")
+
+    # PR-B exit engine (shadow default) — after kill/risk, before arm
+    try:
+        from astra_bot.decision.live_exit_engine import engine_mode, run_exit_pass
+        if engine_mode() != "off":
+            _ex = await run_exit_pass(broker, send_tg=_send_live_tg)
+            if _ex.get("actions"):
+                logger.info("exit_engine: %s", _ex)
+    except Exception as _ex_exc:
+        logger.warning("exit_engine FAILED: %s", type(_ex_exc).__name__)
 
     if (not dry) and broker.entries_allowed and arm_enabled():
         from astra_bot.decision.live_arm_feed import FEED_SYMBOLS, produce_pending
