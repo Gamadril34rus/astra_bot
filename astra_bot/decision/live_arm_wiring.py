@@ -449,7 +449,7 @@ async def run_arm_entries(
         sid = str(row.get("signal_id") or "").strip()
         if sid and sid in seen:
             logger.info("arm: skip signal_id=%s — already in entries journal", sid)
-            _skip("other")
+            _skip("filters")
             continue
         if not is_fresh(row, max_sec=fresh_max_sec):
             logger.info(
@@ -457,7 +457,7 @@ async def run_arm_entries(
                 row.get("symbol"),
                 int(fresh_max_sec),
             )
-            _skip("other")
+            _skip("retest_not_triggered")
             continue
         cand = candidate_from_signal_dict(row)
         if cand is None:
@@ -465,7 +465,7 @@ async def run_arm_entries(
             continue
         if cand.symbol in open_syms:
             logger.info("arm: skip %s — already open on exchange", cand.symbol)
-            _skip("other")
+            _skip("symbol_conflict")
             continue
         if open_n >= MAX_OPEN:
             logger.info("arm: skip — exchange max_open=%d", MAX_OPEN)
@@ -656,6 +656,61 @@ async def run_arm_entries(
             plan_qty = (res or {}).get("plan_qty") or plan.quantity
             qty_ratio = (res or {}).get("qty_ratio")
             be_moved = bool((res or {}).get("be_moved"))
+            # D5 post-fill: actual risk vs plan budget (tolerance 10%)
+            try:
+                fill_d = Decimal(str(fill_px if fill_px is not None else cand.entry))
+                stop_d = Decimal(str(plan.stop_price))
+                fq = Decimal(str(fact_qty))
+                act = actual_risk_usdt(fq, fill_d, stop_d)
+                # recover budget used at sizing
+                risk_pct = conf_risk_pct(cand.confidence, CONF_RISK_LADDER) if False else None
+                from astra_bot.decision.conf_risk_ladder import conf_risk_pct as _crp
+                from astra_bot.decision.live_arm import CONF_RISK_LADDER as _CRL
+                _budget = await broker.risk_budget(_crp(cand.confidence, _CRL))
+                if _budget > 0 and act > _budget * Decimal("1.10"):
+                    # try reduce-only trim to budget
+                    dist = abs(fill_d - stop_d)
+                    target_qty = (_budget / dist) if dist > 0 else fq
+                    if target_qty < fq and target_qty > 0:
+                        trim_qty = fq - target_qty
+                        try:
+                            await broker.client.close_position(
+                                plan.symbol, quantity=trim_qty
+                            )
+                            fact_qty = target_qty
+                            append_journal({
+                                "event": "post_fill_risk_trim",
+                                "symbol": plan.symbol,
+                                "act_risk": str(act),
+                                "budget": str(_budget),
+                                "trim_qty": str(trim_qty),
+                                "ts": time.time(),
+                            })
+                            logger.warning(
+                                "arm: %s post-fill trim risk %s > budget*1.1 %s",
+                                plan.symbol, act, _budget,
+                            )
+                        except Exception as trim_exc:
+                            msg = (
+                                f"⚠️ {plan.symbol}: риск после fill {act} > "
+                                f"budget×1.1={_budget*Decimal('1.10')} — "
+                                f"подрезка не удалась ({type(trim_exc).__name__})"
+                            )
+                            append_journal({
+                                "event": "post_fill_risk_over",
+                                "symbol": plan.symbol,
+                                "act_risk": str(act),
+                                "budget": str(_budget),
+                                "error": str(trim_exc)[:200],
+                                "ts": time.time(),
+                            })
+                            if send_tg is not None:
+                                try:
+                                    await send_tg(msg)
+                                except Exception:
+                                    pass
+            except Exception as _pf_exc:
+                logger.warning("arm: post-fill risk check failed: %s", type(_pf_exc).__name__)
             _archive_prior_plan_if_any(plan.symbol, sid or None)
             upsert_plan(
                 plan.symbol,
