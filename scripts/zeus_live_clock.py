@@ -105,16 +105,17 @@ async def sync_partial_breakeven(
     *,
     positions_path: Path | None = None,
     send_tg=None,
+    trigger_r: float = 0.8,
 ) -> dict:
-    """C: after TP1 (~40% filled), remaining ~60% → move stop to entry (breakeven).
+    """P2: BE when mark reaches +trigger_r MFE (not TP1 fill). Net BE + only-tighten.
 
-    Called EVERY tick (owner rule). Detects exchange qty ≈ 0.6 * plan qty,
-    plan has tp1, not yet be_moved. Moves protective stop to entry via
-    broker.move_stop, sets be_moved in plan, journals + optional TG.
-    Fail-open: any exception → skip symbol, continue.
+    Owner 19.10 / arena B2-B3: net_breakeven_price when available; never widen stop.
+    One-shot via plan.be_moved + journal event=price_breakeven.
     """
     from astra_bot.decision.live_arm_wiring import append_journal
     from astra_bot.decision.live_positions import load_positions, upsert_plan
+    from astra_bot.decision.live_stop_telemetry import record_stop_change
+    from astra_bot.decision.live_margin_budget import only_tighter_stop
 
     path = positions_path or Path("models/zeus_live_positions.json")
     moved: list[str] = []
@@ -143,10 +144,7 @@ async def sync_partial_breakeven(
             continue
         if plan.get("be_moved"):
             continue
-        # need explicit tp1 (partial channel); legacy full-TP plans skip
-        if plan.get("tp1") is None:
-            continue
-        if plan.get("entry") is None:
+        if plan.get("entry") is None or plan.get("stop") is None:
             skipped.append(sym)
             continue
         pos = by_sym.get(sym)
@@ -154,25 +152,69 @@ async def sync_partial_breakeven(
             continue
         try:
             exch_qty = Decimal(str(getattr(pos, "quantity", 0) or 0))
-            plan_qty = Decimal(str(plan.get("qty") or 0))
-        except Exception:
-            skipped.append(sym)
-            continue
-        if plan_qty <= 0 or exch_qty <= 0:
-            continue
-        # remaining ≈ 60% of original (TP1 took 40%); tolerance ±15%
-        ratio = float(exch_qty / plan_qty)
-        if not (0.45 <= ratio <= 0.75):
-            continue
-        side = str(plan.get("side") or "long").lower()
-        try:
             entry_px = Decimal(str(plan["entry"]))
-            await broker.move_stop(sym, side, exch_qty, entry_px)
+            stop_px = Decimal(str(plan["stop"]))
+            mark = (
+                getattr(pos, "mark_price", None)
+                or getattr(pos, "markPrice", None)
+                or getattr(pos, "price", None)
+            )
+            if mark is None:
+                skipped.append(sym)
+                continue
+            mark_px = Decimal(str(mark))
+            r_abs = abs(entry_px - stop_px)
+            if r_abs <= 0 or exch_qty <= 0:
+                continue
+            side = str(plan.get("side") or "long").lower()
+            if side == "long":
+                mfe_r = float((mark_px - entry_px) / r_abs)
+            else:
+                mfe_r = float((entry_px - mark_px) / r_abs)
+            if mfe_r < float(trigger_r):
+                continue
+
+            # B2: net BE (paper parity). Missing method → LOUD gross fallback.
+            be_px = entry_px
+            used_gross_fallback = False
+            if hasattr(broker, "net_breakeven_price"):
+                try:
+                    class _P:
+                        pass
+                    _p = _P()
+                    _p.direction = side
+                    _p.entry_price = entry_px
+                    _p.fill_price = entry_px
+                    _p.quantity = exch_qty
+                    _p.entry_fee_per_unit = Decimal("0")
+                    _p.bars_held = 0
+                    be_px = Decimal(str(broker.net_breakeven_price(_p)))
+                except Exception as _nb_exc:
+                    used_gross_fallback = True
+                    be_px = entry_px
+                    logger.warning(
+                        "be_gross_fallback %s: net_breakeven_price failed (%s) — using entry",
+                        sym, type(_nb_exc).__name__,
+                    )
+            else:
+                used_gross_fallback = True
+                logger.warning(
+                    "be_gross_fallback %s: broker has no net_breakeven_price — using entry (gross)",
+                    sym,
+                )
+
+            # B3: only tighten
+            target = only_tighter_stop(side, stop_px, be_px)
+            if target is None:
+                skipped.append(sym)
+                continue
+
+            await broker.move_stop(sym, side, exch_qty, target)
             upsert_plan(
                 symbol=sym,
                 side=side,
                 entry=entry_px,
-                stop=entry_px,
+                stop=target,
                 qty=exch_qty,
                 path=path,
                 tp=plan.get("tp"),
@@ -181,32 +223,53 @@ async def sync_partial_breakeven(
                 signal_id=plan.get("signal_id"),
             )
             moved.append(sym)
-            base = (sym.split("-")[0] if "-" in sym else sym).replace("USDT", "")
-            side_ru = "ЛОНГ" if side == "long" else "ШОРТ"
-            msg = f"🔒 {base} {side_ru}: BE после TP1 (stop→entry)"
+            try:
+                record_stop_change(
+                    symbol=sym,
+                    stop_price=str(target),
+                    source="price_breakeven",
+                    reason=f"mfe_r>={trigger_r}",
+                    side=side,
+                )
+            except Exception:
+                pass
             try:
                 append_journal(
                     {
-                        "event": "partial_breakeven",
+                        "event": "price_breakeven",
+                        "be_gross_fallback": used_gross_fallback,
+                        "be_mode": ("gross" if used_gross_fallback else "net"),
                         "symbol": sym,
                         "side": side,
                         "entry": str(entry_px),
-                        "qty_remaining": str(exch_qty),
-                        "plan_qty": str(plan_qty),
-                        "ratio": round(ratio, 4),
+                        "stop": str(target),
+                        "stop_before": str(stop_px),
+                        "mark": str(mark_px),
+                        "mfe_r": round(mfe_r, 4),
+                        "trigger_r": trigger_r,
+                        "qty": str(exch_qty),
                         "ts": time.time(),
                     }
                 )
             except Exception as jexc:
                 logger.warning("sync_partial journal: %s", type(jexc).__name__)
-            if send_tg is not None:
+            if used_gross_fallback:
                 try:
-                    await send_tg(msg)
+                    append_journal(
+                        {
+                            "event": "be_gross_fallback",
+                            "symbol": sym,
+                            "side": side,
+                            "entry": str(entry_px),
+                            "be_px": str(be_px),
+                            "ts": time.time(),
+                        }
+                    )
                 except Exception:
                     pass
             logger.info(
-                "sync_partial_breakeven: %s ratio=%.3f stop→entry %s",
-                sym, ratio, entry_px,
+                "price_breakeven: %s mfe_r=%.3f stop %s→%s",
+                sym, mfe_r, stop_px, target,
             )
         except Exception as exc:
             logger.warning(
@@ -630,7 +693,7 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception as exc:
         logger.warning("restore_missing_stops failed: %s", type(exc).__name__)
 
-    # Telemetry: order_audit every tick — stop/tp counts per plan symbol
+    # Telemetry: order_audit every tick — counts + price/qty/flags (P5 owner 19.10)
     try:
         from astra_bot.decision.live_arm_wiring import append_journal
         from astra_bot.decision.live_positions import load_positions
@@ -649,17 +712,40 @@ async def one_tick(*, dry: bool = False) -> int:
                 if not sym:
                     continue
                 orders = by_sym.get(sym, [])
-                n_stop = sum(
-                    1
-                    for o in orders
-                    if "stop" in str(getattr(o, "order_type", "")).lower()
-                    and "take_profit" not in str(getattr(o, "order_type", "")).lower()
-                )
-                n_tp = sum(
-                    1
-                    for o in orders
-                    if "take_profit" in str(getattr(o, "order_type", "")).lower()
-                )
+                detail = []
+                n_stop = n_tp = 0
+                for o in orders:
+                    ot = str(getattr(o, "order_type", "") or "").upper()
+                    is_stop = "STOP" in ot and "TAKE_PROFIT" not in ot
+                    is_tp = "TAKE_PROFIT" in ot
+                    if is_stop:
+                        n_stop += 1
+                    if is_tp:
+                        n_tp += 1
+                    if is_stop or is_tp:
+                        detail.append({
+                            "type": ot,
+                            "price": str(
+                                getattr(o, "stop_price", None)
+                                or getattr(o, "price", None)
+                                or ""
+                            ),
+                            "qty": str(
+                                getattr(o, "quantity", None)
+                                or getattr(o, "origQty", None)
+                                or ""
+                            ),
+                            "reduceOnly": bool(
+                                getattr(o, "reduce_only", None)
+                                if getattr(o, "reduce_only", None) is not None
+                                else getattr(o, "reduceOnly", False)
+                            ),
+                            "closePosition": bool(
+                                getattr(o, "close_position", None)
+                                if getattr(o, "close_position", None) is not None
+                                else getattr(o, "closePosition", False)
+                            ),
+                        })
                 append_journal(
                     {
                         "event": "order_audit",
@@ -668,6 +754,7 @@ async def one_tick(*, dry: bool = False) -> int:
                         "n_stop": n_stop,
                         "n_tp": n_tp,
                         "be_moved": bool(plan.get("be_moved")),
+                        "orders": detail,
                         "ts": time.time(),
                     }
                 )
@@ -751,6 +838,16 @@ async def one_tick(*, dry: bool = False) -> int:
         logger.error("risk_check_failed: %s", type(exc).__name__)
         broker.set_halt("risk_check_failed")
 
+    # PR-B exit engine (shadow default) — after kill/risk, before arm
+    try:
+        from astra_bot.decision.live_exit_engine import engine_mode, run_exit_pass
+        if engine_mode() != "off":
+            _ex = await run_exit_pass(broker, send_tg=_send_live_tg)
+            if _ex.get("actions"):
+                logger.info("exit_engine: %s", _ex)
+    except Exception as _ex_exc:
+        logger.warning("exit_engine FAILED: %s", type(_ex_exc).__name__)
+
     if (not dry) and broker.entries_allowed and arm_enabled():
         from astra_bot.decision.live_arm_feed import FEED_SYMBOLS, produce_pending
         from astra_bot.decision.live_arm_wiring import (
@@ -810,8 +907,24 @@ async def one_tick(*, dry: bool = False) -> int:
                     "entered": entered_syms,
                     "skipped": dict(skipped),
                     "unrealized_sum": unrealized,
+                    "identity_ok": (
+                        len(rows)
+                        == len(entered_syms) + sum(int(v or 0) for v in (skipped or {}).values())
+                    ),
+                    "ts": time.time(),
                 }
             )
+            _id_ok = len(rows) == len(entered_syms) + sum(int(v or 0) for v in (skipped or {}).values())
+            if not _id_ok:
+                logger.warning(
+                    "arm_summary identity broken: cand=%s entered=%s skipped_sum=%s skipped=%s",
+                    len(rows),
+                    len(entered_syms),
+                    sum(int(v or 0) for v in (skipped or {}).values()),
+                    skipped,
+                )
+            if int((skipped or {}).get("other") or 0) > 0:
+                logger.warning("arm_summary unattributed other=%s", skipped.get("other"))
         except Exception as _sum_exc:
             logger.warning("arm_summary FAILED: %s", type(_sum_exc).__name__)
 

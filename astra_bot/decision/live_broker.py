@@ -278,6 +278,101 @@ class LiveBroker:
             wallet = Decimal("0")
         return (wallet * risk_pct).quantize(Decimal("0.01"))
 
+
+    def net_breakeven_price(self, pos: Any) -> Decimal:
+        """Live net BE from config taker fee (+ optional exit slip simplification).
+
+        Fee: ``BINGX_PERPS_TAKER_FEE`` (cost_model.py:244 = 0.05%), not hardcode.
+        Exit slippage: NOT applied here — explicit simplification vs paper
+        ``broker.py:852–855`` (paper CostModel.effective_exit_price). Live
+        mark/fill path does not mirror paper slip on the BE target.
+        funding_accum: USDT signed sum from income FUNDING_FEE on the position
+        (positive = we paid). Long: BE moves up by fund/qty; short: fund paid
+        raises BE (worse), fund received (negative accum) lowers BE toward entry.
+        """
+        from astra_bot.engines.cost_model import BINGX_PERPS_TAKER_FEE
+
+        direction = getattr(pos, "direction", None) or getattr(pos, "side", "long")
+        entry = Decimal(str(
+            getattr(pos, "fill_price", None)
+            or getattr(pos, "entry_price", None)
+            or getattr(pos, "entry", None)
+            or 0
+        ))
+        if entry <= 0:
+            return entry
+        fee = Decimal(str(BINGX_PERPS_TAKER_FEE))
+        funding = Decimal(str(getattr(pos, "funding_accum", 0) or 0))
+        qty = Decimal(str(getattr(pos, "quantity", None) or getattr(pos, "qty", 1) or 1))
+        fund_per_unit = (funding / qty) if qty > 0 else Decimal("0")
+        # Round-trip taker on entry+exit; no exit-slip (see docstring).
+        if str(direction).lower() in ("long", "buy"):
+            return entry * (Decimal("1") + fee + fee) + fund_per_unit
+        # short: fees pull BE down; funding paid (positive) also costs the short
+        return entry * (Decimal("1") - fee - fee) - fund_per_unit
+
+    async def reduce_position_qty(
+        self, symbol: str, side: str, quantity: Decimal
+    ) -> bool:
+        """Partial reduce: clamp to exchange qty, never flip.
+
+        Uses MARKET opposite + positionSide. Prefer reduceOnly=True for
+        partial (arena); on 109400 fall back to hedge path reduce_only=False
+        with clamped qty (same as client_live.close_position:498).
+        client_live.close_position(quantity=trim) closes PARTIAL qty when set
+        (else full pos.quantity) — see client_live.py:498.
+        """
+        self._assert_can_trade()
+        qty = abs(Decimal(str(quantity)))
+        if qty <= 0:
+            return True
+        # clamp to live exchange size — fail-closed if positions unknown
+        try:
+            positions = await self.client.get_positions()
+            pos = next(
+                (
+                    p
+                    for p in positions
+                    if getattr(p, "symbol", "") == symbol
+                    and (getattr(p, "quantity", 0) or 0) > 0
+                ),
+                None,
+            )
+            if pos is None:
+                return False
+            exch_qty = abs(Decimal(str(pos.quantity)))
+        except Exception:
+            return False
+        qty = min(qty, exch_qty)
+        if qty <= 0:
+            return True
+        side_l = str(side).lower()
+        order_side = "SELL" if side_l == "long" else "BUY"
+        pos_side = "LONG" if side_l == "long" else "SHORT"
+        try:
+            await self.client.place_order(
+                symbol=symbol,
+                side=order_side,
+                order_type="MARKET",
+                quantity=qty,
+                position_side=pos_side,
+                reduce_only=True,
+            )
+            return True
+        except Exception as exc:
+            msg = str(exc).lower()
+            if "109400" in msg or "reduceonly" in msg or "reduce_only" in msg:
+                await self.client.place_order(
+                    symbol=symbol,
+                    side=order_side,
+                    order_type="MARKET",
+                    quantity=qty,
+                    position_side=pos_side,
+                    reduce_only=False,
+                )
+                return True
+            raise
+
     def _assert_can_trade(self) -> None:
         if self._halted:
             raise RuntimeError(f"HALT before place_order: {self._halt_reason}")

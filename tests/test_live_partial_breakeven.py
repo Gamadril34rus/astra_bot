@@ -171,12 +171,14 @@ def test_sync_partial_breakeven_moves_stop(tmp_path, monkeypatch):
             path=path,
         )
         # ~0.6 remaining after TP1
+        # price-BE: mark at +0.8R (no TP1 fill required)
         pos = [
             SimpleNamespace(
                 symbol="BTC-USDT",
                 side="long",
-                quantity=Decimal("0.6"),
+                quantity=Decimal("1.0"),
                 entry_price=Decimal("100"),
+                mark_price=Decimal("108"),
             )
         ]
         c = MockClient(positions=pos)
@@ -185,11 +187,13 @@ def test_sync_partial_breakeven_moves_stop(tmp_path, monkeypatch):
         assert "BTC-USDT" in out.get("moved", [])
         plans = load_positions(path)
         assert plans["BTC-USDT|long"]["be_moved"] is True
-        assert plans["BTC-USDT|long"]["stop"] == "100"
-        # move_stop places new STOP
+        # net-BE (taker×2) > entry; not gross "100"
+        stop_s = plans["BTC-USDT|long"]["stop"]
+        assert Decimal(stop_s) >= Decimal("100")
+        assert Decimal(stop_s) <= Decimal("100.2")
         stops = [o for o in c.placed if "STOP" in str(o.get("order_type", "")).upper()]
         assert stops
-        assert stops[-1]["stop_price"] == Decimal("100")
+        assert Decimal(str(stops[-1]["stop_price"])) >= Decimal("100")
     asyncio.run(_())
 
 
@@ -213,6 +217,7 @@ def test_sync_partial_skips_when_full_qty(tmp_path):
                 side="long",
                 quantity=Decimal("1.0"),
                 entry_price=Decimal("100"),
+                mark_price=Decimal("100"),  # mfe_r=0 → no BE
             )
         ]
         c = MockClient(positions=pos)
@@ -222,7 +227,7 @@ def test_sync_partial_skips_when_full_qty(tmp_path):
     asyncio.run(_())
 
 
-def test_sync_partial_skips_legacy_no_tp1(tmp_path):
+def test_sync_partial_legacy_no_tp1_still_be_on_price(tmp_path):
     async def _():
         from astra_bot.decision.live_positions import plan_key, save_positions
         from scripts.zeus_live_clock import sync_partial_breakeven
@@ -247,14 +252,16 @@ def test_sync_partial_skips_legacy_no_tp1(tmp_path):
             SimpleNamespace(
                 symbol="ETH-USDT",
                 side="long",
-                quantity=Decimal("1.2"),
+                quantity=Decimal("2"),
                 entry_price=Decimal("100"),
+                mark_price=Decimal("116"),  # +0.8R on stop=80 → R=20
             )
         ]
         c = MockClient(positions=pos)
         b = LiveBroker(c)
         out = await sync_partial_breakeven(b, positions_path=path)
-        assert out.get("moved") == []
+        # price-BE does not require tp1
+        assert "ETH-USDT" in out.get("moved", [])
     asyncio.run(_())
 
 
@@ -304,6 +311,7 @@ def test_sync_partial_already_be_moved(tmp_path):
                 side="long",
                 quantity=Decimal("0.6"),
                 entry_price=Decimal("100"),
+                mark_price=Decimal("108"),
             )
         ]
         c = MockClient(positions=pos)

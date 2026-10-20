@@ -356,11 +356,31 @@ async def run_arm_entries(
     if vst is None:
         vst = (os.environ.get("ZEUS_MAINNET") or "").strip() != "1"
 
+    from astra_bot.decision.live_arm import rank_candidates
+    from astra_bot.decision.live_margin_budget import (
+        actual_risk_usdt,
+        check_margin_gates,
+        initial_margin_usdt,
+        slip_in_r,
+    )
+
     skipped: dict[str, int] = {
         "same_side_guard": 0,
         "vol_cooldown": 0,
         "conf": 0,
         "margin": 0,
+        "margin_M2": 0,
+        "margin_M3": 0,
+        "margin_M4": 0,
+        "equity_unknown": 0,
+        "sized_qty_zero": 0,
+        "max_open": 0,
+        "cooldown": 0,
+        "symbol_conflict": 0,
+        "retest_not_triggered": 0,
+        "htf_gate": 0,
+        "filters": 0,
+        "entries_per_tick_limit": 0,
         "other": 0,
     }
 
@@ -381,13 +401,59 @@ async def run_arm_entries(
     side_stats = await exchange_side_stats(broker)
     results: list[dict[str, Any]] = []
 
+    # Equity for M2-M4: None = cannot read wallet → skip pre-check (exchange enforces).
+    # Successful read with equity<=0 → fail-closed equity_unknown inside check_margin_gates.
+    equity = None
+    free_margin = None
+    used_margin = None
+    if hasattr(broker, "client") and hasattr(getattr(broker, "client", None), "get_balance_usdt"):
+        try:
+            equity = Decimal(str(await broker.client.get_balance_usdt()))
+        except Exception:
+            equity = None
+        try:
+            if hasattr(broker.client, "get_available_margin"):
+                free_margin = Decimal(str(await broker.client.get_available_margin()))
+        except Exception:
+            free_margin = None
+        try:
+            if free_margin is not None and equity is not None and equity > 0:
+                used_margin = equity - free_margin
+        except Exception:
+            used_margin = None
+
+    # Rank by prior_r before budget (P7 lives in A wiring so M2 sees best first)
+    built: list[tuple[Any, dict]] = []
+    for row in row_list:
+        entry_budget = None  # type: Decimal | None
+        cand0 = candidate_from_signal_dict(row)
+        if cand0 is not None:
+            # prior_r from pending row if present
+            if getattr(cand0, "prior_r", None) is None and row.get("prior_r") is not None:
+                try:
+                    cand0.prior_r = float(row["prior_r"])
+                except Exception:
+                    pass
+            if not hasattr(cand0, "prior_r"):
+                cand0.prior_r = None
+            built.append((cand0, row))
+    # one rank implementation (live_arm.rank_candidates) — no parallel sorted()
+    cands_only = [c for c, _ in built]
+    row_by_cid = {id(c): r for c, r in built}
+    ranked_cands = rank_candidates(cands_only)
+    ranked_rows = [row_by_cid[id(c)] for c in ranked_cands]
+    # identity by object id: duplicate signal rows keep funnel identity
+    ranked_ids = {id(r) for r in ranked_rows}
+    leftover = [r for r in row_list if id(r) not in ranked_ids]
+    row_list = ranked_rows + leftover
+
     for row in row_list:
         if len(results) >= max_entries:
             break
         sid = str(row.get("signal_id") or "").strip()
         if sid and sid in seen:
             logger.info("arm: skip signal_id=%s — already in entries journal", sid)
-            _skip("other")
+            _skip("filters")
             continue
         if not is_fresh(row, max_sec=fresh_max_sec):
             logger.info(
@@ -395,7 +461,7 @@ async def run_arm_entries(
                 row.get("symbol"),
                 int(fresh_max_sec),
             )
-            _skip("other")
+            _skip("retest_not_triggered")
             continue
         cand = candidate_from_signal_dict(row)
         if cand is None:
@@ -403,11 +469,11 @@ async def run_arm_entries(
             continue
         if cand.symbol in open_syms:
             logger.info("arm: skip %s — already open on exchange", cand.symbol)
-            _skip("other")
+            _skip("symbol_conflict")
             continue
         if open_n >= MAX_OPEN:
             logger.info("arm: skip — exchange max_open=%d", MAX_OPEN)
-            _skip("other")
+            _skip("max_open")
             break
         side_l = str(cand.side or "").lower()
         st = side_stats.get(side_l) or {"count": 0, "upnl": 0.0}
@@ -473,6 +539,83 @@ async def run_arm_entries(
         except Exception:
             pass
 
+        # P3 M2/M3/M4 — only when wallet readable AND risk_budget exists.
+        # hasattr(risk_budget) is a TEST escape hatch: mock brokers omit the method.
+        # LiveBroker always defines risk_budget, so on the live tick M2–M4 ALWAYS
+        # run whenever equity was read successfully (protection is not disabled).
+        if equity is not None and hasattr(broker, "risk_budget"):
+            try:
+                import os as _os
+
+                from astra_bot.decision.conf_risk_ladder import conf_risk_pct
+                from astra_bot.decision.live_arm import CONF_RISK_LADDER, leverage_for, size_qty
+                risk_pct = conf_risk_pct(cand.confidence, CONF_RISK_LADDER)
+                try:
+                    from astra_bot.decision.zeus_heat import DEFAULT_HEAT_PATH, ZeusHeatGovernor
+                    if ZeusHeatGovernor(state_path=DEFAULT_HEAT_PATH).is_heat_active():
+                        risk_pct = (risk_pct * Decimal("0.5")).quantize(Decimal("0.0001"))
+                except Exception:
+                    pass
+                budget = await broker.risk_budget(risk_pct)
+                entry_budget = budget
+                prov_qty = size_qty(budget, cand.entry, cand.stop, cand.step_size)
+                _conf = float(cand.confidence or 0.0)
+                _dist = abs(float(cand.entry) - float(cand.stop))
+                _reward = (
+                    abs(float(cand.take_profit) - float(cand.entry))
+                    if getattr(cand, "take_profit", None)
+                    else _dist
+                )
+                _ev = (_reward / _dist) if _dist > 0 else 0.0
+                _max_lev = int(getattr(getattr(broker, "config", None), "max_leverage", 10) or 10)
+                _lev = leverage_for(
+                    confidence=_conf,
+                    ev_r=_ev,
+                    entry_price=float(cand.entry),
+                    stop_loss=float(cand.stop),
+                    max_leverage=_max_lev,
+                    min_ev_r=1.0,
+                )
+                _lev = min(int(_lev), _max_lev)
+                _force = (_os.environ.get("ZEUS_LIVE_FORCE_LEVERAGE") or "").strip()
+                if _force:
+                    try:
+                        _lev = min(int(_force), _max_lev)
+                    except ValueError:
+                        pass
+                new_m = initial_margin_usdt(cand.entry, prov_qty, int(_lev))
+                mg = check_margin_gates(
+                    equity=equity,
+                    free_margin=free_margin,
+                    used_margin=used_margin,
+                    new_margin=new_m,
+                )
+                if mg:
+                    logger.info(
+                        "arm: skip %s — %s (margin_est=%s equity=%s)",
+                        cand.symbol, mg, new_m, equity,
+                    )
+                    _skip(mg)
+                    try:
+                        append_journal({
+                            "event": "entry_skipped_margin_budget",
+                            "symbol": cand.symbol,
+                            "reason": mg,
+                            "new_margin": str(new_m),
+                            "equity": str(equity),
+                            "ts": time.time(),
+                        })
+                    except Exception:
+                        pass
+                    continue
+            except Exception as _mg_exc:
+                logger.warning(
+                    "arm: margin gate error %s — fail-closed equity_unknown",
+                    type(_mg_exc).__name__,
+                )
+                _skip("equity_unknown")
+                continue
+
         plan = None
         try:
             plan = await plan_from_candidate(
@@ -482,7 +625,13 @@ async def run_arm_entries(
                 exchange_open_count=open_n,
             )
             if plan is None:
-                _skip("margin")
+                # plan_from_candidate returns None for sized qty=0 (budget 0 when
+                # wallet unreadable / step invalid / cooldown inside). Attribute
+                # for funnel identity — not "other".
+                if equity is None:
+                    _skip("equity_unknown")
+                else:
+                    _skip("sized_qty_zero")
                 continue
             try:
                 dist = abs(float(cand.entry) - float(cand.stop)) / max(
@@ -560,6 +709,78 @@ async def run_arm_entries(
             plan_qty = (res or {}).get("plan_qty") or plan.quantity
             qty_ratio = (res or {}).get("qty_ratio")
             be_moved = bool((res or {}).get("be_moved"))
+            # D5 post-fill: actual risk vs plan budget (tolerance 10%)
+            try:
+                fill_d = Decimal(str(fill_px if fill_px is not None else cand.entry))
+                stop_d = Decimal(str(plan.stop_price))
+                fq = Decimal(str(fact_qty))
+                act = actual_risk_usdt(fq, fill_d, stop_d)
+                # same budget as entry (saved on plan; heat×0.5 already applied there)
+                _budget = Decimal("0")
+                try:
+                    _budget = Decimal(str(entry_budget))
+                except Exception:
+                    _budget = Decimal("0")
+                if _budget <= 0:
+                    _budget = Decimal(str(getattr(plan, "risk_budget", None) or 0))
+                if _budget <= 0:
+                    _budget = Decimal(str((res or {}).get("risk_budget") or 0))
+                if _budget <= 0:
+                    from astra_bot.decision.conf_risk_ladder import conf_risk_pct as _crp
+                    from astra_bot.decision.live_arm import CONF_RISK_LADDER as _CRL
+                    # last resort — still apply heat if active
+                    _tier = _crp(cand.confidence, _CRL)
+                    try:
+                        from astra_bot.decision.zeus_heat import DEFAULT_HEAT_PATH, ZeusHeatGovernor
+                        if ZeusHeatGovernor(state_path=DEFAULT_HEAT_PATH).is_heat_active():
+                            _tier = (_tier * Decimal("0.5")).quantize(Decimal("0.0001"))
+                    except Exception:
+                        pass
+                    _budget = await broker.risk_budget(_tier)
+                if _budget > 0 and act > _budget * Decimal("1.10"):
+                    # try reduce-only trim to budget
+                    dist = abs(fill_d - stop_d)
+                    target_qty = (_budget / dist) if dist > 0 else fq
+                    if target_qty < fq and target_qty > 0:
+                        trim_qty = fq - target_qty
+                        try:
+                            await broker.reduce_position_qty(
+                                plan.symbol, plan.side, trim_qty
+                            )
+                            fact_qty = target_qty
+                            append_journal({
+                                "event": "post_fill_risk_trim",
+                                "symbol": plan.symbol,
+                                "act_risk": str(act),
+                                "budget": str(_budget),
+                                "trim_qty": str(trim_qty),
+                                "ts": time.time(),
+                            })
+                            logger.warning(
+                                "arm: %s post-fill trim risk %s > budget*1.1 %s",
+                                plan.symbol, act, _budget,
+                            )
+                        except Exception as trim_exc:
+                            msg = (
+                                f"⚠️ {plan.symbol}: риск после fill {act} > "
+                                f"budget×1.1={_budget*Decimal('1.10')} — "
+                                f"подрезка не удалась ({type(trim_exc).__name__})"
+                            )
+                            append_journal({
+                                "event": "post_fill_risk_over",
+                                "symbol": plan.symbol,
+                                "act_risk": str(act),
+                                "budget": str(_budget),
+                                "error": str(trim_exc)[:200],
+                                "ts": time.time(),
+                            })
+                            if send_tg is not None:
+                                try:
+                                    await send_tg(msg)
+                                except Exception:
+                                    pass
+            except Exception as _pf_exc:
+                logger.warning("arm: post-fill risk check failed: %s", type(_pf_exc).__name__)
             _archive_prior_plan_if_any(plan.symbol, sid or None)
             upsert_plan(
                 plan.symbol,
@@ -606,6 +827,15 @@ async def run_arm_entries(
                         "plan_entry": str(cand.entry),
                         "fill_price": fill_px,
                         "slip_pct": slip,
+                        "slip_r": (
+                            slip_in_r(
+                                Decimal(str(cand.entry)),
+                                Decimal(str(fill_px or cand.entry)),
+                                Decimal(str(plan.stop_price)),
+                            )
+                            if fill_px is not None
+                            else None
+                        ),
                         "qty": str(plan.quantity),
                         "stop": str(plan.stop_price),
                         "tp": str(plan.take_profit_price)
@@ -721,6 +951,11 @@ async def run_arm_entries(
             clear_margin_fail(cand.symbol, sid or None)
         except Exception:
             pass
+        if isinstance(res, dict):
+            res.setdefault("symbol", cand.symbol)
+            res.setdefault("side", cand.side)
+            res.setdefault("prior_r", getattr(cand, "prior_r", None))
+            res.setdefault("confidence", cand.confidence)
         results.append(res)
         open_syms.add(cand.symbol)
         open_n += 1

@@ -23,8 +23,9 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
-          # Полная история: для diff по изменённым файлам (ruff-гейт).
+          # full commit history for gitleaks PR range; blob:none avoids 2.8GB models/*
           fetch-depth: 0
+          filter: blob:none
 
       - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
         with:
@@ -38,12 +39,13 @@ jobs:
 
       - name: Tests (unit + integration, TZ §33/§34)
         run: |
-          python -m pytest tests -q --maxfail=1
+          python -m pytest tests -q --maxfail=25
 
       - name: "Ruff: new/changed files"
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags --depth=50 origin "${{ github.base_ref }}"
             BASE="origin/${{ github.base_ref }}"
           else
             BASE=$(git rev-parse "origin/${GITHUB_REF_NAME}~1" 2>/dev/null || echo "")
