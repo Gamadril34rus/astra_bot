@@ -426,15 +426,15 @@ async def run_arm_entries(
             # prior_r from pending row if present
             if getattr(cand0, "prior_r", None) is None and row.get("prior_r") is not None:
                 try:
-                    cand0.prior_r = float(row["prior_r"])
+                    setattr(cand0, "prior_r", float(row["prior_r"]))
                 except Exception:
                     pass
             built.append((cand0, row))
     ranked_pairs = sorted(
         built,
         key=lambda cr: (
-            cr[0].prior_r if cr[0].prior_r is not None else -1e9,
-            cr[0].confidence if cr[0].confidence is not None else -1e9,
+            getattr(cr[0], "prior_r", None) if getattr(cr[0], "prior_r", None) is not None else -1e9,
+            getattr(cr[0], "confidence", None) if getattr(cr[0], "confidence", None) is not None else -1e9,
         ),
         reverse=True,
     )
