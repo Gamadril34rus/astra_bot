@@ -1,5 +1,6 @@
 """P6/P7 funnel attribution (owner 19.10)."""
 from __future__ import annotations
+
 from typing import Any
 
 SKIP_KEYS = (
