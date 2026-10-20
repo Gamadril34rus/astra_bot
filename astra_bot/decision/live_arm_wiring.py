@@ -421,6 +421,7 @@ async def run_arm_entries(
     # Rank by prior_r before budget (P7 lives in A wiring so M2 sees best first)
     built: list[tuple[Any, dict]] = []
     for row in row_list:
+        entry_budget = None  # type: Decimal | None
         cand0 = candidate_from_signal_dict(row)
         if cand0 is not None:
             # prior_r from pending row if present
@@ -540,7 +541,15 @@ async def run_arm_entries(
             from astra_bot.decision.live_arm import size_qty, CONF_RISK_LADDER
             from astra_bot.decision.conf_risk_ladder import conf_risk_pct
             risk_pct = conf_risk_pct(cand.confidence, CONF_RISK_LADDER)
+            # heat ×0.5 same as plan_from_candidate
+            try:
+                from astra_bot.decision.zeus_heat import DEFAULT_HEAT_PATH, ZeusHeatGovernor
+                if ZeusHeatGovernor(state_path=DEFAULT_HEAT_PATH).is_heat_active():
+                    risk_pct = (risk_pct * Decimal("0.5")).quantize(Decimal("0.0001"))
+            except Exception:
+                pass
             budget = await broker.risk_budget(risk_pct)
+            entry_budget = budget  # for post-fill same budget
             prov_qty = size_qty(budget, cand.entry, cand.stop, cand.step_size)
             new_m = initial_margin_usdt(cand.entry, prov_qty, int(cand.leverage or 3))
             mg = check_margin_gates(
@@ -662,11 +671,28 @@ async def run_arm_entries(
                 stop_d = Decimal(str(plan.stop_price))
                 fq = Decimal(str(fact_qty))
                 act = actual_risk_usdt(fq, fill_d, stop_d)
-                # recover budget used at sizing
-                risk_pct = conf_risk_pct(cand.confidence, CONF_RISK_LADDER) if False else None
-                from astra_bot.decision.conf_risk_ladder import conf_risk_pct as _crp
-                from astra_bot.decision.live_arm import CONF_RISK_LADDER as _CRL
-                _budget = await broker.risk_budget(_crp(cand.confidence, _CRL))
+                # same budget as entry (saved on plan; heat×0.5 already applied there)
+                _budget = Decimal("0")
+                try:
+                    _budget = Decimal(str(entry_budget))
+                except Exception:
+                    _budget = Decimal("0")
+                if _budget <= 0:
+                    _budget = Decimal(str(getattr(plan, "risk_budget", None) or 0))
+                if _budget <= 0:
+                    _budget = Decimal(str((res or {}).get("risk_budget") or 0))
+                if _budget <= 0:
+                    from astra_bot.decision.conf_risk_ladder import conf_risk_pct as _crp
+                    from astra_bot.decision.live_arm import CONF_RISK_LADDER as _CRL
+                    # last resort — still apply heat if active
+                    _tier = _crp(cand.confidence, _CRL)
+                    try:
+                        from astra_bot.decision.zeus_heat import DEFAULT_HEAT_PATH, ZeusHeatGovernor
+                        if ZeusHeatGovernor(state_path=DEFAULT_HEAT_PATH).is_heat_active():
+                            _tier = (_tier * Decimal("0.5")).quantize(Decimal("0.0001"))
+                    except Exception:
+                        pass
+                    _budget = await broker.risk_budget(_tier)
                 if _budget > 0 and act > _budget * Decimal("1.10"):
                     # try reduce-only trim to budget
                     dist = abs(fill_d - stop_d)
@@ -674,8 +700,8 @@ async def run_arm_entries(
                     if target_qty < fq and target_qty > 0:
                         trim_qty = fq - target_qty
                         try:
-                            await broker.client.close_position(
-                                plan.symbol, quantity=trim_qty
+                            await broker.reduce_position_qty(
+                                plan.symbol, plan.side, trim_qty
                             )
                             fact_qty = target_qty
                             append_journal({
