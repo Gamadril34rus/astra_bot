@@ -1270,6 +1270,11 @@ class LiveBroker:
             bare[sym] = n
             still_bare.add(sym)
             if n < 2:
+                if n == 1 and send_tg is not None:
+                    try:
+                        await send_tg(f"⚠️ {sym}: защитный ордер отклонён биржей — повтор (1/2)")
+                    except Exception:
+                        pass
                 logger.warning(
                     "ensure_protection: %s bare tick %s/2 (confirmed reject) — wait",
                     sym, n,
@@ -1330,6 +1335,13 @@ class LiveBroker:
                     symbol=sym,
                     error=f"{type(exc).__name__}: {exc}",
                 )
+                if n == 2 and send_tg is not None:
+                    try:
+                        await send_tg(
+                            f"⚠️ {sym}: нет стопа 2 тика, рыночное закрытие НЕ удалось — нужно ручное вмешательство"
+                        )
+                    except Exception:
+                        pass
 
         # drop symbols no longer bare / open
         for k in list(bare.keys()):
