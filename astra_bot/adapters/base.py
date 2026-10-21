@@ -281,6 +281,9 @@ class Order:
     filled_at: datetime | None = None
     exchange_order_id: str | None = None
     reject_reason: str | None = None
+    # Owner 20.10: BingX protect flags (None = unknown / not in response)
+    reduce_only: bool | None = None
+    close_position: bool | None = None
 
     @property
     def is_open(self) -> bool:
