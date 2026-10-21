@@ -113,9 +113,9 @@ async def sync_partial_breakeven(
     One-shot via plan.be_moved + journal event=price_breakeven.
     """
     from astra_bot.decision.live_arm_wiring import append_journal
+    from astra_bot.decision.live_margin_budget import only_tighter_stop
     from astra_bot.decision.live_positions import load_positions, upsert_plan
     from astra_bot.decision.live_stop_telemetry import record_stop_change
-    from astra_bot.decision.live_margin_budget import only_tighter_stop
 
     path = positions_path or Path("models/zeus_live_positions.json")
     moved: list[str] = []
@@ -327,7 +327,7 @@ async def _accumulate_funding_day(client) -> float:
     try:
         today = _msk_now().strftime("%Y-%m-%d")
     except Exception:
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
         today = (datetime.now(timezone(timedelta(hours=3)))).strftime("%Y-%m-%d")
 
     st = _load_day()
@@ -693,6 +693,14 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception as exc:
         logger.warning("restore_missing_stops failed: %s", type(exc).__name__)
 
+    # Owner 20.10 §4: no live STOP → place; fail → BE@0.8R or market-close THIS symbol
+    try:
+        ens = await broker.ensure_protection(send_tg=_send_live_tg)
+        if ens.get("placed") or ens.get("closed"):
+            logger.info("ensure_protection: %s", ens)
+    except Exception as exc:
+        logger.warning("ensure_protection failed: %s", type(exc).__name__)
+
     # Telemetry: order_audit every tick — counts + price/qty/flags (P5 owner 19.10)
     try:
         from astra_bot.decision.live_arm_wiring import append_journal
@@ -735,16 +743,17 @@ async def one_tick(*, dry: bool = False) -> int:
                                 or getattr(o, "origQty", None)
                                 or ""
                             ),
-                            "reduceOnly": bool(
+                            "reduceOnly": (
                                 getattr(o, "reduce_only", None)
                                 if getattr(o, "reduce_only", None) is not None
-                                else getattr(o, "reduceOnly", False)
+                                else getattr(o, "reduceOnly", None)
                             ),
-                            "closePosition": bool(
+                            "closePosition": (
                                 getattr(o, "close_position", None)
                                 if getattr(o, "close_position", None) is not None
-                                else getattr(o, "closePosition", False)
+                                else getattr(o, "closePosition", None)
                             ),
+                            "raw_keys": list(getattr(o, "_raw_order_keys", []) or [])[:24],
                         })
                 append_journal(
                     {
