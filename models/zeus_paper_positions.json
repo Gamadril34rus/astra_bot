@@ -1,5 +1,66 @@
 {
-  "positions": [],
+  "positions": [
+    {
+      "id": "fac1b81e-d5d7-4937-9aaf-64ac4421a937",
+      "symbol": "ARB-USDT",
+      "direction": "long",
+      "entry_price": "0.18937",
+      "quantity": "1391.96729300",
+      "stop_loss": "0.18785504",
+      "take_profits": [
+        "0.19088496",
+        "0.1923999200000000300000000000"
+      ],
+      "tp_filled": [
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.3,
+        0.7
+      ],
+      "initial_quantity": "1391.96729300",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "zeus_channel_boundary_4h",
+      "opened_at": 1792624020096,
+      "entry_bar_ts": 1792623900000,
+      "notes": {
+        "signal_bar_close": 0.18947,
+        "effective_entry": 0.18955937,
+        "initial_stop": 0.18785504,
+        "initial_take": 0.19239992000000003,
+        "stop_pct": 0.008991008991008992,
+        "confidence": 0.83,
+        "ml_probability": null,
+        "prior_r": 1.115000000000002,
+        "costs_r": 0.33366666666666667,
+        "equity_before": 2638.604430995638,
+        "risk_budget": 52.77208861991276,
+        "binding_constraint": "none",
+        "score": 30.0,
+        "edge_pct": 96.4114,
+        "ev_r": 0.9641143504373704,
+        "ev_confidence": 0.6491228070175439,
+        "rr": 2.0000000000000195,
+        "leverage": 1
+      },
+      "fill_price": "0.18955937",
+      "entry_fee_per_unit": "0.000094779685",
+      "risk_distance": "0.00151496",
+      "regime": "STRONG_BEAR_TREND",
+      "timeframe": "4h",
+      "regime_axes": "T:STRONG/V:VERY_LOW/L:STRESSED",
+      "bars_held": 0,
+      "leverage": "1",
+      "margin_used": "263.5968462754100",
+      "plan_variant": "STATIC_TP",
+      "plan_take": "0.1923999200000000300000000000",
+      "plan_last_bar_ts": 0
+    }
+  ],
   "realized_pnl": "638.6044309956378609433355906",
   "initial_capital": "2000.0",
   "cooldowns": {},
