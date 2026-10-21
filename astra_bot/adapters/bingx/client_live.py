@@ -33,6 +33,21 @@ _TRADE = {
 }
 
 
+
+def _protect_flag(v: Any) -> bool | None:
+    """BingX protect flag: bool/'true'/'false'/'1'/'0' -> bool; missing -> None."""
+    if isinstance(v, bool):
+        return v
+    if v is None:
+        return None
+    s = str(v).strip().lower()
+    if s in ("true", "1"):
+        return True
+    if s in ("false", "0"):
+        return False
+    return None
+
+
 def _parse_order(data: dict[str, Any], symbol: str = "") -> Order:
     d = data.get("order") if isinstance(data.get("order"), dict) else data
     if not isinstance(d, dict):
@@ -51,7 +66,7 @@ def _parse_order(data: dict[str, Any], symbol: str = "") -> Order:
     qty = Decimal(str(d.get("quantity") or d.get("origQty") or "0"))
     filled = Decimal(str(d.get("executedQty") or d.get("filledQty") or "0"))
     px = d.get("avgPrice") or d.get("price")
-    return Order(
+    order = Order(
         id=str(d.get("orderId") or d.get("orderID") or "") or None,
         client_order_id=str(d.get("clientOrderId") or "") or None,
         exchange="bingx",
@@ -66,7 +81,14 @@ def _parse_order(data: dict[str, Any], symbol: str = "") -> Order:
         filled_price=Decimal(str(px)) if px not in (None, "", "0") else None,
         exchange_order_id=str(d.get("orderId") or "") or None,
         reject_reason=str(d.get("msg") or "") or None,
+        reduce_only=_protect_flag(d.get("reduceOnly")),
+        close_position=_protect_flag(d.get("closePosition")),
     )
+    try:
+        order._raw_order_keys = [str(k) for k in list(d.keys())[:24]]
+    except Exception:
+        pass
+    return order
 
 
 
@@ -211,7 +233,17 @@ class LiveBingXClient(BingXClient):
             params["timeInForce"] = tif
         if order_type.upper() in ("STOP_MARKET", "TAKE_PROFIT_MARKET", "STOP", "TAKE_PROFIT"):
             params["workingType"] = working_type
+        _protect_kind = order_type.upper() in ("STOP_MARKET", "TAKE_PROFIT_MARKET", "STOP", "TAKE_PROFIT")
+        if _protect_kind:
+            _safe = {k: params.get(k) for k in ("symbol", "side", "type", "quantity", "price", "stopPrice", "positionSide", "closePosition", "reduceOnly", "timeInForce", "workingType", "clientOrderID")}
+            logger.info("place_order RAW req: %s", _safe)
         resp = await self._request("POST", _TRADE["order"], params=params, signed=True)
+        if _protect_kind:
+            try:
+                import json as _json
+                logger.info("place_order RAW resp: %s", _json.dumps(resp, ensure_ascii=False, default=str)[:2000])
+            except Exception:
+                logger.info("place_order RAW resp: code=%s", resp.get("code"))
         code = resp.get("code")
         if code not in (0, "0", None):
             msg = str(resp.get("msg") or "order rejected")
