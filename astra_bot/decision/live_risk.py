@@ -116,8 +116,9 @@ def utc_week_start_ts(now: datetime | None = None) -> float:
     return start.timestamp()
 
 
-def load_kill_epoch(path: Path = KILL_EPOCH_PATH) -> float | None:
+def load_kill_epoch(path: Path | None = None) -> float | None:
     """Owner 20.10: explicit epoch ts; missing/invalid → None (cumulative PF rule)."""
+    path = path if path is not None else KILL_EPOCH_PATH
     try:
         if not path.exists():
             return None
