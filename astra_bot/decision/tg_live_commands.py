@@ -38,6 +38,15 @@ except Exception:  # pragma: no cover — env without python-telegram-bot
     BTN_STOP_ENTRIES = "⏸ Стоп новых входов"
     BTN_RESUME_ENTRIES = "▶️ Продолжить входы"
 
+# P9 live console labels (owner 21.10) — override paper strings for LIVE bot only
+BTN_BALANCE = "💰 Баланс"
+BTN_FORECAST_DAY = "📅 Прогноз на день"
+BTN_FORECAST_WEEK = "📆 Прогноз на неделю"
+BTN_FLAT = "🧯 Стоп всех сделок"
+BTN_STOP_ENTRIES = "⏸ Пауза торговли"
+BTN_RESUME_ENTRIES = "▶️ Продолжить входы"
+BTN_RESET_KILL = "🛑 Сброс крана"
+
 CMD_MAP = {
     "/stop": "stop",
     "/flat": "flat",
@@ -45,13 +54,33 @@ CMD_MAP = {
     "/reset_kill": "reset_kill",
     "/stop_entries": "stop",
     "/resume_entries": "resume",
+    "/balance": "balance",
+    "/forecast_day": "forecast_day",
+    "/forecast_week": "forecast_week",
 }
+
+# immediate (no enqueue) informational cmds
+IMMEDIATE_CMDS = frozenset({"balance", "forecast_day", "forecast_week"})
 
 BTN_TO_CMD = {
     BTN_RESET_KILL: "reset_kill",
     BTN_STOP_ENTRIES: "stop",
     BTN_RESUME_ENTRIES: "resume",
+    BTN_BALANCE: "balance",
+    BTN_FORECAST_DAY: "forecast_day",
+    BTN_FORECAST_WEEK: "forecast_week",
     # BTN_FLAT requires inline confirm — not direct enqueue
+}
+
+# text aliases (lowercase)
+TEXT_ALIASES = {
+    "баланс": "balance",
+    "прогноз на день": "forecast_day",
+    "прогноз на неделю": "forecast_week",
+    "сброс крана": "reset_kill",
+    "пауза торговли": "stop",
+    "продолжить входы": "resume",
+    "стоп всех сделок": "flat",
 }
 
 ACK = {
@@ -88,6 +117,131 @@ def _live_status_line() -> str:
     return "блоков не вижу"
 
 
+MENU_FLAG_PATH = Path("models/zeus_live_menu_pushed.json")
+HTTP_WARN_FLAG = Path("models/zeus_live_tg_http_warn.json")
+
+
+def _fmt_balance() -> str:
+    """Immediate balance from positions/equity files (no network)."""
+    try:
+        eq = None
+        pos_n = 0
+        for cand in (
+            Path("models/zeus_live_positions.json"),
+            Path("models/zeus_live_equity.json"),
+        ):
+            if not cand.exists():
+                continue
+            raw = json.loads(cand.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                if "equity" in raw:
+                    eq = raw.get("equity")
+                plans = raw.get("positions") or raw.get("plans") or raw
+                if isinstance(plans, dict):
+                    pos_n = len([k for k in plans if k not in ("equity", "ts", "updated")])
+                elif isinstance(plans, list):
+                    pos_n = len(plans)
+        # journal last equity hint
+        jp = Path("models/zeus_live_journal.jsonl")
+        if eq is None and jp.exists():
+            for line in reversed(jp.read_text(encoding="utf-8").splitlines()[-50:]):
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line)
+                except Exception:
+                    continue
+                if row.get("equity") is not None:
+                    eq = row["equity"]
+                    break
+        eq_s = f"{float(eq):.2f}$" if eq is not None else "н/д"
+        return f"💰 LIVE баланс: {eq_s}; открыто позиций: {pos_n}"
+    except Exception as exc:
+        return f"💰 Баланс временно недоступен ({type(exc).__name__})"
+
+
+def _fmt_forecast(horizon: str) -> str:
+    """P9: informational forecast from existing digest/status modules only."""
+    lines = [f"{'📅' if horizon == 'day' else '📆'} Прогноз на {'день' if horizon == 'day' else 'неделю'} (справка, не сигнал):"]
+    # readiness
+    try:
+        rp = Path("models/readiness.json")
+        if rp.exists():
+            raw = json.loads(rp.read_text(encoding="utf-8"))
+            lines.append(f"готовность: {raw.get('status') or raw.get('level') or 'см. readiness.json'}")
+    except Exception:
+        pass
+    # digest last
+    try:
+        dp = Path("models/zeus_live_digest.json")
+        if dp.exists():
+            raw = json.loads(dp.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                lines.append(f"последний свод: {raw.get('last') or raw.get('key') or list(raw.keys())[:3]}")
+    except Exception:
+        pass
+    # HTF / wedge shadow counts if present
+    try:
+        sp = Path("models/zeus_wedge_1h_signals.jsonl")
+        if sp.exists():
+            n = sum(1 for _ in sp.open(encoding="utf-8") if _.strip())
+            lines.append(f"1h-тень сигналов в журнале: {n}")
+    except Exception:
+        pass
+    # positions risk snapshot
+    try:
+        pp = Path("models/zeus_live_positions.json")
+        if pp.exists():
+            raw = json.loads(pp.read_text(encoding="utf-8"))
+            plans = raw.get("positions") or raw.get("plans") or raw
+            if isinstance(plans, dict):
+                syms = [k for k in plans if isinstance(plans.get(k), dict)]
+                if syms:
+                    lines.append("открыто: " + ", ".join(syms[:8]))
+    except Exception:
+        pass
+    if len(lines) == 1:
+        lines.append("данных мало — смотри утренний/вечерний LIVE-свод и paper-статус.")
+    return "\n".join(lines)
+
+
+def _handle_immediate(cmd: str, token: str, chat: Any) -> None:
+    if cmd == "balance":
+        send_reply(token, chat, _fmt_balance(), reply_markup=main_menu_markup())
+    elif cmd == "forecast_day":
+        send_reply(token, chat, _fmt_forecast("day"), reply_markup=main_menu_markup())
+    elif cmd == "forecast_week":
+        send_reply(token, chat, _fmt_forecast("week"), reply_markup=main_menu_markup())
+
+
+def maybe_push_menu(token: str, *, offset_path: Path = OFFSET_PATH) -> None:
+    """P4: push keyboard once until flag file written (retry on fail)."""
+    try:
+        if MENU_FLAG_PATH.exists():
+            return
+        off = load_offset(offset_path) if offset_path.exists() else 0
+        # push when no flag (first run / after wipe); offset may already be live-native
+        admin = (os.environ.get("TELEGRAM_ADMIN_ID") or "").strip()
+        chat = (os.environ.get("TELEGRAM_CHAT_ID") or admin).strip()
+        if not chat:
+            return
+        send_reply(
+            token,
+            chat,
+            "LIVE-пульт готов. Кнопки ниже.",
+            reply_markup=main_menu_markup(),
+        )
+        MENU_FLAG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        MENU_FLAG_PATH.write_text(
+            json.dumps({"ts": __import__("time").time(), "ok": True}),
+            encoding="utf-8",
+        )
+        logger.info("tg_live_commands menu pushed → %s", MENU_FLAG_PATH)
+    except Exception as exc:
+        logger.warning("menu push failed (retry next tick): %s", type(exc).__name__)
+
+
+
 def parse_command(text: str | None) -> str | None:
     """Return canonical cmd or None (slash or button text)."""
     if not text:
@@ -97,6 +251,9 @@ def parse_command(text: str | None) -> str | None:
         return BTN_TO_CMD[stripped]
     if stripped == BTN_FLAT:
         return None  # handled separately — confirm flow
+    low = stripped.lower()
+    if low in TEXT_ALIASES:
+        return TEXT_ALIASES[low]
     first = stripped.split()[0] if stripped else ""
     first = first.split("@", 1)[0].lower()
     return CMD_MAP.get(first)
@@ -159,14 +316,16 @@ def send_reply(
 
 
 def main_menu_markup() -> dict[str, Any]:
-    """ReplyKeyboardMarkup rows matching paper MAIN_MENU live panel rows."""
+    """P9 live console (owner 21.10): 7 buttons 2+2+2+1."""
     return {
         "keyboard": [
-            [{"text": BTN_RESET_KILL}, {"text": BTN_FLAT}],
+            [{"text": BTN_BALANCE}, {"text": BTN_FLAT}],
             [{"text": BTN_STOP_ENTRIES}, {"text": BTN_RESUME_ENTRIES}],
-            [{"text": "❓ Помощь"}],
+            [{"text": BTN_FORECAST_DAY}, {"text": BTN_FORECAST_WEEK}],
+            [{"text": BTN_RESET_KILL}],
         ],
         "resize_keyboard": True,
+        "input_field_placeholder": "LIVE-пульт",
     }
 
 
@@ -313,6 +472,11 @@ def process_update(
             send_reply(token, chat, "❌ Только для владельца")
         logger.info("tg cmd ignored: from_id=%s chat_id=%s not admin", from_id, chat)
         return None
+    # P9: balance / forecast — immediate reply, no enqueue
+    if cmd in IMMEDIATE_CMDS:
+        if token and chat is not None:
+            _handle_immediate(cmd, token, chat)
+        return cmd
     return _enqueue_and_ack(cmd, token=token, chat=chat, commands_path=commands_path)
 
 
@@ -345,10 +509,37 @@ def poll_once(
     }
     if offset:
         params["offset"] = offset
+    # P4: menu push with flag-file retry
+    maybe_push_menu(token, offset_path=offset_path)
     try:
         data = _api(token, "getUpdates", params)
     except urllib.error.HTTPError as exc:
-        logger.warning("getUpdates HTTP %s", exc.code)
+        code = int(getattr(exc, "code", 0) or 0)
+        logger.warning("getUpdates HTTP %s", code)
+        # V1: 401/403/404 → ⚠️ once/day + non-zero via main(); 409 = standby silence
+        if code in (401, 403, 404):
+            try:
+                import time as _t
+                warn = True
+                if HTTP_WARN_FLAG.exists():
+                    prev = json.loads(HTTP_WARN_FLAG.read_text(encoding="utf-8"))
+                    if _t.time() - float(prev.get("ts") or 0) < 86400:
+                        warn = False
+                if warn:
+                    admin = (os.environ.get("TELEGRAM_ADMIN_ID") or "").strip()
+                    chat = (os.environ.get("TELEGRAM_CHAT_ID") or admin).strip()
+                    if chat:
+                        send_reply(
+                            token,
+                            chat,
+                            f"⚠️ поллер live-пульта: getUpdates HTTP {code} — канал ослеп",
+                        )
+                    HTTP_WARN_FLAG.write_text(
+                        json.dumps({"ts": _t.time(), "code": code}), encoding="utf-8"
+                    )
+            except Exception:
+                pass
+            raise SystemExit(f"getUpdates HTTP {code}") from exc
         return 0
     except Exception as exc:
         logger.warning("getUpdates failed: %s", type(exc).__name__)

@@ -102,11 +102,7 @@ COMMAND_HANDLERS: dict[str, str] = {
     "resume": "_cmd_resume",
     "help": "_cmd_help",
     "start": "_cmd_help",
-    # LIVE emergency (hidden slash reserve, owner №23)
-    "reset_kill": "_cmd_live_reset_kill",
-    "flat": "_cmd_live_flat",
-    "stop_entries": "_cmd_live_stop_entries",
-    "resume_entries": "_cmd_live_resume_entries",
+    # P1: live slash removed from paper bot (owner 21.10)
 }
 
 # Русские «алиасы», которые вводит пользователь текстом (через слеш), —
@@ -156,16 +152,10 @@ COMMAND_ALIASES: dict[str, str] = {
 
 MAIN_MENU = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton("🎓 Обучение"), KeyboardButton("⏹ Стоп")],
-        [KeyboardButton("💰 Баланс"), KeyboardButton("⏰ Настройки")],
+        # P7: minimal paper menu (owner 21.10) — 6 buttons, no live rows
         [KeyboardButton("📊 Статус"), KeyboardButton("📈 Отчёт")],
-        [KeyboardButton("📍 Позиции"), KeyboardButton("🛡️ Риск")],
-        [KeyboardButton("🏥 Здоровье"), KeyboardButton("⏰ Расписание")],
-        [KeyboardButton("🎯 Готовность"), KeyboardButton("⚙️ Счёт")],
-        [KeyboardButton("❓ Помощь")],
-        # LIVE emergency panel (owner №23) — last two rows
-        [KeyboardButton("🛑 Сброс стоп-крана"), KeyboardButton("🧯 ЗАКРЫТЬ ВСЁ")],
-        [KeyboardButton("⏸ Стоп новых входов"), KeyboardButton("▶️ Продолжить входы")],
+        [KeyboardButton("📍 Позиции"), KeyboardButton("💰 Баланс")],
+        [KeyboardButton("🛡️ Риск"), KeyboardButton("❓ Помощь")],
     ],
     resize_keyboard=True,
     input_field_placeholder="Выберите действие или введите /команду",
@@ -284,7 +274,7 @@ class AstraTelegramBot:
         # Inline-кнопки
         app.add_handler(CallbackQueryHandler(self._cb_account, pattern=r"^account:"))
         app.add_handler(CallbackQueryHandler(self._cb_settings, pattern=r"^settings:"))
-        app.add_handler(CallbackQueryHandler(self._cb_live_cmd, pattern=r"^live_cmd:"))
+        # P1: live_cmd callbacks removed from paper bot (live panel is LIVE-bot only)
 
         # Текстовое меню + русские «команды» (/обучение и т.п.). Русский
         # слеш Telegram считает обычным текстом, поэтому ловим его тут.
@@ -1281,23 +1271,13 @@ class AstraTelegramBot:
                 return
 
         dispatch = {
-            "🎓 Обучение": self._cmd_train,
-            "⏹ Стоп": self._cmd_stop_training,
-            "💰 Баланс": self._cmd_balance,
-            "⏰ Настройки": self._cmd_settings,
+            # P7 paper menu only (live panel removed — P1 owner 21.10)
             "📊 Статус": self._cmd_status,
             "📈 Отчёт": self._cmd_report,
             "📍 Позиции": self._cmd_positions,
+            "💰 Баланс": self._cmd_balance,
             "🛡️ Риск": self._cmd_risk,
-            "🏥 Здоровье": self._cmd_health,
-            "⏰ Расписание": self._cmd_schedule,
-            "🎯 Готовность": self._cmd_ready,
-            "⚙️ Счёт": self._cmd_account,
             "❓ Помощь": self._cmd_help,
-            BTN_RESET_KILL: self._cmd_live_reset_kill,
-            BTN_FLAT: self._cmd_live_flat,
-            BTN_STOP_ENTRIES: self._cmd_live_stop_entries,
-            BTN_RESUME_ENTRIES: self._cmd_live_resume_entries,
         }
         handler = dispatch.get(text)
         if handler:
