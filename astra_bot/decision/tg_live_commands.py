@@ -18,13 +18,11 @@ from typing import Any
 
 from astra_bot.decision.live_commands import (
     enqueue,
-    get_last_tg_update_id,
-    set_last_tg_update_id,
 )
 
 logger = logging.getLogger(__name__)
 
-OFFSET_PATH = Path("models/zeus_tg_commands_offset.json")
+OFFSET_PATH = Path("models/zeus_live_tg_offset.json")  # P8: live-only; never share with paper
 
 # Button labels — shared with paper MAIN_MENU (owner №24: import, no copy)
 try:
@@ -327,7 +325,10 @@ def poll_once(
     send_menu_on_start: bool = False,
 ) -> int:
     """Long-poll getUpdates once window. Returns number of commands handled."""
-    offset = load_offset(offset_path)
+    # P8: own offset file only. Missing file → migrate with offset=0/floor=0
+    # (ignore legacy zeus_tg_commands_offset.json and poisoned last_uid ~774M).
+    own_file = offset_path.exists()
+    offset = load_offset(offset_path) if own_file else 0
     if send_menu_on_start and offset == 0:
         admin = (os.environ.get("TELEGRAM_ADMIN_ID") or "").strip()
         chat = (os.environ.get("TELEGRAM_CHAT_ID") or admin).strip()
@@ -355,16 +356,16 @@ def poll_once(
     if not data.get("ok"):
         return 0
     handled = 0
-    max_id = offset
+    # P8.8: max_id from 0 (or processed uids), never seed from foreign offset
+    max_id = 0
     admin_id = os.environ.get("TELEGRAM_ADMIN_ID")
-    cmds_path = commands_path  # dual-store last_tg_update_id with commands file
-    last_uid = 0
-    try:
-        last_uid = get_last_tg_update_id(cmds_path) if cmds_path else get_last_tg_update_id()
-    except Exception:
-        last_uid = 0
-    # floor: never reprocess uid <= durable last
-    floor = max(offset - 1, last_uid)
+    # P8: floor only from own offset file; on migration ignore commands last_uid
+    if own_file:
+        floor = max(0, offset - 1)
+    else:
+        floor = 0
+        logger.info("tg_live_commands P8 migrate: no %s → floor=0", offset_path)
+    skipped = 0
     for upd in data.get("result") or []:
         if not isinstance(upd, dict):
             continue
@@ -372,34 +373,29 @@ def poll_once(
         if uid >= max_id:
             max_id = uid + 1
         logger.info(
-            "tg_live_commands update_id=%s floor=%s offset_was=%s last_uid=%s",
+            "tg_live_commands update_id=%s floor=%s offset_was=%s own_file=%s",
             uid,
             floor,
             offset,
-            last_uid,
+            own_file,
         )
         if uid <= floor:
+            skipped += 1
             logger.info("tg_live_commands skip uid=%s <= floor=%s", uid, floor)
             continue
         if process_update(
             upd, commands_path=commands_path, token=token, admin_id=admin_id
         ):
             handled += 1
-        # advance durable watermark even if not a command (consume update)
-        try:
-            set_last_tg_update_id(uid, cmds_path) if cmds_path else set_last_tg_update_id(uid)
-            last_uid = uid
-            floor = max(floor, uid)
-        except Exception as exc:
-            logger.warning("set_last_tg_update_id: %s", type(exc).__name__)
+        # advance own offset watermark (live-native uid space only)
+        floor = max(floor, uid)
     if max_id > offset:
         save_offset(max_id, offset_path)
-    # always touch durable watermark to max seen
-    if max_id - 1 > last_uid:
-        try:
-            set_last_tg_update_id(max_id - 1, cmds_path) if cmds_path else set_last_tg_update_id(max_id - 1)
-        except Exception:
-            pass
+    elif not own_file and max_id > 0:
+        # migration: persist even if equal (first write)
+        save_offset(max_id, offset_path)
+    if skipped:
+        logger.warning("tg_live_commands skipped %s update(s) uid<=floor=%s", skipped, floor)
     return handled
 
 
