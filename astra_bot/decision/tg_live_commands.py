@@ -219,7 +219,6 @@ def maybe_push_menu(token: str, *, offset_path: Path = OFFSET_PATH) -> None:
     try:
         if MENU_FLAG_PATH.exists():
             return
-        off = load_offset(offset_path) if offset_path.exists() else 0
         # push when no flag (first run / after wipe); offset may already be live-native
         admin = (os.environ.get("TELEGRAM_ADMIN_ID") or "").strip()
         chat = (os.environ.get("TELEGRAM_CHAT_ID") or admin).strip()
