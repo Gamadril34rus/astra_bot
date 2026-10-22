@@ -88,6 +88,16 @@ def _parse_order(data: dict[str, Any], symbol: str = "") -> Order:
         order._raw_order_keys = [str(k) for k in list(d.keys())[:24]]
     except Exception:
         pass
+    # F7.3b: expose trigger fields for order_audit
+    try:
+        wt = d.get("workingType") or d.get("working_type")
+        if wt is not None:
+            object.__setattr__(order, "working_type", str(wt))
+        st_raw = d.get("status")
+        if st_raw is not None:
+            object.__setattr__(order, "status_raw", str(st_raw))
+    except Exception:
+        pass
     return order
 
 
