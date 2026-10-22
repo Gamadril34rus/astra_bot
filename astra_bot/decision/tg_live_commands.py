@@ -150,9 +150,19 @@ def _fmt_balance() -> str:
                         break
                 if data_ts is None:
                     data_ts = cand.stat().st_mtime
-                plans = raw.get("positions") or raw.get("plans") or raw
+                # F7.1: count only from real position maps; equity-only file must not zero pos_n
+                plans = raw.get("positions") if isinstance(raw.get("positions"), (dict, list)) else None
+                if plans is None and "equity" not in raw:
+                    plans = raw.get("plans") or raw
                 if isinstance(plans, dict):
-                    pos_n = len([k for k in plans if k not in ("equity", "ts", "updated")])
+                    n = len([
+                        k for k, v in plans.items()
+                        if k not in ("equity", "ts", "updated")
+                        and isinstance(v, dict)
+                        and (v.get("qty") is not None or v.get("quantity") is not None or v.get("symbol"))
+                    ])
+                    if n > 0 or plans is raw.get("positions"):
+                        pos_n = n
                 elif isinstance(plans, list):
                     pos_n = len(plans)
         jp = Path("models/zeus_live_journal.jsonl")
