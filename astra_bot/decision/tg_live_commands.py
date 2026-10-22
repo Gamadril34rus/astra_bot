@@ -122,10 +122,14 @@ HTTP_WARN_FLAG = Path("models/zeus_live_tg_http_warn.json")
 
 
 def _fmt_balance() -> str:
-    """Immediate balance from positions/equity files (no network)."""
+    """Immediate balance from positions/equity files (no network). F2.4: freshness stamp."""
     try:
+        import time as _time
+        from datetime import datetime, timezone, timedelta
+
         eq = None
         pos_n = 0
+        data_ts: float | None = None
         for cand in (
             Path("models/zeus_live_positions.json"),
             Path("models/zeus_live_equity.json"),
@@ -136,12 +140,22 @@ def _fmt_balance() -> str:
             if isinstance(raw, dict):
                 if "equity" in raw:
                     eq = raw.get("equity")
+                for key in ("ts", "updated", "updated_at", "time"):
+                    if raw.get(key) is not None:
+                        try:
+                            data_ts = float(raw[key])
+                            if data_ts > 1e12:
+                                data_ts /= 1000.0
+                        except (TypeError, ValueError):
+                            pass
+                        break
+                if data_ts is None:
+                    data_ts = cand.stat().st_mtime
                 plans = raw.get("positions") or raw.get("plans") or raw
                 if isinstance(plans, dict):
                     pos_n = len([k for k in plans if k not in ("equity", "ts", "updated")])
                 elif isinstance(plans, list):
                     pos_n = len(plans)
-        # journal last equity hint
         jp = Path("models/zeus_live_journal.jsonl")
         if eq is None and jp.exists():
             for line in reversed(jp.read_text(encoding="utf-8").splitlines()[-50:]):
@@ -153,9 +167,30 @@ def _fmt_balance() -> str:
                     continue
                 if row.get("equity") is not None:
                     eq = row["equity"]
+                    if data_ts is None:
+                        try:
+                            data_ts = float(row.get("ts") or jp.stat().st_mtime)
+                            if data_ts > 1e12:
+                                data_ts /= 1000.0
+                        except (TypeError, ValueError):
+                            data_ts = jp.stat().st_mtime
                     break
         eq_s = f"{float(eq):.2f}$" if eq is not None else "н/д"
-        return f"💰 LIVE баланс: {eq_s}; открыто позиций: {pos_n}"
+        msk = timezone(timedelta(hours=3))
+        if data_ts is None:
+            hhmm = datetime.now(msk).strftime("%H:%M")
+            age_note = " (нет метки времени)"
+        else:
+            hhmm = datetime.fromtimestamp(data_ts, tz=msk).strftime("%H:%M")
+            age = _time.time() - data_ts
+            if age > 15 * 60:
+                age_note = " ⚠️ данные устарели"
+            elif age > 5 * 60:
+                age_note = " (несвежие)"
+            else:
+                age_note = ""
+        prefix = "⚠️ данные устарели. " if age_note.startswith(" ⚠️") else ""
+        return f"{prefix}💰 LIVE баланс: {eq_s}; открыто позиций: {pos_n}; данные на {hhmm} МСК{age_note.replace(' ⚠️ данные устарели', '')}"
     except Exception as exc:
         return f"💰 Баланс временно недоступен ({type(exc).__name__})"
 
@@ -224,12 +259,15 @@ def maybe_push_menu(token: str, *, offset_path: Path = OFFSET_PATH) -> None:
         chat = (os.environ.get("TELEGRAM_CHAT_ID") or admin).strip()
         if not chat:
             return
-        send_reply(
+        ok = send_reply(
             token,
             chat,
             "LIVE-пульт готов. Кнопки ниже.",
             reply_markup=main_menu_markup(),
         )
+        if not ok:
+            logger.warning("menu push failed (retry next tick): send_reply False")
+            return
         MENU_FLAG_PATH.parent.mkdir(parents=True, exist_ok=True)
         MENU_FLAG_PATH.write_text(
             json.dumps({"ts": __import__("time").time(), "ok": True}),
@@ -304,14 +342,17 @@ def send_reply(
     text: str,
     *,
     reply_markup: dict[str, Any] | None = None,
-) -> None:
+) -> bool:
+    """Send TG message. Returns True on success, False on failure (never raises)."""
     payload: dict[str, Any] = {"chat_id": str(chat_id), "text": text}
     if reply_markup is not None:
         payload["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
     try:
         _api(token, "sendMessage", post_json=payload)
+        return True
     except Exception as exc:
         logger.warning("send_reply failed: %s", type(exc).__name__)
+        return False
 
 
 def main_menu_markup() -> dict[str, Any]:
@@ -448,8 +489,9 @@ def process_update(
             )
         return None
 
-    # Flat button → confirm only
-    if text_s and text_s.strip() == BTN_FLAT:
+    cmd = parse_command(text_s)
+    # F2.2: ANY path to flat (button/alias/slash) → inline confirm first, never enqueue here
+    if (text_s and text_s.strip() == BTN_FLAT) or cmd == "flat":
         if not _is_admin(from_id, chat, admin_id):
             if token and chat is not None:
                 send_reply(token, chat, "❌ Только для владельца")
@@ -463,7 +505,6 @@ def process_update(
             )
         return None
 
-    cmd = parse_command(text_s)
     if not cmd:
         return None
     if not _is_admin(from_id, chat, admin_id):
@@ -527,15 +568,18 @@ def poll_once(
                 if warn:
                     admin = (os.environ.get("TELEGRAM_ADMIN_ID") or "").strip()
                     chat = (os.environ.get("TELEGRAM_CHAT_ID") or admin).strip()
+                    sent_ok = False
                     if chat:
-                        send_reply(
+                        sent_ok = send_reply(
                             token,
                             chat,
                             f"⚠️ поллер live-пульта: getUpdates HTTP {code} — канал ослеп",
                         )
-                    HTTP_WARN_FLAG.write_text(
-                        json.dumps({"ts": _t.time(), "code": code}), encoding="utf-8"
-                    )
+                    # F2.3: flag only after successful warn — else retry next tick
+                    if sent_ok or not chat:
+                        HTTP_WARN_FLAG.write_text(
+                            json.dumps({"ts": _t.time(), "code": code}), encoding="utf-8"
+                        )
             except Exception:
                 pass
             raise SystemExit(1) from exc  # F1.1: non-zero exit (string SystemExit is also 1; keep explicit)

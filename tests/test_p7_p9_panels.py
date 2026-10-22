@@ -67,7 +67,7 @@ def test_menu_flag_push_once(tmp_path, monkeypatch):
     monkeypatch.setattr(tlc, "MENU_FLAG_PATH", flag)
     off = tmp_path / "off.json"
     sent = []
-    monkeypatch.setattr(tlc, "send_reply", lambda *a, **k: sent.append(1))
+    monkeypatch.setattr(tlc, "send_reply", lambda *a, **k: sent.append(1) or True)
     monkeypatch.setenv("TELEGRAM_ADMIN_ID", "1")
     tlc.maybe_push_menu("tok", offset_path=off)
     assert flag.exists()

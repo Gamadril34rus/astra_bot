@@ -49,7 +49,7 @@ def test_v1_http_401_warns_and_exits_nonzero(tmp_path, monkeypatch):
     off = tmp_path / "off.json"
     off.write_text(json.dumps({"offset": 0}), encoding="utf-8")
     sent = []
-    monkeypatch.setattr(tlc, "send_reply", lambda *a, **k: sent.append(a[2] if len(a) > 2 else ""))
+    monkeypatch.setattr(tlc, "send_reply", lambda *a, **k: sent.append(a[2] if len(a) > 2 else "") or True)
     monkeypatch.setenv("TELEGRAM_ADMIN_ID", "1")
 
     def boom(*a, **k):
@@ -91,7 +91,7 @@ def test_v1_dedup_second_401_no_duplicate_warn(tmp_path, monkeypatch):
     off = tmp_path / "off.json"
     off.write_text(json.dumps({"offset": 0}), encoding="utf-8")
     sent = []
-    monkeypatch.setattr(tlc, "send_reply", lambda *a, **k: sent.append(a[2] if len(a) > 2 else ""))
+    monkeypatch.setattr(tlc, "send_reply", lambda *a, **k: sent.append(a[2] if len(a) > 2 else "") or True)
     monkeypatch.setenv("TELEGRAM_ADMIN_ID", "1")
 
     def boom(*a, **k):
