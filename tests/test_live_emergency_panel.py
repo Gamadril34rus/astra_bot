@@ -74,6 +74,7 @@ def test_apply_pending_error_tg(tmp_path, monkeypatch):
 
 
 def test_button_labels_in_menu():
+    # F1.4: constants + LIVE_FLAT_CONFIRM remain; _cmd_live_* handlers removed
     src = Path("astra_bot/telegram/bot.py").read_text(encoding="utf-8")
     for label in (
         "🛑 Сброс стоп-крана",
@@ -83,7 +84,8 @@ def test_button_labels_in_menu():
     ):
         assert label in src
     assert "live_cmd:flat_yes" in src
-    assert "_cmd_live_reset_kill" in src
+    assert "LIVE_FLAT_CONFIRM" in src
+    assert "_cmd_live_reset_kill" not in src
 
 
 def test_enqueue_all_valid_cmds(tmp_path):
@@ -106,16 +108,13 @@ def test_flat_not_enqueued_until_confirm(tmp_path):
     assert load_commands(path)[0]["cmd"] == "flat"
 
 
-def test_bot_yml_saves_commands():
+def test_bot_yml_does_not_save_live_commands():
+    """P8/P2: paper bot.yml must NOT touch live command state (owner 21.10)."""
     yml = Path(".github/workflows/bot.yml")
-    # when run from repo root in CI; locally check artifact
-    candidates = [
-        Path("/home/workdir/artifacts/.github_workflows_bot.yml"),
-        yml,
-    ]
-    body = ""
-    for p in candidates:
-        if p.exists():
-            body = p.read_text(encoding="utf-8")
-            break
-    assert "zeus_live_commands.json" in body
+    body = yml.read_text(encoding="utf-8") if yml.exists() else ""
+    assert "zeus_live_commands.json" not in body
+    # live-clock Save still persists the queue
+    live = Path(".github/workflows/zeus-live-clock.yml")
+    live_body = live.read_text(encoding="utf-8") if live.exists() else ""
+    assert "zeus_live_commands.json" in live_body
+    assert "zeus_live_tg_offset.json" in live_body

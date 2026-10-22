@@ -34,7 +34,7 @@ def test_main_menu_is_in_russian():
     labels = [btn.text for row in MAIN_MENU.keyboard for btn in row]
     assert "📊 Статус" in labels
     assert "📈 Отчёт" in labels
-    assert "⚙️ Счёт" in labels
+    assert "💰 Баланс" in labels
     assert "❓ Помощь" in labels
 
 
@@ -67,9 +67,11 @@ def test_russian_command_menu_has_required_commands():
 
 
 def test_main_menu_contains_new_buttons():
+    # P7: minimal paper menu (owner 21.10)
     labels = [btn.text for row in MAIN_MENU.keyboard for btn in row]
-    for label in ("🎓 Обучение", "⏹ Стоп", "💰 Баланс", "⏰ Настройки"):
+    for label in ("📊 Статус", "📈 Отчёт", "📍 Позиции", "💰 Баланс", "🛡️ Риск", "❓ Помощь"):
         assert label in labels
+    assert len(labels) == 6
 
 
 def test_settings_text_renders(monkeypatch, tmp_path):

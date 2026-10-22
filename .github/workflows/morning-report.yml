@@ -2,10 +2,6 @@ name: ASTRA Morning Report
 
 on:
   workflow_dispatch:
-  schedule:
-    # 06:00 UTC = 09:00 Europe/Moscow
-    - cron: "0 6 * * *"
-
 concurrency:
   group: astra-morning-report
   cancel-in-progress: true

@@ -7,8 +7,6 @@ name: Strategy lab (walk-forward)
 # Реальные деньги не используются: только исторические свечи и бэктест.
 
 on:
-  schedule:
-    - cron: "0 8 * * 1" # каждый понедельник 08:00 UTC
   workflow_dispatch:
 
 jobs:

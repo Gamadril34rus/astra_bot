@@ -53,9 +53,9 @@ def test_poll_once_stuck_update_no_dup(tmp_path, monkeypatch):
     n1 = tlc.poll_once("tok", offset_path=off, commands_path=cmds, timeout_sec=1)
     n2 = tlc.poll_once("tok", offset_path=off, commands_path=cmds, timeout_sec=1)
     assert n1 == 1
-    assert n2 == 0  # skipped by floor
+    assert n2 == 0  # skipped by floor (own offset file)
     assert len(load_commands(cmds)) == 1
-    assert get_last_tg_update_id(cmds) >= 105
+    # P8: durable watermark is own offset file, not last_tg_update_id in cmds
     assert json.loads(off.read_text())["offset"] >= 106
     # only one ack
     assert sum(1 for a in acks if isinstance(a, str) and "стоп-кран" in a) <= 1
