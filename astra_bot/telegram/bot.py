@@ -274,7 +274,6 @@ class AstraTelegramBot:
         # Inline-кнопки
         app.add_handler(CallbackQueryHandler(self._cb_account, pattern=r"^account:"))
         app.add_handler(CallbackQueryHandler(self._cb_settings, pattern=r"^settings:"))
-        # P1: live_cmd callbacks removed from paper bot (live panel is LIVE-bot only)
 
         # Текстовое меню + русские «команды» (/обучение и т.п.). Русский
         # слеш Telegram считает обычным текстом, поэтому ловим его тут.
@@ -1111,118 +1110,7 @@ class AstraTelegramBot:
 
 
     # ----------------------------------------------------------- LIVE emergency panel (owner №23)
-    def _live_status_line(self) -> str:
-        """One-line local state for ack (kill / block). Fail-open."""
-        import json as _json
-        from pathlib import Path as _P
-        bits: list[str] = []
-        try:
-            kp = _P("models/kill_switch_state.json")
-            if kp.exists():
-                raw = _json.loads(kp.read_text(encoding="utf-8"))
-                reason = raw.get("reason") or raw.get("halt_reason") or "kill"
-                bits.append(f"стоп-кран: {reason}")
-        except Exception:
-            pass
-        try:
-            bp = _P("models/zeus_live_blocked.json")
-            if bp.exists():
-                raw = _json.loads(bp.read_text(encoding="utf-8"))
-                if raw.get("blocked"):
-                    bits.append(f"входы стоп: {raw.get('reason') or 'stop'}")
-        except Exception:
-            pass
-        if bits:
-            return "сейчас стоит: " + "; ".join(bits)
-        return "блоков не вижу"
 
-    async def _cmd_live_reset_kill(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if await self._deny(update, admin_only=True):
-            return
-        from astra_bot.decision.live_commands import enqueue
-        try:
-            enqueue("reset_kill", source="tg")
-        except Exception as exc:
-            await self._reply(update, f"⚠️ Не записала команду: {type(exc).__name__}")
-            return
-        st = self._live_status_line()
-        await self._reply(
-            update,
-            f"✅ Принято: стоп-кран сброшу в ≤5 мин. Торговля продолжится.\n({st})",
-        )
-
-    async def _cmd_live_flat(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if await self._deny(update, admin_only=True):
-            return
-        # Require inline confirm — do NOT enqueue yet
-        if update.message:
-            await update.message.reply_text(
-                "Закрыть ВСЕ позиции по рынку прямо сейчас?",
-                reply_markup=LIVE_FLAT_CONFIRM,
-            )
-        else:
-            await self._reply(update, "Закрыть ВСЕ позиции по рынку прямо сейчас?")
-
-    async def _cmd_live_stop_entries(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if await self._deny(update, admin_only=True):
-            return
-        from astra_bot.decision.live_commands import enqueue
-        try:
-            enqueue("stop", source="tg")
-        except Exception as exc:
-            await self._reply(update, f"⚠️ Не записала команду: {type(exc).__name__}")
-            return
-        st = self._live_status_line()
-        await self._reply(
-            update,
-            "✅ Принято: новые входы остановлю в ≤5 мин. Открытые позиции "
-            f"и стопы продолжают работать.\n({st})",
-        )
-
-    async def _cmd_live_resume_entries(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if await self._deny(update, admin_only=True):
-            return
-        from astra_bot.decision.live_commands import enqueue
-        try:
-            enqueue("resume", source="tg")
-        except Exception as exc:
-            await self._reply(update, f"⚠️ Не записала команду: {type(exc).__name__}")
-            return
-        st = self._live_status_line()
-        await self._reply(
-            update,
-            f"✅ Принято: входы продолжатся в ≤5 мин.\n({st})",
-        )
-
-    async def _cb_live_cmd(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        query = update.callback_query
-        if not query:
-            return
-        await query.answer()
-        user_id = query.from_user.id if query.from_user else 0
-        if not self._is_admin(user_id):
-            await query.edit_message_text("❌ Только для владельца")
-            return
-        data = (query.data or "").split(":", 1)
-        action = data[1] if len(data) > 1 else ""
-        if action == "flat_no":
-            await query.edit_message_text("Отмена — позиции не трогаю.")
-            return
-        if action == "flat_yes":
-            from astra_bot.decision.live_commands import enqueue
-            try:
-                enqueue("flat", source="tg")
-            except Exception as exc:
-                await query.edit_message_text(f"⚠️ Не записала flat: {type(exc).__name__}")
-                return
-            st = self._live_status_line()
-            await query.edit_message_text(
-                f"✅ Принято: закрою всё в ≤5 мин.\n({st})"
-            )
-            return
-        await query.edit_message_text("Неизвестное действие.")
-
-    # ----------------------------------------------------------- /помощь
     async def _cmd_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if await self._deny(update):
             return

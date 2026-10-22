@@ -538,7 +538,7 @@ def poll_once(
                     )
             except Exception:
                 pass
-            raise SystemExit(f"getUpdates HTTP {code}") from exc
+            raise SystemExit(1) from exc  # F1.1: non-zero exit (string SystemExit is also 1; keep explicit)
         return 0
     except Exception as exc:
         logger.warning("getUpdates failed: %s", type(exc).__name__)

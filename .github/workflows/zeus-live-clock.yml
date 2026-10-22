@@ -96,7 +96,12 @@ jobs:
             done
             if [ "$ok" != "1" ]; then
               echo "save lost race after 5 pushes — failing run (V2 owner 21.10)" >&2
-              # V2: non-zero exit so loss is visible (was silent exit 0)
+              # V2: TG warn once + exit 1 (owner word 22.10)
+              TOKEN="${TELEGRAM_LIVE_BOT_TOKEN:-}"
+              CHAT="${TELEGRAM_CHAT_ID:-${TELEGRAM_ADMIN_ID:-}}"
+              if [ -n "$TOKEN" ] && [ -n "$CHAT" ]; then
+                curl -sS -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage"                   -d "chat_id=${CHAT}"                   --data-urlencode "text=⚠️ live-clock: сохранение состояния в git не удалось 5 раз — журнал под угрозой"                   >/dev/null 2>&1 || true
+              fi
               exit 1
             fi
           fi
