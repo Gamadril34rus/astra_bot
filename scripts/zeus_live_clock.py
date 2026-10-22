@@ -24,6 +24,19 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger("zeus_live")
 
 
+
+def write_live_equity(equity: float | None, path: Path | None = None) -> None:
+    """F6.3: refresh models/zeus_live_equity.json every tick (ts=now) for TG balance."""
+    p = path or Path("models/zeus_live_equity.json")
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        import time as _time
+        payload = {"equity": float(equity) if equity is not None else None, "ts": _time.time()}
+        p.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    except Exception as exc:
+        logger.warning("write_live_equity failed: %s", type(exc).__name__)
+
+
 def _abort_tg(reason: str) -> None:
     """Best-effort alert on guard ABORT (sync; no broker)."""
     token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
@@ -524,6 +537,7 @@ async def _maybe_send_digest(
 
         try:
             eq = await client.get_balance_usdt()
+            write_live_equity(float(eq) if eq is not None else None)
         except Exception:
             eq = Decimal("0")
         eq_f = float(eq)
@@ -678,6 +692,10 @@ async def one_tick(*, dry: bool = False) -> int:
         await _diag(client, logger)
 
     rec = await broker.reconcile()
+    try:
+        write_live_equity(float(rec["equity"]) if rec.get("equity") is not None else None)
+    except Exception:
+        pass
     logger.info(
         "reconcile equity=%s positions=%s orders=%s missing_stops=%s",
         rec.get("equity"),
@@ -834,6 +852,7 @@ async def one_tick(*, dry: bool = False) -> int:
             logger.error("HALT from kill state: %s", prior)
         else:
             eq = await broker.client.get_balance_usdt()  # owner 16.10: day/week % от РЕАЛЬНОГО счёта
+            write_live_equity(float(eq) if eq is not None else None)
             reason = check_day_week_limits(eq)
             if reason:
                 broker.set_halt(reason)
