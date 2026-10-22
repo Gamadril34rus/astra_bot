@@ -919,7 +919,7 @@ class LiveBroker:
                         step = await self._qty_step_for_symbol(sym)
                         if has_tp1:
                             q_tp = self._quantize_to_step(q_full * Decimal("0.4"), step)
-                            ro, cp = True, False  # owner 20.10: TP partial reduceOnly
+                            ro, cp = False, False  # F4: hedge forbids ReduceOnly (109400)
                         else:
                             q_tp = self._quantize_to_step(q_full, step)
                             ro, cp = False, True
@@ -975,7 +975,7 @@ class LiveBroker:
                         step = await self._qty_step_for_symbol(sym)
                         if has_tp1 and not plan.get("be_moved"):
                             q_tp = self._quantize_to_step(q * Decimal("0.4"), step)
-                            ro, cp = True, False  # owner 20.10: TP partial reduceOnly
+                            ro, cp = False, False  # F4: hedge forbids ReduceOnly (109400)
                         elif has_tp1 and plan.get("be_moved"):
                             # After TP1 filled, no second TP restore for partial
                             q_tp = None
@@ -1486,7 +1486,7 @@ class LiveBroker:
                 if tp_qty <= 0:
                     tp_qty = self._quantize_to_step(fact_qty, step)
                 try:
-                    # Owner 20.10 §3: TP partial with reduceOnly=true (no margin reserve as open)
+                    # F4/owner 22.10: hedge forbids ReduceOnly field (BingX 109400)
                     tp = await self.client.place_order(
                         symbol=plan.symbol,
                         side=stop_side,
@@ -1494,7 +1494,7 @@ class LiveBroker:
                         quantity=tp_qty,
                         stop_price=plan.take_profit_price,
                         position_side=ps,
-                        reduce_only=True,
+                        reduce_only=False,
                         close_position=False,
                         client_order_id=tp_cid,
                     )
@@ -1504,7 +1504,7 @@ class LiveBroker:
                         kind="tp",
                         stop_price=str(plan.take_profit_price),
                         qty=str(tp_qty),
-                        reduce_only=True,
+                        reduce_only=False,
                         order_id=str(getattr(tp, "id", None) or ""),
                     )
                 except Exception as exc:
@@ -1515,7 +1515,7 @@ class LiveBroker:
                         stop_price=str(plan.take_profit_price),
                         qty=str(tp_qty),
                         error=f"{type(exc).__name__}: {exc}",
-                        reduce_only=True,
+                        reduce_only=False,
                     )
                     if _is_tp_price_past_error(exc):
                         # Level already through — market-close 40% leg, then stop→entry

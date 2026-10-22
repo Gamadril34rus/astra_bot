@@ -79,33 +79,76 @@ jobs:
           TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
         if: always()
         run: |
+          set +e
           git config user.name "astra-bot" || true
           git config user.email "bot@users.noreply.github.com" || true
-          for F in models/zeus_live_commands.json models/zeus_live_tg_offset.json models/zeus_live_menu_pushed.json models/zeus_live_tg_http_warn.json models/zeus_kill_epoch.json models/zeus_protect_bare_ticks.json models/zeus_live_entries.jsonl models/zeus_live_positions.json models/zeus_live_trades.jsonl models/zeus_heat_state.json models/zeus_live_tg_flags.json models/zeus_live_journal.jsonl models/zeus_arm_pending.jsonl models/zeus_arm_margin_fails.json models/zeus_live_cooldown.json models/kill_switch_state.json models/zeus_live_blocked.json models/zeus_vol_cooldowns.json models/zeus_vol_cooldown_events.jsonl models/zeus_live_digest.json models/zeus_live_stop_log.jsonl models/zeus_live_tg_pending.json models/zeus_funding_tg_state.json models/zeus_funding_day.json; do
-            if [ -f "$F" ]; then
-              git add -f "$F" || true
-            elif git ls-files --error-unmatch "$F" >/dev/null 2>&1; then
-              # tracked but gone on disk → commit deletion (kill-file ghost fix, owner №24)
-              git rm --cached -q "$F" || true
-            fi
-          done
-          if ! git diff --cached --quiet; then
-            git commit -m "live: commands/entries/positions state (auto)"
-            ok=0
-            for i in 1 2 3 4 5; do
-              git fetch origin "${{ github.ref_name }}"
-              git rebase "origin/${{ github.ref_name }}" || git rebase --abort || true
-              if git push origin "HEAD:${{ github.ref_name }}"; then ok=1; break; fi
-              sleep 5
-            done
-            if [ "$ok" != "1" ]; then
-              echo "save lost race after 5 pushes — failing run (V2 owner 21.10)" >&2
-              # V2: TG warn once + exit 1 (owner word 22.10)
-              TOKEN="${TELEGRAM_LIVE_BOT_TOKEN:-}"
-              CHAT="${TELEGRAM_CHAT_ID:-${TELEGRAM_ADMIN_ID:-}}"
-              if [ -n "$TOKEN" ] && [ -n "$CHAT" ]; then
-                curl -sS -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage"                   -d "chat_id=${CHAT}"                   --data-urlencode "text=⚠️ live-clock: сохранение состояния в git не удалось 5 раз — журнал под угрозой"                   >/dev/null 2>&1 || true
+          SAVE_LIST="models/zeus_live_commands.json models/zeus_live_tg_offset.json models/zeus_live_menu_pushed.json models/zeus_live_tg_http_warn.json models/zeus_live_v2_warn.json models/zeus_kill_epoch.json models/zeus_protect_bare_ticks.json models/zeus_live_entries.jsonl models/zeus_live_positions.json models/zeus_live_trades.jsonl models/zeus_heat_state.json models/zeus_live_tg_flags.json models/zeus_live_journal.jsonl models/zeus_arm_pending.jsonl models/zeus_arm_margin_fails.json models/zeus_live_cooldown.json models/kill_switch_state.json models/zeus_live_blocked.json models/zeus_vol_cooldowns.json models/zeus_vol_cooldown_events.jsonl models/zeus_live_digest.json models/zeus_live_stop_log.jsonl models/zeus_live_tg_pending.json models/zeus_funding_tg_state.json models/zeus_funding_day.json"
+          stage_save() {
+            for F in $SAVE_LIST; do
+              if [ -f "$F" ]; then
+                git add -f "$F" || true
+              elif git ls-files --error-unmatch "$F" >/dev/null 2>&1; then
+                git rm --cached -q "$F" || true
               fi
-              exit 1
+            done
+          }
+          # Capture tick state from disk FIRST (never reset --hard before this)
+          stage_save
+          if ! git diff --cached --quiet 2>/dev/null; then
+            git commit -m "live: commands/entries/positions state (auto)" || true
+          fi
+          ok=0
+          last_err=""
+          for i in 1 2 3 4 5; do
+            echo "save attempt $i/5"
+            # Drop unstaged noise so rebase can run (root 22.10: cannot rebase unstaged)
+            git reset --hard HEAD >/dev/null 2>&1 || true
+            if ! git fetch origin "${{ github.ref_name }}" 2>/tmp/fetch_err.txt; then
+              last_err="fetch: $(tr '\n' ' ' </tmp/fetch_err.txt | head -c 200)"
+              echo "$last_err"
+              sleep 5
+              continue
             fi
+            if ! git rebase "origin/${{ github.ref_name }}" 2>/tmp/rebase_err.txt; then
+              cat /tmp/rebase_err.txt || true
+              for F in $SAVE_LIST; do
+                git checkout --ours -- "$F" 2>/dev/null || true
+                git add -f "$F" 2>/dev/null || true
+              done
+              if ! git -c core.editor=true rebase --continue 2>/tmp/rebase_cont.txt; then
+                cat /tmp/rebase_cont.txt || true
+                git rebase --abort 2>/dev/null || true
+                last_err="rebase: $(tr '\n' ' ' </tmp/rebase_err.txt | head -c 200)"
+                echo "$last_err"
+                sleep 5
+                continue
+              fi
+            fi
+            if git push origin "HEAD:${{ github.ref_name }}" 2>/tmp/push_err.txt; then
+              ok=1
+              rm -f models/zeus_live_v2_warn.json
+              break
+            fi
+            last_err="push: $(tr '\n' ' ' </tmp/push_err.txt | head -c 200)"
+            echo "push failed attempt $i: $last_err"
+            sleep 5
+          done
+          if [ "$ok" != "1" ]; then
+            echo "save lost race after 5 pushes — failing run (V2) last=$last_err" >&2
+            WARN_FILE=models/zeus_live_v2_warn.json
+            send_warn=1
+            if [ -f "$WARN_FILE" ]; then
+              prev=$(python3 -c "import json,time; d=json.load(open('$WARN_FILE')); print(int(time.time()-float(d.get('ts') or 0)))" 2>/dev/null || echo 99999)
+              if [ "$prev" -lt 3600 ]; then send_warn=0; fi
+            fi
+            TOKEN="${TELEGRAM_LIVE_BOT_TOKEN:-}"
+            CHAT="${TELEGRAM_CHAT_ID:-${TELEGRAM_ADMIN_ID:-}}"
+            if [ "$send_warn" = "1" ] && [ -n "$TOKEN" ] && [ -n "$CHAT" ]; then
+              curl -sS -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+                -d "chat_id=${CHAT}" \
+                --data-urlencode "text=⚠️ live-clock: сохранение состояния в git не удалось 5 раз — журнал под угрозой" \
+                >/dev/null 2>&1 || true
+              python3 -c "import json,time; open('$WARN_FILE','w').write(json.dumps({'ts': time.time()}))" 2>/dev/null || true
+            fi
+            exit 1
           fi
