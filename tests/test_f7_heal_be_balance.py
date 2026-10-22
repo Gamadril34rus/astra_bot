@@ -83,7 +83,7 @@ def test_sync_partial_uses_current_price(tmp_path, monkeypatch):
     async def _run():
         return await sync_partial_breakeven(Broker(), positions_path=pos_path)
 
-    out = asyncio.get_event_loop().run_until_complete(_run())
+    out = asyncio.run(_run())
     # may move or fail move_stop - but must NOT skip for no mark
     assert "DOGE-USDT" not in out.get("skipped", []) or out.get("moved")
 
@@ -150,4 +150,4 @@ def test_heal_dead_tp_replace_first_after_2_ticks(tmp_path, monkeypatch):
         assert placed[0].get("reduce_only") is False
         assert placed[0].get("working_type") == "MARK_PRICE"
         assert cancelled == ["old1"]
-    asyncio.get_event_loop().run_until_complete(_run())
+    asyncio.run(_run())
