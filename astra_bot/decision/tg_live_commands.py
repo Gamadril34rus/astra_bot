@@ -342,13 +342,13 @@ def send_reply(
     *,
     reply_markup: dict[str, Any] | None = None,
 ) -> bool:
-    """Send TG message. Returns True on success, False on failure (never raises)."""
+    """Returns True only on confirmed API success (ok true). Never raises."""
     payload: dict[str, Any] = {"chat_id": str(chat_id), "text": text}
     if reply_markup is not None:
         payload["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
     try:
-        _api(token, "sendMessage", post_json=payload)
-        return True
+        resp = _api(token, "sendMessage", post_json=payload)
+        return bool(resp and resp.get("ok"))
     except Exception as exc:
         logger.warning("send_reply failed: %s", type(exc).__name__)
         return False
@@ -574,8 +574,8 @@ def poll_once(
                             chat,
                             f"⚠️ поллер live-пульта: getUpdates HTTP {code} — канал ослеп",
                         )
-                    # F2.3: flag only after successful warn — else retry next tick
-                    if sent_ok or not chat:
+                    # F3.2: flag only after confirmed warn delivery — no chat => retry each tick
+                    if sent_ok:
                         HTTP_WARN_FLAG.write_text(
                             json.dumps({"ts": _t.time(), "code": code}), encoding="utf-8"
                         )
