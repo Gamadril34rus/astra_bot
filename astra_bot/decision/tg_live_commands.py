@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import time as _time
+from datetime import datetime, timedelta, timezone
 import logging
 import os
 import urllib.error
@@ -124,9 +126,6 @@ HTTP_WARN_FLAG = Path("models/zeus_live_tg_http_warn.json")
 def _fmt_balance() -> str:
     """Immediate balance from positions/equity files (no network). F2.4: freshness stamp."""
     try:
-        import time as _time
-        from datetime import datetime, timezone, timedelta
-
         eq = None
         pos_n = 0
         data_ts: float | None = None
