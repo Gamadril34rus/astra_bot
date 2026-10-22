@@ -82,7 +82,7 @@ jobs:
           set +e
           git config user.name "astra-bot" || true
           git config user.email "bot@users.noreply.github.com" || true
-          SAVE_LIST="models/zeus_live_commands.json models/zeus_live_tg_offset.json models/zeus_live_menu_pushed.json models/zeus_live_tg_http_warn.json models/zeus_live_v2_warn.json models/zeus_kill_epoch.json models/zeus_protect_bare_ticks.json models/zeus_live_entries.jsonl models/zeus_live_positions.json models/zeus_live_trades.jsonl models/zeus_heat_state.json models/zeus_live_tg_flags.json models/zeus_live_journal.jsonl models/zeus_arm_pending.jsonl models/zeus_arm_margin_fails.json models/zeus_live_cooldown.json models/kill_switch_state.json models/zeus_live_blocked.json models/zeus_vol_cooldowns.json models/zeus_vol_cooldown_events.jsonl models/zeus_live_digest.json models/zeus_live_stop_log.jsonl models/zeus_live_tg_pending.json models/zeus_funding_tg_state.json models/zeus_funding_day.json"
+          SAVE_LIST="models/zeus_live_commands.json models/zeus_live_tg_offset.json models/zeus_live_menu_pushed.json models/zeus_live_tg_http_warn.json models/zeus_live_v2_warn.json models/zeus_kill_epoch.json models/zeus_protect_bare_ticks.json models/zeus_live_entries.jsonl models/zeus_live_positions.json models/zeus_live_equity.json models/zeus_live_trades.jsonl models/zeus_heat_state.json models/zeus_live_tg_flags.json models/zeus_live_journal.jsonl models/zeus_arm_pending.jsonl models/zeus_arm_margin_fails.json models/zeus_live_cooldown.json models/kill_switch_state.json models/zeus_live_blocked.json models/zeus_vol_cooldowns.json models/zeus_vol_cooldown_events.jsonl models/zeus_live_digest.json models/zeus_live_stop_log.jsonl models/zeus_live_tg_pending.json models/zeus_funding_tg_state.json models/zeus_funding_day.json"
           stage_save() {
             for F in $SAVE_LIST; do
               if [ -f "$F" ]; then
@@ -93,6 +93,10 @@ jobs:
             done
           }
           # Capture tick state from disk FIRST (never reset --hard before this)
+          stage_save
+          # F6.2: monotonic offset vs origin (never rewind watermark)
+          git fetch origin "${{ github.ref_name }}" 2>/dev/null || true
+          python3 scripts/monotonic_tg_offset.py origin "origin/${{ github.ref_name }}" || true
           stage_save
           if ! git diff --cached --quiet 2>/dev/null; then
             git commit -m "live: commands/entries/positions state (auto)" || true
@@ -112,8 +116,13 @@ jobs:
             if ! git rebase "origin/${{ github.ref_name }}" 2>/tmp/rebase_err.txt; then
               cat /tmp/rebase_err.txt || true
               for F in $SAVE_LIST; do
-                git checkout --ours -- "$F" 2>/dev/null || true
-                git add -f "$F" 2>/dev/null || true
+                if [ "$F" = "models/zeus_live_tg_offset.json" ]; then
+                  python3 scripts/monotonic_tg_offset.py conflict || true
+                  git add -f "$F" 2>/dev/null || true
+                else
+                  git checkout --ours -- "$F" 2>/dev/null || true
+                  git add -f "$F" 2>/dev/null || true
+                fi
               done
               if ! git -c core.editor=true rebase --continue 2>/tmp/rebase_cont.txt; then
                 cat /tmp/rebase_cont.txt || true
