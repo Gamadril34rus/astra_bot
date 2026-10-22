@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import time as _time
-from datetime import datetime, timedelta, timezone
 import logging
 import os
+import time as _time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
