@@ -74,6 +74,7 @@ def test_apply_pending_error_tg(tmp_path, monkeypatch):
 
 
 def test_button_labels_in_menu():
+    # F1.4: constants + LIVE_FLAT_CONFIRM remain; _cmd_live_* handlers removed
     src = Path("astra_bot/telegram/bot.py").read_text(encoding="utf-8")
     for label in (
         "🛑 Сброс стоп-крана",
@@ -83,7 +84,8 @@ def test_button_labels_in_menu():
     ):
         assert label in src
     assert "live_cmd:flat_yes" in src
-    assert "_cmd_live_reset_kill" in src
+    assert "LIVE_FLAT_CONFIRM" in src
+    assert "_cmd_live_reset_kill" not in src
 
 
 def test_enqueue_all_valid_cmds(tmp_path):
