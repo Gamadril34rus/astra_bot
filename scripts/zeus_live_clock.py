@@ -124,6 +124,9 @@ async def sync_partial_breakeven(
 
     Owner 19.10 / arena B2-B3: net_breakeven_price when available; never widen stop.
     One-shot via plan.be_moved + journal event=price_breakeven.
+
+    F8.1: also BE catch-up when exch_qty <= 0.65*plan_qty (TP1 partial filled)
+    with be_moved=false — move_stop to entry once, journal be_catchup, update plan qty.
     """
     from astra_bot.decision.live_arm_wiring import append_journal
     from astra_bot.decision.live_margin_budget import only_tighter_stop
@@ -167,6 +170,94 @@ async def sync_partial_breakeven(
             exch_qty = Decimal(str(getattr(pos, "quantity", 0) or 0))
             entry_px = Decimal(str(plan["entry"]))
             stop_px = Decimal(str(plan["stop"]))
+            side = str(plan.get("side") or "long").lower()
+            plan_qty_raw = plan.get("plan_qty") or plan.get("qty") or plan.get("quantity")
+            try:
+                plan_qty = Decimal(str(plan_qty_raw)) if plan_qty_raw is not None else Decimal("0")
+            except Exception:
+                plan_qty = Decimal("0")
+            if plan_qty <= 0:
+                plan_qty = exch_qty
+
+            # F8.1: TP1 partial catch-up — exch <= 65% of plan → BE once
+            if (
+                not plan.get("be_moved")
+                and plan_qty > 0
+                and exch_qty > 0
+                and exch_qty <= plan_qty * Decimal("0.65")
+            ):
+                target = entry_px
+                if not only_tighter_stop(side, stop_px, target):
+                    # already at/past entry — still mark be_moved + refresh qty
+                    pass
+                else:
+                    await broker.move_stop(sym, side, exch_qty, target)
+                ratio = float(exch_qty / plan_qty) if plan_qty > 0 else None
+                upsert_plan(
+                    sym,
+                    side=side,
+                    entry=str(entry_px),
+                    stop=str(target),
+                    qty=str(exch_qty),
+                    path=path,
+                    tp=plan.get("tp"),
+                    tp1=plan.get("tp1"),
+                    be_moved=True,
+                    signal_id=plan.get("signal_id"),
+                    plan_qty=str(plan_qty),
+                    qty_ratio=ratio,
+                )
+                try:
+                    record_stop_change(
+                        symbol=sym,
+                        stop_price=str(target),
+                        source="be_catchup",
+                        reason="exch_qty<=0.65*plan_qty",
+                        side=side,
+                    )
+                except Exception:
+                    pass
+                try:
+                    append_journal({
+                        "event": "be_catchup",
+                        "symbol": sym,
+                        "side": side,
+                        "exch_qty": str(exch_qty),
+                        "plan_qty": str(plan_qty),
+                        "qty_ratio": ratio,
+                        "entry": str(entry_px),
+                        "stop_before": str(stop_px),
+                        "stop_after": str(target),
+                        "ts": time.time(),
+                    })
+                except Exception:
+                    pass
+                # F8.4: partial fill row in trades journal
+                try:
+                    trades_path = Path("models/zeus_live_trades.jsonl")
+                    fill_qty = plan_qty - exch_qty
+                    row = {
+                        "event": "partial_fill",
+                        "symbol": sym,
+                        "side": side,
+                        "qty": str(fill_qty),
+                        "exch_qty": str(exch_qty),
+                        "plan_qty": str(plan_qty),
+                        "price": None,
+                        "ts": time.time(),
+                        "source": "be_catchup_qty_gap",
+                    }
+                    with trades_path.open("a", encoding="utf-8") as f:
+                        f.write(json.dumps(row, ensure_ascii=False) + chr(10))
+                except Exception:
+                    pass
+                moved.append(sym)
+                logger.info(
+                    "be_catchup: %s exch=%s plan=%s stop→entry %s",
+                    sym, exch_qty, plan_qty, target,
+                )
+                continue
+
             # F7.4: LiveBingX Position stores mark in current_price (client_live get_positions)
             mark = (
                 getattr(pos, "mark_price", None)
