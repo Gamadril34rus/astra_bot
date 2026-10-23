@@ -125,8 +125,8 @@ async def sync_partial_breakeven(
     Owner 19.10 / arena B2-B3: net_breakeven_price when available; never widen stop.
     One-shot via plan.be_moved + journal event=price_breakeven.
 
-    F8.1: also BE catch-up when exch_qty <= 0.65*plan_qty (TP1 partial filled)
-    with be_moved=false — move_stop to entry once, journal be_catchup, update plan qty.
+    F10: deferred BE catch-up — place entry-stop only when mark allows (long mark>=entry);
+    else be_pending, no place_order; journal be_catchup_pending (dedup 1h).
     """
     from astra_bot.decision.live_arm_wiring import append_journal
     from astra_bot.decision.live_margin_budget import only_tighter_stop
@@ -179,19 +179,109 @@ async def sync_partial_breakeven(
             if plan_qty <= 0:
                 plan_qty = exch_qty
 
-            # F8.1: TP1 partial catch-up — exch <= 65% of plan → BE once
-            if (
-                not plan.get("be_moved")
-                and plan_qty > 0
+            # F10: deferred BE catch-up — only place stop at entry when mark allows
+            # long: mark >= entry; short: mark <= entry. Else be_pending, no place_order.
+            partial_gap = (
+                plan_qty > 0
                 and exch_qty > 0
                 and exch_qty <= plan_qty * Decimal("0.65")
+            )
+            pending_path = Path("models/zeus_be_pending.json")
+            try:
+                pending = json.loads(pending_path.read_text(encoding="utf-8")) if pending_path.exists() else {}
+            except Exception:
+                pending = {}
+            if not isinstance(pending, dict):
+                pending = {}
+            pkey = f"{sym}|{side}"
+            is_pending = bool(pending.get(pkey) or plan.get("be_pending"))
+
+            mark_for_be = (
+                getattr(pos, "mark_price", None)
+                or getattr(pos, "markPrice", None)
+                or getattr(pos, "current_price", None)
+                or getattr(pos, "price", None)
+            )
+            mark_ok = False
+            mark_px_be: Decimal | None = None
+            if mark_for_be is not None:
+                try:
+                    mark_px_be = Decimal(str(mark_for_be))
+                    if side == "long":
+                        mark_ok = mark_px_be >= entry_px
+                    else:
+                        mark_ok = mark_px_be <= entry_px
+                except Exception:
+                    mark_ok = False
+
+            if (
+                not plan.get("be_moved")
+                and (partial_gap or is_pending)
             ):
+                if not mark_ok:
+                    # Defer: no place_order; journal once / 1h
+                    if partial_gap or is_pending:
+                        now = time.time()
+                        last_j = float((pending.get(pkey) or {}).get("journal_ts") or 0)
+                        pending[pkey] = {
+                            "be_pending": True,
+                            "exch_qty": str(exch_qty),
+                            "plan_qty": str(plan_qty),
+                            "entry": str(entry_px),
+                            "mark": str(mark_px_be) if mark_px_be is not None else None,
+                            "ts": now,
+                            "journal_ts": last_j if now - last_j < 3600 else now,
+                        }
+                        try:
+                            pending_path.write_text(
+                                json.dumps(pending, ensure_ascii=False), encoding="utf-8"
+                            )
+                        except Exception:
+                            pass
+                        if now - last_j >= 3600 or last_j == 0:
+                            try:
+                                append_journal({
+                                    "event": "be_catchup_pending",
+                                    "symbol": sym,
+                                    "side": side,
+                                    "exch_qty": str(exch_qty),
+                                    "plan_qty": str(plan_qty),
+                                    "entry": str(entry_px),
+                                    "mark": str(mark_px_be) if mark_px_be is not None else None,
+                                    "reason": "mark_not_at_entry",
+                                    "ts": now,
+                                })
+                            except Exception:
+                                pass
+                            pending[pkey]["journal_ts"] = now
+                            try:
+                                pending_path.write_text(
+                                    json.dumps(pending, ensure_ascii=False), encoding="utf-8"
+                                )
+                            except Exception:
+                                pass
+                        logger.info(
+                            "be_catchup_pending: %s mark=%s entry=%s (no place_order)",
+                            sym, mark_px_be, entry_px,
+                        )
+                    continue
+
+                # mark allows BE at entry — place once
                 target = entry_px
-                if not only_tighter_stop(side, stop_px, target):
-                    # already at/past entry — still mark be_moved + refresh qty
-                    pass
-                else:
-                    await broker.move_stop(sym, side, exch_qty, target)
+                placed_ok = False
+                try:
+                    if only_tighter_stop(side, stop_px, target) is not None:
+                        await broker.move_stop(sym, side, exch_qty, target)
+                    placed_ok = True
+                except Exception as move_exc:
+                    logger.warning(
+                        "be_catchup move_stop %s failed: %s: %s",
+                        sym, type(move_exc).__name__, move_exc,
+                    )
+                    # tick continues; do NOT write be_catchup / be_moved
+                    continue
+                if not placed_ok:
+                    continue
                 ratio = float(exch_qty / plan_qty) if plan_qty > 0 else None
                 upsert_plan(
                     sym,
@@ -207,12 +297,19 @@ async def sync_partial_breakeven(
                     plan_qty=str(plan_qty),
                     qty_ratio=ratio,
                 )
+                pending.pop(pkey, None)
+                try:
+                    pending_path.write_text(
+                        json.dumps(pending, ensure_ascii=False), encoding="utf-8"
+                    )
+                except Exception:
+                    pass
                 try:
                     record_stop_change(
                         symbol=sym,
                         stop_price=str(target),
                         source="be_catchup",
-                        reason="exch_qty<=0.65*plan_qty",
+                        reason="deferred_mark_ok",
                         side=side,
                     )
                 except Exception:
@@ -226,13 +323,13 @@ async def sync_partial_breakeven(
                         "plan_qty": str(plan_qty),
                         "qty_ratio": ratio,
                         "entry": str(entry_px),
+                        "mark": str(mark_px_be) if mark_px_be is not None else None,
                         "stop_before": str(stop_px),
                         "stop_after": str(target),
                         "ts": time.time(),
                     })
                 except Exception:
                     pass
-                # F8.4: partial fill row in trades journal
                 try:
                     trades_path = Path("models/zeus_live_trades.jsonl")
                     fill_qty = plan_qty - exch_qty
@@ -253,8 +350,8 @@ async def sync_partial_breakeven(
                     pass
                 moved.append(sym)
                 logger.info(
-                    "be_catchup: %s exch=%s plan=%s stop→entry %s",
-                    sym, exch_qty, plan_qty, target,
+                    "be_catchup: %s exch=%s plan=%s stop→entry %s mark=%s",
+                    sym, exch_qty, plan_qty, target, mark_px_be,
                 )
                 continue
 
