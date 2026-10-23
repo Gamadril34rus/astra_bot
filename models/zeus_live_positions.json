@@ -67,19 +67,35 @@
     "DOT-USDT|long": {
       "symbol": "DOT-USDT",
       "side": "long",
-      "qty": "80415.88914230284719246073843",
-      "stop": "1.1129247999999998",
+      "qty": "80415.9",
+      "stop": "1.1245",
       "tp": "1.13536280000000030",
       "entry": "1.1245",
-      "leverage": 6,
+      "leverage": 5,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|DOT-USDT|long|1792771200000",
-      "ts": 1792782195.6962004,
-      "be_moved": false,
+      "ts": 1792782408.9191816,
+      "be_moved": true,
       "plan_qty": "103699.08191460",
-      "qty_ratio": 1.0,
+      "qty_ratio": 0.775473596441533,
       "tp1": "1.13536280000000030"
+    },
+    "LINK-USDT|short": {
+      "symbol": "LINK-USDT",
+      "side": "short",
+      "qty": "2279.76052134",
+      "stop": "12.362608602439025",
+      "tp": "11.3435870963414625",
+      "entry": "11.946",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|LINK-USDT|short|1792771200000",
+      "ts": 1792782696.3549893,
+      "be_moved": false,
+      "plan_qty": "2279.76052134",
+      "qty_ratio": 1.0,
+      "tp1": "11.3435870963414625"
     }
   },
-  "ts": 1792782195.6962173
+  "ts": 1792782696.3550003
 }
