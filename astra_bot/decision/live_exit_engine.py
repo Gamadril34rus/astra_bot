@@ -78,15 +78,23 @@ def take_levels(
 
 
 def qty_split(total: Decimal) -> tuple[Decimal, Decimal]:
-    f1, f2 = qty_leg_fractions()
+    f1, _f2 = qty_leg_fractions()
     q1 = total * Decimal(str(f1))
     q2 = total - q1
     return q1, q2
 
 
 def would_regime_exit(direction: str, pos_regime: str | None, current: str) -> bool:
+    """True when *current* market regime is adverse and differs from entry regime.
+
+    pos_regime = regime **at entry** (plan.entry_regime or plan.regime).
+    current = regime **now** (plan.current_regime when set by the tick).
+    TODO(arena/#238 R1): wire live RegimeDetectorV2 on closed_bars each tick so
+    current is not stuck equal to entry; until then regime_exit only fires when
+    the plan carries a distinct current_regime field.
+    """
     adverse = ADVERSE_REGIMES.get(direction.lower(), set())
-    return current in adverse and current != (pos_regime or "")
+    return bool(current) and current in adverse and current != (pos_regime or "")
 
 
 def would_mae_cut(
@@ -276,7 +284,7 @@ def _update_peak_from_bars(plan: dict, closed_bars: list) -> None:
 def migrate_open_stops(plans: dict) -> list[dict]:
     """Guarded one-shot: ETH stop 2420.26848 -> 2415.67848 (risk 1.23%->~1%)."""
     out = []
-    for k, p in list(plans.items()):
+    for _k, p in list(plans.items()):
         if p.get("migrate_stop_v1"):
             continue
         if str(p.get("symbol")) != "ETH-USDT":
@@ -380,12 +388,16 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
                     opened_at_ms = int(ts * 1000) if ts < 1e12 else int(ts)
                 except Exception:
                     opened_at_ms = None
+            # R1: entry regime vs current regime (not the same field twice)
+            pos_regime = str(plan.get("entry_regime") or plan.get("regime") or "") or None
+            regime_now = str(plan.get("current_regime") or "").strip()
+            # TODO(arena): classify current_regime from closed_bars via RegimeDetectorV2
             actions = evaluate_plan_actions(
                 symbol=sym, direction=side, entry=entry, stop=stop, mark=mark,
                 highest=peak_h, lowest=peak_l, closed_bars=closed_bars,
                 opened_at_ms=opened_at_ms,
-                regime=str(plan.get("regime") or ""),
-                pos_regime=str(plan.get("regime") or "") or None,
+                regime=regime_now,
+                pos_regime=pos_regime,
                 leverage=float(plan.get("leverage") or 1),
             )
             for act in actions:

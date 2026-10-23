@@ -103,3 +103,19 @@ def test_mae_leverage_scale():
     # r_now = (93.25-100)/10 = -0.675
     assert would_mae_cut("long", 100, 90, 93.25, leverage=3) is True
     assert would_mae_cut("long", 100, 90, 93.25, leverage=1) is False  # needs -0.9
+
+
+def test_regime_exit_same_field_inactive():
+    """R1: entry==current → regime_exit does not fire (historical bug)."""
+    from astra_bot.decision.live_exit_engine import would_regime_exit
+    assert would_regime_exit("long", "PANIC", "PANIC") is False
+    assert would_regime_exit("long", "TREND_UP", "TREND_UP") is False
+
+
+def test_regime_exit_fires_when_current_adverse_differs():
+    from astra_bot.decision.live_exit_engine import would_regime_exit
+    from astra_bot.decision.exit_plan import ADVERSE_REGIMES
+    adverse = next(iter(ADVERSE_REGIMES.get("long", set()) or {"PANIC"}))
+    assert would_regime_exit("long", "TREND_UP", adverse) is True
+    assert would_regime_exit("long", None, adverse) is True
+    assert would_regime_exit("long", adverse, "") is False
