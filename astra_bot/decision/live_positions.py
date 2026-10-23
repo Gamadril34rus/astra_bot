@@ -31,7 +31,8 @@ def _normalize(raw_pos: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return out
 
 
-def load_positions(path: Path = DEFAULT_PATH) -> dict[str, dict[str, Any]]:
+def load_positions(path: Path | None = DEFAULT_PATH) -> dict[str, dict[str, Any]]:
+    path = path if path is not None else DEFAULT_PATH
     if not path.exists():
         return {}
     try:
