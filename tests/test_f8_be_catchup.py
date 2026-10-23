@@ -15,7 +15,7 @@ def _broker(exch_qty: Decimal, moves: list):
     pos = SimpleNamespace(
         symbol="SOL-USDT",
         quantity=exch_qty,
-        current_price=Decimal("103.0"),
+        current_price=Decimal("104.752"),
     )
 
     class Client:
