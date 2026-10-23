@@ -101,7 +101,7 @@ def test_be_catchup_sol_partial_e2e(tmp_path, monkeypatch):
     pos = SimpleNamespace(
         symbol="SOL-USDT",
         quantity=Decimal("241.7"),
-        current_price=Decimal("103.0"),
+        current_price=Decimal("104.752"),
     )
 
     class Client:
