@@ -1601,41 +1601,168 @@ class LiveBroker:
         }
 
     async def move_stop(self, symbol: str, side: str, quantity: Decimal, stop_price: Decimal) -> Any:
-        """A-012: place new STOP first, then cancel old stops (never naked)."""
+        """A-012: place new STOP first, then cancel old stops (never naked).
+
+        F12: on hedge reject «Position SL order already exists» cancel existing
+        STOP_* for this symbol/side by id, then one place retry. No amend API in
+        client_live (grep) — cancel-first is the only path; naked window covered
+        by restore_missing_stops next tick.
+        """
         self._assert_can_trade()
         ps = "LONG" if side.lower() == "long" else "SHORT"
         stop_side = "SELL" if side.lower() == "long" else "BUY"
-        new_oid = unique_client_order_id(symbol, "m")
-        placed = await self.client.place_order(
-            symbol=symbol,
-            side=stop_side,
-            order_type="STOP_MARKET",
-            quantity=quantity,
-            stop_price=stop_price,
-            position_side=ps,
-            close_position=True,
-            client_order_id=new_oid,
-        )
-        new_id = str(getattr(placed, "id", None) or getattr(placed, "exchange_order_id", None) or "")
+
+        def _is_stop_order(o: Any) -> bool:
+            ot = str(getattr(o, "order_type", "") or getattr(o, "type", "") or "").lower()
+            if "take_profit" in ot or ot.startswith("tp"):
+                return False
+            return "stop" in ot
+
+        def _oids_from(orders: list) -> list[str]:
+            out: list[str] = []
+            for o in orders:
+                if not _is_stop_order(o):
+                    continue
+                oid = str(getattr(o, "id", None) or getattr(o, "exchange_order_id", None) or "")
+                if oid:
+                    out.append(oid)
+            return out
+
+        async def _open_stops() -> list:
+            try:
+                return list(await self.client.get_open_orders(symbol) or [])
+            except Exception as exc:
+                logger.warning("move_stop: get_open_orders %s: %s", symbol, type(exc).__name__)
+                return []
+
+        async def _place() -> Any:
+            new_oid = unique_client_order_id(symbol, "m")
+            return await self.client.place_order(
+                symbol=symbol,
+                side=stop_side,
+                order_type="STOP_MARKET",
+                quantity=quantity,
+                stop_price=stop_price,
+                position_side=ps,
+                close_position=True,
+                client_order_id=new_oid,
+            )
+
+        def _already_exists(exc: BaseException) -> bool:
+            msg = str(exc).lower()
+            return (
+                "already exists" in msg
+                or "sl order already" in msg
+                or "101406" in msg
+                or "109406" in msg
+            )
+
+        def _lower_price(exc: BaseException) -> bool:
+            msg = str(exc).lower()
+            return "should be lower than the current price" in msg or "should be greater" in msg
+
+        before = await _open_stops()
+        before_ids = _oids_from(before)
+        placed = None
+        cancel_retry = False
+        reject_reason: str | None = None
         try:
-            orders = await self.client.get_open_orders(symbol)
+            placed = await _place()
         except Exception as exc:
-            logger.warning("move_stop: get_open_orders %s: %s", symbol, type(exc).__name__)
-            orders = []
+            if _already_exists(exc):
+                reject_reason = "already_exists"
+                cancel_retry = True
+                cancelled: list[str] = []
+                for o in before:
+                    if not _is_stop_order(o):
+                        continue
+                    # same position side when available
+                    ops = str(getattr(o, "position_side", None) or getattr(o, "positionSide", None) or "").upper()
+                    if ops and ops not in (ps, ""):
+                        continue
+                    oid = str(getattr(o, "id", None) or "")
+                    if not oid:
+                        continue
+                    try:
+                        if await self.client.cancel_order(symbol, oid):
+                            cancelled.append(oid)
+                    except Exception as cexc:
+                        logger.warning("move_stop cancel-retry %s: %s", oid, type(cexc).__name__)
+                try:
+                    from astra_bot.decision.live_arm_wiring import append_journal
+                    append_journal({
+                        "event": "move_stop_cancel_retry",
+                        "symbol": symbol,
+                        "side": side,
+                        "cancelled_ids": cancelled,
+                        "stop_order_ids_before": before_ids,
+                        "stop_price": str(stop_price),
+                        "reason": "already_exists",
+                    })
+                except Exception:
+                    pass
+                try:
+                    placed = await _place()
+                except Exception as retry_exc:
+                    reject_reason = (
+                        "lower_price" if _lower_price(retry_exc) else "already_exists_retry_failed"
+                    )
+                    try:
+                        from astra_bot.decision.live_arm_wiring import append_journal
+                        append_journal({
+                            "event": "move_stop_reject",
+                            "symbol": symbol,
+                            "side": side,
+                            "reason": reject_reason,
+                            "stop_order_ids_before": before_ids,
+                            "error": str(retry_exc)[:200],
+                        })
+                    except Exception:
+                        pass
+                    raise
+            else:
+                reject_reason = "lower_price" if _lower_price(exc) else "place_failed"
+                try:
+                    from astra_bot.decision.live_arm_wiring import append_journal
+                    append_journal({
+                        "event": "move_stop_reject",
+                        "symbol": symbol,
+                        "side": side,
+                        "reason": reject_reason,
+                        "stop_order_ids_before": before_ids,
+                        "error": str(exc)[:200],
+                    })
+                except Exception:
+                    pass
+                raise
+
+        new_id = str(getattr(placed, "id", None) or getattr(placed, "exchange_order_id", None) or "")
+        orders = await _open_stops()
+        after_ids = _oids_from(orders)
         for o in orders:
-            ot = str(getattr(o, "order_type", "")).lower()
+            if not _is_stop_order(o):
+                continue
             oid = str(getattr(o, "id", None) or "")
-            if "stop" not in ot or not oid:
-                continue
-            if new_id and oid == new_id:
-                continue
-            # keep take-profit legs
-            if "take_profit" in ot or "tp" in ot:
+            if not oid or (new_id and oid == new_id):
                 continue
             try:
                 await self.client.cancel_order(symbol, oid)
             except Exception as exc:
                 logger.warning("move_stop: cancel_order %s failed: %s", oid, type(exc).__name__)
+        try:
+            from astra_bot.decision.live_arm_wiring import append_journal
+            append_journal({
+                "event": "move_stop_done",
+                "symbol": symbol,
+                "side": side,
+                "stop_price": str(stop_price),
+                "new_id": new_id,
+                "stop_order_ids_before": before_ids,
+                "stop_order_ids_after": after_ids,
+                "cancel_retry": cancel_retry,
+            })
+        except Exception:
+            pass
         return placed
 
     async def flat_all(self) -> dict[str, Any]:
