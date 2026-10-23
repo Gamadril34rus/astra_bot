@@ -48,6 +48,78 @@ def _protect_flag(v: Any) -> bool | None:
     return None
 
 
+def _position_qty_from_item(item: dict[str, Any]) -> Decimal | None:
+    """Pick first non-zero qty from BingX hedge position row (F9)."""
+    amt: Decimal | None = None
+    for key in (
+        "positionAmt",
+        "availableAmt",
+        "positionQty",
+        "quantity",
+        "qty",
+        "volume",
+        "holdVol",
+        "availableVolume",
+    ):
+        if key not in item or item.get(key) in (None, ""):
+            continue
+        try:
+            cand = Decimal(str(item.get(key)))
+        except Exception:
+            continue
+        if cand != 0:
+            return cand
+        if amt is None:
+            amt = cand
+    return amt
+
+
+def parse_position_item(item: dict[str, Any]) -> Position | None:
+    """Map one BingX position dict → Position, or None if flat/unusable (F9)."""
+    if not isinstance(item, dict):
+        return None
+    amt = _position_qty_from_item(item)
+    if amt is None or amt == 0:
+        return None
+    side = "long" if amt > 0 else "short"
+    ps = str(item.get("positionSide") or item.get("position_side") or "").upper()
+    if ps in ("SHORT", "S"):
+        side = "short"
+    elif ps in ("LONG", "L"):
+        side = "long"
+    sym = str(item.get("symbol") or item.get("symbolName") or "")
+    if not sym:
+        return None
+    mark_raw = (
+        item.get("markPrice")
+        or item.get("mark_price")
+        or item.get("fairPrice")
+        or item.get("lastPrice")
+        or "0"
+    )
+    return Position(
+        exchange="bingx",
+        symbol=sym,
+        side=side,
+        quantity=abs(amt),
+        entry_price=Decimal(
+            str(item.get("avgPrice") or item.get("entryPrice") or item.get("avg_price") or "0")
+        ),
+        current_price=(Decimal(str(mark_raw)) if mark_raw not in (None, "") else None) or None,
+        unrealized_pnl=Decimal(
+            str(
+                item.get("unrealizedProfit")
+                or item.get("unrealizedPnl")
+                or item.get("unRealizedProfit")
+                or "0"
+            )
+        ),
+        status="open",
+    )
+
+
+
+
 def _parse_order(data: dict[str, Any], symbol: str = "") -> Order:
     d = data.get("order") if isinstance(data.get("order"), dict) else data
     if not isinstance(d, dict):
@@ -295,39 +367,46 @@ class LiveBingXClient(BingXClient):
         return out
 
     async def get_positions(self) -> list[Position]:
+        """Return all open hedge positions (including partial remains).
+
+        F9: never drop a non-zero row because one field is empty; try several
+        qty keys; bad rows → warning + skip, rest still returned.
+        """
         params = {"timestamp": int(time.time() * 1000)}
         resp = await self._request("GET", _TRADE["positions"], params=params, signed=True)
         data = resp.get("data") or []
         if isinstance(data, dict):
-            data = data.get("positions") or data.get("position") or []
+            data = data.get("positions") or data.get("position") or data.get("list") or []
         out: list[Position] = []
+        parse_skips = 0
         for item in data or []:
             if not isinstance(item, dict):
+                parse_skips += 1
+                logger.warning("get_positions parse_skip: non-dict row")
                 continue
-            _raw_amt = item.get("positionAmt")
-            if _raw_amt is None:
-                _raw_amt = item.get("availableAmt") or "0"
-            amt = Decimal(str(_raw_amt))
-            if amt == 0:
-                continue
-            side = "long" if amt > 0 else "short"
-            ps = str(item.get("positionSide") or "").upper()
-            if ps == "SHORT":
-                side = "short"
-            elif ps == "LONG":
-                side = "long"
-            out.append(
-                Position(
-                    exchange="bingx",
-                    symbol=str(item.get("symbol") or ""),
-                    side=side,
-                    quantity=abs(amt),
-                    entry_price=Decimal(str(item.get("avgPrice") or item.get("entryPrice") or "0")),
-                    current_price=Decimal(str(item.get("markPrice") or "0")) or None,
-                    unrealized_pnl=Decimal(str(item.get("unrealizedProfit") or "0")),
-                    status="open",
+            try:
+                pos = parse_position_item(item)
+            except Exception as exc:
+                parse_skips += 1
+                logger.warning(
+                    "get_positions parse_skip: %s keys=%s",
+                    type(exc).__name__,
+                    list(item.keys())[:16],
                 )
+                continue
+            if pos is None:
+                continue
+            out.append(pos)
+        if parse_skips:
+            logger.warning("get_positions: %s parse_skip row(s), returned %s", parse_skips, len(out))
+        try:
+            logger.info(
+                "get_positions: n=%s symbols=%s",
+                len(out),
+                [f"{p.symbol}:{p.side}:{p.quantity}" for p in out][:12],
             )
+        except Exception:
+            pass
         return out
 
     async def get_balance_usdt(self) -> Decimal:
