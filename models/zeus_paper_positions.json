@@ -1,67 +1,6 @@
 {
-  "positions": [
-    {
-      "id": "cf46bbf2-f1ad-4af1-9d28-d6ac03c4b1f5",
-      "symbol": "ATOM-USDT",
-      "direction": "short",
-      "entry_price": "1.779",
-      "quantity": "148.34612000",
-      "stop_loss": "1.793232",
-      "take_profits": [
-        "1.764768",
-        "1.750535999999999900000000000"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "148.34612000",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
-      "strategy": "zeus_channel_boundary_4h",
-      "opened_at": 1792722774375,
-      "entry_bar_ts": 1792722600000,
-      "notes": {
-        "signal_bar_close": 1.781,
-        "effective_entry": 1.777221,
-        "initial_stop": 1.793232,
-        "initial_take": 1.7505359999999999,
-        "stop_pct": 0.009009009009009009,
-        "confidence": 0.7799999999999999,
-        "ml_probability": null,
-        "prior_r": 0.9650000000000004,
-        "costs_r": 0.333,
-        "equity_before": 2636.438391822509,
-        "risk_budget": 39.54657587733764,
-        "binding_constraint": "none",
-        "score": 35.0,
-        "edge_pct": 171.3239,
-        "ev_r": 1.7132392750606584,
-        "ev_confidence": 0.13043478260869565,
-        "rr": 2.000000000000007,
-        "leverage": 5
-      },
-      "fill_price": "1.777221",
-      "entry_fee_per_unit": "0.0008886105",
-      "risk_distance": "0.014232",
-      "regime": "STRONG_BULL_TREND",
-      "timeframe": "4h",
-      "regime_axes": "T:STRONG/V:LOW/L:STRESSED",
-      "bars_held": 0,
-      "leverage": "5",
-      "margin_used": "52.78154949600",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "1.750535999999999900000000000",
-      "plan_last_bar_ts": 0
-    }
-  ],
-  "realized_pnl": "636.4383918225088850542723297",
+  "positions": [],
+  "realized_pnl": "635.2015116980091478042723297",
   "initial_capital": "2000.0",
   "cooldowns": {},
   "last_extremes_bar": {
@@ -87,7 +26,7 @@
     "NEAR-USDT": 1791756300000,
     "UNI-USDT": 1791280500000,
     "FIL-USDT": 1792212300000,
-    "ATOM-USDT": 1792720800000,
+    "ATOM-USDT": 1792722900000,
     "SUI-USDT": 1792515000000,
     "WLD-USDT": 1792438500000,
     "ENA-USDT": 1792505100000,
