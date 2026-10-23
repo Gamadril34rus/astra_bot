@@ -1,67 +1,6 @@
 {
-  "positions": [
-    {
-      "id": "2c0d358e-7fa9-4d00-8984-f7fcef4e4bb6",
-      "symbol": "DOT-USDT",
-      "direction": "long",
-      "entry_price": "1.1302",
-      "quantity": "232.88627200",
-      "stop_loss": "1.1149094000000002",
-      "take_profits": [
-        "1.1454905999999998",
-        "1.160781200000000000000000000"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "232.88627200",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
-      "strategy": "zeus_channel_boundary_4h",
-      "opened_at": 1792766670192,
-      "entry_bar_ts": 1792766400000,
-      "notes": {
-        "signal_bar_close": 1.1327,
-        "effective_entry": 1.1313302,
-        "initial_stop": 1.1149094000000002,
-        "initial_take": 1.1607812,
-        "stop_pct": 0.01451459529675757,
-        "confidence": 0.83,
-        "ml_probability": null,
-        "prior_r": 1.2682559219389677,
-        "costs_r": 0.20668850482315362,
-        "equity_before": 2634.71272585358,
-        "risk_budget": 52.6942545170716,
-        "binding_constraint": "none",
-        "score": 35.0,
-        "edge_pct": 174.2444,
-        "ev_r": 1.7424439420115625,
-        "ev_confidence": 0.16666666666666666,
-        "rr": 2.000000000000026,
-        "leverage": 10
-      },
-      "fill_price": "1.1313302",
-      "entry_fee_per_unit": "0.00056566510",
-      "risk_distance": "0.0152905999999998",
-      "regime": "STRONG_BEAR_TREND",
-      "timeframe": "4h",
-      "regime_axes": "T:STRONG/V:LOW/L:STRESSED",
-      "bars_held": 0,
-      "leverage": "10",
-      "margin_used": "26.320806461440",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "1.160781200000000000000000000",
-      "plan_last_bar_ts": 0
-    }
-  ],
-  "realized_pnl": "634.7127258535802188109863468",
+  "positions": [],
+  "realized_pnl": "634.3411194675155156643196801",
   "initial_capital": "2000.0",
   "cooldowns": {},
   "last_extremes_bar": {
@@ -91,7 +30,7 @@
     "SUI-USDT": 1792515000000,
     "WLD-USDT": 1792438500000,
     "ENA-USDT": 1792505100000,
-    "DOT-USDT": 1792467300000,
+    "DOT-USDT": 1792766700000,
     "PENDLE-USDT": 1791138600000,
     "BTC-USDT": 1791477600000
   }
