@@ -112,7 +112,7 @@ def test_plan_tp1_at_1_5r_short(tmp_path, monkeypatch):
     asyncio.run(_())
 
 
-def test_open_tp1_is_40pct_reduce_only(tmp_path, monkeypatch):
+def test_open_tp1_is_40pct_hedge_safe(tmp_path, monkeypatch):
     async def _():
         monkeypatch.chdir(tmp_path)
         c = MockClient(Decimal("500"))
@@ -131,7 +131,7 @@ def test_open_tp1_is_40pct_reduce_only(tmp_path, monkeypatch):
         assert len(tp_orders) == 1
         tp = tp_orders[0]
         assert tp["quantity"] == Decimal("0.4")
-        assert tp.get("reduce_only") is False  # BingX hedge 109400
+        assert tp.get("reduce_only") is False  # F4/owner 22.10: hedge forbids ReduceOnly
         assert tp.get("close_position") is False
         stop_orders = [o for o in c.placed if "STOP" in str(o.get("order_type", "")).upper() and "TAKE_PROFIT" not in str(o.get("order_type", "")).upper()]
         assert len(stop_orders) >= 1
@@ -284,7 +284,7 @@ def test_open_tp1_close_position_false(tmp_path, monkeypatch):
         tp_orders = [o for o in c.placed if "TAKE_PROFIT" in str(o.get("order_type", "")).upper()]
         assert len(tp_orders) == 1
         assert tp_orders[0]["quantity"] == Decimal("0.8")  # 40% of 2
-        assert tp_orders[0].get("reduce_only") is False
+        assert tp_orders[0].get("reduce_only") is False  # F4/owner 22.10: hedge forbids ReduceOnly
         assert tp_orders[0].get("close_position") is False
     asyncio.run(_())
 

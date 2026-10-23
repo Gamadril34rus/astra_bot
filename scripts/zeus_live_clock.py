@@ -24,6 +24,19 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger("zeus_live")
 
 
+
+def write_live_equity(equity: float | None, path: Path | None = None) -> None:
+    """F6.3: refresh models/zeus_live_equity.json every tick (ts=now) for TG balance."""
+    p = path or Path("models/zeus_live_equity.json")
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        import time as _time
+        payload = {"equity": float(equity) if equity is not None else None, "ts": _time.time()}
+        p.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    except Exception as exc:
+        logger.warning("write_live_equity failed: %s", type(exc).__name__)
+
+
 def _abort_tg(reason: str) -> None:
     """Best-effort alert on guard ABORT (sync; no broker)."""
     token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
@@ -111,11 +124,14 @@ async def sync_partial_breakeven(
 
     Owner 19.10 / arena B2-B3: net_breakeven_price when available; never widen stop.
     One-shot via plan.be_moved + journal event=price_breakeven.
+
+    F8.1: also BE catch-up when exch_qty <= 0.65*plan_qty (TP1 partial filled)
+    with be_moved=false — move_stop to entry once, journal be_catchup, update plan qty.
     """
     from astra_bot.decision.live_arm_wiring import append_journal
+    from astra_bot.decision.live_margin_budget import only_tighter_stop
     from astra_bot.decision.live_positions import load_positions, upsert_plan
     from astra_bot.decision.live_stop_telemetry import record_stop_change
-    from astra_bot.decision.live_margin_budget import only_tighter_stop
 
     path = positions_path or Path("models/zeus_live_positions.json")
     moved: list[str] = []
@@ -154,12 +170,103 @@ async def sync_partial_breakeven(
             exch_qty = Decimal(str(getattr(pos, "quantity", 0) or 0))
             entry_px = Decimal(str(plan["entry"]))
             stop_px = Decimal(str(plan["stop"]))
+            side = str(plan.get("side") or "long").lower()
+            plan_qty_raw = plan.get("plan_qty") or plan.get("qty") or plan.get("quantity")
+            try:
+                plan_qty = Decimal(str(plan_qty_raw)) if plan_qty_raw is not None else Decimal("0")
+            except Exception:
+                plan_qty = Decimal("0")
+            if plan_qty <= 0:
+                plan_qty = exch_qty
+
+            # F8.1: TP1 partial catch-up — exch <= 65% of plan → BE once
+            if (
+                not plan.get("be_moved")
+                and plan_qty > 0
+                and exch_qty > 0
+                and exch_qty <= plan_qty * Decimal("0.65")
+            ):
+                target = entry_px
+                if not only_tighter_stop(side, stop_px, target):
+                    # already at/past entry — still mark be_moved + refresh qty
+                    pass
+                else:
+                    await broker.move_stop(sym, side, exch_qty, target)
+                ratio = float(exch_qty / plan_qty) if plan_qty > 0 else None
+                upsert_plan(
+                    sym,
+                    side=side,
+                    entry=str(entry_px),
+                    stop=str(target),
+                    qty=str(exch_qty),
+                    path=path,
+                    tp=plan.get("tp"),
+                    tp1=plan.get("tp1"),
+                    be_moved=True,
+                    signal_id=plan.get("signal_id"),
+                    plan_qty=str(plan_qty),
+                    qty_ratio=ratio,
+                )
+                try:
+                    record_stop_change(
+                        symbol=sym,
+                        stop_price=str(target),
+                        source="be_catchup",
+                        reason="exch_qty<=0.65*plan_qty",
+                        side=side,
+                    )
+                except Exception:
+                    pass
+                try:
+                    append_journal({
+                        "event": "be_catchup",
+                        "symbol": sym,
+                        "side": side,
+                        "exch_qty": str(exch_qty),
+                        "plan_qty": str(plan_qty),
+                        "qty_ratio": ratio,
+                        "entry": str(entry_px),
+                        "stop_before": str(stop_px),
+                        "stop_after": str(target),
+                        "ts": time.time(),
+                    })
+                except Exception:
+                    pass
+                # F8.4: partial fill row in trades journal
+                try:
+                    trades_path = Path("models/zeus_live_trades.jsonl")
+                    fill_qty = plan_qty - exch_qty
+                    row = {
+                        "event": "partial_fill",
+                        "symbol": sym,
+                        "side": side,
+                        "qty": str(fill_qty),
+                        "exch_qty": str(exch_qty),
+                        "plan_qty": str(plan_qty),
+                        "price": None,
+                        "ts": time.time(),
+                        "source": "be_catchup_qty_gap",
+                    }
+                    with trades_path.open("a", encoding="utf-8") as f:
+                        f.write(json.dumps(row, ensure_ascii=False) + chr(10))
+                except Exception:
+                    pass
+                moved.append(sym)
+                logger.info(
+                    "be_catchup: %s exch=%s plan=%s stop→entry %s",
+                    sym, exch_qty, plan_qty, target,
+                )
+                continue
+
+            # F7.4: LiveBingX Position stores mark in current_price (client_live get_positions)
             mark = (
                 getattr(pos, "mark_price", None)
                 or getattr(pos, "markPrice", None)
+                or getattr(pos, "current_price", None)
                 or getattr(pos, "price", None)
             )
             if mark is None:
+                logger.warning("sync_partial_breakeven: %s no mark (attrs checked)", sym)
                 skipped.append(sym)
                 continue
             mark_px = Decimal(str(mark))
@@ -171,6 +278,21 @@ async def sync_partial_breakeven(
                 mfe_r = float((mark_px - entry_px) / r_abs)
             else:
                 mfe_r = float((entry_px - mark_px) / r_abs)
+            try:
+                append_journal({
+                    "event": "be_mark_tick",
+                    "symbol": sym,
+                    "side": side,
+                    "mark": str(mark_px),
+                    "entry": str(entry_px),
+                    "stop": str(stop_px),
+                    "mfe_r": round(mfe_r, 4),
+                    "trigger_r": float(trigger_r),
+                    "be_moved": bool(plan.get("be_moved")),
+                    "ts": time.time(),
+                })
+            except Exception:
+                pass
             if mfe_r < float(trigger_r):
                 continue
 
@@ -273,13 +395,240 @@ async def sync_partial_breakeven(
             )
         except Exception as exc:
             logger.warning(
-                "sync_partial_breakeven: %s failed: %s",
-                sym, type(exc).__name__,
+                "sync_partial_breakeven: %s failed: %s: %s",
+                sym, type(exc).__name__, exc,
             )
             skipped.append(sym)
 
     return {"moved": moved, "skipped": skipped}
 
+
+
+
+async def heal_dead_tp_legs(broker, *, positions_path: Path | None = None) -> dict:
+    """F7.3a: TP leg NEW but mark crossed trigger 2 ticks → replace-first then cancel old.
+
+    Never leave position naked: place new TP at same level, code=0, then cancel old.
+    """
+    from astra_bot.decision.live_arm_wiring import append_journal
+    from astra_bot.decision.live_positions import load_positions
+
+    path = positions_path or Path("models/zeus_live_positions.json")
+    state_path = Path("models/zeus_tp_heal_state.json")
+    healed: list[str] = []
+    watched: list[str] = []
+    try:
+        plans = load_positions(path)
+        positions = await broker.client.get_positions()
+    except Exception as exc:
+        logger.warning("heal_dead_tp_legs setup failed: %s", type(exc).__name__)
+        return {"healed": [], "error": type(exc).__name__}
+
+    by_sym: dict[str, object] = {}
+    for p in positions:
+        sym = getattr(p, "symbol", "") or ""
+        qty = getattr(p, "quantity", None) or Decimal("0")
+        if sym and qty and qty > 0:
+            by_sym[sym] = p
+
+    try:
+        st = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {}
+    except Exception:
+        st = {}
+    if not isinstance(st, dict):
+        st = {}
+
+    for _key, plan in list(plans.items()):
+        sym = str(plan.get("symbol") or _key.split("|")[0] or "")
+        if not sym or sym not in by_sym:
+            continue
+        pos = by_sym[sym]
+        mark = (
+            getattr(pos, "mark_price", None)
+            or getattr(pos, "markPrice", None)
+            or getattr(pos, "current_price", None)
+            or getattr(pos, "price", None)
+        )
+        if mark is None:
+            continue
+        mark_px = Decimal(str(mark))
+        side = str(plan.get("side") or "long").lower()
+        tp_level = plan.get("tp1") or plan.get("tp") or plan.get("take_profit_price")
+        if tp_level is None:
+            continue
+        tp_px = Decimal(str(tp_level))
+        try:
+            orders = await broker.client.get_open_orders(sym)
+        except Exception as exc:
+            logger.warning("heal_dead_tp: get_open_orders %s: %s", sym, type(exc).__name__)
+            continue
+        tp_orders = []
+        for o in orders or []:
+            ot = str(getattr(o, "order_type", "") or "").upper()
+            if "TAKE_PROFIT" not in ot:
+                continue
+            st_o = str(getattr(o, "status_raw", None) or getattr(o, "status", None) or "").upper()
+            if st_o and st_o not in ("NEW", "PENDING", ""):
+                continue
+            stop_p = getattr(o, "stop_price", None) or getattr(o, "price", None)
+            if stop_p is None:
+                continue
+            tp_orders.append(o)
+        if not tp_orders:
+            continue
+        # crossed?
+        if side == "short":
+            crossed = mark_px <= tp_px
+        else:
+            crossed = mark_px >= tp_px
+        key = f"{sym}|{side}"
+        if not crossed:
+            st.pop(key, None)
+            continue
+        ticks = int(st.get(key, {}).get("ticks", 0)) + 1
+        st[key] = {"ticks": ticks, "tp": str(tp_px), "mark": str(mark_px), "ts": time.time()}
+        watched.append(sym)
+        if ticks < 2:
+            logger.info("heal_dead_tp: %s crossed tick %s/2 mark=%s tp=%s", sym, ticks, mark_px, tp_px)
+            continue
+        # replace-first
+        old = tp_orders[0]
+        old_id = getattr(old, "id", None) or getattr(old, "exchange_order_id", None)
+        qty = getattr(old, "quantity", None)
+        if qty is None or Decimal(str(qty)) <= 0:
+            # 40% of position
+            qty = (Decimal(str(getattr(pos, "quantity", 0))) * Decimal("0.4")).quantize(Decimal("0.00000001"))
+        stop_side = "BUY" if side == "short" else "SELL"
+        ps = "SHORT" if side == "short" else "LONG"
+        try:
+            new_o = await broker.client.place_order(
+                symbol=sym,
+                side=stop_side,
+                order_type="TAKE_PROFIT_MARKET",
+                quantity=Decimal(str(qty)),
+                stop_price=tp_px,
+                position_side=ps,
+                reduce_only=False,
+                close_position=False,
+                working_type="MARK_PRICE",
+            )
+            append_journal({
+                "event": "tp_heal_place",
+                "symbol": sym,
+                "side": side,
+                "stop_price": str(tp_px),
+                "qty": str(qty),
+                "mark": str(mark_px),
+                "old_id": str(old_id or ""),
+                "new_id": str(getattr(new_o, "id", None) or ""),
+                "ts": time.time(),
+            })
+            # cancel old only after success
+            if old_id and hasattr(broker.client, "cancel_order"):
+                try:
+                    await broker.client.cancel_order(sym, str(old_id))
+                    append_journal({
+                        "event": "tp_heal_cancel_old",
+                        "symbol": sym,
+                        "old_id": str(old_id),
+                        "ts": time.time(),
+                    })
+                except Exception as cexc:
+                    logger.warning("heal_dead_tp cancel old %s: %s", sym, cexc)
+                    append_journal({
+                        "event": "tp_heal_cancel_failed",
+                        "symbol": sym,
+                        "old_id": str(old_id),
+                        "error": f"{type(cexc).__name__}: {cexc}",
+                        "ts": time.time(),
+                    })
+            healed.append(sym)
+            st.pop(key, None)
+            logger.info("heal_dead_tp: %s replaced TP @ %s (mark=%s)", sym, tp_px, mark_px)
+        except Exception as exc:
+            logger.warning("heal_dead_tp place %s failed: %s: %s", sym, type(exc).__name__, exc)
+            append_journal({
+                "event": "tp_heal_place_failed",
+                "symbol": sym,
+                "error": f"{type(exc).__name__}: {exc}",
+                "ts": time.time(),
+            })
+
+    try:
+        state_path.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+    return {"healed": healed, "watched": watched}
+
+
+
+async def detect_position_missing_with_orders(broker, *, positions_path: Path | None = None) -> dict:
+    """F9.2: plan has protective orders but get_positions has no row — journal only.
+
+    No trading action on guesswork. Dedup 1h via models/zeus_pos_missing_warn.json.
+    """
+    from astra_bot.decision.live_arm_wiring import append_journal
+    from astra_bot.decision.live_positions import load_positions
+
+    path = positions_path or Path("models/zeus_live_positions.json")
+    flag = Path("models/zeus_pos_missing_warn.json")
+    missing: list[str] = []
+    try:
+        plans = load_positions(path)
+        positions = await broker.client.get_positions()
+    except Exception as exc:
+        logger.warning("detect_position_missing: setup %s", type(exc).__name__)
+        return {"missing": [], "error": type(exc).__name__}
+
+    by_sym = {getattr(p, "symbol", "") for p in positions if getattr(p, "symbol", "")}
+    try:
+        st = json.loads(flag.read_text(encoding="utf-8")) if flag.exists() else {}
+    except Exception:
+        st = {}
+    if not isinstance(st, dict):
+        st = {}
+    now = time.time()
+
+    for _key, plan in list(plans.items()):
+        sym = str(plan.get("symbol") or _key.split("|")[0] or "")
+        if not sym or sym in by_sym:
+            continue
+        try:
+            orders = await broker.client.get_open_orders(sym)
+        except Exception:
+            continue
+        n_prot = 0
+        for o in orders or []:
+            ot = str(getattr(o, "order_type", "") or "").upper()
+            if "STOP" in ot or "TAKE_PROFIT" in ot:
+                n_prot += 1
+        if n_prot <= 0:
+            continue
+        last = float(st.get(sym) or 0)
+        if now - last < 3600:
+            missing.append(sym)
+            continue
+        try:
+            append_journal({
+                "event": "position_missing_with_open_orders",
+                "symbol": sym,
+                "side": plan.get("side"),
+                "n_protect_orders": n_prot,
+                "ts": now,
+            })
+        except Exception:
+            pass
+        st[sym] = now
+        missing.append(sym)
+        logger.warning(
+            "position_missing_with_open_orders: %s n_orders=%s (no TG)",
+            sym, n_prot,
+        )
+    try:
+        flag.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+    return {"missing": missing}
 
 
 DIGEST_PATH = Path("models/zeus_live_digest.json")
@@ -327,7 +676,7 @@ async def _accumulate_funding_day(client) -> float:
     try:
         today = _msk_now().strftime("%Y-%m-%d")
     except Exception:
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
         today = (datetime.now(timezone(timedelta(hours=3)))).strftime("%Y-%m-%d")
 
     st = _load_day()
@@ -524,6 +873,7 @@ async def _maybe_send_digest(
 
         try:
             eq = await client.get_balance_usdt()
+            write_live_equity(float(eq) if eq is not None else None)
         except Exception:
             eq = Decimal("0")
         eq_f = float(eq)
@@ -678,6 +1028,10 @@ async def one_tick(*, dry: bool = False) -> int:
         await _diag(client, logger)
 
     rec = await broker.reconcile()
+    try:
+        write_live_equity(float(rec["equity"]) if rec.get("equity") is not None else None)
+    except Exception:
+        pass
     logger.info(
         "reconcile equity=%s positions=%s orders=%s missing_stops=%s",
         rec.get("equity"),
@@ -692,6 +1046,14 @@ async def one_tick(*, dry: bool = False) -> int:
             logger.info("restore_missing_stops: %s", rest)
     except Exception as exc:
         logger.warning("restore_missing_stops failed: %s", type(exc).__name__)
+
+    # Owner 20.10 §4: no live STOP → place; fail → BE@0.8R or market-close THIS symbol
+    try:
+        ens = await broker.ensure_protection(send_tg=_send_live_tg)
+        if ens.get("placed") or ens.get("closed"):
+            logger.info("ensure_protection: %s", ens)
+    except Exception as exc:
+        logger.warning("ensure_protection failed: %s", type(exc).__name__)
 
     # Telemetry: order_audit every tick — counts + price/qty/flags (P5 owner 19.10)
     try:
@@ -730,21 +1092,33 @@ async def one_tick(*, dry: bool = False) -> int:
                                 or getattr(o, "price", None)
                                 or ""
                             ),
+                            "stopPrice": str(getattr(o, "stop_price", None) or ""),
+                            "status": str(
+                                getattr(o, "status_raw", None)
+                                or getattr(o, "status", None)
+                                or ""
+                            ),
+                            "workingType": str(
+                                getattr(o, "working_type", None)
+                                or getattr(o, "workingType", None)
+                                or ""
+                            ),
                             "qty": str(
                                 getattr(o, "quantity", None)
                                 or getattr(o, "origQty", None)
                                 or ""
                             ),
-                            "reduceOnly": bool(
+                            "reduceOnly": (
                                 getattr(o, "reduce_only", None)
                                 if getattr(o, "reduce_only", None) is not None
-                                else getattr(o, "reduceOnly", False)
+                                else getattr(o, "reduceOnly", None)
                             ),
-                            "closePosition": bool(
+                            "closePosition": (
                                 getattr(o, "close_position", None)
                                 if getattr(o, "close_position", None) is not None
-                                else getattr(o, "closePosition", False)
+                                else getattr(o, "closePosition", None)
                             ),
+                            "raw_keys": list(getattr(o, "_raw_order_keys", []) or [])[:24],
                         })
                 append_journal(
                     {
@@ -761,6 +1135,21 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception as _oa_exc:
         logger.warning("order_audit FAILED: %s", type(_oa_exc).__name__)
 
+    # F7.3a: dead TP leg auto-heal (replace-first, never naked)
+    try:
+        heal = await heal_dead_tp_legs(broker)
+        if heal.get("healed") or heal.get("watched"):
+            logger.info("heal_dead_tp_legs: %s", heal)
+    except Exception as _heal_exc:
+        logger.warning("heal_dead_tp_legs failed: %s: %s", type(_heal_exc).__name__, _heal_exc)
+
+    # F9.2: protective orders without position row — journal only
+    try:
+        miss = await detect_position_missing_with_orders(broker)
+        if miss.get("missing"):
+            logger.info("position_missing_with_open_orders: %s", miss)
+    except Exception as _miss_exc:
+        logger.warning("detect_position_missing failed: %s", type(_miss_exc).__name__)
 
     # C: partial TP1 → BE — EVERY tick (owner rule), after restore so stop is present
     try:
@@ -825,6 +1214,7 @@ async def one_tick(*, dry: bool = False) -> int:
             logger.error("HALT from kill state: %s", prior)
         else:
             eq = await broker.client.get_balance_usdt()  # owner 16.10: day/week % от РЕАЛЬНОГО счёта
+            write_live_equity(float(eq) if eq is not None else None)
             reason = check_day_week_limits(eq)
             if reason:
                 broker.set_halt(reason)

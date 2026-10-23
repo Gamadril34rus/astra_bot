@@ -61,14 +61,25 @@ def test_stop_telemetry(tmp_path: Path):
 
 
 def test_workflow_save_bash_n():
+    """F5: Save-block must be valid bash (SAVE_LIST + stage_save, not one-line for)."""
     yml = Path(".github/workflows/zeus-live-clock.yml")
     text = yml.read_text()
-    for_lines = [ln for ln in text.splitlines() if "for F in models/zeus_live_commands" in ln]
-    assert len(for_lines) == 1
-    for_line = for_lines[0].strip()
-    assert for_line.endswith("; do")
+    assert "SAVE_LIST=" in text
+    assert "models/zeus_live_v2_warn.json" in text
+    assert "stage_save" in text
+    # extract run body of Save step and bash -n
+    save = text.split("Save live commands state", 1)[1]
+    run = save.split("run: |", 1)[1]
+    lines = []
+    for ln in run.splitlines():
+        if ln.startswith("          "):
+            lines.append(ln[10:])
+        elif not ln.strip():
+            lines.append("")
+        elif ln.startswith("      -") or ln.startswith("    -"):
+            break
     tmp = Path("/tmp/wf_for_test.sh")
-    tmp.write_text(for_line + "\n  echo ok\ndone\n")
+    tmp.write_text("#!/bin/bash\n" + "\n".join(lines) + "\n")
     r = subprocess.run(["bash", "-n", str(tmp)], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
 

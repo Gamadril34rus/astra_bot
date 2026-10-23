@@ -5,6 +5,7 @@ Does not touch PaperBroker. HALT/kill checked before any place_order.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from decimal import ROUND_DOWN, Decimal
@@ -92,6 +93,20 @@ class LiveClientProto(Protocol):
     async def set_leverage(self, symbol: str, leverage: int, side: str = "LONG") -> None: ...
     async def set_margin_isolated(self, symbol: str) -> None: ...
     async def close_position(self, symbol: str, quantity: Any = None, price: Any = None) -> bool: ...
+
+
+def _journal_protect(event: str, **fields) -> None:
+    """Owner 20.10 §2: every protect attempt — success and failure — to trades journal."""
+    try:
+        row = {"event": event, "ts": time.time(), **fields}
+        append_live_trade(row)
+    except Exception:
+        pass
+    try:
+        from astra_bot.decision.live_arm_wiring import append_journal
+        append_journal({"event": event, "ts": time.time(), **fields})
+    except Exception:
+        pass
 
 
 @dataclass
@@ -904,7 +919,7 @@ class LiveBroker:
                         step = await self._qty_step_for_symbol(sym)
                         if has_tp1:
                             q_tp = self._quantize_to_step(q_full * Decimal("0.4"), step)
-                            ro, cp = False, False  # hedge: no reduceOnly; partial qty
+                            ro, cp = False, False  # F4: hedge forbids ReduceOnly (109400)
                         else:
                             q_tp = self._quantize_to_step(q_full, step)
                             ro, cp = False, True
@@ -960,7 +975,7 @@ class LiveBroker:
                         step = await self._qty_step_for_symbol(sym)
                         if has_tp1 and not plan.get("be_moved"):
                             q_tp = self._quantize_to_step(q * Decimal("0.4"), step)
-                            ro, cp = False, False  # hedge: no reduceOnly; partial qty
+                            ro, cp = False, False  # F4: hedge forbids ReduceOnly (109400)
                         elif has_tp1 and plan.get("be_moved"):
                             # After TP1 filled, no second TP restore for partial
                             q_tp = None
@@ -1011,7 +1026,7 @@ class LiveBroker:
                             "restore_missing_stops: cancel_all %s: %s",
                             sym, type(cexc).__name__,
                         )
-                    await self.client.close_position(sym, quantity=qty)
+                    await self.client.close_position(sym, quantity=None)
                     remove_plan(sym, path)
                     closed.append(sym)
                 except Exception as exc:
@@ -1020,6 +1035,323 @@ class LiveBroker:
                         sym, type(exc).__name__,
                     )
         return {"restored": restored, "closed_naked": closed}
+
+
+    async def ensure_protection(
+        self,
+        *,
+        positions_path: Path | None = None,
+        send_tg=None,
+        trigger_be_r: float = 0.8,
+        bare_state_path: Path | None = None,
+    ) -> dict[str, Any]:
+        """Owner 20.10 §4 + arena B2: protect or close ONE symbol — never global flat.
+
+        Safety:
+        - get_open_orders failure → abort pass (None sentinel), close nothing
+        - place ok but verify get_open_orders fails → UNKNOWN, close nothing
+        - close only after confirmed exchange rejection AND two consecutive bare ticks
+        - market-close first, then cancel leftover orders (not the reverse)
+        - emergency close uses client.close_position (positionSide path, no upside-down qty)
+        """
+        from pathlib import Path as _Path
+
+        from astra_bot.decision.live_positions import get_plan, remove_plan, upsert_plan
+
+        path = positions_path or _Path("models/zeus_live_positions.json")
+        state_path = bare_state_path or _Path("models/zeus_protect_bare_ticks.json")
+
+        def _load_bare() -> dict:
+            try:
+                if state_path.exists():
+                    import json as _json
+                    return _json.loads(state_path.read_text(encoding="utf-8") or "{}")
+            except Exception:
+                pass
+            return {}
+
+        def _save_bare(st: dict) -> None:
+            try:
+                import json as _json
+                state_path.parent.mkdir(parents=True, exist_ok=True)
+                state_path.write_text(_json.dumps(st, ensure_ascii=False), encoding="utf-8")
+            except Exception:
+                pass
+
+        def _is_confirmed_reject(exc: BaseException) -> bool:
+            """Business reject only — not transport/5xx (arena residual a)."""
+            msg = str(exc)
+            m = re.search(r"place_order rejected code=(\S+)", msg, re.I)
+            if m:
+                code = m.group(1).strip().strip("'\"")
+                try:
+                    ci = int(float(code))
+                except ValueError:
+                    return code not in ("0", "None", "null", "")
+                if ci == 0 or 500 <= ci <= 599:
+                    return False
+                return True
+            low = msg.lower()
+            if "109400" in low or "order size must be less" in low:
+                return True
+            if "insufficient margin" in low or "insufficient available" in low:
+                return True
+            return False
+
+        positions = await self.client.get_positions()
+        open_orders: list | None
+        try:
+            open_orders = await self.client.get_open_orders()
+        except Exception as exc:
+            logger.warning(
+                "ensure_protection: get_open_orders FAILED — abort pass, close nothing: %s",
+                type(exc).__name__,
+            )
+            if send_tg is not None:
+                try:
+                    await send_tg("⚠️ ensure_protection: get_open_orders failed — pass aborted")
+                except Exception:
+                    pass
+            return {"placed": [], "closed": [], "aborted": "get_open_orders"}
+
+        by_sym: dict[str, list] = {}
+        for o in open_orders or []:
+            by_sym.setdefault(getattr(o, "symbol", "") or "", []).append(o)
+
+        bare = _load_bare()
+        placed: list[str] = []
+        closed: list[str] = []
+        still_bare: set[str] = set()
+
+        for p in positions:
+            sym = getattr(p, "symbol", "") or ""
+            qty = Decimal(str(getattr(p, "quantity", 0) or 0))
+            if not sym or qty <= 0:
+                continue
+            orders = by_sym.get(sym, [])
+            has_stop = any(
+                "stop" in str(getattr(o, "order_type", "")).lower()
+                and "take_profit" not in str(getattr(o, "order_type", "")).lower()
+                for o in orders
+            )
+            if has_stop:
+                bare.pop(sym, None)
+                continue
+
+            plan = get_plan(sym, path) or {}
+            side = str(plan.get("side") or getattr(p, "side", "long") or "long").lower()
+            entry = plan.get("entry") or getattr(p, "entry_price", None) or getattr(p, "avg_price", None)
+            stop_px = plan.get("stop")
+            if plan.get("be_moved") and entry is not None:
+                stop_px = entry
+            mark = (
+                getattr(p, "mark_price", None)
+                or getattr(p, "markPrice", None)
+                or getattr(p, "price", None)
+            )
+
+            placed_ok = False
+            verify_unknown = False
+            confirmed_reject = False
+
+            if stop_px is not None:
+                try:
+                    await self.move_stop(sym, side, qty, Decimal(str(stop_px)))
+                    try:
+                        oo = await self.client.get_open_orders(sym)
+                        placed_ok = any(
+                            "stop" in str(getattr(o, "order_type", "")).lower()
+                            and "take_profit" not in str(getattr(o, "order_type", "")).lower()
+                            for o in (oo or [])
+                        )
+                    except Exception as vexc:
+                        # B2b: place may have succeeded — do NOT close
+                        verify_unknown = True
+                        logger.warning(
+                            "ensure_protection: verify get_open_orders %s failed after place: %s",
+                            sym, type(vexc).__name__,
+                        )
+                        _journal_protect(
+                            "protect_place",
+                            symbol=sym,
+                            kind="stop_ensure",
+                            stop_price=str(stop_px),
+                            verified=False,
+                            verify_unknown=True,
+                        )
+                    if placed_ok:
+                        placed.append(sym)
+                        bare.pop(sym, None)
+                        _journal_protect(
+                            "protect_place",
+                            symbol=sym,
+                            kind="stop_ensure",
+                            stop_price=str(stop_px),
+                            qty=str(qty),
+                            verified=True,
+                        )
+                except Exception as exc:
+                    confirmed_reject = _is_confirmed_reject(exc)
+                    _journal_protect(
+                        "protect_place_failed",
+                        symbol=sym,
+                        kind="stop_ensure",
+                        stop_price=str(stop_px),
+                        error=f"{type(exc).__name__}: {exc}",
+                        confirmed_reject=confirmed_reject,
+                    )
+
+            if placed_ok or verify_unknown:
+                continue
+
+            # BE fallback only on confirmed reject + mfe
+            mfe_r = 0.0
+            try:
+                if entry is not None and plan.get("stop") is not None and mark is not None:
+                    e = Decimal(str(entry))
+                    s = Decimal(str(plan.get("stop")))
+                    m = Decimal(str(mark))
+                    r_abs = abs(e - s)
+                    if r_abs > 0:
+                        mfe_r = float((m - e) / r_abs) if side == "long" else float((e - m) / r_abs)
+            except Exception:
+                mfe_r = 0.0
+
+            if confirmed_reject and mfe_r >= float(trigger_be_r) and entry is not None:
+                try:
+                    await self.move_stop(sym, side, qty, Decimal(str(entry)))
+                    try:
+                        oo = await self.client.get_open_orders(sym)
+                        if any(
+                            "stop" in str(getattr(o, "order_type", "")).lower()
+                            and "take_profit" not in str(getattr(o, "order_type", "")).lower()
+                            for o in (oo or [])
+                        ):
+                            placed.append(sym)
+                            bare.pop(sym, None)
+                            try:
+                                upsert_plan(
+                                    symbol=sym, side=side,
+                                    entry=Decimal(str(entry)),
+                                    stop=Decimal(str(entry)),
+                                    qty=qty, path=path,
+                                    tp=plan.get("tp"), tp1=plan.get("tp1"),
+                                    be_moved=True, signal_id=plan.get("signal_id"),
+                                )
+                            except Exception:
+                                pass
+                            _journal_protect(
+                                "protect_place",
+                                symbol=sym,
+                                kind="stop_be_fallback",
+                                mfe_r=round(mfe_r, 4),
+                                verified=True,
+                            )
+                            continue
+                    except Exception:
+                        # verify unknown after BE place — leave alone
+                        continue
+                except Exception as exc:
+                    confirmed_reject = confirmed_reject and _is_confirmed_reject(exc)
+                    _journal_protect(
+                        "protect_place_failed",
+                        symbol=sym,
+                        kind="stop_be_fallback",
+                        error=f"{type(exc).__name__}: {exc}",
+                    )
+
+            # B2d: two consecutive ticks of confirmed bare before close
+            if not confirmed_reject:
+                # network / unknown — do not increment toward close
+                still_bare.add(sym)
+                continue
+
+            n = int(bare.get(sym, 0) or 0) + 1
+            bare[sym] = n
+            still_bare.add(sym)
+            if n < 2:
+                if n == 1 and send_tg is not None:
+                    try:
+                        await send_tg(f"⚠️ {sym}: защитный ордер отклонён биржей — повтор (1/2)")
+                    except Exception:
+                        pass
+                logger.warning(
+                    "ensure_protection: %s bare tick %s/2 (confirmed reject) — wait",
+                    sym, n,
+                )
+                continue
+
+            # B2c/e: close FIRST, then cancel remnants
+            try:
+                await self.client.close_position(sym, quantity=None)
+                # confirm flat
+                try:
+                    pos2 = await self.client.get_positions()
+                    still = any(
+                        (getattr(x, "symbol", "") == sym)
+                        and Decimal(str(getattr(x, "quantity", 0) or 0)) > 0
+                        for x in (pos2 or [])
+                    )
+                except Exception:
+                    still = True  # unknown — do not cancel stops under open pos
+                if not still:
+                    try:
+                        await self.client.cancel_all_orders(sym)
+                    except Exception:
+                        pass
+                    try:
+                        remove_plan(sym, path)
+                    except Exception:
+                        pass
+                    bare.pop(sym, None)
+                    closed.append(sym)
+                    msg = f"⚠️ {sym}: нет стопа 2 тика — закрыта по рынку (protect_failed_closed)"
+                    _journal_protect(
+                        "protect_failed_closed",
+                        symbol=sym,
+                        side=side,
+                        qty=str(qty),
+                        bare_ticks=n,
+                    )
+                    if send_tg is not None:
+                        try:
+                            await send_tg(msg)
+                        except Exception:
+                            pass
+                else:
+                    logger.warning(
+                        "ensure_protection: %s close called but position still open — keep orders",
+                        sym,
+                    )
+                    _journal_protect(
+                        "protect_failed_closed",
+                        symbol=sym,
+                        error="close_not_confirmed_still_open",
+                    )
+            except Exception as exc:
+                logger.warning("ensure_protection close %s: %s", sym, type(exc).__name__)
+                _journal_protect(
+                    "protect_failed_closed",
+                    symbol=sym,
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+                if n == 2 and send_tg is not None:
+                    try:
+                        await send_tg(
+                            f"⚠️ {sym}: нет стопа 2 тика, рыночное закрытие НЕ удалось — нужно ручное вмешательство"
+                        )
+                    except Exception:
+                        pass
+
+        # drop symbols no longer bare / open
+        for k in list(bare.keys()):
+            if k not in still_bare and k not in closed:
+                # protected this tick or not in positions
+                if k not in {getattr(p, "symbol", "") for p in positions}:
+                    bare.pop(k, None)
+        _save_bare(bare)
+        return {"placed": placed, "closed": closed, "bare": bare}
+
 
     async def open_with_protection(self, plan: LiveEntryPlan) -> dict[str, Any]:
         """Entry MARKET first, then STOP_MARKET + optional TP (hedge-safe).
@@ -1098,6 +1430,7 @@ class LiveBroker:
         else:
             stop_cid = unique_client_order_id(plan.symbol, "s")
             try:
+                # STOP: closePosition=true closes remainder; qty still required by BingX API
                 stop = await self.client.place_order(
                     symbol=plan.symbol,
                     side=stop_side,
@@ -1106,11 +1439,29 @@ class LiveBroker:
                     stop_price=plan.stop_price,
                     position_side=ps,
                     close_position=True,
+                    reduce_only=False,
                     client_order_id=stop_cid,
+                )
+                _journal_protect(
+                    "protect_place",
+                    symbol=plan.symbol,
+                    kind="stop",
+                    stop_price=str(plan.stop_price),
+                    qty=str(fact_qty),
+                    close_position=True,
+                    order_id=str(getattr(stop, "id", None) or ""),
                 )
             except Exception as exc:
                 logger.warning("open_with_protection stop failed %s: %s", plan.symbol, exc)
                 alerts.append(f"⚠️ {plan.symbol}: стоп отклонён — {type(exc).__name__}: {exc}")
+                _journal_protect(
+                    "protect_place_failed",
+                    symbol=plan.symbol,
+                    kind="stop",
+                    stop_price=str(plan.stop_price),
+                    qty=str(fact_qty),
+                    error=f"{type(exc).__name__}: {exc}",
+                )
                 raise
         tp = None
         if plan.take_profit_price is not None:
@@ -1135,6 +1486,7 @@ class LiveBroker:
                 if tp_qty <= 0:
                     tp_qty = self._quantize_to_step(fact_qty, step)
                 try:
+                    # F4/owner 22.10: hedge forbids ReduceOnly field (BingX 109400)
                     tp = await self.client.place_order(
                         symbol=plan.symbol,
                         side=stop_side,
@@ -1146,7 +1498,25 @@ class LiveBroker:
                         close_position=False,
                         client_order_id=tp_cid,
                     )
+                    _journal_protect(
+                        "protect_place",
+                        symbol=plan.symbol,
+                        kind="tp",
+                        stop_price=str(plan.take_profit_price),
+                        qty=str(tp_qty),
+                        reduce_only=False,
+                        order_id=str(getattr(tp, "id", None) or ""),
+                    )
                 except Exception as exc:
+                    _journal_protect(
+                        "protect_place_failed",
+                        symbol=plan.symbol,
+                        kind="tp",
+                        stop_price=str(plan.take_profit_price),
+                        qty=str(tp_qty),
+                        error=f"{type(exc).__name__}: {exc}",
+                        reduce_only=False,
+                    )
                     if _is_tp_price_past_error(exc):
                         # Level already through — market-close 40% leg, then stop→entry
                         logger.warning(

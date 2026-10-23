@@ -30,20 +30,25 @@ def test_process_update_enqueues(tmp_path: Path):
     assert pending[0]["source"] == "tg"
 
 
-def test_process_update_flat_resume(tmp_path: Path):
+def test_process_update_flat_resume(tmp_path: Path, monkeypatch):
     path = tmp_path / "cmds.json"
+    monkeypatch.setattr(
+        "astra_bot.decision.tg_live_commands.send_reply", lambda *a, **k: True
+    )
+    # F2.2: /flat only confirms — does not enqueue
     assert process_update(
         {"update_id": 2, "message": {"text": "/flat", "chat": {"id": 7}, "from": {"id": 7}}},
         commands_path=path,
         admin_id="7",
-    ) == "flat"
+        token="t",
+    ) is None
     assert process_update(
         {"update_id": 3, "message": {"text": "/resume@bot", "chat": {"id": 7}, "from": {"id": 7}}},
         commands_path=path,
         admin_id="7",
     ) == "resume"
     cmds = load_commands(path)
-    assert [c["cmd"] for c in cmds if c.get("status") == "pending"] == ["flat", "resume"]
+    assert [c["cmd"] for c in cmds if c.get("status") == "pending"] == ["resume"]
 
 
 def test_process_update_non_admin_silent(tmp_path: Path):

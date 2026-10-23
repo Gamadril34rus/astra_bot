@@ -19,10 +19,28 @@ def test_admin_returns_cmd(monkeypatch) -> None:
 
     def _fake_enqueue(cmd: str, **kwargs):
         calls.append(cmd)
+        return True
 
     monkeypatch.setattr(
         "astra_bot.decision.tg_live_commands.enqueue", _fake_enqueue
     )
-    upd = {"update_id": 2, "message": {"text": "/flat", "chat": {"id": 42}, "from": {"id": 42}}}
-    assert process_update(upd, admin_id="42") == "flat"
-    assert calls == ["flat"]
+    monkeypatch.setattr(
+        "astra_bot.decision.tg_live_commands.send_reply", lambda *a, **k: True
+    )
+    # F2.2: /flat is confirm-only — use /stop for direct enqueue path
+    upd = {"update_id": 2, "message": {"text": "/stop", "chat": {"id": 42}, "from": {"id": 42}}}
+    assert process_update(upd, admin_id="42", token="t") == "stop"
+    assert calls == ["stop"]
+
+def test_admin_flat_requires_confirm(monkeypatch) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "astra_bot.decision.tg_live_commands.enqueue",
+        lambda cmd, **k: calls.append(cmd) or True,
+    )
+    monkeypatch.setattr(
+        "astra_bot.decision.tg_live_commands.send_reply", lambda *a, **k: True
+    )
+    upd = {"update_id": 3, "message": {"text": "/flat", "chat": {"id": 42}, "from": {"id": 42}}}
+    assert process_update(upd, admin_id="42", token="t") is None
+    assert calls == []

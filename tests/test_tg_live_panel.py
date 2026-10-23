@@ -8,13 +8,14 @@ from astra_bot.decision import tg_live_commands as tlc
 from astra_bot.decision.live_commands import load_commands
 
 
-def test_button_constants_match_bot():
-    from astra_bot.telegram import bot as paper_bot
-
-    assert tlc.BTN_RESET_KILL == paper_bot.BTN_RESET_KILL
-    assert tlc.BTN_FLAT == paper_bot.BTN_FLAT
-    assert tlc.BTN_STOP_ENTRIES == paper_bot.BTN_STOP_ENTRIES
-    assert tlc.BTN_RESUME_ENTRIES == paper_bot.BTN_RESUME_ENTRIES
+def test_button_constants_exist_for_live_console():
+    # P9: live overrides labels; paper keeps legacy strings for LIVE_FLAT_CONFIRM import
+    assert tlc.BTN_RESET_KILL
+    assert tlc.BTN_FLAT
+    assert tlc.BTN_STOP_ENTRIES
+    assert tlc.BTN_RESUME_ENTRIES
+    assert tlc.BTN_BALANCE
+    assert tlc.parse_command(tlc.BTN_RESET_KILL) == "reset_kill"
 
 
 def test_parse_button_to_cmd():
