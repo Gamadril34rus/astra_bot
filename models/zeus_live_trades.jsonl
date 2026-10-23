@@ -1181,3 +1181,4 @@
 {"event": "restore_tp_failed", "symbol": "DOGE-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792681651.485537}
 {"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792681659.6903162}
 {"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792681669.0920413}
+{"event": "partial_fill", "symbol": "SOL-USDT", "side": "long", "qty": "161.13658259", "exch_qty": "241.70", "plan_qty": "402.83658259", "price": null, "ts": 1792763223.317284, "source": "be_catchup_qty_gap"}

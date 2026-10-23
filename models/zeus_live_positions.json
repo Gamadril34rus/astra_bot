@@ -19,17 +19,17 @@
     "SOL-USDT|long": {
       "symbol": "SOL-USDT",
       "side": "long",
-      "qty": "402.83658259",
-      "stop": "102.11446894390254",
+      "qty": "241.70",
+      "stop": "104.752",
       "tp": "108.325796584146190",
       "entry": "104.752",
-      "leverage": 6,
+      "leverage": 5,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|SOL-USDT|long|1792411200000",
-      "ts": 1792417327.8895602,
-      "be_moved": false,
+      "ts": 1792763223.3165364,
+      "be_moved": true,
       "plan_qty": "402.83658259",
-      "qty_ratio": 1.0,
+      "qty_ratio": 0.5999951604345676,
       "tp1": "108.325796584146190"
     },
     "DOGE-USDT|short": {
@@ -81,5 +81,5 @@
       "tp1": "56.24605216463415"
     }
   },
-  "ts": 1792676267.5843947
+  "ts": 1792763223.3165503
 }
