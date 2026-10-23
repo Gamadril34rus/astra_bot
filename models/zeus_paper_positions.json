@@ -1,5 +1,66 @@
 {
-  "positions": [],
+  "positions": [
+    {
+      "id": "58a28587-3905-405e-8594-bc3e80beac37",
+      "symbol": "APT-USDT",
+      "direction": "short",
+      "entry_price": "0.7299",
+      "quantity": "242.84623200",
+      "stop_loss": "0.7927620262195124",
+      "take_profits": [
+        "0.6670379737804876",
+        "0.6041759475609751000000000000"
+      ],
+      "tp_filled": [
+        false,
+        false
+      ],
+      "tp_fractions": [
+        0.3,
+        0.7
+      ],
+      "initial_quantity": "242.84623200",
+      "trailing_activated": false,
+      "trailing_distance": null,
+      "highest_price": null,
+      "lowest_price": null,
+      "strategy": "zeus_channel_boundary_4h",
+      "opened_at": 1792798651226,
+      "entry_bar_ts": 1792798500000,
+      "notes": {
+        "signal_bar_close": 0.7303,
+        "effective_entry": 0.7291701,
+        "initial_stop": 0.7927620262195124,
+        "initial_take": 0.6041759475609751,
+        "stop_pct": 0.08721137388863366,
+        "confidence": 0.88,
+        "ml_probability": null,
+        "prior_r": 1.6051665698405326,
+        "costs_r": 0.03439918288445852,
+        "equity_before": 2628.605903944615,
+        "risk_budget": 26.28605903944615,
+        "binding_constraint": "heat_cap",
+        "score": 73.0,
+        "edge_pct": 206.0705,
+        "ev_r": 2.06070522588122,
+        "ev_confidence": 0.2,
+        "rr": 2.0000000000000018,
+        "leverage": 9
+      },
+      "fill_price": "0.7291701",
+      "entry_fee_per_unit": "0.00036458505",
+      "risk_distance": "0.0628620262195124",
+      "regime": "STRONG_BEAR_TREND",
+      "timeframe": "4h",
+      "regime_axes": "T:STRONG/V:LOW/L:STRESSED",
+      "bars_held": 0,
+      "leverage": "9",
+      "margin_used": "19.694829415200",
+      "plan_variant": "STATIC_TP",
+      "plan_take": "0.6041759475609751000000000000",
+      "plan_last_bar_ts": 0
+    }
+  ],
   "realized_pnl": "628.6059039446148153271161793",
   "initial_capital": "2000.0",
   "cooldowns": {},
