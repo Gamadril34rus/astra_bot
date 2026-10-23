@@ -561,6 +561,76 @@ async def heal_dead_tp_legs(broker, *, positions_path: Path | None = None) -> di
     return {"healed": healed, "watched": watched}
 
 
+
+async def detect_position_missing_with_orders(broker, *, positions_path: Path | None = None) -> dict:
+    """F9.2: plan has protective orders but get_positions has no row — journal only.
+
+    No trading action on guesswork. Dedup 1h via models/zeus_pos_missing_warn.json.
+    """
+    from astra_bot.decision.live_arm_wiring import append_journal
+    from astra_bot.decision.live_positions import load_positions
+
+    path = positions_path or Path("models/zeus_live_positions.json")
+    flag = Path("models/zeus_pos_missing_warn.json")
+    missing: list[str] = []
+    try:
+        plans = load_positions(path)
+        positions = await broker.client.get_positions()
+    except Exception as exc:
+        logger.warning("detect_position_missing: setup %s", type(exc).__name__)
+        return {"missing": [], "error": type(exc).__name__}
+
+    by_sym = {getattr(p, "symbol", "") for p in positions if getattr(p, "symbol", "")}
+    try:
+        st = json.loads(flag.read_text(encoding="utf-8")) if flag.exists() else {}
+    except Exception:
+        st = {}
+    if not isinstance(st, dict):
+        st = {}
+    now = time.time()
+
+    for _key, plan in list(plans.items()):
+        sym = str(plan.get("symbol") or _key.split("|")[0] or "")
+        if not sym or sym in by_sym:
+            continue
+        try:
+            orders = await broker.client.get_open_orders(sym)
+        except Exception:
+            continue
+        n_prot = 0
+        for o in orders or []:
+            ot = str(getattr(o, "order_type", "") or "").upper()
+            if "STOP" in ot or "TAKE_PROFIT" in ot:
+                n_prot += 1
+        if n_prot <= 0:
+            continue
+        last = float(st.get(sym) or 0)
+        if now - last < 3600:
+            missing.append(sym)
+            continue
+        try:
+            append_journal({
+                "event": "position_missing_with_open_orders",
+                "symbol": sym,
+                "side": plan.get("side"),
+                "n_protect_orders": n_prot,
+                "ts": now,
+            })
+        except Exception:
+            pass
+        st[sym] = now
+        missing.append(sym)
+        logger.warning(
+            "position_missing_with_open_orders: %s n_orders=%s (no TG)",
+            sym, n_prot,
+        )
+    try:
+        flag.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+    return {"missing": missing}
+
+
 DIGEST_PATH = Path("models/zeus_live_digest.json")
 TRADES_PATH = Path("models/zeus_live_trades.jsonl")
 
@@ -1072,6 +1142,14 @@ async def one_tick(*, dry: bool = False) -> int:
             logger.info("heal_dead_tp_legs: %s", heal)
     except Exception as _heal_exc:
         logger.warning("heal_dead_tp_legs failed: %s: %s", type(_heal_exc).__name__, _heal_exc)
+
+    # F9.2: protective orders without position row — journal only
+    try:
+        miss = await detect_position_missing_with_orders(broker)
+        if miss.get("missing"):
+            logger.info("position_missing_with_open_orders: %s", miss)
+    except Exception as _miss_exc:
+        logger.warning("detect_position_missing failed: %s", type(_miss_exc).__name__)
 
     # C: partial TP1 → BE — EVERY tick (owner rule), after restore so stop is present
     try:
