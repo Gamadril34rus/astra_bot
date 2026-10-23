@@ -16,22 +16,6 @@
       "qty_ratio": 1.0,
       "tp1": "86175.544665304870"
     },
-    "SOL-USDT|long": {
-      "symbol": "SOL-USDT",
-      "side": "long",
-      "qty": "241.70",
-      "stop": "104.752",
-      "tp": "108.325796584146190",
-      "entry": "104.752",
-      "leverage": 5,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|SOL-USDT|long|1792411200000",
-      "ts": 1792763223.3165364,
-      "be_moved": true,
-      "plan_qty": "402.83658259",
-      "qty_ratio": 0.5999951604345676,
-      "tp1": "108.325796584146190"
-    },
     "DOGE-USDT|short": {
       "symbol": "DOGE-USDT",
       "side": "short",
@@ -79,7 +63,23 @@
       "plan_qty": "474.74773538",
       "qty_ratio": 1.0,
       "tp1": "56.24605216463415"
+    },
+    "DOT-USDT|long": {
+      "symbol": "DOT-USDT",
+      "side": "long",
+      "qty": "104535.15487504",
+      "stop": "1.1273088",
+      "tp": "1.15003680",
+      "entry": "1.1384",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|DOT-USDT|long|1792756800000",
+      "ts": 1792765062.4095578,
+      "be_moved": false,
+      "plan_qty": "104535.15487504",
+      "qty_ratio": 1.0,
+      "tp1": "1.15003680"
     }
   },
-  "ts": 1792763223.3165503
+  "ts": 1792765062.4095984
 }
