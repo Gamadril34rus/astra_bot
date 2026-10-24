@@ -107,6 +107,17 @@ def _journal_protect(event: str, **fields) -> None:
         append_journal({"event": event, "ts": time.time(), **fields})
     except Exception:
         pass
+    if event == "protect_place_failed":
+        try:
+            from astra_bot.decision.live_margin_warn import maybe_warn_margin_reject
+            maybe_warn_margin_reject(
+                str(fields.get("symbol") or ""),
+                str(fields.get("error") or ""),
+                None,  # uses clock-installed callback if any
+            )
+        except Exception:
+            pass
+
 
 
 @dataclass
@@ -173,6 +184,23 @@ def _is_tp_price_past_error(exc: BaseException) -> bool:
     return any(n in msg for n in needles)
 
 
+
+def _tp_frac_from_plan(plan) -> Decimal:
+    """F15: leg share from plan.tp_frac / tp_frac_1, else 0.3."""
+    if plan is None:
+        return Decimal("0.3")
+    if isinstance(plan, dict):
+        v = plan.get("tp_frac", plan.get("tp_frac_1"))
+    else:
+        v = getattr(plan, "tp_frac", None)
+    try:
+        d = Decimal(str(v if v is not None else "0.3"))
+    except Exception:
+        d = Decimal("0.3")
+    if d <= 0 or d >= 1:
+        return Decimal("0.3")
+    return d
+
 @dataclass
 class LiveEntryPlan:
     symbol: str
@@ -183,6 +211,7 @@ class LiveEntryPlan:
     leverage: int = 5
     client_tag: str = ""
     entry_price: Decimal | None = None  # signal price for slip vs fill
+    tp_frac: float = 0.3  # F15: PLAN_TP_FRACTIONS[0]; fallback 0.3
 
 
 
@@ -865,6 +894,7 @@ class LiveBroker:
         self,
         *,
         positions_path: Path | None = None,
+        send_tg=None,
     ) -> dict[str, Any]:
         """After reconcile: positions without stop get plan stop or market close.
 
@@ -918,7 +948,7 @@ class LiveBroker:
                         has_tp1 = plan.get("tp1") is not None
                         step = await self._qty_step_for_symbol(sym)
                         if has_tp1:
-                            q_tp = self._quantize_to_step(q_full * Decimal("0.4"), step)
+                            q_tp = self._quantize_to_step(q_full * _tp_frac_from_plan(plan), step)
                             ro, cp = False, False  # F4: hedge forbids ReduceOnly (109400)
                         else:
                             q_tp = self._quantize_to_step(q_full, step)
@@ -944,15 +974,33 @@ class LiveBroker:
                             "restore_missing_stops: %s TP-only failed: %s",
                             sym, type(exp).__name__,
                         )
+                        err_s = f"{type(exp).__name__}: {exp}"
                         try:
                             append_live_trade(
                                 {
                                     "event": "restore_tp_failed",
                                     "symbol": sym,
-                                    "error": f"{type(exp).__name__}: {exp}",
+                                    "error": err_s,
                                     "ts": time.time(),
                                 }
                             )
+                        except Exception:
+                            pass
+                        try:
+                            from astra_bot.decision.live_arm_wiring import append_journal
+                            append_journal(
+                                {
+                                    "event": "restore_tp_failed",
+                                    "symbol": sym,
+                                    "error": err_s,
+                                    "ts": time.time(),
+                                }
+                            )
+                        except Exception:
+                            pass
+                        try:
+                            from astra_bot.decision.live_margin_warn import maybe_warn_margin_reject
+                            maybe_warn_margin_reject(sym, err_s, send_tg)
                         except Exception:
                             pass
                 continue
@@ -974,7 +1022,7 @@ class LiveBroker:
                         has_tp1 = plan.get("tp1") is not None
                         step = await self._qty_step_for_symbol(sym)
                         if has_tp1 and not plan.get("be_moved"):
-                            q_tp = self._quantize_to_step(q * Decimal("0.4"), step)
+                            q_tp = self._quantize_to_step(q * _tp_frac_from_plan(plan), step)
                             ro, cp = False, False  # F4: hedge forbids ReduceOnly (109400)
                         elif has_tp1 and plan.get("be_moved"):
                             # After TP1 filled, no second TP restore for partial
@@ -1482,7 +1530,7 @@ class LiveBroker:
             else:
                 tp_cid = unique_client_order_id(plan.symbol, "t")
                 step = await self._qty_step_for_symbol(plan.symbol)
-                tp_qty = self._quantize_to_step(fact_qty * Decimal("0.4"), step)
+                tp_qty = self._quantize_to_step(fact_qty * _tp_frac_from_plan(plan), step)
                 if tp_qty <= 0:
                     tp_qty = self._quantize_to_step(fact_qty, step)
                 try:

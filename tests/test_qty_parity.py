@@ -81,7 +81,7 @@ def test_fact_qty_drives_tp_and_stop():
     stop_orders = [p for p in placed if p.get("order_type") == "STOP_MARKET"]
     tp_orders = [p for p in placed if p.get("order_type") == "TAKE_PROFIT_MARKET"]
     assert stop_orders and stop_orders[0]["quantity"] == Decimal("208")
-    assert tp_orders and tp_orders[0]["quantity"] == Decimal("83.2")
+    assert tp_orders and tp_orders[0]["quantity"] == Decimal("62.4")  # F15 0.3*208
 
 
 def test_fail_open_no_filled_qty():
@@ -185,7 +185,7 @@ def test_tp_past_level_market_leg_be_moved(monkeypatch):
     res = asyncio.run(broker.open_with_protection(plan))
     assert res["be_moved"] is True
     assert any(
-        p.get("order_type") == "MARKET" and p.get("quantity") == Decimal("40")
+        p.get("order_type") == "MARKET" and p.get("quantity") == Decimal("30")
         for p in placed
     )
     # After market leg, move_stop places STOP at entry (60)

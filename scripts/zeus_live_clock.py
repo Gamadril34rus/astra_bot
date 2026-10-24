@@ -113,6 +113,199 @@ async def _send_live_tg(msg: str) -> None:
         logger.warning("arm TG failed: %s", type(exc).__name__)
 
 
+
+# F15: margin-reject warn + tp_parity_v1
+from astra_bot.decision.live_margin_warn import (
+    maybe_warn_margin_reject as _maybe_warn_margin_reject,
+)
+from astra_bot.decision.live_margin_warn import (
+    set_send_tg as _set_margin_warn_tg,
+)
+
+_TP_PARITY_DONE = "tp_parity_v1"
+
+
+async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
+    """One-shot: open plans with RR outside [2.0,2.3] → place new TP then cancel old.
+
+    REPLACE-FIRST: place clamped TP (qty=exch*0.3) → success → cancel old TPs.
+    Never leave a window without a TP. If cancel fails because the old leg
+    already filled → journal tp_parity_old_filled (not a hard failure).
+    Stop orders are never touched.
+    """
+    from decimal import Decimal
+
+    from astra_bot.decision.exit_plan import clamp_take_rr
+    from astra_bot.decision.live_arm_wiring import append_journal
+    from astra_bot.decision.live_positions import DEFAULT_PATH, load_positions, save_positions
+
+    out = {"checked": 0, "replaced": 0, "failed": 0, "skipped": 0, "old_filled": 0}
+    plans = load_positions(DEFAULT_PATH)
+    if not plans:
+        return out
+    try:
+        positions = await broker.client.get_positions()
+    except Exception as exc:
+        return {**out, "error": type(exc).__name__}
+    by_sym = {}
+    for p in positions or []:
+        sym = getattr(p, "symbol", None) or getattr(p, "symbol_name", None)
+        if not sym:
+            continue
+        by_sym[str(sym)] = p
+    for key, plan in list(plans.items()):
+        if not isinstance(plan, dict):
+            continue
+        if plan.get(_TP_PARITY_DONE):
+            out["skipped"] += 1
+            continue
+        sym = plan.get("symbol") or key.split("|")[0]
+        side = (plan.get("side") or "").lower()
+        entry = plan.get("entry")
+        stop = plan.get("stop")
+        tp = plan.get("tp") or plan.get("tp1")
+        if entry is None or stop is None or tp is None:
+            out["skipped"] += 1
+            continue
+        try:
+            entry_d = Decimal(str(entry))
+            stop_d = Decimal(str(stop))
+            tp_d = Decimal(str(tp))
+            risk = abs(entry_d - stop_d)
+            if risk <= 0:
+                out["skipped"] += 1
+                continue
+            rr = abs(tp_d - entry_d) / risk
+            out["checked"] += 1
+            if Decimal("2.0") <= rr <= Decimal("2.3"):
+                plan[_TP_PARITY_DONE] = True
+                plans[key] = plan
+                save_positions(plans)
+                out["skipped"] += 1
+                continue
+            new_tp = clamp_take_rr(entry_d, stop_d, tp_d, side, 2.0, 2.3)
+            pos = by_sym.get(sym)
+            exch_qty = Decimal(
+                str(
+                    getattr(pos, "quantity", None)
+                    or getattr(pos, "qty", None)
+                    or plan.get("qty")
+                    or 0
+                )
+            )
+            if exch_qty <= 0:
+                out["skipped"] += 1
+                continue
+            frac = Decimal(str(plan.get("tp_frac") or plan.get("tp_frac_1") or "0.3"))
+            if frac <= 0 or frac >= 1:
+                frac = Decimal("0.3")
+            q_tp = (exch_qty * frac).quantize(Decimal("0.00000001"))
+            old_tp = str(tp)
+            plan["tp"] = str(new_tp)
+            plan["tp1"] = str(new_tp)
+            plan["tp_frac"] = float(frac)
+            # Collect old TP ids BEFORE place (replace-first: place new, then cancel)
+            old_tp_ids: list[str] = []
+            try:
+                if hasattr(broker, "client") and hasattr(broker.client, "get_open_orders"):
+                    orders = await broker.client.get_open_orders(sym)
+                    for o in orders or []:
+                        ot = str(
+                            getattr(o, "type", "") or getattr(o, "order_type", "") or ""
+                        ).upper()
+                        if "TAKE_PROFIT" in ot:
+                            oid = getattr(o, "id", None) or getattr(o, "order_id", None)
+                            if oid:
+                                old_tp_ids.append(str(oid))
+            except Exception:
+                old_tp_ids = []
+            ps = "LONG" if side == "long" else "SHORT"
+            stop_side = "SELL" if side == "long" else "BUY"
+            try:
+                # 1) PLACE new TP first — never naked
+                await broker.client.place_order(
+                    symbol=sym,
+                    side=stop_side,
+                    order_type="TAKE_PROFIT_MARKET",
+                    quantity=q_tp,
+                    stop_price=new_tp,
+                    position_side=ps,
+                    reduce_only=False,
+                    close_position=False,
+                )
+                # 2) CANCEL old TPs only after place succeeded
+                for oid in old_tp_ids:
+                    try:
+                        await broker.client.cancel_order(sym, oid)
+                    except Exception as cexc:
+                        cerr = str(cexc).lower()
+                        if any(
+                            x in cerr
+                            for x in (
+                                "filled",
+                                "not found",
+                                "does not exist",
+                                "already",
+                                "cancel",
+                            )
+                        ):
+                            append_journal(
+                                {
+                                    "event": "tp_parity_old_filled",
+                                    "symbol": sym,
+                                    "side": side,
+                                    "order_id": oid,
+                                    "error": f"{type(cexc).__name__}: {cexc}",
+                                    "ts": __import__("time").time(),
+                                }
+                            )
+                            out["old_filled"] += 1
+                        else:
+                            append_journal(
+                                {
+                                    "event": "tp_parity_cancel_failed",
+                                    "symbol": sym,
+                                    "side": side,
+                                    "order_id": oid,
+                                    "error": f"{type(cexc).__name__}: {cexc}",
+                                    "ts": __import__("time").time(),
+                                }
+                            )
+                plan[_TP_PARITY_DONE] = True
+                plans[key] = plan
+                save_positions(plans)
+                append_journal(
+                    {
+                        "event": "tp_parity_replace",
+                        "symbol": sym,
+                        "side": side,
+                        "old_tp": old_tp,
+                        "new_tp": str(new_tp),
+                        "rr_old": float(rr),
+                        "qty": str(q_tp),
+                        "ts": __import__("time").time(),
+                    }
+                )
+                out["replaced"] += 1
+            except Exception as exc:
+                append_journal(
+                    {
+                        "event": "tp_parity_failed",
+                        "symbol": sym,
+                        "side": side,
+                        "old_tp": old_tp,
+                        "new_tp": str(new_tp),
+                        "error": f"{type(exc).__name__}: {exc}",
+                        "ts": __import__("time").time(),
+                    }
+                )
+                _maybe_warn_margin_reject(sym, str(exc), send_tg)
+                out["failed"] += 1
+        except Exception:
+            out["skipped"] += 1
+    return out
+
+
 async def sync_partial_breakeven(
     broker,
     *,
@@ -1138,7 +1331,14 @@ async def one_tick(*, dry: bool = False) -> int:
     )
 
     try:
-        rest = await broker.restore_missing_stops()
+        try:
+            _par = await apply_tp_parity_v1(broker, send_tg=_send_live_tg)
+            if _par.get("replaced") or _par.get("failed"):
+                logger.info("tp_parity_v1: %s", _par)
+        except Exception as _p_exc:
+            logger.warning("tp_parity_v1 failed: %s", type(_p_exc).__name__)
+        _set_margin_warn_tg(_send_live_tg)
+        rest = await broker.restore_missing_stops(send_tg=_send_live_tg)
         if rest.get("restored") or rest.get("closed_naked"):
             logger.info("restore_missing_stops: %s", rest)
     except Exception as exc:

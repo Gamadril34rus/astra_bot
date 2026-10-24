@@ -174,5 +174,5 @@ def test_restore_after_reconcile_order():
     """restore_missing_stops is invoked after reconcile in clock source order."""
     src = Path("scripts/zeus_live_clock.py").read_text(encoding="utf-8")
     i_rec = src.index("await broker.reconcile()")
-    i_res = src.index("await broker.restore_missing_stops()")
+    i_res = src.index("await broker.restore_missing_stops(")
     assert i_rec < i_res
