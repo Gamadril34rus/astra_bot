@@ -130,7 +130,7 @@ def test_open_tp1_is_40pct_hedge_safe(tmp_path, monkeypatch):
         tp_orders = [o for o in c.placed if "TAKE_PROFIT" in str(o.get("order_type", "")).upper()]
         assert len(tp_orders) == 1
         tp = tp_orders[0]
-        assert tp["quantity"] == Decimal("0.4")
+        assert tp["quantity"] == Decimal("0.3")  # F15 PLAN_TP_FRACTIONS[0]
         assert tp.get("reduce_only") is False  # F4/owner 22.10: hedge forbids ReduceOnly
         assert tp.get("close_position") is False
         stop_orders = [o for o in c.placed if "STOP" in str(o.get("order_type", "")).upper() and "TAKE_PROFIT" not in str(o.get("order_type", "")).upper()]
