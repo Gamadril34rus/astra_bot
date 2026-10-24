@@ -1216,7 +1216,7 @@ class TradingEngine:
         Символ на паузе SymbolLossGuard или дневном лимите НЕ должен
         терять стопы/тейки/ликвидации. Копия выходной части
         process_symbol в порядке main-контура: BTC-panic -> реплей
-        закрытых баров (B6) -> adjust_stops -> check_exits ->
+        закрытых баров (B6) -> check_exits -> adjust_stops ->
         mark/фандинг/ликвидации -> forced-правила -> _record_closed.
         REGIME_EXIT здесь не оценивается (regime вычисляет decision,
         который в этом режиме не вызывается); все жёсткие выходы
@@ -1254,6 +1254,8 @@ class TradingEngine:
                         pass
             self.broker.update_extremes(bar)
         last_bar = primary[-1]
+        # F16: hard stop/TP FIRST on bar OHLC at pre-adjust stop, then tighten.
+        closed = self.broker.check_exits(last_bar)
         try:
             self.plan_engine.adjust_stops(
                 self.broker, symbol,
@@ -1262,7 +1264,6 @@ class TradingEngine:
             )
         except Exception as exc:
             logger.debug("plan adjust_stops: %s", exc)
-        closed = self.broker.check_exits(last_bar)
         try:
             await self._sync_perps_state(symbol, last_bar.close)
             liq_closed = self.broker.check_liquidations(symbol)
@@ -1371,12 +1372,12 @@ class TradingEngine:
             (decision.diagnostics.get("regime") or {}).get("regime", "")
         )
 
-        # B8 этап 2 (решения владельца 11.09): единый план выходов.
-        # Иерархия: жёсткий стоп и тейк СТАРШЕ плана — поэтому STOP-правила
-        # плана (D1-структурный по закрытым барам + БУ + трейлинг; только
-        # подтягивание) применяются ДО проверки уровней (TZ §16), а
-        # FORCED-правила плана — ПОСЛЕ стопов/тейков и ликвидаций.
-        # Ликвидация в paper остаётся после стопов по mark price (не менялось).
+        # F16 (24.10): жёсткий стоп/тейк по OHLC бара СНАЧАЛА (стоп на
+        # уровне прошлого тика), затем STOP-правила плана (D1/BE/trail —
+        # только подтягивание) для выживших. FORCED — после.
+        # Было: adjust_stops → check_exits (TZ §16); G4: same-bar trail
+        # до стопа давал stop_loss с +R.
+        closed = self.broker.check_exits(last_bar)
         try:
             self.plan_engine.adjust_stops(
                 self.broker, symbol,
@@ -1385,8 +1386,6 @@ class TradingEngine:
             )
         except Exception as exc:
             logger.debug("plan adjust_stops: %s", exc)
-
-        closed = self.broker.check_exits(last_bar)
 
         # Перпы: живые mark/фандинг в брокер + ликвидации по mark price.
         # Стопы/тейки уже проверены выше — они срабатывают раньше ликвидации.
