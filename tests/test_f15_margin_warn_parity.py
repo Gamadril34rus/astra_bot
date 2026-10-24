@@ -6,7 +6,7 @@ import json
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 from astra_bot.decision.live_margin_warn import (
     MARGIN_WARN_PATH,
