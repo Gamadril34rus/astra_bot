@@ -16,64 +16,82 @@
       "qty_ratio": 1.0,
       "tp1": "87544.992887073160",
       "tp_frac": 0.3,
-      "tp_parity_v1": true
+      "tp_parity_v1": true,
+      "initial_stop": "80351.30355646342",
+      "initial_stop_v1": true
     },
     "DOGE-USDT|short": {
       "symbol": "DOGE-USDT",
       "side": "short",
       "qty": "525447",
       "stop": "0.079560360",
-      "tp": "0.077021550054878130",
+      "tp": "0.075915400073170840",
       "entry": "0.07964",
       "leverage": 5,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|DOGE-USDT|short|1792670400000",
       "ts": 1792795919.0826015,
       "be_moved": true,
-      "tp1": "0.077021550054878130"
+      "tp1": "0.075915400073170840",
+      "initial_stop": "0.08150229996341458",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true
     },
     "AVAX-USDT|short": {
       "symbol": "AVAX-USDT",
       "side": "short",
       "qty": "2730",
       "stop": "9.2027880",
-      "tp": "8.7109620969512205",
+      "tp": "8.4906161292682940",
       "entry": "9.212",
       "leverage": 5,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|AVAX-USDT|short|1792670400000",
       "ts": 1792795927.6146495,
       "be_moved": true,
-      "tp1": "8.7109620969512205"
+      "tp1": "8.4906161292682940",
+      "initial_stop": "9.572691935365853",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true
     },
     "LTC-USDT|short": {
       "symbol": "LTC-USDT",
       "side": "short",
       "qty": "474.7",
       "stop": "59.110830",
-      "tp": "56.24605216463415",
+      "tp": "55.10473621951220",
       "entry": "59.17",
       "leverage": 5,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|LTC-USDT|short|1792670400000",
       "ts": 1792795627.79643,
       "be_moved": true,
-      "tp1": "56.24605216463415"
+      "tp1": "55.10473621951220",
+      "initial_stop": "61.2026318902439",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true
     },
     "LINK-USDT|short": {
       "symbol": "LINK-USDT",
       "side": "short",
       "qty": "2175.1",
       "stop": "11.9340540",
-      "tp": "11.3435870963414625",
+      "tp": "11.1127827951219500",
       "entry": "11.946",
       "leverage": 5,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|LINK-USDT|short|1792771200000",
       "ts": 1792796206.5171115,
       "be_moved": true,
-      "tp1": "11.3435870963414625"
+      "tp1": "11.1127827951219500",
+      "initial_stop": "12.362608602439025",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true
     }
   },
-  "ts": 1792831600.9028492
+  "ts": 1792834799.9713485
 }
