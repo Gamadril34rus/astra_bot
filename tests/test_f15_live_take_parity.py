@@ -2,11 +2,17 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 from astra_bot.decision.exit_plan import PLAN_TP_FRACTIONS, clamp_take_rr
-from astra_bot.decision.live_broker import LiveBroker, LiveBrokerConfig, LiveEntryPlan, _tp_frac_from_plan
+from astra_bot.decision.live_broker import (
+    LiveBroker,
+    LiveBrokerConfig,
+    LiveEntryPlan,
+    _tp_frac_from_plan,
+)
 
 
 def test_clamp_take_rr_bounds():
@@ -50,7 +56,7 @@ def test_tp_frac_from_plan_fallback():
 def test_open_with_protection_uses_frac_not_hardcode():
     from astra_bot.decision import live_broker as lb
 
-    src = open(lb.__file__, encoding="utf-8").read()
+    src = Path(lb.__file__).read_text(encoding="utf-8")
     assert 'fact_qty * Decimal("0.4")' not in src
     assert "q_full * Decimal(\"0.4\")" not in src
     assert "_tp_frac_from_plan" in src

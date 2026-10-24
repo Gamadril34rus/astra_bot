@@ -159,9 +159,10 @@ def _maybe_warn_margin_reject(symbol: str, err: str, send_tg) -> None:
 async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
     """One-shot: open plans with RR outside [2.0,2.3] → replace-first TP at clamp, qty=exch*0.3."""
     from decimal import Decimal
+
     from astra_bot.decision.exit_plan import clamp_take_rr
-    from astra_bot.decision.live_positions import load_positions, save_positions, DEFAULT_PATH
     from astra_bot.decision.live_arm_wiring import append_journal
+    from astra_bot.decision.live_positions import DEFAULT_PATH, load_positions, save_positions
 
     out = {"checked": 0, "replaced": 0, "failed": 0, "skipped": 0}
     plans = load_positions(DEFAULT_PATH)
