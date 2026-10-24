@@ -160,7 +160,7 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
     """One-shot: open plans with RR outside [2.0,2.3] → replace-first TP at clamp, qty=exch*0.3."""
     from decimal import Decimal
     from astra_bot.decision.exit_plan import clamp_take_rr
-    from astra_bot.decision.live_positions import load_positions, upsert_plan, DEFAULT_PATH
+    from astra_bot.decision.live_positions import load_positions, save_positions, DEFAULT_PATH
     from astra_bot.decision.live_arm_wiring import append_journal
 
     out = {"checked": 0, "replaced": 0, "failed": 0, "skipped": 0}
@@ -203,7 +203,9 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
             out["checked"] += 1
             if Decimal("2.0") <= rr <= Decimal("2.3"):
                 plan[_TP_PARITY_DONE] = True
-                upsert_plan(key, plan)
+                plans[key] = plan
+                from astra_bot.decision.live_positions import save_positions
+                save_positions(plans)
                 out["skipped"] += 1
                 continue
             new_tp = clamp_take_rr(entry_d, stop_d, tp_d, side, 2.0, 2.3)
@@ -247,7 +249,9 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
                     close_position=False,
                 )
                 plan[_TP_PARITY_DONE] = True
-                upsert_plan(key, plan)
+                plans[key] = plan
+                from astra_bot.decision.live_positions import save_positions
+                save_positions(plans)
                 append_journal({
                     "event": "tp_parity_replace",
                     "symbol": sym,
