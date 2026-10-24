@@ -1,4 +1,4 @@
-"""F15: margin-reject TG warn with 1h/symbol dedup."""
+"""F15/F15b: protective-order TG warn with 1h/symbol dedup (any error text)."""
 from __future__ import annotations
 
 import json
@@ -20,6 +20,7 @@ def set_send_tg(cb: Callable[[str], Any] | None) -> None:
 
 
 def margin_reject_msg(err: str) -> bool:
+    """Legacy filter — kept for callers; F15b warns on any protect failure."""
     m = (err or "").lower()
     return any(
         x in m
@@ -30,6 +31,10 @@ def margin_reject_msg(err: str) -> bool:
             "order size must be less",
             "109400",
             "109401",
+            "take profit price",
+            "stop loss price",
+            "should be lower",
+            "should be greater",
         )
     )
 
@@ -38,12 +43,16 @@ def maybe_warn_margin_reject(
     symbol: str,
     err: str,
     send_tg: Callable[[str], Any] | None = None,
+    *,
+    any_error: bool = True,
 ) -> bool:
-    """Send ⚠️ once per symbol per hour on protective-order margin reject.
+    """Send ⚠️ once per symbol per hour on protective-order reject.
 
-    Returns True if a warning was emitted (or would be without send_tg).
+    F15b: any_error=True (default) — price-past, margin, 1094xx, etc.
     """
-    if not margin_reject_msg(err):
+    if not err:
+        return False
+    if not any_error and not margin_reject_msg(err):
         return False
     try:
         import time as _t
@@ -64,7 +73,6 @@ def maybe_warn_margin_reject(
             try:
                 res = cb(msg)
                 if hasattr(res, "__await__"):
-                    # async sender (clock _send_live_tg): best-effort schedule
                     try:
                         import asyncio
 
@@ -81,4 +89,3 @@ def maybe_warn_margin_reject(
         return True
     except Exception:
         return False
-

@@ -125,6 +125,117 @@ from astra_bot.decision.live_margin_warn import (
 _TP_PARITY_DONE = "tp_parity_v1"
 
 
+
+_INITIAL_STOP_DONE = "initial_stop_v1"
+
+
+def migrate_initial_stop_v1() -> dict:
+    """One-shot: fill plan.initial_stop for open plans (F15b).
+
+    Sources (priority):
+      1) journal entry row for signal_id with field stop
+      2) from tp_parity_* : |entry − old_tp| / 1.5  → reconstruct initial risk
+      3) current stop if be_moved is false
+    """
+    from astra_bot.decision.live_arm_wiring import append_journal
+    from astra_bot.decision.live_positions import DEFAULT_PATH, load_positions, save_positions
+
+    out = {"checked": 0, "migrated": 0, "skipped": 0}
+    plans = load_positions(DEFAULT_PATH)
+    if not plans:
+        return out
+    # index entry stops from journal (best-effort, last wins)
+    entry_stop_by_sid: dict[str, str] = {}
+    entry_stop_by_sym: dict[str, str] = {}
+    parity_old_tp: dict[str, str] = {}
+    jpath = Path("models/zeus_live_journal.jsonl")
+    tpath = Path("models/zeus_live_trades.jsonl")
+    for path in (jpath, tpath):
+        if not path.exists():
+            continue
+        try:
+            with path.open(encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        o = json.loads(line)
+                    except Exception:
+                        continue
+                    ev = str(o.get("event") or "")
+                    if ev == "entry" and o.get("stop") is not None:
+                        sid = str(o.get("signal_id") or "")
+                        sym = str(o.get("symbol") or "")
+                        if sid:
+                            entry_stop_by_sid[sid] = str(o["stop"])
+                        if sym:
+                            entry_stop_by_sym[sym] = str(o["stop"])
+                    if ev in ("tp_parity_replace", "tp_parity_failed") and o.get("old_tp"):
+                        sym = str(o.get("symbol") or "")
+                        if sym and sym not in parity_old_tp:
+                            parity_old_tp[sym] = str(o["old_tp"])
+        except Exception:
+            pass
+    changed = False
+    for key, plan in list(plans.items()):
+        if not isinstance(plan, dict):
+            continue
+        out["checked"] += 1
+        if plan.get("initial_stop") is not None and plan.get(_INITIAL_STOP_DONE):
+            out["skipped"] += 1
+            continue
+        if plan.get("initial_stop") is not None:
+            plan[_INITIAL_STOP_DONE] = True
+            plans[key] = plan
+            changed = True
+            out["skipped"] += 1
+            continue
+        sym = str(plan.get("symbol") or key.split("|")[0])
+        sid = str(plan.get("signal_id") or "")
+        init = None
+        src = None
+        if sid and sid in entry_stop_by_sid:
+            init, src = entry_stop_by_sid[sid], "journal_entry_sid"
+        elif sym in entry_stop_by_sym:
+            init, src = entry_stop_by_sym[sym], "journal_entry_sym"
+        elif sym in parity_old_tp and plan.get("entry") is not None:
+            try:
+                entry = Decimal(str(plan["entry"]))
+                old_tp = Decimal(str(parity_old_tp[sym]))
+                # pre-parity TP was ~1.5R from entry with initial stop
+                risk = abs(old_tp - entry) / Decimal("1.5")
+                if plan.get("side", "").lower() == "long":
+                    init = str(entry - risk)
+                else:
+                    init = str(entry + risk)
+                src = "parity_old_tp_1_5"
+            except Exception:
+                init = None
+        if init is None and not plan.get("be_moved") and plan.get("stop") is not None:
+            init, src = str(plan["stop"]), "current_stop"
+        if init is None:
+            out["skipped"] += 1
+            continue
+        plan["initial_stop"] = init
+        plan[_INITIAL_STOP_DONE] = True
+        plans[key] = plan
+        changed = True
+        out["migrated"] += 1
+        try:
+            append_journal({
+                "event": "migrate_initial_stop",
+                "symbol": sym,
+                "initial_stop": init,
+                "source": src,
+                "ts": time.time(),
+            })
+        except Exception:
+            pass
+    if changed:
+        save_positions(plans, DEFAULT_PATH)
+    return out
+
+
 async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
     """One-shot: open plans with RR outside [2.0,2.3] → place new TP then cancel old.
 
@@ -171,7 +282,16 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
             entry_d = Decimal(str(entry))
             stop_d = Decimal(str(stop))
             tp_d = Decimal(str(tp))
-            risk = abs(entry_d - stop_d)
+            # F15b: RR and clamp ONLY from initial_stop (never current/BE stop)
+            init_raw = plan.get("initial_stop")
+            if init_raw is not None:
+                try:
+                    init_d = Decimal(str(init_raw))
+                except Exception:
+                    init_d = stop_d
+            else:
+                init_d = stop_d
+            risk = abs(entry_d - init_d)
             if risk <= 0:
                 out["skipped"] += 1
                 continue
@@ -183,7 +303,7 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
                 save_positions(plans)
                 out["skipped"] += 1
                 continue
-            new_tp = clamp_take_rr(entry_d, stop_d, tp_d, side, 2.0, 2.3)
+            new_tp = clamp_take_rr(entry_d, init_d, tp_d, side, 2.0, 2.3)
             pos = by_sym.get(sym)
             exch_qty = Decimal(
                 str(
@@ -237,6 +357,18 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
                 for oid in old_tp_ids:
                     try:
                         await broker.client.cancel_order(sym, oid)
+                        try:
+                            from astra_bot.decision.live_broker import journal_order_cancel
+                            journal_order_cancel(
+                                symbol=sym,
+                                order_id=oid,
+                                order_type="TAKE_PROFIT",
+                                reason="tp_parity_replace",
+                                path="apply_tp_parity_v1",
+                                side=side,
+                            )
+                        except Exception:
+                            pass
                     except Exception as cexc:
                         cerr = str(cexc).lower()
                         if any(
@@ -962,6 +1094,18 @@ async def heal_dead_tp_legs(broker, *, positions_path: Path | None = None) -> di
             if old_id and hasattr(broker.client, "cancel_order"):
                 try:
                     await broker.client.cancel_order(sym, str(old_id))
+                    try:
+                        from astra_bot.decision.live_broker import journal_order_cancel
+                        journal_order_cancel(
+                            symbol=sym,
+                            order_id=str(old_id),
+                            order_type="TAKE_PROFIT",
+                            reason="tp_heal_replace",
+                            path="tp_heal",
+                            side=side,
+                        )
+                    except Exception:
+                        pass
                     append_journal({
                         "event": "tp_heal_cancel_old",
                         "symbol": sym,
@@ -1477,6 +1621,12 @@ async def one_tick(*, dry: bool = False) -> int:
 
     try:
         try:
+            try:
+                _mig = migrate_initial_stop_v1()
+                if _mig.get("migrated"):
+                    logger.info("migrate_initial_stop_v1: %s", _mig)
+            except Exception as _mexc:
+                logger.warning("migrate_initial_stop_v1: %s", type(_mexc).__name__)
             _par = await apply_tp_parity_v1(broker, send_tg=_send_live_tg)
             if _par.get("replaced") or _par.get("failed"):
                 logger.info("tp_parity_v1: %s", _par)

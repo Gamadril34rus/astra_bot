@@ -794,6 +794,7 @@ async def run_arm_entries(
                 be_moved=be_moved,
                 plan_qty=plan_qty,
                 qty_ratio=qty_ratio,
+                initial_stop=getattr(plan, "initial_stop", None) or plan.stop_price,
             )
             # qty-parity / protect alerts: one claim per signal, send ALL
             alert_list = list((res or {}).get("alerts") or [])
@@ -929,6 +930,7 @@ async def run_arm_entries(
                         entry=cand.entry,
                         leverage=plan.leverage,
                         pending_verify=True,
+                        initial_stop=getattr(plan, "initial_stop", None) or plan.stop_price,
                     )
                 except Exception:
                     pass

@@ -120,6 +120,49 @@ def _journal_protect(event: str, **fields) -> None:
 
 
 
+
+def journal_order_cancel(
+    *,
+    symbol: str,
+    order_id: str | None,
+    order_type: str,
+    reason: str,
+    path: str,
+    side: str | None = None,
+    extra: dict | None = None,
+) -> None:
+    """F15b §6: every cancel path writes order_cancel to journal."""
+    try:
+        from astra_bot.decision.live_arm_wiring import append_journal
+        row = {
+            "event": "order_cancel",
+            "symbol": symbol,
+            "order_id": str(order_id or ""),
+            "type": order_type,
+            "reason": reason,
+            "path": path,
+            "side": side,
+            "ts": time.time(),
+        }
+        if extra:
+            row.update(extra)
+        append_journal(row)
+    except Exception:
+        pass
+    try:
+        append_live_trade({
+            "event": "order_cancel",
+            "symbol": symbol,
+            "order_id": str(order_id or ""),
+            "type": order_type,
+            "reason": reason,
+            "path": path,
+            "ts": time.time(),
+        })
+    except Exception:
+        pass
+
+
 @dataclass
 class LiveBrokerConfig:
     hard_cap_usd: Decimal = HARD_CAP_USD
@@ -212,6 +255,7 @@ class LiveEntryPlan:
     client_tag: str = ""
     entry_price: Decimal | None = None  # signal price for slip vs fill
     tp_frac: float = 0.3  # F15: PLAN_TP_FRACTIONS[0]; fallback 0.3
+    initial_stop: Decimal | None = None  # F15b: stop at entry; clamp TP from this only
 
 
 
@@ -1734,6 +1778,14 @@ class LiveBroker:
                     try:
                         if await self.client.cancel_order(symbol, oid):
                             cancelled.append(oid)
+                            journal_order_cancel(
+                                symbol=symbol,
+                                order_id=oid,
+                                order_type="STOP",
+                                reason="already_exists_retry",
+                                path="move_stop",
+                                side=side,
+                            )
                     except Exception as cexc:
                         logger.warning("move_stop cancel-retry %s: %s", oid, type(cexc).__name__)
                 try:
@@ -1795,6 +1847,14 @@ class LiveBroker:
                 continue
             try:
                 await self.client.cancel_order(symbol, oid)
+                journal_order_cancel(
+                    symbol=symbol,
+                    order_id=oid,
+                    order_type="STOP",
+                    reason="replace_after_place",
+                    path="move_stop",
+                    side=side,
+                )
             except Exception as exc:
                 logger.warning("move_stop: cancel_order %s failed: %s", oid, type(exc).__name__)
         try:
