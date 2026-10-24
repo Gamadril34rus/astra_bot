@@ -91,7 +91,24 @@
       "initial_stop_v1": true,
       "tp_frac": 0.3,
       "tp_parity_v1": true
+    },
+    "ADA-USDT|short": {
+      "symbol": "ADA-USDT",
+      "side": "short",
+      "qty": "34920.61694159",
+      "stop": "0.21748892987804871",
+      "tp": "0.17582214024390258",
+      "entry": "0.2046",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|ADA-USDT|short|1792843200000",
+      "ts": 1792851449.1295106,
+      "be_moved": false,
+      "initial_stop": "0.21748892987804871",
+      "plan_qty": "34920.61694159",
+      "qty_ratio": 1.0,
+      "tp1": "0.17582214024390258"
     }
   },
-  "ts": 1792834799.9713485
+  "ts": 1792851449.1295314
 }
