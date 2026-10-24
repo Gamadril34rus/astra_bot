@@ -1,6 +1,7 @@
 """PR-B: live exit engine — IMPORT paper pure rules (not copy).
 
 ENV ZEUS_LIVE_EXIT_ENGINE=shadow|on|off (default shadow).
+ENV ZEUS_LIVE_TRAIL_POLICY=atr|ratchet_e (default atr). F18: ratchet_e shadow parallel.
 BE is owned by PR-A (price_breakeven) — this module never emits BE moves.
 Hierarchy: liquidation > hard stop > plan. Stop only tightens via apply_tighter semantics.
 
@@ -137,6 +138,71 @@ def trail_stop_candidate(
     )
 
 
+def trail_policy() -> str:
+    """ZEUS_LIVE_TRAIL_POLICY=atr|ratchet_e (default atr)."""
+    v = (os.environ.get("ZEUS_LIVE_TRAIL_POLICY") or "atr").strip().lower()
+    return v if v in ("atr", "ratchet_e") else "atr"
+
+
+def ratchet_e_stop_candidate(
+    direction: str,
+    entry: Decimal,
+    current_stop: Decimal,
+    highest_price: Decimal | None,
+    lowest_price: Decimal | None,
+    *,
+    initial_stop: Decimal | None = None,
+    mark: Decimal | None = None,
+) -> Decimal | None:
+    """Owner ratchet E: BE on entry touch; MFE steps 0.5R → stop = trigger−0.5R.
+
+    Only tightens (long: stop rises; short: stop falls). No take-profit.
+    Examples: MFE 1.0R→stop +0.5R; 1.5R→+1.0R; 2.0R→+1.5R from entry.
+    """
+    side = direction.lower()
+    entry = Decimal(str(entry))
+    stop0 = Decimal(str(initial_stop if initial_stop is not None else current_stop))
+    risk = abs(entry - stop0)
+    if risk <= 0:
+        return None
+    hi = highest_price
+    lo = lowest_price
+    if mark is not None:
+        m = Decimal(str(mark))
+        if hi is None or m > hi:
+            hi = m
+        if lo is None or m < lo:
+            lo = m
+    if side == "long":
+        if hi is None:
+            return None
+        mfe_r = float((Decimal(str(hi)) - entry) / risk)
+    else:
+        if lo is None:
+            return None
+        mfe_r = float((entry - Decimal(str(lo))) / risk)
+    cand: Decimal | None = None
+    # BE on touch of entry (MFE >= 0)
+    if mfe_r >= 0:
+        cand = entry
+    # Staircase locks: floor(mfe/0.5)*0.5 - 0.5 when MFE >= 1.0
+    if mfe_r >= 1.0:
+        import math
+        locked = math.floor(mfe_r / 0.5) * 0.5 - 0.5
+        if locked > 0:
+            delta = risk * Decimal(str(locked))
+            cand = entry + delta if side == "long" else entry - delta
+    if cand is None:
+        return None
+    # only tighten vs current_stop
+    cur = Decimal(str(current_stop))
+    if side == "long" and cand > cur:
+        return cand
+    if side == "short" and cand < cur:
+        return cand
+    return None
+
+
 def structural_stop_candidate(
     direction: str,
     entry: Decimal,
@@ -199,8 +265,13 @@ def evaluate_plan_actions(
     regime: str,
     pos_regime: str | None,
     leverage: float = 1.0,
+    initial_stop: Decimal | None = None,
 ) -> list[dict[str, Any]]:
-    """Pure evaluation: list of shadow/actions. Never BE (PR-A owns BE)."""
+    """Pure evaluation: list of shadow/actions. Never BE (PR-A owns BE).
+
+    F18: shadow emits both trailing (ATR) and ratchet_e when each has a
+    candidate; live apply uses ZEUS_LIVE_TRAIL_POLICY (default atr).
+    """
     actions: list[dict[str, Any]] = []
     side = direction.lower()
     # forced closes
@@ -216,9 +287,21 @@ def evaluate_plan_actions(
     st = structural_stop_candidate(side, entry, stop, closed_bars)
     if st is not None:
         actions.append(shadow_row(symbol, "d1_structural", stop=str(st), stop_before=str(stop)))
+    # F18: ATR trail + ratchet_e in parallel (shadow); policy picks live apply
     tr = trail_stop_candidate(side, stop, highest, lowest, closed_bars)
     if tr is not None:
         actions.append(shadow_row(symbol, "trailing", stop=str(tr), stop_before=str(stop)))
+    init = initial_stop if initial_stop is not None else stop
+    rat = ratchet_e_stop_candidate(
+        side, entry, stop, highest, lowest, initial_stop=init, mark=mark,
+    )
+    if rat is not None:
+        actions.append(
+            shadow_row(
+                symbol, "ratchet_e", stop=str(rat), stop_before=str(stop),
+                trail_policy=trail_policy(),
+            )
+        )
     return actions
 
 # --- bar cache: symbol -> (bar_open_ts_ms, bars) ; refresh only on new 4h close ---
@@ -392,6 +475,11 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
             pos_regime = str(plan.get("entry_regime") or plan.get("regime") or "") or None
             regime_now = str(plan.get("current_regime") or "").strip()
             # TODO(arena): classify current_regime from closed_bars via RegimeDetectorV2
+            init_stop = plan.get("initial_stop")
+            try:
+                init_dec = Decimal(str(init_stop)) if init_stop not in (None, "") else stop
+            except Exception:
+                init_dec = stop
             actions = evaluate_plan_actions(
                 symbol=sym, direction=side, entry=entry, stop=stop, mark=mark,
                 highest=peak_h, lowest=peak_l, closed_bars=closed_bars,
@@ -399,7 +487,9 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
                 regime=regime_now,
                 pos_regime=pos_regime,
                 leverage=float(plan.get("leverage") or 1),
+                initial_stop=init_dec,
             )
+            policy = trail_policy()
             for act in actions:
                 n += 1
                 try:
@@ -407,8 +497,18 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
                 except Exception:
                     pass
                 if mode != "on":
-                    continue
-                if act.get("action") in ("d1_structural", "trailing") and act.get("stop"):
+                    continue  # shadow: journal only, never place_order/move_stop
+                act_name = act.get("action")
+                # trail apply: atr→trailing, ratchet_e→ratchet_e (not both)
+                if act_name == "d1_structural" and act.get("stop"):
+                    apply_stop = True
+                elif act_name == "trailing" and policy == "atr" and act.get("stop"):
+                    apply_stop = True
+                elif act_name == "ratchet_e" and policy == "ratchet_e" and act.get("stop"):
+                    apply_stop = True
+                else:
+                    apply_stop = False
+                if apply_stop:
                     new_stop = Decimal(str(act["stop"]))
                     qty = Decimal(str(getattr(pos, "quantity", 0) or plan.get("qty") or 0))
                     if qty <= 0:
@@ -421,7 +521,7 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
                         )
                     except Exception:
                         pass
-                elif act.get("action") in ("mae_cut", "regime_exit", "max_hold", "vol_expansion"):
+                elif act_name in ("mae_cut", "regime_exit", "max_hold", "vol_expansion"):
                     try:
                         await broker.reduce_position_qty(
                             sym, side, Decimal(str(getattr(pos, "quantity", 0) or 0)),
