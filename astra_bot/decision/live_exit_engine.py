@@ -500,11 +500,7 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
                     continue  # shadow: journal only, never place_order/move_stop
                 act_name = act.get("action")
                 # trail apply: atr→trailing, ratchet_e→ratchet_e (not both)
-                if act_name == "d1_structural" and act.get("stop"):
-                    apply_stop = True
-                elif act_name == "trailing" and policy == "atr" and act.get("stop"):
-                    apply_stop = True
-                elif act_name == "ratchet_e" and policy == "ratchet_e" and act.get("stop"):
+                if (act_name == "d1_structural" and act.get("stop")) or (act_name == "trailing" and policy == "atr" and act.get("stop")) or (act_name == "ratchet_e" and policy == "ratchet_e" and act.get("stop")):
                     apply_stop = True
                 else:
                     apply_stop = False
