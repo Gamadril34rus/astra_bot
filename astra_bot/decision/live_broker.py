@@ -107,6 +107,15 @@ def _journal_protect(event: str, **fields) -> None:
         append_journal({"event": event, "ts": time.time(), **fields})
     except Exception:
         pass
+    # F15: margin-reject → ⚠️ dedup via clock helper when send_tg not in scope
+    if event == "protect_place_failed":
+        err = str(fields.get("error") or "")
+        sym = str(fields.get("symbol") or "")
+        try:
+            from scripts.zeus_live_clock import _maybe_warn_margin_reject
+            _maybe_warn_margin_reject(sym, err, None)  # state write; TG if wired later
+        except Exception:
+            pass
 
 
 @dataclass
