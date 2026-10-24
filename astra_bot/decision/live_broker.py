@@ -512,6 +512,91 @@ class LiveBroker:
         return out if out > 0 else qty.quantize(Decimal("0.00000001"))
 
 
+    async def reconcile_plan_qty(
+        self,
+        *,
+        positions_path: Path | None = None,
+        threshold: float = 0.005,
+    ) -> dict[str, Any]:
+        """F13: |exch_qty-plan.qty|/plan.qty > 0.5% → upsert qty + journal qty_reconcile."""
+        from astra_bot.decision.live_arm_wiring import append_journal
+        from astra_bot.decision.live_positions import load_positions, plan_key, save_positions
+
+        path = positions_path or Path("models/zeus_live_positions.json")
+        out: dict[str, Any] = {"reconciled": [], "checked": 0}
+        try:
+            positions = await self.client.get_positions()
+        except Exception as exc:
+            logger.warning("reconcile_plan_qty get_positions: %s", type(exc).__name__)
+            return {**out, "error": type(exc).__name__}
+        exch: dict[str, float] = {}
+        for pos in positions or []:
+            sym = getattr(pos, "symbol", None)
+            side = str(getattr(pos, "side", "") or "").lower()
+            if not sym or side not in ("long", "short"):
+                continue
+            try:
+                q = abs(float(getattr(pos, "quantity", 0) or 0))
+            except (TypeError, ValueError):
+                continue
+            if q <= 0:
+                continue
+            exch[plan_key(str(sym), side)] = q
+        plans = load_positions(path)
+        changed = False
+        for key, plan in list(plans.items()):
+            if not isinstance(plan, dict):
+                continue
+            out["checked"] += 1
+            try:
+                plan_qty = abs(float(plan.get("qty") or 0))
+            except (TypeError, ValueError):
+                continue
+            if plan_qty <= 0:
+                continue
+            exch_qty = exch.get(key)
+            if exch_qty is None:
+                continue
+            rel = abs(exch_qty - plan_qty) / plan_qty
+            if rel <= threshold:
+                continue
+            old_qty = plan_qty
+            plan["qty"] = exch_qty
+            if plan.get("plan_qty") not in (None, ""):
+                try:
+                    pq = float(plan["plan_qty"])
+                    if pq:
+                        plan["qty_ratio"] = exch_qty / pq
+                except (TypeError, ValueError):
+                    pass
+            plans[key] = plan
+            changed = True
+            row = {
+                "event": "qty_reconcile",
+                "symbol": plan.get("symbol") or key.split("|")[0],
+                "side": plan.get("side") or (key.split("|")[1] if "|" in key else None),
+                "old_qty": old_qty,
+                "new_qty": exch_qty,
+                "rel_diff": round(rel, 6),
+                "signal_id": plan.get("signal_id"),
+                "ts": time.time(),
+            }
+            out["reconciled"].append(row)
+            try:
+                append_journal(row)
+            except Exception:
+                pass
+            try:
+                append_live_trade(row)
+            except Exception:
+                pass
+        if changed:
+            try:
+                save_positions(plans, path)
+            except Exception as exc:
+                logger.warning("reconcile_plan_qty save: %s", type(exc).__name__)
+        return out
+
     async def reconcile(self) -> dict[str, Any]:
         """Exchange is truth. Restore protective stops if missing."""
         positions = await self.client.get_positions()
@@ -878,6 +963,7 @@ class LiveBroker:
                 logger.info("sync_closed: skip dup TG %s", sym)
 
             try:
+                from astra_bot.decision.live_income_report import strategy_from_signal_id
                 trade_row = {
                     "event": "exit",
                     "symbol": sym,
@@ -893,6 +979,7 @@ class LiveBroker:
                     "slip_exit_pct": slip_exit,
                     "qty": qty_closed or qty_plan,
                     "signal_id": signal_id,
+                    "strategy": strategy_from_signal_id(signal_id),
                     "ts": now,
                 }
                 # C5: split legs when plan had TP1 partial (40/60 channel parity)
@@ -1112,6 +1199,26 @@ class LiveBroker:
                 )
                 try:
                     try:
+                        try:
+                            _oo = await self.client.get_open_orders(sym)
+                        except Exception:
+                            _oo = []
+                        for _o in _oo or []:
+                            _oid = getattr(_o, "id", None) or getattr(_o, "order_id", None)
+                            _ot = str(getattr(_o, "type", "") or getattr(_o, "order_type", "") or "")
+                            _ou = _ot.upper()
+                            _otype = (
+                                "STOP" if "STOP" in _ou else
+                                ("TP" if ("TAKE" in _ou or "PROFIT" in _ou) else (_ot or "UNKNOWN"))
+                            )
+                            journal_order_cancel(
+                                symbol=sym,
+                                order_id=str(_oid) if _oid is not None else None,
+                                order_type=_otype,
+                                reason="restore_naked_close",
+                                path="restore_missing_stops.cancel_all",
+                                side=None,
+                            )
                         await self.client.cancel_all_orders(sym)
                     except Exception as cexc:
                         logger.warning(
