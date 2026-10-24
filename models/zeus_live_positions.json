@@ -1,25 +1,5 @@
 {
   "positions": {
-    "BTC-USDT|long": {
-      "symbol": "BTC-USDT",
-      "side": "long",
-      "qty": "0.43460168",
-      "stop": "80351.30355646342",
-      "tp": "87544.992887073160",
-      "entry": "82749.2",
-      "leverage": 3,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|BTC-USDT|long|1792368000000",
-      "ts": 1792378308.0642037,
-      "be_moved": false,
-      "plan_qty": "0.43460168",
-      "qty_ratio": 1.0,
-      "tp1": "87544.992887073160",
-      "tp_frac": 0.3,
-      "tp_parity_v1": true,
-      "initial_stop": "80351.30355646342",
-      "initial_stop_v1": true
-    },
     "DOGE-USDT|short": {
       "symbol": "DOGE-USDT",
       "side": "short",
@@ -107,8 +87,27 @@
       "initial_stop": "0.21748892987804871",
       "plan_qty": "34920.61694159",
       "qty_ratio": 1.0,
-      "tp1": "0.17582214024390258"
+      "tp1": "0.17582214024390258",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true
+    },
+    "SOL-USDT|short": {
+      "symbol": "SOL-USDT",
+      "side": "short",
+      "qty": "106.41874046",
+      "stop": "105.13054096097555",
+      "tp": "91.48491807804888000000000000",
+      "entry": "100.705",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|SOL-USDT|short|1792843200000",
+      "ts": 1792851775.391811,
+      "be_moved": false,
+      "initial_stop": "105.13054096097555",
+      "plan_qty": "106.41874046",
+      "qty_ratio": 1.0,
+      "tp1": "91.48491807804888000000000000"
     }
   },
-  "ts": 1792851449.1295314
+  "ts": 1792851775.3918262
 }
