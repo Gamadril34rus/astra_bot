@@ -304,6 +304,7 @@ async def plan_from_candidate(
         )
     except Exception:
         pass
+    # F15b: initial_stop = risk stop at entry; never overwritten by BE moves
     return LiveEntryPlan(
         symbol=cand.symbol,
         side=side_l,
@@ -314,6 +315,7 @@ async def plan_from_candidate(
         client_tag="arm",
         entry_price=cand.entry,
         tp_frac=tp_frac,
+        initial_stop=stop_d,
     )
 
 

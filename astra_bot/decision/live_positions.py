@@ -70,12 +70,19 @@ def upsert_plan(
     be_moved: bool = False,
     plan_qty: float | str | None = None,
     qty_ratio: float | None = None,
+    initial_stop: float | str | None = None,
     path: Path = DEFAULT_PATH,
 ) -> None:
     pos = load_positions(path)
     key = plan_key(symbol, side)
     # drop legacy symbol-only key if present
     pos.pop(symbol, None)
+    # preserve initial_stop if already set and caller omitted
+    prev = pos.get(key) or {}
+    if initial_stop is None and prev.get("initial_stop") is not None:
+        initial_stop = prev.get("initial_stop")
+    elif initial_stop is None:
+        initial_stop = stop  # first write: entry stop is the plan risk stop
     row = {
         "symbol": symbol,
         "side": side.lower(),
@@ -88,7 +95,11 @@ def upsert_plan(
         "signal_id": signal_id,
         "ts": time.time(),
         "be_moved": bool(be_moved),
+        "initial_stop": str(initial_stop) if initial_stop is not None else None,
     }
+    for _k in ("tp_parity_v1", "be_earned", "tp_frac"):
+        if _k in prev and _k not in row:
+            row[_k] = prev[_k]
     if plan_qty is not None:
         row["plan_qty"] = str(plan_qty)
     if qty_ratio is not None:

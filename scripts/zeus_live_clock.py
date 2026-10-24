@@ -125,6 +125,117 @@ from astra_bot.decision.live_margin_warn import (
 _TP_PARITY_DONE = "tp_parity_v1"
 
 
+
+_INITIAL_STOP_DONE = "initial_stop_v1"
+
+
+def migrate_initial_stop_v1() -> dict:
+    """One-shot: fill plan.initial_stop for open plans (F15b).
+
+    Sources (priority):
+      1) journal entry row for signal_id with field stop
+      2) from tp_parity_* : |entry − old_tp| / 1.5  → reconstruct initial risk
+      3) current stop if be_moved is false
+    """
+    from astra_bot.decision.live_arm_wiring import append_journal
+    from astra_bot.decision.live_positions import DEFAULT_PATH, load_positions, save_positions
+
+    out = {"checked": 0, "migrated": 0, "skipped": 0}
+    plans = load_positions(DEFAULT_PATH)
+    if not plans:
+        return out
+    # index entry stops from journal (best-effort, last wins)
+    entry_stop_by_sid: dict[str, str] = {}
+    entry_stop_by_sym: dict[str, str] = {}
+    parity_old_tp: dict[str, str] = {}
+    jpath = Path("models/zeus_live_journal.jsonl")
+    tpath = Path("models/zeus_live_trades.jsonl")
+    for path in (jpath, tpath):
+        if not path.exists():
+            continue
+        try:
+            with path.open(encoding="utf-8") as f:
+                for line in f:
+                    if not line.strip():
+                        continue
+                    try:
+                        o = json.loads(line)
+                    except Exception:
+                        continue
+                    ev = str(o.get("event") or "")
+                    if ev == "entry" and o.get("stop") is not None:
+                        sid = str(o.get("signal_id") or "")
+                        sym = str(o.get("symbol") or "")
+                        if sid:
+                            entry_stop_by_sid[sid] = str(o["stop"])
+                        if sym:
+                            entry_stop_by_sym[sym] = str(o["stop"])
+                    if ev in ("tp_parity_replace", "tp_parity_failed") and o.get("old_tp"):
+                        sym = str(o.get("symbol") or "")
+                        if sym and sym not in parity_old_tp:
+                            parity_old_tp[sym] = str(o["old_tp"])
+        except Exception:
+            pass
+    changed = False
+    for key, plan in list(plans.items()):
+        if not isinstance(plan, dict):
+            continue
+        out["checked"] += 1
+        if plan.get("initial_stop") is not None and plan.get(_INITIAL_STOP_DONE):
+            out["skipped"] += 1
+            continue
+        if plan.get("initial_stop") is not None:
+            plan[_INITIAL_STOP_DONE] = True
+            plans[key] = plan
+            changed = True
+            out["skipped"] += 1
+            continue
+        sym = str(plan.get("symbol") or key.split("|")[0])
+        sid = str(plan.get("signal_id") or "")
+        init = None
+        src = None
+        if sid and sid in entry_stop_by_sid:
+            init, src = entry_stop_by_sid[sid], "journal_entry_sid"
+        elif sym in entry_stop_by_sym:
+            init, src = entry_stop_by_sym[sym], "journal_entry_sym"
+        elif sym in parity_old_tp and plan.get("entry") is not None:
+            try:
+                entry = Decimal(str(plan["entry"]))
+                old_tp = Decimal(str(parity_old_tp[sym]))
+                # pre-parity TP was ~1.5R from entry with initial stop
+                risk = abs(old_tp - entry) / Decimal("1.5")
+                if plan.get("side", "").lower() == "long":
+                    init = str(entry - risk)
+                else:
+                    init = str(entry + risk)
+                src = "parity_old_tp_1_5"
+            except Exception:
+                init = None
+        if init is None and not plan.get("be_moved") and plan.get("stop") is not None:
+            init, src = str(plan["stop"]), "current_stop"
+        if init is None:
+            out["skipped"] += 1
+            continue
+        plan["initial_stop"] = init
+        plan[_INITIAL_STOP_DONE] = True
+        plans[key] = plan
+        changed = True
+        out["migrated"] += 1
+        try:
+            append_journal({
+                "event": "migrate_initial_stop",
+                "symbol": sym,
+                "initial_stop": init,
+                "source": src,
+                "ts": time.time(),
+            })
+        except Exception:
+            pass
+    if changed:
+        save_positions(plans, DEFAULT_PATH)
+    return out
+
+
 async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
     """One-shot: open plans with RR outside [2.0,2.3] → place new TP then cancel old.
 
@@ -171,7 +282,16 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
             entry_d = Decimal(str(entry))
             stop_d = Decimal(str(stop))
             tp_d = Decimal(str(tp))
-            risk = abs(entry_d - stop_d)
+            # F15b: RR and clamp ONLY from initial_stop (never current/BE stop)
+            init_raw = plan.get("initial_stop")
+            if init_raw is not None:
+                try:
+                    init_d = Decimal(str(init_raw))
+                except Exception:
+                    init_d = stop_d
+            else:
+                init_d = stop_d
+            risk = abs(entry_d - init_d)
             if risk <= 0:
                 out["skipped"] += 1
                 continue
@@ -183,7 +303,7 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
                 save_positions(plans)
                 out["skipped"] += 1
                 continue
-            new_tp = clamp_take_rr(entry_d, stop_d, tp_d, side, 2.0, 2.3)
+            new_tp = clamp_take_rr(entry_d, init_d, tp_d, side, 2.0, 2.3)
             pos = by_sym.get(sym)
             exch_qty = Decimal(
                 str(
@@ -237,6 +357,18 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
                 for oid in old_tp_ids:
                     try:
                         await broker.client.cancel_order(sym, oid)
+                        try:
+                            from astra_bot.decision.live_broker import journal_order_cancel
+                            journal_order_cancel(
+                                symbol=sym,
+                                order_id=oid,
+                                order_type="TAKE_PROFIT",
+                                reason="tp_parity_replace",
+                                path="apply_tp_parity_v1",
+                                side=side,
+                            )
+                        except Exception:
+                            pass
                     except Exception as cexc:
                         cerr = str(cexc).lower()
                         if any(
@@ -304,6 +436,71 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
         except Exception:
             out["skipped"] += 1
     return out
+
+
+
+# F17: L3 latch be_earned from 5m extremes (owner 24.10)
+_F17_5M_CACHE: dict[str, list] = {}
+
+
+async def _f17_5m_bars(client, symbol: str, since_ms: int | None) -> list | None:
+    """Public 5m klines for symbol since entry; tick-level cache. Fail-open → None."""
+    global _F17_5M_CACHE
+    if symbol in _F17_5M_CACHE:
+        return _F17_5M_CACHE[symbol]
+    try:
+        get = getattr(client, "get_candles", None) or getattr(client, "get_recent_candles", None)
+        if get is None:
+            return None
+        try:
+            bars = await get(symbol, "5m", limit=500)
+        except TypeError:
+            try:
+                bars = await get(symbol, "5m")
+            except Exception:
+                return None
+        if not bars:
+            return None
+        out = []
+        for b in bars:
+            ot = int(getattr(b, "open_time", 0) or 0)
+            # BingX open_time may be ms or s
+            if ot < 10_000_000_000:
+                ot_ms = ot * 1000
+            else:
+                ot_ms = ot
+            if since_ms is not None and ot_ms + 300_000 < int(since_ms):
+                # bar fully before entry — skip
+                continue
+            out.append(b)
+        _F17_5M_CACHE[symbol] = out
+        return out
+    except Exception as exc:
+        logger.warning("F17 5m bars %s failed: %s", symbol, type(exc).__name__)
+        return None
+
+
+def _f17_be_earned_from_bars(
+    bars: list | None,
+    *,
+    side: str,
+    net_be: Decimal,
+) -> bool:
+    """long: any high >= net_be; short: any low <= net_be."""
+    if not bars:
+        return False
+    side_l = (side or "").lower()
+    for b in bars:
+        try:
+            hi = Decimal(str(getattr(b, "high", 0) or 0))
+            lo = Decimal(str(getattr(b, "low", 0) or 0))
+        except Exception:
+            continue
+        if side_l == "long" and hi >= net_be:
+            return True
+        if side_l == "short" and lo <= net_be:
+            return True
+    return False
 
 
 async def sync_partial_breakeven(
@@ -395,15 +592,91 @@ async def sync_partial_breakeven(
                 or getattr(pos, "current_price", None)
                 or getattr(pos, "price", None)
             )
-            mark_ok = False
             mark_px_be: Decimal | None = None
             if mark_for_be is not None:
                 try:
                     mark_px_be = Decimal(str(mark_for_be))
+                except Exception:
+                    mark_px_be = None
+
+            # F17 / F15: target for BE = net_breakeven when available, else entry
+            net_be = entry_px
+            be_mode = "gross"
+            try:
+                if hasattr(broker, "net_breakeven_price"):
+                    _p = type("P", (), {
+                        "entry_price": entry_px,
+                        "side": side,
+                        "quantity": exch_qty,
+                        "symbol": sym,
+                    })()
+                    net_be = Decimal(str(broker.net_breakeven_price(_p)))
+                    be_mode = "net"
+            except Exception:
+                net_be = entry_px
+                be_mode = "gross"
+
+            # F17 L3: latch be_earned from 5m extremes since entry (fail-open → mark only)
+            be_earned = bool(plan.get("be_earned"))
+            eligible_source = "mark"
+            if not be_earned:
+                since_ms = None
+                for k in ("opened_at_ms", "entry_ts_ms", "ts_ms"):
+                    if plan.get(k) is not None:
+                        try:
+                            since_ms = int(float(plan[k]))
+                            if since_ms < 10_000_000_000:
+                                since_ms *= 1000
+                            break
+                        except Exception:
+                            pass
+                if since_ms is None and plan.get("ts") is not None:
+                    try:
+                        since_ms = int(float(plan["ts"]) * 1000)
+                    except Exception:
+                        since_ms = None
+                bars = None
+                try:
+                    bars = await _f17_5m_bars(broker.client, sym, since_ms)
+                except Exception:
+                    bars = None
+                if _f17_be_earned_from_bars(bars, side=side, net_be=net_be):
+                    be_earned = True
+                    eligible_source = "5m"
+                    plan["be_earned"] = True
+                    try:
+                        from astra_bot.decision.live_positions import save_positions
+                        plans[_key] = plan
+                        save_positions(plans, path)
+                    except Exception:
+                        pass
+                    try:
+                        append_journal({
+                            "event": "be_earned_5m",
+                            "symbol": sym,
+                            "side": side,
+                            "net_be": str(net_be),
+                            "be_mode": be_mode,
+                            "ts": time.time(),
+                        })
+                    except Exception:
+                        pass
+                elif mark_px_be is not None:
+                    if (side == "long" and mark_px_be >= net_be) or (
+                        side == "short" and mark_px_be <= net_be
+                    ):
+                        be_earned = True
+                        eligible_source = "mark"
+                        plan["be_earned"] = True
+
+            # F10 exchange-validity: place only when mark is on the correct side of net_be
+            mark_ok = False
+            if mark_px_be is not None:
+                try:
                     if side == "long":
-                        mark_ok = mark_px_be >= entry_px
+                        mark_ok = mark_px_be >= net_be
                     else:
-                        mark_ok = mark_px_be <= entry_px
+                        mark_ok = mark_px_be <= net_be
                 except Exception:
                     mark_ok = False
 
@@ -411,7 +684,8 @@ async def sync_partial_breakeven(
                 not plan.get("be_moved")
                 and (partial_gap or is_pending)
             ):
-                if not mark_ok:
+                # L3 may have latched be_earned via 5m; still require mark_ok for place
+                if not mark_ok or not be_earned:
                     # Defer: no place_order; journal once / 1h
                     if partial_gap or is_pending:
                         now = time.time()
@@ -516,9 +790,12 @@ async def sync_partial_breakeven(
                         "plan_qty": str(plan_qty),
                         "qty_ratio": ratio,
                         "entry": str(entry_px),
+                        "net_be": str(net_be),
                         "mark": str(mark_px_be) if mark_px_be is not None else None,
                         "stop_before": str(stop_px),
                         "stop_after": str(target),
+                        "be_eligible_source": eligible_source if be_earned else "mark",
+                        "be_mode": be_mode,
                         "ts": time.time(),
                     })
                 except Exception:
@@ -817,6 +1094,18 @@ async def heal_dead_tp_legs(broker, *, positions_path: Path | None = None) -> di
             if old_id and hasattr(broker.client, "cancel_order"):
                 try:
                     await broker.client.cancel_order(sym, str(old_id))
+                    try:
+                        from astra_bot.decision.live_broker import journal_order_cancel
+                        journal_order_cancel(
+                            symbol=sym,
+                            order_id=str(old_id),
+                            order_type="TAKE_PROFIT",
+                            reason="tp_heal_replace",
+                            path="tp_heal",
+                            side=side,
+                        )
+                    except Exception:
+                        pass
                     append_journal({
                         "event": "tp_heal_cancel_old",
                         "symbol": sym,
@@ -1332,6 +1621,12 @@ async def one_tick(*, dry: bool = False) -> int:
 
     try:
         try:
+            try:
+                _mig = migrate_initial_stop_v1()
+                if _mig.get("migrated"):
+                    logger.info("migrate_initial_stop_v1: %s", _mig)
+            except Exception as _mexc:
+                logger.warning("migrate_initial_stop_v1: %s", type(_mexc).__name__)
             _par = await apply_tp_parity_v1(broker, send_tg=_send_live_tg)
             if _par.get("replaced") or _par.get("failed"):
                 logger.info("tp_parity_v1: %s", _par)
@@ -1450,6 +1745,7 @@ async def one_tick(*, dry: bool = False) -> int:
 
     # C: partial TP1 → BE — EVERY tick (owner rule), after restore so stop is present
     try:
+        _F17_5M_CACHE.clear()
         partial = await sync_partial_breakeven(broker, send_tg=_send_live_tg)
         if partial.get("moved") or partial.get("skipped"):
             logger.info("sync_partial_breakeven: %s", partial)
