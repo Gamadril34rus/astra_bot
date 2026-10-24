@@ -14,6 +14,7 @@ from pathlib import Path
 
 from astra_bot.decision.conf_risk_ladder import conf_risk_pct
 from astra_bot.decision.live_broker import LiveBroker, LiveEntryPlan
+from astra_bot.decision.exit_plan import PLAN_TP_FRACTIONS, clamp_take_rr
 from astra_bot.decision.live_positions import (
     count_open,
     open_symbols,
@@ -275,13 +276,15 @@ async def plan_from_candidate(
     stop_d = Decimal(str(cand.stop))
     r_abs = abs(entry_d - stop_d)
     side_l = cand.side.lower()
-    if r_abs > 0:
-        if side_l == "long":
-            tp1 = entry_d + (r_abs * Decimal("1.5"))
-        else:
-            tp1 = entry_d - (r_abs * Decimal("1.5"))
+    # F15: parity with paper — clamp_take_rr [2.0, 2.3], not hard 1.5R
+    raw_tp = cand.take_profit
+    if raw_tp is None and r_abs > 0:
+        raw_tp = entry_d + r_abs * Decimal("2.0") if side_l == "long" else entry_d - r_abs * Decimal("2.0")
+    if raw_tp is not None and r_abs > 0:
+        tp1 = clamp_take_rr(entry_d, stop_d, Decimal(str(raw_tp)), side_l, 2.0, 2.3)
     else:
-        tp1 = cand.take_profit  # fail-open: keep strategy TP if R=0
+        tp1 = cand.take_profit  # fail-open
+    tp_frac = float(PLAN_TP_FRACTIONS[0]) if PLAN_TP_FRACTIONS else 0.3
     try:
         heat_on = False
         try:
@@ -311,6 +314,7 @@ async def plan_from_candidate(
         leverage=lev,
         client_tag="arm",
         entry_price=cand.entry,
+        tp_frac=tp_frac,
     )
 
 
