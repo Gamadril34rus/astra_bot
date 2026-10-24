@@ -63,20 +63,22 @@ def maybe_warn_margin_reject(
         if cb is not None:
             try:
                 res = cb(msg)
-                # support async coroutine
                 if hasattr(res, "__await__"):
-                    import asyncio
-
+                    # async sender (clock _send_live_tg): best-effort schedule
                     try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            asyncio.ensure_future(res)
-                        else:
-                            loop.run_until_complete(res)
-                    except Exception:
-                        pass
+                        import asyncio
+
+                        asyncio.get_running_loop().create_task(res)  # noqa: RUF006
+                    except RuntimeError:
+                        try:
+                            import asyncio
+
+                            asyncio.run(res)
+                        except Exception as exc:
+                            logger.warning("margin warn TG async failed: %s", type(exc).__name__)
             except Exception as exc:
                 logger.warning("margin warn TG failed: %s", type(exc).__name__)
         return True
     except Exception:
         return False
+
