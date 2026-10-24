@@ -838,7 +838,8 @@ async def run_arm_entries(
                         ),
                         "qty": str(plan.quantity),
                         "stop": str(plan.stop_price),
-                        "tp": str(plan.take_profit_price)
+                        "tp": str(plan.take_profit_price),
+                        "tp_frac": float(getattr(plan, "tp_frac", 0.3) or 0.3)
                         if plan.take_profit_price
                         else None,
                         "leverage": plan.leverage,
