@@ -306,6 +306,65 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
     return out
 
 
+
+# F17: L3 latch be_earned from 5m extremes (owner 24.10)
+_F17_5M_CACHE: dict[str, list] = {}
+
+
+async def _f17_5m_bars(client, symbol: str, since_ms: int | None) -> list | None:
+    """Public 5m klines for symbol since entry; tick-level cache. Fail-open → None."""
+    global _F17_5M_CACHE
+    if symbol in _F17_5M_CACHE:
+        return _F17_5M_CACHE[symbol]
+    try:
+        get = getattr(client, "get_candles", None) or getattr(client, "get_recent_candles", None)
+        if get is None:
+            return None
+        bars = await get(symbol, "5m", limit=500)
+        if not bars:
+            return None
+        out = []
+        for b in bars:
+            ot = int(getattr(b, "open_time", 0) or 0)
+            # BingX open_time may be ms or s
+            if ot < 10_000_000_000:
+                ot_ms = ot * 1000
+            else:
+                ot_ms = ot
+            if since_ms is not None and ot_ms + 300_000 < int(since_ms):
+                # bar fully before entry — skip
+                continue
+            out.append(b)
+        _F17_5M_CACHE[symbol] = out
+        return out
+    except Exception as exc:
+        logger.warning("F17 5m bars %s failed: %s", symbol, type(exc).__name__)
+        return None
+
+
+def _f17_be_earned_from_bars(
+    bars: list | None,
+    *,
+    side: str,
+    net_be: Decimal,
+) -> bool:
+    """long: any high >= net_be; short: any low <= net_be."""
+    if not bars:
+        return False
+    side_l = (side or "").lower()
+    for b in bars:
+        try:
+            hi = Decimal(str(getattr(b, "high", 0) or 0))
+            lo = Decimal(str(getattr(b, "low", 0) or 0))
+        except Exception:
+            continue
+        if side_l == "long" and hi >= net_be:
+            return True
+        if side_l == "short" and lo <= net_be:
+            return True
+    return False
+
+
 async def sync_partial_breakeven(
     broker,
     *,
@@ -395,23 +454,99 @@ async def sync_partial_breakeven(
                 or getattr(pos, "current_price", None)
                 or getattr(pos, "price", None)
             )
-            mark_ok = False
             mark_px_be: Decimal | None = None
             if mark_for_be is not None:
                 try:
                     mark_px_be = Decimal(str(mark_for_be))
+                except Exception:
+                    mark_px_be = None
+
+            # F17 / F15: target for BE = net_breakeven when available, else entry
+            net_be = entry_px
+            be_mode = "gross"
+            try:
+                if hasattr(broker, "net_breakeven_price"):
+                    _p = type("P", (), {
+                        "entry_price": entry_px,
+                        "side": side,
+                        "quantity": exch_qty,
+                        "symbol": sym,
+                    })()
+                    net_be = Decimal(str(broker.net_breakeven_price(_p)))
+                    be_mode = "net"
+            except Exception:
+                net_be = entry_px
+                be_mode = "gross"
+
+            # F17 L3: latch be_earned from 5m extremes since entry (fail-open → mark only)
+            be_earned = bool(plan.get("be_earned"))
+            eligible_source = "mark"
+            if not be_earned:
+                since_ms = None
+                for k in ("opened_at_ms", "entry_ts_ms", "ts_ms"):
+                    if plan.get(k) is not None:
+                        try:
+                            since_ms = int(float(plan[k]))
+                            if since_ms < 10_000_000_000:
+                                since_ms *= 1000
+                            break
+                        except Exception:
+                            pass
+                if since_ms is None and plan.get("ts") is not None:
+                    try:
+                        since_ms = int(float(plan["ts"]) * 1000)
+                    except Exception:
+                        since_ms = None
+                bars = None
+                try:
+                    bars = await _f17_5m_bars(broker.client, sym, since_ms)
+                except Exception:
+                    bars = None
+                if _f17_be_earned_from_bars(bars, side=side, net_be=net_be):
+                    be_earned = True
+                    eligible_source = "5m"
+                    plan["be_earned"] = True
+                    try:
+                        from astra_bot.decision.live_positions import save_positions
+                        plans[_key] = plan
+                        save_positions(plans, path)
+                    except Exception:
+                        pass
+                    try:
+                        append_journal({
+                            "event": "be_earned_5m",
+                            "symbol": sym,
+                            "side": side,
+                            "net_be": str(net_be),
+                            "be_mode": be_mode,
+                            "ts": time.time(),
+                        })
+                    except Exception:
+                        pass
+                elif mark_px_be is not None:
+                    if (side == "long" and mark_px_be >= net_be) or (
+                        side == "short" and mark_px_be <= net_be
+                    ):
+                        be_earned = True
+                        eligible_source = "mark"
+                        plan["be_earned"] = True
+
+            # F10 exchange-validity: place only when mark is on the correct side of net_be
+            mark_ok = False
+            if mark_px_be is not None:
+                try:
                     if side == "long":
-                        mark_ok = mark_px_be >= entry_px
+                        mark_ok = mark_px_be >= net_be
                     else:
-                        mark_ok = mark_px_be <= entry_px
+                        mark_ok = mark_px_be <= net_be
                 except Exception:
                     mark_ok = False
 
             if (
                 not plan.get("be_moved")
-                and (partial_gap or is_pending)
+                and (partial_gap or is_pending or be_earned)
             ):
-                if not mark_ok:
+                if not mark_ok or not be_earned:
                     # Defer: no place_order; journal once / 1h
                     if partial_gap or is_pending:
                         now = time.time()
@@ -516,9 +651,12 @@ async def sync_partial_breakeven(
                         "plan_qty": str(plan_qty),
                         "qty_ratio": ratio,
                         "entry": str(entry_px),
+                        "net_be": str(net_be),
                         "mark": str(mark_px_be) if mark_px_be is not None else None,
                         "stop_before": str(stop_px),
                         "stop_after": str(target),
+                        "be_eligible_source": eligible_source if be_earned else "mark",
+                        "be_mode": be_mode,
                         "ts": time.time(),
                     })
                 except Exception:
@@ -1450,6 +1588,7 @@ async def one_tick(*, dry: bool = False) -> int:
 
     # C: partial TP1 → BE — EVERY tick (owner rule), after restore so stop is present
     try:
+        _F17_5M_CACHE.clear()
         partial = await sync_partial_breakeven(broker, send_tg=_send_live_tg)
         if partial.get("moved") or partial.get("skipped"):
             logger.info("sync_partial_breakeven: %s", partial)
