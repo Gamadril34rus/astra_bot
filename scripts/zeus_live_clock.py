@@ -1329,7 +1329,10 @@ async def one_tick(*, dry: bool = False) -> int:
     try:
         from astra_bot.decision.live_exit_engine import engine_mode, run_exit_pass
         if engine_mode() != "off":
-            _ex = await run_exit_pass(broker, send_tg=_send_live_tg)
+            from astra_bot.decision.live_positions import DEFAULT_PATH as _LIVE_POS
+            _ex = await run_exit_pass(
+                broker, send_tg=_send_live_tg, positions_path=_LIVE_POS
+            )
             if _ex.get("actions"):
                 logger.info("exit_engine: %s", _ex)
     except Exception as _ex_exc:
