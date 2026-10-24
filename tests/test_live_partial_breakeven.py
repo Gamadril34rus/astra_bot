@@ -73,7 +73,8 @@ class MockClient:
         return None
 
 
-def test_plan_tp1_at_1_5r_long(tmp_path, monkeypatch):
+def test_plan_tp_clamped_2_0_2_3r_long(tmp_path, monkeypatch):
+    """F15: take_profit clamped into [2.0, 2.3]R (not hard 1.5R)."""
     async def _():
         monkeypatch.chdir(tmp_path)
         b = LiveBroker(MockClient(Decimal("500")))
@@ -82,18 +83,19 @@ def test_plan_tp1_at_1_5r_long(tmp_path, monkeypatch):
             side="long",
             entry=Decimal("100"),
             stop=Decimal("90"),
-            take_profit=Decimal("130"),
+            take_profit=Decimal("130"),  # 3R → clamp max 2.3R
             confidence=0.9,
             step_size=Decimal("0.001"),
         )
         plan = await plan_from_candidate(b, cand, exchange_open_count=0, exchange_symbols=set())
         assert plan is not None
-        # R=10 → TP1 = 100 + 15 = 115
-        assert plan.take_profit_price == Decimal("115")
+        # R=10 → clamp max 2.3R = 123
+        assert plan.take_profit_price == Decimal("123.0")
+        assert abs(float(plan.tp_frac) - 0.3) < 1e-9
     asyncio.run(_())
 
 
-def test_plan_tp1_at_1_5r_short(tmp_path, monkeypatch):
+def test_plan_tp_clamped_2_0_2_3r_short(tmp_path, monkeypatch):
     async def _():
         monkeypatch.chdir(tmp_path)
         b = LiveBroker(MockClient(Decimal("500")))
@@ -102,13 +104,14 @@ def test_plan_tp1_at_1_5r_short(tmp_path, monkeypatch):
             side="short",
             entry=Decimal("100"),
             stop=Decimal("110"),
-            take_profit=Decimal("70"),
+            take_profit=Decimal("70"),  # 3R → clamp 2.3R
             confidence=0.9,
             step_size=Decimal("0.001"),
         )
         plan = await plan_from_candidate(b, cand, exchange_open_count=0, exchange_symbols=set())
         assert plan is not None
-        assert plan.take_profit_price == Decimal("85")
+        assert plan.take_profit_price == Decimal("77.0")
+        assert abs(float(plan.tp_frac) - 0.3) < 1e-9
     asyncio.run(_())
 
 
@@ -283,7 +286,7 @@ def test_open_tp1_close_position_false(tmp_path, monkeypatch):
         await b.open_with_protection(plan)
         tp_orders = [o for o in c.placed if "TAKE_PROFIT" in str(o.get("order_type", "")).upper()]
         assert len(tp_orders) == 1
-        assert tp_orders[0]["quantity"] == Decimal("0.8")  # 40% of 2
+        assert tp_orders[0]["quantity"] == Decimal("0.6")  # F15 30% of 2
         assert tp_orders[0].get("reduce_only") is False  # F4/owner 22.10: hedge forbids ReduceOnly
         assert tp_orders[0].get("close_position") is False
     asyncio.run(_())
@@ -371,8 +374,8 @@ def test_open_with_protection_quantizes_tp_to_precision(tmp_path, monkeypatch):
         tp_orders = [o for o in c.placed if "TAKE_PROFIT" in str(o.get("order_type", "")).upper()]
         assert len(tp_orders) == 1
         q = tp_orders[0]["quantity"]
-        # 40% of 391.49086901 = 156.596347604 → floor 0.1 → 156.5
-        assert q == Decimal("156.5")
+        # F15 30% of 391.49086901 = 117.447… → floor 0.1 → 117.4
+        assert q == Decimal("117.4")
         # no long fractional tail
         assert q == q.quantize(Decimal("0.1"))
     asyncio.run(_())
