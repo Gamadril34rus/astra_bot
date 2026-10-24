@@ -13,6 +13,7 @@ NOT transferred: TIME_STOP, MOMENTUM_EXIT, BREAKEVEN (A owns it).
 from __future__ import annotations
 
 import logging
+import math
 import os
 import time
 from decimal import Decimal
@@ -187,7 +188,6 @@ def ratchet_e_stop_candidate(
         cand = entry
     # Staircase locks: floor(mfe/0.5)*0.5 - 0.5 when MFE >= 1.0
     if mfe_r >= 1.0:
-        import math
         locked = math.floor(mfe_r / 0.5) * 0.5 - 0.5
         if locked > 0:
             delta = risk * Decimal(str(locked))
