@@ -493,3 +493,153 @@ async def resolve_pending_dogon(
     except Exception as exc:
         logger.warning("dogon save_pending: %s", type(exc).__name__)
     return sent
+
+
+# --- F13: income fill-tape + strategy from signal_id ---
+
+FILL_TAPE_STATE_PATH = Path("models/zeus_live_income_tape_seen.json")
+
+
+def strategy_from_signal_id(signal_id: str | None) -> str | None:
+    """Derive strategy name from signal_id prefix (before | or :)."""
+    if not signal_id:
+        return None
+    s = str(signal_id).strip()
+    if not s:
+        return None
+    for sep in ("|", ":", "/"):
+        if sep in s:
+            head = s.split(sep, 1)[0].strip()
+            if head:
+                return head
+    if s.startswith("zeus") or "_" in s:
+        return s
+    return None
+
+
+def _income_row_id(row: dict) -> str:
+    for k in ("tranId", "tran_id", "id", "incomeId", "tradeId"):
+        v = row.get(k)
+        if v is not None and str(v).strip():
+            return str(v).strip()
+    it = str(row.get("_incomeType") or row.get("incomeType") or "")
+    ts = str(row.get("time") or row.get("ts") or "")
+    amt = str(row.get("income") or row.get("amount") or "")
+    sym = str(row.get("symbol") or "")
+    return f"{sym}|{it}|{ts}|{amt}"
+
+
+def load_fill_tape_seen(path: Path = FILL_TAPE_STATE_PATH) -> set[str]:
+    try:
+        if not path.exists():
+            return set()
+        data = json.loads(path.read_text(encoding="utf-8"))
+        ids = data.get("ids") if isinstance(data, dict) else data
+        if isinstance(ids, list):
+            return set(str(x) for x in ids)
+    except Exception:
+        pass
+    return set()
+
+
+def save_fill_tape_seen(ids: set[str], path: Path = FILL_TAPE_STATE_PATH, keep: int = 5000) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lst = list(ids)
+    if len(lst) > keep:
+        lst = lst[-keep:]
+    path.write_text(
+        json.dumps({"ids": lst, "ts": time.time()}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+def _parse_income_fill(row: dict, symbol: str) -> dict | None:
+    it = str(row.get("_incomeType") or row.get("incomeType") or "")
+    if it not in ("REALIZED_PNL",):
+        return None
+    try:
+        amount = float(row.get("income") or row.get("amount") or 0)
+    except (TypeError, ValueError):
+        return None
+    if abs(amount) < 1e-12:
+        return None
+    ts_raw = row.get("time") or row.get("ts")
+    try:
+        ts_ms = int(float(ts_raw))
+        ts = ts_ms / 1000.0 if ts_ms > 1e12 else float(ts_ms)
+    except (TypeError, ValueError):
+        ts = time.time()
+    qty = row.get("qty") or row.get("quantity")
+    if qty is None and isinstance(row.get("info"), dict):
+        qty = row["info"].get("qty")
+    price = row.get("price") or row.get("markPrice")
+    try:
+        qty_f = float(qty) if qty is not None else None
+    except (TypeError, ValueError):
+        qty_f = None
+    try:
+        px_f = float(price) if price is not None else None
+    except (TypeError, ValueError):
+        px_f = None
+    return {
+        "event": "partial_fill",
+        "symbol": symbol,
+        "side": None,
+        "qty": qty_f,
+        "price": px_f,
+        "pnl": amount,
+        "income_type": it,
+        "income_id": _income_row_id(row),
+        "source": "income_tape",
+        "ts": ts,
+    }
+
+
+async def process_income_fill_tape(
+    client,
+    symbols: list[str],
+    *,
+    lookback_ms: int = 36 * 3600 * 1000,
+    state_path: Path = FILL_TAPE_STATE_PATH,
+    trades_path: Path | None = None,
+) -> dict:
+    """Each tick: poll REALIZED_PNL, append unseen rows (dedup by income id)."""
+    from astra_bot.decision.live_broker import append_live_trade
+
+    if not hasattr(client, "get_realized_income"):
+        return {"written": 0, "seen": 0, "error": "no_get_realized_income"}
+    seen = load_fill_tape_seen(state_path)
+    written = 0
+    scanned = 0
+    now_ms = int(time.time() * 1000)
+    start_ms = now_ms - int(lookback_ms)
+    for sym in symbols:
+        if not sym:
+            continue
+        try:
+            rows = await client.get_realized_income(sym, start_ms=start_ms, end_ms=now_ms)
+        except Exception as exc:
+            logger.warning("fill_tape %s: %s", sym, type(exc).__name__)
+            continue
+        for row in rows or []:
+            if not isinstance(row, dict):
+                continue
+            scanned += 1
+            rid = _income_row_id(row)
+            if rid in seen:
+                continue
+            fill = _parse_income_fill(row, sym)
+            if fill is None:
+                continue
+            seen.add(rid)
+            try:
+                append_live_trade(fill, path=trades_path)
+                written += 1
+            except Exception as exc:
+                logger.warning("fill_tape append %s: %s", sym, type(exc).__name__)
+                seen.discard(rid)
+    try:
+        save_fill_tape_seen(seen, state_path)
+    except Exception as exc:
+        logger.warning("fill_tape save seen: %s", type(exc).__name__)
+    return {"written": written, "scanned": scanned, "seen_n": len(seen)}
