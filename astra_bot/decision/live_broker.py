@@ -561,7 +561,7 @@ class LiveBroker:
             if rel <= threshold:
                 continue
             old_qty = plan_qty
-            plan["qty"] = exch_qty
+            plan["qty"] = float(exch_qty)
             if plan.get("plan_qty") not in (None, ""):
                 try:
                     pq = float(plan["plan_qty"])
@@ -571,30 +571,46 @@ class LiveBroker:
                     pass
             plans[key] = plan
             changed = True
+            # F16b: JSON-safe numbers (Decimal from exchange must not break journal)
             row = {
                 "event": "qty_reconcile",
                 "symbol": plan.get("symbol") or key.split("|")[0],
                 "side": plan.get("side") or (key.split("|")[1] if "|" in key else None),
-                "old_qty": old_qty,
-                "new_qty": exch_qty,
-                "rel_diff": round(rel, 6),
+                "old_qty": float(old_qty),
+                "new_qty": float(exch_qty),
+                "rel_diff": float(round(rel, 6)),
                 "signal_id": plan.get("signal_id"),
                 "ts": time.time(),
             }
+            plan["qty"] = float(exch_qty)
             out["reconciled"].append(row)
+            # F16: journal MUST land — silent pass was losing qty_reconcile while
+            # plan.qty already moved (LTC 474.7→199.4 without journal row).
             try:
                 append_journal(row)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "qty_reconcile journal failed %s: %s",
+                    row.get("symbol"),
+                    type(exc).__name__,
+                )
+                out.setdefault("journal_errors", []).append(
+                    {"symbol": row.get("symbol"), "error": type(exc).__name__}
+                )
             try:
                 append_live_trade(row)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(
+                    "qty_reconcile trade-log skip %s: %s",
+                    row.get("symbol"),
+                    type(exc).__name__,
+                )
         if changed:
             try:
                 save_positions(plans, path)
             except Exception as exc:
                 logger.warning("reconcile_plan_qty save: %s", type(exc).__name__)
+                out["save_error"] = type(exc).__name__
         return out
 
     async def reconcile(self) -> dict[str, Any]:
