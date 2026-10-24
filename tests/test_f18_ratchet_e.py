@@ -6,7 +6,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from astra_bot.decision.live_exit_engine import (
     engine_mode,
     evaluate_plan_actions,
@@ -129,8 +128,8 @@ async def test_shadow_never_calls_place_or_move(monkeypatch):
 
     broker.client.get_positions = fake_positions
 
-    import astra_bot.decision.live_positions as lp
     import astra_bot.decision.live_arm_wiring as law
+    import astra_bot.decision.live_positions as lp
     monkeypatch.setattr(lp, "load_positions", lambda path=None: plans)
     monkeypatch.setattr(lee, "migrate_open_stops", lambda p: [])
     monkeypatch.setattr(law, "append_journal", lambda *a, **k: None)
