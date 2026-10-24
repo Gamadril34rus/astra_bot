@@ -1619,6 +1619,30 @@ async def one_tick(*, dry: bool = False) -> int:
         rec.get("missing_stops"),
     )
 
+    # F13: plan.qty ↔ exchange qty (>0.5% → upsert + qty_reconcile)
+    try:
+        rq = await broker.reconcile_plan_qty()
+        if rq.get("reconciled"):
+            logger.info("reconcile_plan_qty: %s", rq)
+    except Exception as _rq_exc:
+        logger.warning("reconcile_plan_qty failed: %s", type(_rq_exc).__name__)
+
+    # F13: income fill-tape (dedup by income id)
+    try:
+        from astra_bot.decision.live_income_report import process_income_fill_tape
+        from astra_bot.decision.live_positions import load_positions as _lp_f13
+        _syms = sorted({
+            str((p.get("symbol") or k.split("|")[0]))
+            for k, p in (_lp_f13() or {}).items()
+            if isinstance(p, dict)
+        })
+        if _syms:
+            _ft = await process_income_fill_tape(client, _syms)
+            if _ft.get("written"):
+                logger.info("income_fill_tape: %s", _ft)
+    except Exception as _ft_exc:
+        logger.warning("income_fill_tape failed: %s", type(_ft_exc).__name__)
+
     try:
         try:
             try:
