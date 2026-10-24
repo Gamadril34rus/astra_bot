@@ -107,6 +107,16 @@ def _journal_protect(event: str, **fields) -> None:
         append_journal({"event": event, "ts": time.time(), **fields})
     except Exception:
         pass
+    if event == "protect_place_failed":
+        try:
+            from astra_bot.decision.live_margin_warn import maybe_warn_margin_reject
+            maybe_warn_margin_reject(
+                str(fields.get("symbol") or ""),
+                str(fields.get("error") or ""),
+                None,  # uses clock-installed callback if any
+            )
+        except Exception:
+            pass
 
 
 
@@ -884,6 +894,7 @@ class LiveBroker:
         self,
         *,
         positions_path: Path | None = None,
+        send_tg=None,
     ) -> dict[str, Any]:
         """After reconcile: positions without stop get plan stop or market close.
 
@@ -963,15 +974,33 @@ class LiveBroker:
                             "restore_missing_stops: %s TP-only failed: %s",
                             sym, type(exp).__name__,
                         )
+                        err_s = f"{type(exp).__name__}: {exp}"
                         try:
                             append_live_trade(
                                 {
                                     "event": "restore_tp_failed",
                                     "symbol": sym,
-                                    "error": f"{type(exp).__name__}: {exp}",
+                                    "error": err_s,
                                     "ts": time.time(),
                                 }
                             )
+                        except Exception:
+                            pass
+                        try:
+                            from astra_bot.decision.live_arm_wiring import append_journal
+                            append_journal(
+                                {
+                                    "event": "restore_tp_failed",
+                                    "symbol": sym,
+                                    "error": err_s,
+                                    "ts": time.time(),
+                                }
+                            )
+                        except Exception:
+                            pass
+                        try:
+                            from astra_bot.decision.live_margin_warn import maybe_warn_margin_reject
+                            maybe_warn_margin_reject(sym, err_s, send_tg)
                         except Exception:
                             pass
                 continue
