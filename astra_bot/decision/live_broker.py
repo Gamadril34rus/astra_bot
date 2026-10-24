@@ -561,7 +561,7 @@ class LiveBroker:
             if rel <= threshold:
                 continue
             old_qty = plan_qty
-            plan["qty"] = exch_qty
+            plan["qty"] = float(exch_qty)
             if plan.get("plan_qty") not in (None, ""):
                 try:
                     pq = float(plan["plan_qty"])
@@ -571,16 +571,18 @@ class LiveBroker:
                     pass
             plans[key] = plan
             changed = True
+            # F16b: JSON-safe numbers (Decimal from exchange must not break journal)
             row = {
                 "event": "qty_reconcile",
                 "symbol": plan.get("symbol") or key.split("|")[0],
                 "side": plan.get("side") or (key.split("|")[1] if "|" in key else None),
-                "old_qty": old_qty,
-                "new_qty": exch_qty,
-                "rel_diff": round(rel, 6),
+                "old_qty": float(old_qty),
+                "new_qty": float(exch_qty),
+                "rel_diff": float(round(rel, 6)),
                 "signal_id": plan.get("signal_id"),
                 "ts": time.time(),
             }
+            plan["qty"] = float(exch_qty)
             out["reconciled"].append(row)
             # F16: journal MUST land — silent pass was losing qty_reconcile while
             # plan.qty already moved (LTC 474.7→199.4 without journal row).

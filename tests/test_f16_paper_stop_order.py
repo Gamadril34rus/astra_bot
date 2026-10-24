@@ -109,3 +109,75 @@ def test_apply_tighter_long_only_up():
     assert apply_tighter(pos, Decimal("101")) is True
     assert pos.stop_loss == Decimal("101")
     assert apply_tighter(pos, Decimal("100.5")) is False
+
+
+@pytest.mark.asyncio
+async def test_qty_reconcile_decimal_fields_write_real_journal(tmp_path, monkeypatch):
+    """Prod-like: exch qty as Decimal → journal file gets qty_reconcile line.
+
+    Arena #254: if serialization fails, float()/str() in reconcile row must fix it.
+    Uses real append_journal (not a stub of the writer).
+    """
+    from decimal import Decimal
+
+    sys.modules.setdefault("aiohttp", MagicMock())
+    sys.modules.setdefault("prometheus_client", MagicMock())
+
+    positions_path = tmp_path / "zeus_live_positions.json"
+    journal_path = tmp_path / "zeus_live_journal.jsonl"
+    plans = {
+        "LTC-USDT|short": {
+            "symbol": "LTC-USDT",
+            "side": "short",
+            "qty": Decimal("474.7"),  # plan may hold Decimal-like
+            "plan_qty": "474.7",
+            "signal_id": "sid-ltc-dec",
+        }
+    }
+    # write plan with float for JSON file; Decimal comes from exchange side
+    positions_path.write_text(
+        json.dumps(
+            {
+                "positions": {
+                    "LTC-USDT|short": {
+                        "symbol": "LTC-USDT",
+                        "side": "short",
+                        "qty": 474.7,
+                        "plan_qty": 474.7,
+                        "signal_id": "sid-ltc-dec",
+                    }
+                }
+            }
+        )
+    )
+
+    from astra_bot.decision import live_arm_wiring, live_broker
+
+    monkeypatch.setattr(live_arm_wiring, "JOURNAL_PATH", journal_path)
+
+    client = MagicMock()
+    # exchange returns Decimal qty (common in clients)
+    pos = SimpleNamespace(
+        symbol="LTC-USDT", side="short", quantity=Decimal("284.85")
+    )
+    client.get_positions = AsyncMock(return_value=[pos])
+
+    broker = live_broker.LiveBroker.__new__(live_broker.LiveBroker)
+    broker.client = client
+    monkeypatch.setattr(live_broker, "append_live_trade", lambda *a, **k: None)
+
+    out = await broker.reconcile_plan_qty(positions_path=positions_path)
+    assert out.get("reconciled"), f"expected reconcile, got {out}"
+    assert not out.get("journal_errors"), out.get("journal_errors")
+
+    assert journal_path.is_file(), "journal file must exist after reconcile"
+    raw = journal_path.read_text(encoding="utf-8")
+    assert "qty_reconcile" in raw
+    rows = [json.loads(l) for l in raw.splitlines() if l.strip()]
+    qr = next(r for r in rows if r.get("event") == "qty_reconcile")
+    # pure JSON numbers (not strings) after float() fix
+    assert isinstance(qr["old_qty"], (int, float))
+    assert isinstance(qr["new_qty"], (int, float))
+    assert abs(qr["old_qty"] - 474.7) < 0.01
+    assert abs(qr["new_qty"] - 284.85) < 0.01
+    assert qr["symbol"] == "LTC-USDT"
