@@ -68,7 +68,7 @@ def maybe_warn_margin_reject(
                     try:
                         import asyncio
 
-                        asyncio.get_running_loop().create_task(res)  # noqa: RUF006
+                        asyncio.get_running_loop().create_task(res)
                     except RuntimeError:
                         try:
                             import asyncio
