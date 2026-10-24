@@ -928,331 +928,332 @@
 {"event":"entry","signal_id":"zeus_channel_boundary|XRP-USDT|short|1792497600000","symbol":"XRP-USDT","side":"short","plan_entry":"1.3163","fill_price":"1.3188","slip_pct":-0.18992630859226214,"qty":"95609.85337688","stop":"1.3268304","tp":"1.30050440","leverage":6,"ts":1792504983.363501}
 {"event":"entry","signal_id":"zeus_channel_boundary|DOGE-USDT|short|1792497600000","symbol":"DOGE-USDT","side":"short","plan_entry":"0.08053","fill_price":"0.08071","slip_pct":-0.22351918539674606,"qty":"1561747.17496582","stop":"0.08117424000000001","tp":"0.079563639999999985","leverage":6,"ts":1792504988.4406524}
 {"event":"restore_tp_failed","symbol":"ETH-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 24658.56 USDT","ts":1792505220.936895}
-{"event": "entry", "signal_id": "zeus_channel_boundary|ADA-USDT|short|1792497600000", "symbol": "ADA-USDT", "side": "short", "plan_entry": "0.2225", "fill_price": "0.2232", "slip_pct": -0.3146067415730365, "qty": "557449.43820224", "stop": "0.22428", "tp": "0.219830", "leverage": 6, "ts": 1792505257.1867964}
-{"event": "exit", "symbol": "ETH-USDT", "side": "short", "entry": 2396.47, "exit": null, "exit_reason": "income", "pnl": 1040.1315, "pnl_source": "income", "fees": 249.956835, "funding_fee": 16.51700393, "trade_id": "zeus_channel_boundary|ETH-USDT|short|1792425600000", "slip_exit_pct": null, "qty": 52.30554421, "signal_id": "zeus_channel_boundary|ETH-USDT|short|1792425600000", "ts": 1792505518.0421112, "tp1_leg": 506.793}
-{"event": "exit", "symbol": "XRP-USDT", "side": "short", "entry": 1.3188, "exit": null, "exit_reason": "income", "pnl": -63.0463, "pnl_source": "income", "fees": 126.48236800000001, "funding_fee": 0.0, "trade_id": "zeus_channel_boundary|XRP-USDT|short|1792497600000", "slip_exit_pct": null, "qty": 95609.85337688, "signal_id": "zeus_channel_boundary|XRP-USDT|short|1792497600000", "ts": 1792505518.0421112, "tp1_leg": 699.6959}
-{"event": "exit", "symbol": "DOGE-USDT", "side": "short", "entry": 0.08071, "exit": null, "exit_reason": "income", "pnl": -63.0243, "pnl_source": "income", "fees": 126.446846, "funding_fee": 0.0, "trade_id": "zeus_channel_boundary|DOGE-USDT|short|1792497600000", "slip_exit_pct": null, "qty": 1561747.17496582, "signal_id": "zeus_channel_boundary|DOGE-USDT|short|1792497600000", "ts": 1792505518.0421112, "tp1_leg": 716.1298}
-{"event": "entry", "signal_id": "zeus_channel_boundary|ETH-USDT|short|1792497600000", "symbol": "ETH-USDT", "side": "short", "plan_entry": "2428.74", "fill_price": "2426.35", "slip_pct": 0.09840493424573536, "qty": "50.80566466", "stop": "2448.16992", "tp": "2399.595120", "leverage": 6, "ts": 1792505578.808574}
-{"event": "entry", "signal_id": "zeus_channel_boundary|LINK-USDT|short|1792497600000", "symbol": "LINK-USDT", "side": "short", "plan_entry": "12.319", "fill_price": "12.322", "slip_pct": -0.02435262602482618, "qty": "9994.92653624", "stop": "12.417552", "tp": "12.1711720", "leverage": 6, "ts": 1792505584.5613728}
-{"event": "entry", "signal_id": "zeus_channel_boundary|LTC-USDT|short|1792497600000", "symbol": "LTC-USDT", "side": "short", "plan_entry": "60.17", "fill_price": "60.22", "slip_pct": -0.0830978893136067, "qty": "2044.29117500", "stop": "60.651360000000004", "tp": "59.4479599999999940", "leverage": 6, "ts": 1792505588.7346063}
-{"event": "exit", "symbol": "ADA-USDT", "side": "short", "entry": 0.2232, "exit": null, "exit_reason": "income", "pnl": -703.3058, "pnl_source": "income", "fees": 124.71191300000001, "funding_fee": 0.0, "trade_id": "zeus_channel_boundary|ADA-USDT|short|1792497600000", "slip_exit_pct": null, "qty": 557449.43820224, "signal_id": "zeus_channel_boundary|ADA-USDT|short|1792497600000", "ts": 1792506730.7023053, "tp1_leg": 751.4418}
-{"event": "exit", "symbol": "ETH-USDT", "side": "short", "entry": 2426.35, "exit": null, "exit_reason": "income", "pnl": -563.1842, "pnl_source": "income", "fees": 123.490329, "funding_fee": 0.0, "trade_id": "zeus_channel_boundary|ETH-USDT|short|1792497600000", "slip_exit_pct": null, "qty": 50.80566466, "signal_id": "zeus_channel_boundary|ETH-USDT|short|1792497600000", "ts": 1792506730.7023053, "tp1_leg": 543.7198}
-{"event": "exit", "symbol": "LINK-USDT", "side": "short", "entry": 12.322, "exit": null, "exit_reason": "income", "pnl": -1177.9133, "pnl_source": "income", "fees": 123.679687, "funding_fee": 0.0, "trade_id": "zeus_channel_boundary|LINK-USDT|short|1792497600000", "slip_exit_pct": null, "qty": 9994.92653624, "signal_id": "zeus_channel_boundary|LINK-USDT|short|1792497600000", "ts": 1792506730.7023053, "tp1_leg": 603.0059}
-{"event": "exit", "symbol": "LTC-USDT", "side": "short", "entry": 60.22, "exit": null, "exit_reason": "income", "pnl": -1130.0941, "pnl_source": "income", "fees": 123.59505200000001, "funding_fee": 0.0, "trade_id": "zeus_channel_boundary|LTC-USDT|short|1792497600000", "slip_exit_pct": null, "qty": 2044.291175, "signal_id": "zeus_channel_boundary|LTC-USDT|short|1792497600000", "ts": 1792506730.7023053, "tp1_leg": 631.3098}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792596428.4685566}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792596732.4376435}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792597011.2410543}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792597612.4637132}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792597925.43734}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792598212.1405418}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792598540.3757777}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792598811.5958798}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792599110.452026}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792599410.90133}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792600031.1291757}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792600372.403245}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792600632.4534838}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792600956.9025002}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792601560.0401065}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792601827.8962808}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792602181.637308}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792602448.850462}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792602751.7957501}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792604226.953751}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792604555.1696672}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792604829.6001751}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792605152.1477156}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792605445.268414}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792605756.8609004}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792606047.9593728}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792606334.0990167}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792606661.1620536}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792606952.4813895}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792607246.842582}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792607568.98417}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792608114.3752103}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792609329.0845165}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792609592.227484}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792609889.7421906}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792610201.398848}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792610491.0112062}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792610788.2806087}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792611098.6020112}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792611375.3162289}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792611696.9495559}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792611997.0256472}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792612297.405962}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792612917.012872}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792613192.1992059}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792613797.599902}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792614086.1759708}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792614388.7440143}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792614711.7153175}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792614987.9389174}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792615287.001934}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792615595.0790083}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792616183.3761756}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792616782.7358253}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792617097.752556}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792617397.471539}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792617699.8898919}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792617986.9840271}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792618312.8067765}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792618588.742202}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792618903.7870898}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792619192.9399135}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792619496.4866817}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792620125.9140732}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792620381.409198}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792620687.5605242}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792621000.3775346}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792621300.5089316}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792621906.126404}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792622496.6707108}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792623088.1681235}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792623386.9665616}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792623714.5948637}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792623981.7975101}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792624298.251722}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792624585.678398}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792624891.7204766}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792625499.521622}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792625783.96125}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792626091.3069413}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792626401.4274838}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792626696.6530545}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792626986.2968}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792627321.8120103}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792627597.7650023}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792628197.0070574}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792628783.265086}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792629109.624622}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792629375.9248796}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792629998.945759}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792630280.6086628}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792630596.6280084}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792630912.6216278}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792631190.7101836}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792631812.0991595}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792632095.257792}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792632403.7806542}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792632703.9922225}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792632986.9105859}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792633292.860409}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792634184.0326753}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792635395.2459497}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792636316.0274417}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792636581.8516355}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792636899.726017}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792637199.2367706}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792637489.7503276}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792637799.9928706}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792638131.6328335}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792638784.18194}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792638990.787977}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792639286.3672469}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792639911.4693682}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792640877.6516373}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792641097.9869058}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792641774.0082977}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792641986.2793548}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792643193.7411628}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792643512.050538}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792643792.4057531}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792644087.8512294}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792644395.3856325}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792644698.5798943}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792644982.1885495}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792645907.8286655}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792646191.8132997}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792646483.832708}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792646784.7865946}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792647112.6853938}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792647389.9842749}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792648665.4449375}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792648911.2907324}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792649185.692248}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792649485.4285247}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792649796.8771906}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792650390.9843736}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792650717.8134065}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792650990.0465024}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792651299.374302}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792651596.09549}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792651894.144758}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792652184.4875927}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792652519.3780777}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792653698.7871878}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792654004.50404}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792654308.2555275}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792654584.4618642}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792655232.6450713}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792655490.4492571}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792655786.1209183}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792656121.8009858}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792656374.8069704}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792656688.9473753}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792657002.8547115}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792657291.1318445}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792657582.1011708}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792658181.2433314}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792659095.590213}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792659380.4213839}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792659991.7770572}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792660298.1549625}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792660594.8159742}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792660900.3643792}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792661185.4751213}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792661515.0699162}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792661783.023393}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792662095.7469847}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792662978.1398475}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792663321.5355318}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792663578.5348794}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792664194.3142695}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792664497.9749868}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792665111.1363082}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792665388.6568916}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792666008.8091085}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792666281.7849276}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792666581.0406175}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792667493.2853868}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792667794.7965267}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792668386.1136248}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792668993.6219294}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792670598.420667}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792671102.9596996}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792671396.1287026}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792671696.743219}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792671979.5347216}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792672307.7556202}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792672586.8602297}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792673197.632712}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792673483.4869926}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792673778.502552}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792674113.4700992}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792676203.8458657}
-{"event": "protect_place", "ts": 1792676235.7385159, "symbol": "DOGE-USDT", "kind": "stop", "stop_price": "0.08150229996341458", "qty": "525447.75942851", "close_position": true, "order_id": "2113263416218574848"}
-{"event": "protect_place_failed", "ts": 1792676243.978814, "symbol": "DOGE-USDT", "kind": "tp", "stop_price": "0.077021550054878130", "qty": "210179.10377140", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "reduce_only": true}
-{"event": "entry", "signal_id": "zeus_channel_boundary|DOGE-USDT|short|1792670400000", "symbol": "DOGE-USDT", "side": "short", "plan_entry": "0.07971", "fill_price": "0.07964", "slip_pct": 0.08781834148789439, "slip_r": 0.03905596241080109, "qty": "525447.75942851", "stop": "0.08150229996341458", "tp": "0.077021550054878130", "leverage": 6, "ts": 1792676244.2714725}
-{"event": "protect_place", "ts": 1792676248.1601548, "symbol": "AVAX-USDT", "kind": "stop", "stop_price": "9.572691935365853", "qty": "2730.81526842", "close_position": true, "order_id": "2113263468274081792"}
-{"event": "protect_place_failed", "ts": 1792676256.0223835, "symbol": "AVAX-USDT", "kind": "tp", "stop_price": "8.7109620969512205", "qty": "1092.32610736", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "reduce_only": true}
-{"event": "entry", "signal_id": "zeus_channel_boundary|AVAX-USDT|short|1792670400000", "symbol": "AVAX-USDT", "side": "short", "plan_entry": "9.228", "fill_price": "9.212", "slip_pct": 0.17338534893801488, "slip_r": 0.0464182603605673, "qty": "2730.81526842", "stop": "9.572691935365853", "tp": "8.7109620969512205", "leverage": 6, "ts": 1792676256.3192308}
-{"event": "protect_place", "ts": 1792676259.6238194, "symbol": "LTC-USDT", "kind": "stop", "stop_price": "61.2026318902439", "qty": "474.74773538", "close_position": true, "order_id": "2113263516378554368"}
-{"event": "protect_place_failed", "ts": 1792676267.5839214, "symbol": "LTC-USDT", "kind": "tp", "stop_price": "56.24605216463415", "qty": "189.89909415", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "reduce_only": true}
-{"event": "entry", "signal_id": "zeus_channel_boundary|LTC-USDT|short|1792670400000", "symbol": "LTC-USDT", "side": "short", "plan_entry": "59.22", "fill_price": "59.17", "slip_pct": 0.08443093549476048, "slip_r": 0.025219003207826485, "qty": "474.74773538", "stop": "61.2026318902439", "tp": "56.24605216463415", "leverage": 6, "ts": 1792676267.8726568}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792676533.2275586}
-{"event": "restore_tp_failed", "symbol": "DOGE-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792676542.7777607}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792676550.9846768}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792676560.7678928}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792676823.459947}
-{"event": "restore_tp_failed", "symbol": "DOGE-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792676832.7598784}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792676840.1288297}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792676849.1075835}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792677409.7454293}
-{"event": "restore_tp_failed", "symbol": "DOGE-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792677418.0684037}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792677427.2880938}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792677436.5887508}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792677754.1815896}
-{"event": "restore_tp_failed", "symbol": "DOGE-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792677761.954082}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792677771.2727115}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792677780.5288792}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792678013.779475}
-{"event": "restore_tp_failed", "symbol": "DOGE-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792678023.0746534}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792678033.2982845}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792678041.8076143}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792678322.438832}
-{"event": "restore_tp_failed", "symbol": "DOGE-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792678331.8634708}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792678340.9733105}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792678349.5751448}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792680095.8200238}
-{"event": "restore_tp_failed", "symbol": "DOGE-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792680103.405066}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792680111.3954387}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792680119.575334}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792680425.6649442}
-{"event": "restore_tp_failed", "symbol": "DOGE-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792680434.0219538}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792680442.699053}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792680451.3480096}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792680718.920848}
-{"event": "restore_tp_failed", "symbol": "DOGE-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792680726.2288873}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792680734.8974245}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792680743.7939003}
-{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792681642.0677934}
-{"event": "restore_tp_failed", "symbol": "DOGE-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792681651.485537}
-{"event": "restore_tp_failed", "symbol": "AVAX-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792681659.6903162}
-{"event": "restore_tp_failed", "symbol": "LTC-USDT", "error": "ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.", "ts": 1792681669.0920413}
-{"event": "partial_fill", "symbol": "SOL-USDT", "side": "long", "qty": "161.13658259", "exch_qty": "241.70", "plan_qty": "402.83658259", "price": null, "ts": 1792763223.317284, "source": "be_catchup_qty_gap"}
-{"event": "exit", "symbol": "SOL-USDT", "side": "long", "entry": 104.752, "exit": null, "exit_reason": "income", "pnl": 27.7405, "pnl_source": "income", "fees": 12.679461, "funding_fee": 0.0, "trade_id": "zeus_channel_boundary|SOL-USDT|long|1792411200000", "slip_exit_pct": null, "qty": 241.7, "signal_id": "zeus_channel_boundary|SOL-USDT|long|1792411200000", "ts": 1792764749.8316483, "tp1_leg": 345.5147, "runner_leg": -317.7742}
-{"event": "protect_place", "ts": 1792765044.8248856, "symbol": "DOT-USDT", "kind": "stop", "stop_price": "1.1273088", "qty": "104535.15487504", "close_position": true, "order_id": "2113635908653244416"}
-{"event": "protect_place", "ts": 1792765045.5500734, "symbol": "DOT-USDT", "kind": "tp", "stop_price": "1.15003680", "qty": "41814.06195001", "reduce_only": false, "order_id": "2113635911677337600"}
-{"event": "entry", "signal_id": "zeus_channel_boundary|DOT-USDT|long|1792756800000", "symbol": "DOT-USDT", "side": "long", "plan_entry": "1.1364", "fill_price": "1.1384", "slip_pct": 0.17599436818021838, "slip_r": 0.2199929602252728, "qty": "104535.15487504", "stop": "1.1273088", "tp": "1.15003680", "leverage": 6, "ts": 1792765062.41026}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42769.11 USDT", "ts": 1792766522.9269617}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42794.27 USDT", "ts": 1792766819.8874283}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42774.85 USDT", "ts": 1792767401.0247529}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42735.76 USDT", "ts": 1792767755.5205595}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42776.47 USDT", "ts": 1792768021.1370685}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42628.04 USDT", "ts": 1792768312.258735}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42501.98 USDT", "ts": 1792768626.0015833}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42466.09 USDT", "ts": 1792768920.4983277}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42627.33 USDT", "ts": 1792769224.4945107}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42384.36 USDT", "ts": 1792769549.0395064}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42417.11 USDT", "ts": 1792769824.4058158}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42420.16 USDT", "ts": 1792770123.2486608}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42430.03 USDT", "ts": 1792770428.7378232}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42504.95 USDT", "ts": 1792770715.4548302}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42448.8 USDT", "ts": 1792771012.313687}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42524.36 USDT", "ts": 1792771348.466877}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42503.49 USDT", "ts": 1792771613.2822764}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42543.24 USDT", "ts": 1792771919.2876163}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42473.94 USDT", "ts": 1792772225.2673724}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42430.03 USDT", "ts": 1792772532.7965755}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42384.42 USDT", "ts": 1792772820.1663167}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42430.03 USDT", "ts": 1792773136.169435}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42467.74 USDT", "ts": 1792773413.7056158}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42420.91 USDT", "ts": 1792773719.0632913}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42434.03 USDT", "ts": 1792774007.6569626}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42487.82 USDT", "ts": 1792774323.3553917}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42473.92 USDT", "ts": 1792774603.0347407}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42387.66 USDT", "ts": 1792774939.0252595}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42418.66 USDT", "ts": 1792775212.772653}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42486.61 USDT", "ts": 1792775514.9340017}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42532.55 USDT", "ts": 1792775819.285799}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42507.74 USDT", "ts": 1792776117.692979}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42385.19 USDT", "ts": 1792776411.9399617}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42391.32 USDT", "ts": 1792776740.907076}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42441.31 USDT", "ts": 1792777010.6018305}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42439.21 USDT", "ts": 1792777327.5924852}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42422.17 USDT", "ts": 1792777629.152923}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42516.81 USDT", "ts": 1792777946.2117584}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42574.78 USDT", "ts": 1792778215.9852414}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42567.24 USDT", "ts": 1792778557.977169}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42525.1 USDT", "ts": 1792778813.0451899}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42525.85 USDT", "ts": 1792779126.1206124}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42539.42 USDT", "ts": 1792779417.4778771}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42525.67 USDT", "ts": 1792779721.5950146}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42588.53 USDT", "ts": 1792780020.1702693}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42566.18 USDT", "ts": 1792780339.2841587}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42513.34 USDT", "ts": 1792780613.4709156}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42568.11 USDT", "ts": 1792780919.0013952}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42500.41 USDT", "ts": 1792781228.7610412}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42528.17 USDT", "ts": 1792781522.0725348}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42525.75 USDT", "ts": 1792781810.531076}
-{"event": "restore_tp_failed", "symbol": "DOT-USDT", "error": "ExchangeError: BingX API error: The order size must be less than the available amount of 42467.29 USDT", "ts": 1792782143.2205293}
-{"event": "protect_place", "ts": 1792782187.18326, "symbol": "DOT-USDT", "kind": "stop", "stop_price": "1.1129247999999998", "qty": "103699.0819146", "close_position": true, "order_id": "2113707808846864384"}
-{"event": "protect_place", "ts": 1792782187.6285458, "symbol": "DOT-USDT", "kind": "tp", "stop_price": "1.13536280000000030", "qty": "41479.63276584", "reduce_only": false, "order_id": "2113707810725912576"}
-{"event": "entry", "signal_id": "zeus_channel_boundary|DOT-USDT|long|1792771200000", "symbol": "DOT-USDT", "side": "long", "plan_entry": "1.1219", "fill_price": "1.1245", "slip_pct": 0.2317497103128762, "slip_r": 0.2896871378910712, "qty": "103699.08191460", "stop": "1.1129247999999998", "tp": "1.13536280000000030", "leverage": 6, "ts": 1792782195.6968808}
-{"event": "partial_fill", "symbol": "DOT-USDT", "side": "long", "qty": "23283.18191460", "exch_qty": "80415.9", "plan_qty": "103699.08191460", "price": null, "ts": 1792782408.9198754, "source": "be_catchup_qty_gap"}
-{"event": "protect_place", "ts": 1792782695.3313844, "symbol": "LINK-USDT", "kind": "stop", "stop_price": "12.362608602439025", "qty": "2279.76052134", "close_position": true, "order_id": "2113709940211802112"}
-{"event": "protect_place", "ts": 1792782696.354673, "symbol": "LINK-USDT", "kind": "tp", "stop_price": "11.3435870963414625", "qty": "911.90420853", "reduce_only": false, "order_id": "2113709944510963712"}
-{"event": "entry", "signal_id": "zeus_channel_boundary|LINK-USDT|short|1792771200000", "symbol": "LINK-USDT", "side": "short", "plan_entry": "11.955", "fill_price": "11.946", "slip_pct": 0.07528230865746835, "slip_r": 0.022080005049320145, "qty": "2279.76052134", "stop": "12.362608602439025", "tp": "11.3435870963414625", "leverage": 6, "ts": 1792782696.3555973}
-{"event": "exit", "symbol": "DOT-USDT", "side": "long", "entry": 1.1245, "exit": null, "exit_reason": "income", "pnl": -221.3162, "pnl_source": "income", "fees": 45.124501, "funding_fee": 0.0, "trade_id": "zeus_channel_boundary|DOT-USDT|long|1792771200000", "slip_exit_pct": null, "qty": 80415.9, "signal_id": "zeus_channel_boundary|DOT-USDT|long|1792771200000", "ts": 1792783016.3307111, "tp1_leg": 349.4167, "runner_leg": -570.7329}
-{"event": "order_cancel", "symbol": "DOGE-USDT", "order_id": "2113293092743897088", "type": "TAKE_PROFIT", "reason": "tp_parity_replace", "path": "apply_tp_parity_v1", "ts": 1792834796.246342}
-{"event": "order_cancel", "symbol": "AVAX-USDT", "order_id": "2113293100281061376", "type": "TAKE_PROFIT", "reason": "tp_parity_replace", "path": "apply_tp_parity_v1", "ts": 1792834797.8770704}
-{"event": "order_cancel", "symbol": "LINK-USDT", "order_id": "2113710525250101248", "type": "TAKE_PROFIT", "reason": "tp_parity_replace", "path": "apply_tp_parity_v1", "ts": 1792834799.9712992}
-{"event": "protect_place", "ts": 1792851448.2869816, "symbol": "ADA-USDT", "kind": "stop", "stop_price": "0.21748892987804871", "qty": "34920.61694159", "close_position": true, "order_id": "2113998310926278656"}
-{"event": "protect_place", "ts": 1792851449.129064, "symbol": "ADA-USDT", "kind": "tp", "stop_price": "0.17582214024390258", "qty": "10476.18508247", "reduce_only": false, "order_id": "2113998314504019968"}
-{"event": "entry", "signal_id": "zeus_channel_boundary|ADA-USDT|short|1792843200000", "symbol": "ADA-USDT", "side": "short", "plan_entry": "0.2036", "fill_price": "0.2046", "slip_pct": -0.49115913555992186, "slip_r": 0.07199978751282259, "qty": "34920.61694159", "stop": "0.21748892987804871", "tp": "0.17582214024390258", "tp_frac": 0.3, "leverage": 6, "ts": 1792851449.1301987}
-{"event": "exit", "symbol": "BTC-USDT", "side": "long", "entry": 82749.2, "exit": null, "exit_reason": "income", "pnl": -1080.6387, "pnl_source": "income", "fees": 35.440189000000004, "funding_fee": -51.26809739000001, "trade_id": "zeus_channel_boundary|BTC-USDT|long|1792368000000", "slip_exit_pct": null, "qty": 0.43460168, "signal_id": "zeus_channel_boundary|BTC-USDT|long|1792368000000", "ts": 1792851712.947879, "tp1_leg": 833.7039}
-{"event": "protect_place", "ts": 1792851774.4575498, "symbol": "SOL-USDT", "kind": "stop", "stop_price": "105.13054096097555", "qty": "106.41874046", "close_position": true, "order_id": "2113999678999191552"}
-{"event": "protect_place", "ts": 1792851775.3914015, "symbol": "SOL-USDT", "kind": "tp", "stop_price": "91.48491807804888000000000000", "qty": "31.92562213", "reduce_only": false, "order_id": "2113999682862145536"}
-{"event": "entry", "signal_id": "zeus_channel_boundary|SOL-USDT|short|1792843200000", "symbol": "SOL-USDT", "side": "short", "plan_entry": "100.582", "fill_price": "100.705", "slip_pct": -0.12228828219761456, "slip_r": 0.02704163841884355, "qty": "106.41874046", "stop": "105.13054096097555", "tp": "91.48491807804888000000000000", "tp_frac": 0.3, "leverage": 6, "ts": 1792851775.3924994}
+{"event":"entry","signal_id":"zeus_channel_boundary|ADA-USDT|short|1792497600000","symbol":"ADA-USDT","side":"short","plan_entry":"0.2225","fill_price":"0.2232","slip_pct":-0.3146067415730365,"qty":"557449.43820224","stop":"0.22428","tp":"0.219830","leverage":6,"ts":1792505257.1867964}
+{"event":"exit","symbol":"ETH-USDT","side":"short","entry":2396.47,"exit":null,"exit_reason":"income","pnl":1040.1315,"pnl_source":"income","fees":249.956835,"funding_fee":16.51700393,"trade_id":"zeus_channel_boundary|ETH-USDT|short|1792425600000","slip_exit_pct":null,"qty":52.30554421,"signal_id":"zeus_channel_boundary|ETH-USDT|short|1792425600000","ts":1792505518.0421112,"tp1_leg":506.793}
+{"event":"exit","symbol":"XRP-USDT","side":"short","entry":1.3188,"exit":null,"exit_reason":"income","pnl":-63.0463,"pnl_source":"income","fees":126.48236800000001,"funding_fee":0.0,"trade_id":"zeus_channel_boundary|XRP-USDT|short|1792497600000","slip_exit_pct":null,"qty":95609.85337688,"signal_id":"zeus_channel_boundary|XRP-USDT|short|1792497600000","ts":1792505518.0421112,"tp1_leg":699.6959}
+{"event":"exit","symbol":"DOGE-USDT","side":"short","entry":0.08071,"exit":null,"exit_reason":"income","pnl":-63.0243,"pnl_source":"income","fees":126.446846,"funding_fee":0.0,"trade_id":"zeus_channel_boundary|DOGE-USDT|short|1792497600000","slip_exit_pct":null,"qty":1561747.17496582,"signal_id":"zeus_channel_boundary|DOGE-USDT|short|1792497600000","ts":1792505518.0421112,"tp1_leg":716.1298}
+{"event":"entry","signal_id":"zeus_channel_boundary|ETH-USDT|short|1792497600000","symbol":"ETH-USDT","side":"short","plan_entry":"2428.74","fill_price":"2426.35","slip_pct":0.09840493424573536,"qty":"50.80566466","stop":"2448.16992","tp":"2399.595120","leverage":6,"ts":1792505578.808574}
+{"event":"entry","signal_id":"zeus_channel_boundary|LINK-USDT|short|1792497600000","symbol":"LINK-USDT","side":"short","plan_entry":"12.319","fill_price":"12.322","slip_pct":-0.02435262602482618,"qty":"9994.92653624","stop":"12.417552","tp":"12.1711720","leverage":6,"ts":1792505584.5613728}
+{"event":"entry","signal_id":"zeus_channel_boundary|LTC-USDT|short|1792497600000","symbol":"LTC-USDT","side":"short","plan_entry":"60.17","fill_price":"60.22","slip_pct":-0.0830978893136067,"qty":"2044.29117500","stop":"60.651360000000004","tp":"59.4479599999999940","leverage":6,"ts":1792505588.7346063}
+{"event":"exit","symbol":"ADA-USDT","side":"short","entry":0.2232,"exit":null,"exit_reason":"income","pnl":-703.3058,"pnl_source":"income","fees":124.71191300000001,"funding_fee":0.0,"trade_id":"zeus_channel_boundary|ADA-USDT|short|1792497600000","slip_exit_pct":null,"qty":557449.43820224,"signal_id":"zeus_channel_boundary|ADA-USDT|short|1792497600000","ts":1792506730.7023053,"tp1_leg":751.4418}
+{"event":"exit","symbol":"ETH-USDT","side":"short","entry":2426.35,"exit":null,"exit_reason":"income","pnl":-563.1842,"pnl_source":"income","fees":123.490329,"funding_fee":0.0,"trade_id":"zeus_channel_boundary|ETH-USDT|short|1792497600000","slip_exit_pct":null,"qty":50.80566466,"signal_id":"zeus_channel_boundary|ETH-USDT|short|1792497600000","ts":1792506730.7023053,"tp1_leg":543.7198}
+{"event":"exit","symbol":"LINK-USDT","side":"short","entry":12.322,"exit":null,"exit_reason":"income","pnl":-1177.9133,"pnl_source":"income","fees":123.679687,"funding_fee":0.0,"trade_id":"zeus_channel_boundary|LINK-USDT|short|1792497600000","slip_exit_pct":null,"qty":9994.92653624,"signal_id":"zeus_channel_boundary|LINK-USDT|short|1792497600000","ts":1792506730.7023053,"tp1_leg":603.0059}
+{"event":"exit","symbol":"LTC-USDT","side":"short","entry":60.22,"exit":null,"exit_reason":"income","pnl":-1130.0941,"pnl_source":"income","fees":123.59505200000001,"funding_fee":0.0,"trade_id":"zeus_channel_boundary|LTC-USDT|short|1792497600000","slip_exit_pct":null,"qty":2044.291175,"signal_id":"zeus_channel_boundary|LTC-USDT|short|1792497600000","ts":1792506730.7023053,"tp1_leg":631.3098}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792596428.4685566}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792596732.4376435}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792597011.2410543}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792597612.4637132}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792597925.43734}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792598212.1405418}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792598540.3757777}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792598811.5958798}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792599110.452026}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792599410.90133}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792600031.1291757}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792600372.403245}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792600632.4534838}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792600956.9025002}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792601560.0401065}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792601827.8962808}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792602181.637308}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792602448.850462}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792602751.7957501}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792604226.953751}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792604555.1696672}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792604829.6001751}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792605152.1477156}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792605445.268414}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792605756.8609004}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792606047.9593728}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792606334.0990167}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792606661.1620536}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792606952.4813895}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792607246.842582}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792607568.98417}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792608114.3752103}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792609329.0845165}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792609592.227484}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792609889.7421906}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792610201.398848}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792610491.0112062}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792610788.2806087}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792611098.6020112}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792611375.3162289}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792611696.9495559}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792611997.0256472}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792612297.405962}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792612917.012872}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792613192.1992059}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792613797.599902}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792614086.1759708}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792614388.7440143}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792614711.7153175}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792614987.9389174}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792615287.001934}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792615595.0790083}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792616183.3761756}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792616782.7358253}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792617097.752556}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792617397.471539}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792617699.8898919}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792617986.9840271}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792618312.8067765}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792618588.742202}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792618903.7870898}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792619192.9399135}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792619496.4866817}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792620125.9140732}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792620381.409198}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792620687.5605242}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792621000.3775346}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792621300.5089316}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792621906.126404}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792622496.6707108}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792623088.1681235}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792623386.9665616}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792623714.5948637}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792623981.7975101}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792624298.251722}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792624585.678398}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792624891.7204766}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792625499.521622}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792625783.96125}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792626091.3069413}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792626401.4274838}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792626696.6530545}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792626986.2968}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792627321.8120103}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792627597.7650023}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792628197.0070574}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792628783.265086}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792629109.624622}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792629375.9248796}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792629998.945759}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792630280.6086628}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792630596.6280084}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792630912.6216278}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792631190.7101836}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792631812.0991595}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792632095.257792}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792632403.7806542}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792632703.9922225}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792632986.9105859}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792633292.860409}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792634184.0326753}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792635395.2459497}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792636316.0274417}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792636581.8516355}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792636899.726017}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792637199.2367706}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792637489.7503276}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792637799.9928706}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792638131.6328335}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792638784.18194}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792638990.787977}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792639286.3672469}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792639911.4693682}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792640877.6516373}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792641097.9869058}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792641774.0082977}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792641986.2793548}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792643193.7411628}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792643512.050538}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792643792.4057531}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792644087.8512294}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792644395.3856325}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792644698.5798943}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792644982.1885495}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792645907.8286655}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792646191.8132997}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792646483.832708}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792646784.7865946}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792647112.6853938}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792647389.9842749}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792648665.4449375}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792648911.2907324}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792649185.692248}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792649485.4285247}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792649796.8771906}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792650390.9843736}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792650717.8134065}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792650990.0465024}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792651299.374302}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792651596.09549}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792651894.144758}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792652184.4875927}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792652519.3780777}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792653698.7871878}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792654004.50404}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792654308.2555275}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792654584.4618642}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792655232.6450713}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792655490.4492571}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792655786.1209183}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792656121.8009858}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792656374.8069704}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792656688.9473753}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792657002.8547115}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792657291.1318445}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792657582.1011708}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792658181.2433314}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792659095.590213}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792659380.4213839}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792659991.7770572}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792660298.1549625}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792660594.8159742}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792660900.3643792}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792661185.4751213}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792661515.0699162}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792661783.023393}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792662095.7469847}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792662978.1398475}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792663321.5355318}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792663578.5348794}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792664194.3142695}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792664497.9749868}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792665111.1363082}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792665388.6568916}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792666008.8091085}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792666281.7849276}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792666581.0406175}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792667493.2853868}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792667794.7965267}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792668386.1136248}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792668993.6219294}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792670598.420667}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792671102.9596996}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792671396.1287026}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792671696.743219}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792671979.5347216}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792672307.7556202}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792672586.8602297}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792673197.632712}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792673483.4869926}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792673778.502552}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792674113.4700992}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792676203.8458657}
+{"event":"protect_place","ts":1792676235.7385159,"symbol":"DOGE-USDT","kind":"stop","stop_price":"0.08150229996341458","qty":"525447.75942851","close_position":true,"order_id":"2113263416218574848"}
+{"event":"protect_place_failed","ts":1792676243.978814,"symbol":"DOGE-USDT","kind":"tp","stop_price":"0.077021550054878130","qty":"210179.10377140","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","reduce_only":true}
+{"event":"entry","signal_id":"zeus_channel_boundary|DOGE-USDT|short|1792670400000","symbol":"DOGE-USDT","side":"short","plan_entry":"0.07971","fill_price":"0.07964","slip_pct":0.08781834148789439,"slip_r":0.03905596241080109,"qty":"525447.75942851","stop":"0.08150229996341458","tp":"0.077021550054878130","leverage":6,"ts":1792676244.2714725}
+{"event":"protect_place","ts":1792676248.1601548,"symbol":"AVAX-USDT","kind":"stop","stop_price":"9.572691935365853","qty":"2730.81526842","close_position":true,"order_id":"2113263468274081792"}
+{"event":"protect_place_failed","ts":1792676256.0223835,"symbol":"AVAX-USDT","kind":"tp","stop_price":"8.7109620969512205","qty":"1092.32610736","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","reduce_only":true}
+{"event":"entry","signal_id":"zeus_channel_boundary|AVAX-USDT|short|1792670400000","symbol":"AVAX-USDT","side":"short","plan_entry":"9.228","fill_price":"9.212","slip_pct":0.17338534893801488,"slip_r":0.0464182603605673,"qty":"2730.81526842","stop":"9.572691935365853","tp":"8.7109620969512205","leverage":6,"ts":1792676256.3192308}
+{"event":"protect_place","ts":1792676259.6238194,"symbol":"LTC-USDT","kind":"stop","stop_price":"61.2026318902439","qty":"474.74773538","close_position":true,"order_id":"2113263516378554368"}
+{"event":"protect_place_failed","ts":1792676267.5839214,"symbol":"LTC-USDT","kind":"tp","stop_price":"56.24605216463415","qty":"189.89909415","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","reduce_only":true}
+{"event":"entry","signal_id":"zeus_channel_boundary|LTC-USDT|short|1792670400000","symbol":"LTC-USDT","side":"short","plan_entry":"59.22","fill_price":"59.17","slip_pct":0.08443093549476048,"slip_r":0.025219003207826485,"qty":"474.74773538","stop":"61.2026318902439","tp":"56.24605216463415","leverage":6,"ts":1792676267.8726568}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792676533.2275586}
+{"event":"restore_tp_failed","symbol":"DOGE-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792676542.7777607}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792676550.9846768}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792676560.7678928}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792676823.459947}
+{"event":"restore_tp_failed","symbol":"DOGE-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792676832.7598784}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792676840.1288297}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792676849.1075835}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792677409.7454293}
+{"event":"restore_tp_failed","symbol":"DOGE-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792677418.0684037}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792677427.2880938}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792677436.5887508}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792677754.1815896}
+{"event":"restore_tp_failed","symbol":"DOGE-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792677761.954082}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792677771.2727115}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792677780.5288792}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792678013.779475}
+{"event":"restore_tp_failed","symbol":"DOGE-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792678023.0746534}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792678033.2982845}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792678041.8076143}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792678322.438832}
+{"event":"restore_tp_failed","symbol":"DOGE-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792678331.8634708}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792678340.9733105}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792678349.5751448}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792680095.8200238}
+{"event":"restore_tp_failed","symbol":"DOGE-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792680103.405066}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792680111.3954387}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792680119.575334}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792680425.6649442}
+{"event":"restore_tp_failed","symbol":"DOGE-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792680434.0219538}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792680442.699053}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792680451.3480096}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792680718.920848}
+{"event":"restore_tp_failed","symbol":"DOGE-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792680726.2288873}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792680734.8974245}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792680743.7939003}
+{"event":"restore_tp_failed","symbol":"SOL-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792681642.0677934}
+{"event":"restore_tp_failed","symbol":"DOGE-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792681651.485537}
+{"event":"restore_tp_failed","symbol":"AVAX-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792681659.6903162}
+{"event":"restore_tp_failed","symbol":"LTC-USDT","error":"ExchangeError: BingX API error: In the Hedge mode, the 'ReduceOnly' field can not be filled.","ts":1792681669.0920413}
+{"event":"partial_fill","symbol":"SOL-USDT","side":"long","qty":"161.13658259","exch_qty":"241.70","plan_qty":"402.83658259","price":null,"ts":1792763223.317284,"source":"be_catchup_qty_gap"}
+{"event":"exit","symbol":"SOL-USDT","side":"long","entry":104.752,"exit":null,"exit_reason":"income","pnl":27.7405,"pnl_source":"income","fees":12.679461,"funding_fee":0.0,"trade_id":"zeus_channel_boundary|SOL-USDT|long|1792411200000","slip_exit_pct":null,"qty":241.7,"signal_id":"zeus_channel_boundary|SOL-USDT|long|1792411200000","ts":1792764749.8316483,"tp1_leg":345.5147,"runner_leg":-317.7742}
+{"event":"protect_place","ts":1792765044.8248856,"symbol":"DOT-USDT","kind":"stop","stop_price":"1.1273088","qty":"104535.15487504","close_position":true,"order_id":"2113635908653244416"}
+{"event":"protect_place","ts":1792765045.5500734,"symbol":"DOT-USDT","kind":"tp","stop_price":"1.15003680","qty":"41814.06195001","reduce_only":false,"order_id":"2113635911677337600"}
+{"event":"entry","signal_id":"zeus_channel_boundary|DOT-USDT|long|1792756800000","symbol":"DOT-USDT","side":"long","plan_entry":"1.1364","fill_price":"1.1384","slip_pct":0.17599436818021838,"slip_r":0.2199929602252728,"qty":"104535.15487504","stop":"1.1273088","tp":"1.15003680","leverage":6,"ts":1792765062.41026}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42769.11 USDT","ts":1792766522.9269617}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42794.27 USDT","ts":1792766819.8874283}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42774.85 USDT","ts":1792767401.0247529}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42735.76 USDT","ts":1792767755.5205595}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42776.47 USDT","ts":1792768021.1370685}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42628.04 USDT","ts":1792768312.258735}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42501.98 USDT","ts":1792768626.0015833}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42466.09 USDT","ts":1792768920.4983277}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42627.33 USDT","ts":1792769224.4945107}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42384.36 USDT","ts":1792769549.0395064}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42417.11 USDT","ts":1792769824.4058158}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42420.16 USDT","ts":1792770123.2486608}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42430.03 USDT","ts":1792770428.7378232}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42504.95 USDT","ts":1792770715.4548302}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42448.8 USDT","ts":1792771012.313687}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42524.36 USDT","ts":1792771348.466877}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42503.49 USDT","ts":1792771613.2822764}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42543.24 USDT","ts":1792771919.2876163}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42473.94 USDT","ts":1792772225.2673724}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42430.03 USDT","ts":1792772532.7965755}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42384.42 USDT","ts":1792772820.1663167}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42430.03 USDT","ts":1792773136.169435}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42467.74 USDT","ts":1792773413.7056158}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42420.91 USDT","ts":1792773719.0632913}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42434.03 USDT","ts":1792774007.6569626}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42487.82 USDT","ts":1792774323.3553917}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42473.92 USDT","ts":1792774603.0347407}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42387.66 USDT","ts":1792774939.0252595}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42418.66 USDT","ts":1792775212.772653}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42486.61 USDT","ts":1792775514.9340017}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42532.55 USDT","ts":1792775819.285799}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42507.74 USDT","ts":1792776117.692979}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42385.19 USDT","ts":1792776411.9399617}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42391.32 USDT","ts":1792776740.907076}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42441.31 USDT","ts":1792777010.6018305}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42439.21 USDT","ts":1792777327.5924852}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42422.17 USDT","ts":1792777629.152923}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42516.81 USDT","ts":1792777946.2117584}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42574.78 USDT","ts":1792778215.9852414}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42567.24 USDT","ts":1792778557.977169}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42525.1 USDT","ts":1792778813.0451899}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42525.85 USDT","ts":1792779126.1206124}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42539.42 USDT","ts":1792779417.4778771}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42525.67 USDT","ts":1792779721.5950146}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42588.53 USDT","ts":1792780020.1702693}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42566.18 USDT","ts":1792780339.2841587}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42513.34 USDT","ts":1792780613.4709156}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42568.11 USDT","ts":1792780919.0013952}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42500.41 USDT","ts":1792781228.7610412}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42528.17 USDT","ts":1792781522.0725348}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42525.75 USDT","ts":1792781810.531076}
+{"event":"restore_tp_failed","symbol":"DOT-USDT","error":"ExchangeError: BingX API error: The order size must be less than the available amount of 42467.29 USDT","ts":1792782143.2205293}
+{"event":"protect_place","ts":1792782187.18326,"symbol":"DOT-USDT","kind":"stop","stop_price":"1.1129247999999998","qty":"103699.0819146","close_position":true,"order_id":"2113707808846864384"}
+{"event":"protect_place","ts":1792782187.6285458,"symbol":"DOT-USDT","kind":"tp","stop_price":"1.13536280000000030","qty":"41479.63276584","reduce_only":false,"order_id":"2113707810725912576"}
+{"event":"entry","signal_id":"zeus_channel_boundary|DOT-USDT|long|1792771200000","symbol":"DOT-USDT","side":"long","plan_entry":"1.1219","fill_price":"1.1245","slip_pct":0.2317497103128762,"slip_r":0.2896871378910712,"qty":"103699.08191460","stop":"1.1129247999999998","tp":"1.13536280000000030","leverage":6,"ts":1792782195.6968808}
+{"event":"partial_fill","symbol":"DOT-USDT","side":"long","qty":"23283.18191460","exch_qty":"80415.9","plan_qty":"103699.08191460","price":null,"ts":1792782408.9198754,"source":"be_catchup_qty_gap"}
+{"event":"protect_place","ts":1792782695.3313844,"symbol":"LINK-USDT","kind":"stop","stop_price":"12.362608602439025","qty":"2279.76052134","close_position":true,"order_id":"2113709940211802112"}
+{"event":"protect_place","ts":1792782696.354673,"symbol":"LINK-USDT","kind":"tp","stop_price":"11.3435870963414625","qty":"911.90420853","reduce_only":false,"order_id":"2113709944510963712"}
+{"event":"entry","signal_id":"zeus_channel_boundary|LINK-USDT|short|1792771200000","symbol":"LINK-USDT","side":"short","plan_entry":"11.955","fill_price":"11.946","slip_pct":0.07528230865746835,"slip_r":0.022080005049320145,"qty":"2279.76052134","stop":"12.362608602439025","tp":"11.3435870963414625","leverage":6,"ts":1792782696.3555973}
+{"event":"exit","symbol":"DOT-USDT","side":"long","entry":1.1245,"exit":null,"exit_reason":"income","pnl":-221.3162,"pnl_source":"income","fees":45.124501,"funding_fee":0.0,"trade_id":"zeus_channel_boundary|DOT-USDT|long|1792771200000","slip_exit_pct":null,"qty":80415.9,"signal_id":"zeus_channel_boundary|DOT-USDT|long|1792771200000","ts":1792783016.3307111,"tp1_leg":349.4167,"runner_leg":-570.7329}
+{"event":"order_cancel","symbol":"DOGE-USDT","order_id":"2113293092743897088","type":"TAKE_PROFIT","reason":"tp_parity_replace","path":"apply_tp_parity_v1","ts":1792834796.246342}
+{"event":"order_cancel","symbol":"AVAX-USDT","order_id":"2113293100281061376","type":"TAKE_PROFIT","reason":"tp_parity_replace","path":"apply_tp_parity_v1","ts":1792834797.8770704}
+{"event":"order_cancel","symbol":"LINK-USDT","order_id":"2113710525250101248","type":"TAKE_PROFIT","reason":"tp_parity_replace","path":"apply_tp_parity_v1","ts":1792834799.9712992}
+{"event":"protect_place","ts":1792851448.2869816,"symbol":"ADA-USDT","kind":"stop","stop_price":"0.21748892987804871","qty":"34920.61694159","close_position":true,"order_id":"2113998310926278656"}
+{"event":"protect_place","ts":1792851449.129064,"symbol":"ADA-USDT","kind":"tp","stop_price":"0.17582214024390258","qty":"10476.18508247","reduce_only":false,"order_id":"2113998314504019968"}
+{"event":"entry","signal_id":"zeus_channel_boundary|ADA-USDT|short|1792843200000","symbol":"ADA-USDT","side":"short","plan_entry":"0.2036","fill_price":"0.2046","slip_pct":-0.49115913555992186,"slip_r":0.07199978751282259,"qty":"34920.61694159","stop":"0.21748892987804871","tp":"0.17582214024390258","tp_frac":0.3,"leverage":6,"ts":1792851449.1301987}
+{"event":"exit","symbol":"BTC-USDT","side":"long","entry":82749.2,"exit":null,"exit_reason":"income","pnl":-1080.6387,"pnl_source":"income","fees":35.440189000000004,"funding_fee":-51.26809739000001,"trade_id":"zeus_channel_boundary|BTC-USDT|long|1792368000000","slip_exit_pct":null,"qty":0.43460168,"signal_id":"zeus_channel_boundary|BTC-USDT|long|1792368000000","ts":1792851712.947879,"tp1_leg":833.7039}
+{"event":"protect_place","ts":1792851774.4575498,"symbol":"SOL-USDT","kind":"stop","stop_price":"105.13054096097555","qty":"106.41874046","close_position":true,"order_id":"2113999678999191552"}
+{"event":"protect_place","ts":1792851775.3914015,"symbol":"SOL-USDT","kind":"tp","stop_price":"91.48491807804888000000000000","qty":"31.92562213","reduce_only":false,"order_id":"2113999682862145536"}
+{"event":"entry","signal_id":"zeus_channel_boundary|SOL-USDT|short|1792843200000","symbol":"SOL-USDT","side":"short","plan_entry":"100.582","fill_price":"100.705","slip_pct":-0.12228828219761456,"slip_r":0.02704163841884355,"qty":"106.41874046","stop":"105.13054096097555","tp":"91.48491807804888000000000000","tp_frac":0.3,"leverage":6,"ts":1792851775.3924994}
+{"event":"exit","symbol":"ADA-USDT","side":"short","entry":0.2046,"exit":null,"exit_reason":"стоп","pnl":17.31159,"pnl_source":"income_backfill","signal_id":"zeus_channel_boundary|ADA-USDT|short|1792843200000","qty":34920.61694159,"ts":1792852342.3070133,"backfill_ts":1792852368.0894258}
