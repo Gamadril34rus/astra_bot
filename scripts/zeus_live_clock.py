@@ -320,7 +320,13 @@ async def _f17_5m_bars(client, symbol: str, since_ms: int | None) -> list | None
         get = getattr(client, "get_candles", None) or getattr(client, "get_recent_candles", None)
         if get is None:
             return None
-        bars = await get(symbol, "5m", limit=500)
+        try:
+            bars = await get(symbol, "5m", limit=500)
+        except TypeError:
+            try:
+                bars = await get(symbol, "5m")
+            except Exception:
+                return None
         if not bars:
             return None
         out = []
@@ -544,8 +550,9 @@ async def sync_partial_breakeven(
 
             if (
                 not plan.get("be_moved")
-                and (partial_gap or is_pending or be_earned)
+                and (partial_gap or is_pending)
             ):
+                # L3 may have latched be_earned via 5m; still require mark_ok for place
                 if not mark_ok or not be_earned:
                     # Defer: no place_order; journal once / 1h
                     if partial_gap or is_pending:
