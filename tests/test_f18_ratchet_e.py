@@ -1,7 +1,6 @@
 """F18: ratchet_e trail policy in live_exit_engine."""
 from __future__ import annotations
 
-import os
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
