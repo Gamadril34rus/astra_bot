@@ -315,6 +315,29 @@ class ExitPlanEngine:
             return list(candles[:-1])
         return list(candles)
 
+    @staticmethod
+    def _emit_stop_adjust(pos: Any, old_stop: Any, source: str) -> None:
+        """F16: paper stop_adjust event (ts/old/new/source). Best-effort."""
+        try:
+            new_stop = getattr(pos, "stop_loss", None)
+            if new_stop is None or old_stop is None:
+                return
+            if float(new_stop) == float(old_stop):
+                return
+            from astra_bot.decision.zeus_trade_log import ZeusTradeLog
+
+            ZeusTradeLog().stop_adjust(
+                symbol=str(getattr(pos, "symbol", "") or ""),
+                direction=str(
+                    getattr(pos, "direction", None) or getattr(pos, "side", "") or ""
+                ),
+                old_stop=float(old_stop),
+                new_stop=float(new_stop),
+                why=source,
+            )
+        except Exception as exc:
+            logger.debug("stop_adjust emit skipped: %s", type(exc).__name__)
+
     # ------------------------------------------------------- stop rules
     def adjust_stops(
         self,
@@ -325,11 +348,11 @@ class ExitPlanEngine:
         primary: list[Any],
         last_bar: Any,
     ) -> None:
-        """STOP-правила плана. Вызывается ДО broker.check_exits (TZ §16).
+        """STOP-правила плана (D1/BE/trail). F16: вызывается ПОСЛЕ check_exits.
 
         D1: структурный стоп — на каждом новом закрытом баре ТФ позиции.
-        BE/трейлинг/гипотезные варианты — на каждом вызове (как прежний
-        ExitController). Только подтягивание, стоп не снимается.
+        BE/трейлинг/гипотезные варианты — на каждом вызове.
+        Только подтягивание; каждое движение → stop_adjust в zeus_trade_journal.
         """
         if not positions:
             return
@@ -356,6 +379,7 @@ class ExitPlanEngine:
 
             # 1) D1: структурный стоп по закрытым барам (только новый бар).
             if is_new_bar and risk > 0:
+                _old = pos.stop_loss
                 if apply_tighter(
                     pos,
                     structural_tighten(
@@ -365,6 +389,7 @@ class ExitPlanEngine:
                     ),
                 ):
                     any_moved = True
+                    self._emit_stop_adjust(pos, _old, "d1_structural")
                     logger.info(
                         "PLAN %s %s: D1-structural stop -> %s",
                         symbol, pos.direction, pos.stop_loss,
@@ -384,6 +409,7 @@ class ExitPlanEngine:
                     net = None
                     if p.breakeven_net and hasattr(broker, "net_breakeven_price"):
                         net = broker.net_breakeven_price(pos)
+                    _old = pos.stop_loss
                     if apply_tighter(
                         pos,
                         breakeven_target(
@@ -392,7 +418,9 @@ class ExitPlanEngine:
                         ),
                     ):
                         any_moved = True
+                        self._emit_stop_adjust(pos, _old, "be")
                 if len(primary) >= 2:
+                    _old = pos.stop_loss
                     if apply_tighter(
                         pos,
                         trailing_target(
@@ -402,6 +430,7 @@ class ExitPlanEngine:
                         ),
                     ):
                         any_moved = True
+                        self._emit_stop_adjust(pos, _old, "trail")
             else:
                 # Гипотезный вариант стопа (прежние правила _adjust_stop,
                 # с инвариантом «только подтягивание»).
@@ -413,9 +442,12 @@ class ExitPlanEngine:
                             if pos.direction == "long"
                             else entry + Decimal(str(p.atr_stop_k * atr))
                         )
+                        _old = pos.stop_loss
                         if apply_tighter(pos, cand):
                             any_moved = True
+                            self._emit_stop_adjust(pos, _old, "atr_stop")
                 elif variant == "TRAILING" and len(primary) >= 2:
+                    _old = pos.stop_loss
                     if apply_tighter(
                         pos,
                         trailing_target(
@@ -425,6 +457,7 @@ class ExitPlanEngine:
                         ),
                     ):
                         any_moved = True
+                        self._emit_stop_adjust(pos, _old, "trail")
                 elif variant == "STRUCTURE_STOP":
                     i = len(primary) - 1
                     window = list(primary)[max(0, i - p.structure_lookback):i]
@@ -434,14 +467,17 @@ class ExitPlanEngine:
                             if pos.direction == "long"
                             else max(float(b.high) for b in window)
                         )
+                        _old = pos.stop_loss
                         if apply_tighter(pos, Decimal(str(level))):
                             any_moved = True
+                            self._emit_stop_adjust(pos, _old, "structural")
                 elif variant == "BREAKEVEN" and risk > 0:
                     mfe_r = (
                         (float(high) - float(entry)) / float(risk)
                         if pos.direction == "long"
                         else (float(entry) - float(low)) / float(risk)
                     )
+                    _old = pos.stop_loss
                     if apply_tighter(
                         pos,
                         breakeven_target(
@@ -450,6 +486,7 @@ class ExitPlanEngine:
                         ),
                     ):
                         any_moved = True
+                        self._emit_stop_adjust(pos, _old, "be")
 
             if is_new_bar and new_ts:
                 pos.plan_last_bar_ts = new_ts

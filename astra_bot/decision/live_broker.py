@@ -582,19 +582,33 @@ class LiveBroker:
                 "ts": time.time(),
             }
             out["reconciled"].append(row)
+            # F16: journal MUST land — silent pass was losing qty_reconcile while
+            # plan.qty already moved (LTC 474.7→199.4 without journal row).
             try:
                 append_journal(row)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "qty_reconcile journal failed %s: %s",
+                    row.get("symbol"),
+                    type(exc).__name__,
+                )
+                out.setdefault("journal_errors", []).append(
+                    {"symbol": row.get("symbol"), "error": type(exc).__name__}
+                )
             try:
                 append_live_trade(row)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(
+                    "qty_reconcile trade-log skip %s: %s",
+                    row.get("symbol"),
+                    type(exc).__name__,
+                )
         if changed:
             try:
                 save_positions(plans, path)
             except Exception as exc:
                 logger.warning("reconcile_plan_qty save: %s", type(exc).__name__)
+                out["save_error"] = type(exc).__name__
         return out
 
     async def reconcile(self) -> dict[str, Any]:
