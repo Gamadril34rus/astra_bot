@@ -270,8 +270,7 @@ async def plan_from_candidate(
             lev = min(int(force_lev), int(broker.config.max_leverage))
         except ValueError:
             pass
-    # Channel exit parity: TP1 @ 1.5R (40% leg on exchange); runner @ 2R stored as note only.
-    # Stop / size / entry unchanged. R = |entry − stop|.
+    # F15: clamp_take_rr [2.0, 2.3] + PLAN_TP_FRACTIONS; stop/size/entry unchanged.
     entry_d = Decimal(str(cand.entry))
     stop_d = Decimal(str(cand.stop))
     r_abs = abs(entry_d - stop_d)
