@@ -180,10 +180,10 @@ def classify_current_regime(closed_bars: list[Any]) -> str:
                         open_time=int(
                             getattr(b, "open_time", None) or getattr(b, "ts", 0) or 0
                         ),
-                        open=float(getattr(b, "open")),
-                        high=float(getattr(b, "high")),
-                        low=float(getattr(b, "low")),
-                        close=float(getattr(b, "close")),
+                        open=float(b.open),
+                        high=float(b.high),
+                        low=float(b.low),
+                        close=float(b.close),
                         volume=float(getattr(b, "volume", 0) or 0),
                     )
                 )
