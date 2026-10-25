@@ -163,19 +163,20 @@ def classify_current_regime(closed_bars: list[Any]) -> str:
     """F11-2: RegimeEngine on closed TF bars → legacy MarketRegime string.
 
     Fail-open → empty string (regime_exit stays quiet). Needs >=60 bars.
-    Uses the same regime labels as ADVERSE_REGIMES / paper exit_controller.
+    Bars are duck-typed (open/high/low/close/volume/open_time) — no core.Candle.
     """
     if not closed_bars or len(closed_bars) < 60:
         return ""
     try:
-        from astra_bot.core import models as core_models
+        from types import SimpleNamespace
+
         from astra_bot.decision.regime_engine import RegimeEngine
 
         candles: list[Any] = []
         for b in closed_bars:
             try:
                 candles.append(
-                    core_models.Candle(
+                    SimpleNamespace(
                         open_time=int(
                             getattr(b, "open_time", None) or getattr(b, "ts", 0) or 0
                         ),
