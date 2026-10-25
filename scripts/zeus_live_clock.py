@@ -1397,13 +1397,24 @@ def _save_digest_last(key: str, path: Path = DIGEST_PATH) -> None:
 
 
 def _day_exits_msk(trades_path: Path, now_ts: float | None = None) -> list[dict]:
-    """Exit rows from trades.jsonl with ts >= 00:00 current MSK day."""
+    """Exit rows from trades.jsonl with ts >= 00:00 current MSK day.
+
+    F22-1: include event=exit AND income-sourced closes (pnl_source income*),
+    so TG rockets with income PnL enter the day sum even if event tag drifts.
+    """
     dt = _msk_now(now_ts)
     day_start = dt.replace(hour=0, minute=0, second=0, microsecond=0)
     start_ts = day_start.timestamp()
     out: list[dict] = []
     if not trades_path.exists():
         return out
+    _INCOME_SRC = (
+        "income",
+        "income_backfill",
+        "income_confirmed",
+        "income_corrected",
+        "pending_dogon",
+    )
     try:
         for line in trades_path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
@@ -1413,7 +1424,14 @@ def _day_exits_msk(trades_path: Path, now_ts: float | None = None) -> list[dict]
                 row = json.loads(line)
             except Exception:
                 continue
-            if str(row.get("event") or "") != "exit":
+            ev = str(row.get("event") or "")
+            src = str(row.get("pnl_source") or "")
+            is_exit = ev == "exit"
+            is_income = src in _INCOME_SRC and row.get("pnl") is not None
+            if not is_exit and not is_income:
+                continue
+            # skip pure entry/partial without close semantics
+            if ev in ("entry", "partial_fill") and not is_exit:
                 continue
             try:
                 ts = float(row.get("ts") or 0)
@@ -1421,6 +1439,10 @@ def _day_exits_msk(trades_path: Path, now_ts: float | None = None) -> list[dict]
                 continue
             if ts < start_ts:
                 continue
+            if ts > 1e12:
+                ts = ts / 1000.0
+                if ts < start_ts:
+                    continue
             out.append(row)
     except Exception:
         return out
@@ -1530,9 +1552,17 @@ async def _maybe_send_digest(
         if no_fill:
             msg += f"; +{no_fill} без филлов"
 
-        tg = send_tg or _send_live_tg
-        await tg(msg)
+        # F22-2: claim key BEFORE TG so a second tick in the same window cannot double-send
+        if _load_digest_last(digest_path) == key:
+            return None
         _save_digest_last(key, digest_path)
+        tg = send_tg or _send_live_tg
+        try:
+            await tg(msg)
+        except Exception:
+            # keep claim (prefer miss over duplicate spam); log only
+            logger.warning("live_digest TG failed after claim key=%s", key)
+            raise
         try:
             append_journal(
                 {
