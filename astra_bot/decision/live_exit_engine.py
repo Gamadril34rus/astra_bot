@@ -145,6 +145,61 @@ def trail_policy() -> str:
     return v if v in ("atr", "ratchet_e") else "atr"
 
 
+def stop_exchange_valid(direction: str, cand: Decimal, mark: Decimal | None) -> bool:
+    """F19-1: long stop must be below mark; short stop must be above mark."""
+    if mark is None:
+        return True  # fail-open when mark unknown
+    side = direction.lower()
+    c = Decimal(str(cand))
+    m = Decimal(str(mark))
+    if side == "long":
+        return c < m
+    if side == "short":
+        return c > m
+    return True
+
+
+def classify_current_regime(closed_bars: list[Any]) -> str:
+    """F11-2: RegimeEngine on closed TF bars → legacy MarketRegime string.
+
+    Fail-open → empty string (regime_exit stays quiet). Needs >=60 bars.
+    Uses the same regime labels as ADVERSE_REGIMES / paper exit_controller.
+    """
+    if not closed_bars or len(closed_bars) < 60:
+        return ""
+    try:
+        from astra_bot.core import models as core_models
+        from astra_bot.decision.regime_engine import RegimeEngine
+
+        candles: list[Any] = []
+        for b in closed_bars:
+            try:
+                candles.append(
+                    core_models.Candle(
+                        open_time=int(
+                            getattr(b, "open_time", None) or getattr(b, "ts", 0) or 0
+                        ),
+                        open=float(getattr(b, "open")),
+                        high=float(getattr(b, "high")),
+                        low=float(getattr(b, "low")),
+                        close=float(getattr(b, "close")),
+                        volume=float(getattr(b, "volume", 0) or 0),
+                    )
+                )
+            except Exception:
+                candles.append(b)
+        if len(candles) < 60:
+            return ""
+        report = RegimeEngine().classify(candles)
+        reg = getattr(report.regime, "value", None) or str(report.regime)
+        if not reg or reg == "UNKNOWN":
+            return ""
+        return str(reg)
+    except Exception as exc:
+        logger.warning("classify_current_regime: %s", type(exc).__name__)
+        return ""
+
+
 def ratchet_e_stop_candidate(
     direction: str,
     entry: Decimal,
@@ -154,11 +209,15 @@ def ratchet_e_stop_candidate(
     *,
     initial_stop: Decimal | None = None,
     mark: Decimal | None = None,
+    be_moved: bool = False,
 ) -> Decimal | None:
     """Owner ratchet E: BE on entry touch; MFE steps 0.5R → stop = trigger−0.5R.
 
     Only tightens (long: stop rises; short: stop falls). No take-profit.
     Examples: MFE 1.0R→stop +0.5R; 1.5R→+1.0R; 2.0R→+1.5R from entry.
+
+    F19-2: when be_moved=True, BE is owned by PR-A — skip BE-only candidate
+    (mfe in [0, 1)); still emit step-lock levels (mfe >= 1.0, only-tighten).
     """
     side = direction.lower()
     entry = Decimal(str(entry))
@@ -183,10 +242,10 @@ def ratchet_e_stop_candidate(
             return None
         mfe_r = float((entry - Decimal(str(lo))) / risk)
     cand: Decimal | None = None
-    # BE on touch of entry (MFE >= 0)
-    if mfe_r >= 0:
+    # BE on touch of entry (MFE >= 0) — skip when be_moved (PR-A owns BE)
+    if mfe_r >= 0 and not be_moved:
         cand = entry
-    # Staircase locks: floor(mfe/0.5)*0.5 - 0.5 when MFE >= 1.0
+    # Staircase locks: floor(mfe/0.5)*0.5 - 0.5 when MFE >= 1.0 (also on be_moved)
     if mfe_r >= 1.0:
         locked = math.floor(mfe_r / 0.5) * 0.5 - 0.5
         if locked > 0:
@@ -194,13 +253,13 @@ def ratchet_e_stop_candidate(
             cand = entry + delta if side == "long" else entry - delta
     if cand is None:
         return None
-    # only tighten vs current_stop
     cur = Decimal(str(current_stop))
     if side == "long" and cand > cur:
         return cand
     if side == "short" and cand < cur:
         return cand
     return None
+
 
 
 def structural_stop_candidate(
@@ -266,6 +325,7 @@ def evaluate_plan_actions(
     pos_regime: str | None,
     leverage: float = 1.0,
     initial_stop: Decimal | None = None,
+    be_moved: bool = False,
 ) -> list[dict[str, Any]]:
     """Pure evaluation: list of shadow/actions. Never BE (PR-A owns BE).
 
@@ -294,6 +354,7 @@ def evaluate_plan_actions(
     init = initial_stop if initial_stop is not None else stop
     rat = ratchet_e_stop_candidate(
         side, entry, stop, highest, lowest, initial_stop=init, mark=mark,
+        be_moved=bool(be_moved),
     )
     if rat is not None:
         actions.append(
@@ -390,7 +451,7 @@ def migrate_open_stops(plans: dict) -> list[dict]:
 async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
     """Tick: migrate first, then paper rules. BE owned by PR-A."""
     from astra_bot.decision.live_arm_wiring import append_journal
-    from astra_bot.decision.live_positions import load_positions, upsert_plan
+    from astra_bot.decision.live_positions import load_positions, save_positions, upsert_plan
     from astra_bot.decision.live_stop_telemetry import record_stop_change
 
     mode = engine_mode()
@@ -471,10 +532,23 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
                     opened_at_ms = int(ts * 1000) if ts < 1e12 else int(ts)
                 except Exception:
                     opened_at_ms = None
-            # R1: entry regime vs current regime (not the same field twice)
+            # R1 / F11-2: entry regime vs live-classified current regime
             pos_regime = str(plan.get("entry_regime") or plan.get("regime") or "") or None
-            regime_now = str(plan.get("current_regime") or "").strip()
-            # TODO(arena): classify current_regime from closed_bars via RegimeDetectorV2
+            regime_now = classify_current_regime(closed_bars)
+            if regime_now:
+                plan["current_regime"] = regime_now
+                try:
+                    append_journal({
+                        "event": "regime_tick",
+                        "symbol": sym,
+                        "side": side,
+                        "regime": regime_now,
+                        "entry_regime": pos_regime,
+                    })
+                except Exception:
+                    pass
+            else:
+                regime_now = str(plan.get("current_regime") or "").strip()
             init_stop = plan.get("initial_stop")
             try:
                 init_dec = Decimal(str(init_stop)) if init_stop not in (None, "") else stop
@@ -488,6 +562,7 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
                 pos_regime=pos_regime,
                 leverage=float(plan.get("leverage") or 1),
                 initial_stop=init_dec,
+                be_moved=bool(plan.get("be_moved")),
             )
             policy = trail_policy()
             for act in actions:
@@ -509,6 +584,22 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
                     qty = Decimal(str(getattr(pos, "quantity", 0) or plan.get("qty") or 0))
                     if qty <= 0:
                         continue
+                    # F19-1: exchange-validity gate (long cand < mark; short cand > mark)
+                    if not stop_exchange_valid(side, new_stop, mark):
+                        try:
+                            append_journal({
+                                "event": "exit_shadow",
+                                "action": "defer_ratchet",
+                                "symbol": sym,
+                                "side": side,
+                                "stop": str(new_stop),
+                                "stop_before": str(stop),
+                                "mark": str(mark),
+                                "reason": "exchange_invalid",
+                            })
+                        except Exception:
+                            pass
+                        continue
                     await broker.move_stop(sym, side, qty, new_stop)
                     try:
                         record_stop_change(
@@ -526,4 +617,8 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
                         logger.warning("exit_engine close %s: %s", sym, type(cexc).__name__)
         except Exception as exc:
             logger.warning("run_exit_pass %s: %s", sym, type(exc).__name__)
+    try:
+        save_positions(plans, path)  # peaks + current_regime
+    except Exception as sexc:
+        logger.warning("run_exit_pass save_positions: %s", type(sexc).__name__)
     return {"mode": mode, "actions": n, "migrated": len(migrated)}
