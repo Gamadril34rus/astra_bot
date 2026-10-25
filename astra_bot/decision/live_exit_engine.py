@@ -160,10 +160,10 @@ def stop_exchange_valid(direction: str, cand: Decimal, mark: Decimal | None) -> 
 
 
 def classify_current_regime(closed_bars: list[Any]) -> tuple[str, str]:
-    """F11-2 / F20: RegimeEngine on closed TF bars → (regime, reason).
+    """F11-2 / F20 / F21: RegimeEngine on closed TF bars → (regime, reason).
 
-    reason: ok | bars_lt_60 | engine_error | unknown.
-    Fail-open → ("", reason). Needs >=60 bars.
+    reason: ok | bars_lt_60 | bars_lt_200_ema | engine_error | unknown.
+    RegimeEngine needs EMA200 → >=200 closes (paper parity). Fail-open → ("", reason).
     """
     if not closed_bars or len(closed_bars) < 60:
         return "", "bars_lt_60"
@@ -191,10 +191,19 @@ def classify_current_regime(closed_bars: list[Any]) -> tuple[str, str]:
                 candles.append(b)
         if len(candles) < 60:
             return "", "bars_lt_60"
+        # EMA200 gate (indicators.ema returns None if len < period)
+        if len(candles) < 200:
+            return "", "bars_lt_200_ema"
         report = RegimeEngine().classify(candles)
         reg = getattr(report.regime, "value", None) or str(report.regime)
         if not reg or reg == "UNKNOWN":
-            return "", "unknown"
+            detail = ""
+            try:
+                detail = str((report.details or {}).get("reason") or "")
+            except Exception:
+                detail = ""
+            reason = "not_enough_ema" if "EMA" in detail else (detail or "unknown")
+            return "", reason
         return str(reg), "ok"
     except Exception as exc:
         logger.warning("classify_current_regime: %s", type(exc).__name__)
@@ -374,10 +383,11 @@ async def _closed_bars_for_plan(client, symbol: str, timeframe: str = "4h") -> l
     """TF of position with 1h fallback; pull only when a new bar closed.
 
     F20: BingXClient.get_candles(symbol, timeframe, limit=...) — NOT interval=.
-    limit>=120 so RegimeEngine (>=60 closed) and ATR(14) have enough bars.
+    limit>=250 so RegimeEngine EMA200 + ATR(14) have enough bars (F21).
     """
     tf = timeframe or "4h"
-    lim = 120
+    # F21: RegimeEngine EMA200 needs >=200 closes; keep +buffer for open bar strip
+    lim = 250
     bars: list = []
     try:
         # positional timeframe matches BingXClient.get_candles(symbol, timeframe, ...)
