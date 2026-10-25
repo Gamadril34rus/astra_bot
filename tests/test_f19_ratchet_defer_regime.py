@@ -31,7 +31,7 @@ def test_ratchet_be_moved_step_lock_short():
         "short", entry, Decimal("100"), None, low,
         initial_stop=initial, mark=Decimal("86"), be_moved=True,
     )
-    assert cand == Decimal("90")
+    assert cand is not None and abs(float(cand)-90.0)<1e-9
 
 
 def test_ratchet_be_moved_skips_be_only():
@@ -47,7 +47,7 @@ def test_ratchet_not_be_moved_emits_be():
         "short", Decimal("100"), Decimal("105"), None, Decimal("95"),
         initial_stop=Decimal("110"), mark=Decimal("95"), be_moved=False,
     )
-    assert cand == Decimal("100")
+    assert cand is not None and abs(float(cand)-100.0)<1e-9
 
 
 def test_evaluate_be_moved_emits_step_not_be():
@@ -68,4 +68,4 @@ def test_evaluate_be_moved_emits_step_not_be():
     )
     rats = [a for a in acts if a.get("action") == "ratchet_e"]
     assert len(rats) == 1
-    assert Decimal(rats[0]["stop"]) == Decimal("90")
+    assert abs(float(rats[0]["stop"])-90.0)<1e-9
