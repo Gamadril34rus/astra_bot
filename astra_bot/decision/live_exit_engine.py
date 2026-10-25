@@ -618,7 +618,10 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
         except Exception as exc:
             logger.warning("run_exit_pass %s: %s", sym, type(exc).__name__)
     try:
-        save_positions(plans, path)  # peaks + current_regime
+        if path is not None:
+            save_positions(plans, path)  # peaks + current_regime
+        else:
+            save_positions(plans)
     except Exception as sexc:
         logger.warning("run_exit_pass save_positions: %s", type(sexc).__name__)
     return {"mode": mode, "actions": n, "migrated": len(migrated)}
