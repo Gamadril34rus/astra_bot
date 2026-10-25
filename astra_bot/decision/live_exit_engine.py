@@ -159,14 +159,14 @@ def stop_exchange_valid(direction: str, cand: Decimal, mark: Decimal | None) -> 
     return True
 
 
-def classify_current_regime(closed_bars: list[Any]) -> str:
-    """F11-2: RegimeEngine on closed TF bars → legacy MarketRegime string.
+def classify_current_regime(closed_bars: list[Any]) -> tuple[str, str]:
+    """F11-2 / F20: RegimeEngine on closed TF bars → (regime, reason).
 
-    Fail-open → empty string (regime_exit stays quiet). Needs >=60 bars.
-    Bars are duck-typed (open/high/low/close/volume/open_time) — no core.Candle.
+    reason: ok | bars_lt_60 | engine_error | unknown.
+    Fail-open → ("", reason). Needs >=60 bars.
     """
     if not closed_bars or len(closed_bars) < 60:
-        return ""
+        return "", "bars_lt_60"
     try:
         from types import SimpleNamespace
 
@@ -190,15 +190,15 @@ def classify_current_regime(closed_bars: list[Any]) -> str:
             except Exception:
                 candles.append(b)
         if len(candles) < 60:
-            return ""
+            return "", "bars_lt_60"
         report = RegimeEngine().classify(candles)
         reg = getattr(report.regime, "value", None) or str(report.regime)
         if not reg or reg == "UNKNOWN":
-            return ""
-        return str(reg)
+            return "", "unknown"
+        return str(reg), "ok"
     except Exception as exc:
         logger.warning("classify_current_regime: %s", type(exc).__name__)
-        return ""
+        return "", "engine_error"
 
 
 def ratchet_e_stop_candidate(
@@ -371,15 +371,35 @@ _BAR_CACHE: dict[str, tuple[int, list]] = {}
 
 
 async def _closed_bars_for_plan(client, symbol: str, timeframe: str = "4h") -> list:
-    """TF of position with 1h fallback; pull only when a new bar closed."""
+    """TF of position with 1h fallback; pull only when a new bar closed.
+
+    F20: BingXClient.get_candles(symbol, timeframe, limit=...) — NOT interval=.
+    limit>=120 so RegimeEngine (>=60 closed) and ATR(14) have enough bars.
+    """
     tf = timeframe or "4h"
+    lim = 120
+    bars: list = []
     try:
-        bars = await client.get_candles(symbol, interval=tf, limit=50)
-    except Exception:
+        # positional timeframe matches BingXClient.get_candles(symbol, timeframe, ...)
+        bars = await client.get_candles(symbol, tf, limit=lim)
+    except TypeError:
+        # alternate signature: timeframe= kw
+        try:
+            bars = await client.get_candles(symbol, timeframe=tf, limit=lim)
+        except Exception as exc:
+            logger.warning("_closed_bars_for_plan %s %s: %s", symbol, tf, type(exc).__name__)
+            bars = []
+    except Exception as exc:
+        logger.warning("_closed_bars_for_plan %s %s: %s", symbol, tf, type(exc).__name__)
         bars = []
     if not bars and tf != "1h":
         try:
-            bars = await client.get_candles(symbol, interval="1h", limit=50)
+            bars = await client.get_candles(symbol, "1h", limit=lim)
+        except TypeError:
+            try:
+                bars = await client.get_candles(symbol, timeframe="1h", limit=lim)
+            except Exception:
+                bars = []
         except Exception:
             bars = []
     if not bars:
@@ -515,12 +535,31 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
             entry = Decimal(str(plan.get("entry") or 0))
             stop = Decimal(str(plan.get("stop") or 0))
             side = str(plan.get("side") or "long").lower()
-            mark = Decimal(str(
+            # F20 / F7.4: LiveBingX Position stores mark in current_price
+            # (same source as be_mark_tick / sync_partial_breakeven).
+            mark_raw = (
                 getattr(pos, "mark_price", None)
                 or getattr(pos, "markPrice", None)
+                or getattr(pos, "current_price", None)
                 or getattr(pos, "price", None)
-                or entry
-            ))
+            )
+            mark_fallback = False
+            if mark_raw is None:
+                mark = entry
+                mark_fallback = True
+                try:
+                    append_journal({
+                        "event": "exit_shadow",
+                        "action": "mark_fallback",
+                        "symbol": sym,
+                        "side": side,
+                        "mark": str(entry),
+                        "reason": "no_mark_on_position",
+                    })
+                except Exception:
+                    pass
+            else:
+                mark = Decimal(str(mark_raw))
             tf = str(plan.get("timeframe") or plan.get("tf") or "4h")
             closed_bars = await _closed_bars_for_plan(broker.client, sym, tf)
             _update_peak_from_bars(plan, closed_bars)
@@ -533,22 +572,26 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
                     opened_at_ms = int(ts * 1000) if ts < 1e12 else int(ts)
                 except Exception:
                     opened_at_ms = None
-            # R1 / F11-2: entry regime vs live-classified current regime
+            # F20: regime_tick EVERY tick (ok / bars_lt_60 / engine_error / unknown)
             pos_regime = str(plan.get("entry_regime") or plan.get("regime") or "") or None
-            regime_now = classify_current_regime(closed_bars)
+            regime_now, regime_reason = classify_current_regime(closed_bars)
             if regime_now:
                 plan["current_regime"] = regime_now
-                try:
-                    append_journal({
-                        "event": "regime_tick",
-                        "symbol": sym,
-                        "side": side,
-                        "regime": regime_now,
-                        "entry_regime": pos_regime,
-                    })
-                except Exception:
-                    pass
-            else:
+            try:
+                append_journal({
+                    "event": "regime_tick",
+                    "symbol": sym,
+                    "side": side,
+                    "regime": regime_now or None,
+                    "reason": regime_reason,
+                    "entry_regime": pos_regime,
+                    "n_bars": len(closed_bars),
+                    "mark": str(mark),
+                    "mark_fallback": mark_fallback,
+                })
+            except Exception:
+                pass
+            if not regime_now:
                 regime_now = str(plan.get("current_regime") or "").strip()
             init_stop = plan.get("initial_stop")
             try:
