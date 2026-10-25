@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import asyncio
-import sys
 from decimal import Decimal
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from astra_bot.decision.live_exit_engine import (
@@ -48,16 +47,6 @@ def test_closed_bars_uses_timeframe_not_interval():
     assert calls[0][2] >= 120
 
 
-def _install_wiring_stub(journal):
-    mod = ModuleType("astra_bot.decision.live_arm_wiring")
-    mod.append_journal = lambda row: journal.append(row)
-    sys.modules["astra_bot.decision.live_arm_wiring"] = mod
-    # telemetry stub
-    tel = ModuleType("astra_bot.decision.live_stop_telemetry")
-    tel.record_stop_change = lambda **kw: None
-    sys.modules["astra_bot.decision.live_stop_telemetry"] = tel
-
-
 def test_run_exit_mark_from_current_price(tmp_path, monkeypatch):
     from astra_bot.decision import live_positions as lp
 
@@ -69,7 +58,7 @@ def test_run_exit_mark_from_current_price(tmp_path, monkeypatch):
         "initial_stop": "0.08150229996341458",
         "qty": "100",
         "be_moved": True,
-        "ts": 1_700_000_000,  # before fake bars open_time
+        "ts": 1_700_000_000,
         "opened_at_ms": 1_700_000_000_000,
     }
     pos_path = tmp_path / "positions.json"
@@ -95,21 +84,33 @@ def test_run_exit_mark_from_current_price(tmp_path, monkeypatch):
         )
         for i in range(80)
     ]
-    journal = []
-    _install_wiring_stub(journal)
+    journal: list = []
+
+    def _capture(row, path=None):
+        journal.append(row)
 
     monkeypatch.setenv("ZEUS_LIVE_EXIT_ENGINE", "shadow")
+    # Patch only append_journal where run_exit_pass imports it (lazy import inside fn).
+    # Do NOT replace sys.modules — that poisons later tests (f9 journal writes).
     with patch(
-        "astra_bot.decision.live_exit_engine._closed_bars_for_plan",
-        new=AsyncMock(return_value=fake_bars[:-1]),
+        "astra_bot.decision.live_arm_wiring.append_journal",
+        side_effect=_capture,
     ):
         with patch(
-            "astra_bot.decision.live_exit_engine.classify_current_regime",
-            return_value=("RANGE", "ok"),
+            "astra_bot.decision.live_exit_engine._closed_bars_for_plan",
+            new=AsyncMock(return_value=fake_bars[:-1]),
         ):
-            out = asyncio.new_event_loop().run_until_complete(
-                run_exit_pass(broker, positions_path=pos_path)
-            )
+            with patch(
+                "astra_bot.decision.live_exit_engine.classify_current_regime",
+                return_value=("RANGE", "ok"),
+            ):
+                with patch(
+                    "astra_bot.decision.live_stop_telemetry.record_stop_change",
+                    return_value=None,
+                ):
+                    out = asyncio.new_event_loop().run_until_complete(
+                        run_exit_pass(broker, positions_path=pos_path)
+                    )
 
     assert out.get("mode") == "shadow"
     assert not any(j.get("action") == "mark_fallback" for j in journal)
@@ -148,17 +149,27 @@ def test_regime_tick_fail_open_reason(tmp_path, monkeypatch):
     broker.client = MagicMock()
     broker.client.get_positions = AsyncMock(return_value=[pos])
     broker.move_stop = AsyncMock()
-    journal = []
-    _install_wiring_stub(journal)
+    journal: list = []
+
+    def _capture(row, path=None):
+        journal.append(row)
 
     monkeypatch.setenv("ZEUS_LIVE_EXIT_ENGINE", "shadow")
     with patch(
-        "astra_bot.decision.live_exit_engine._closed_bars_for_plan",
-        new=AsyncMock(return_value=[]),
+        "astra_bot.decision.live_arm_wiring.append_journal",
+        side_effect=_capture,
     ):
-        out = asyncio.new_event_loop().run_until_complete(
-            run_exit_pass(broker, positions_path=pos_path)
-        )
+        with patch(
+            "astra_bot.decision.live_exit_engine._closed_bars_for_plan",
+            new=AsyncMock(return_value=[]),
+        ):
+            with patch(
+                "astra_bot.decision.live_stop_telemetry.record_stop_change",
+                return_value=None,
+            ):
+                out = asyncio.new_event_loop().run_until_complete(
+                    run_exit_pass(broker, positions_path=pos_path)
+                )
 
     rt = [j for j in journal if j.get("event") == "regime_tick"]
     assert rt
