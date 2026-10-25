@@ -24,14 +24,15 @@ def test_sol_case_be_invalid_vs_mark():
 
 
 def test_ratchet_be_moved_step_lock_short():
+    # mfe 1.5R: floor(1.5/0.5)*0.5-0.5 = 1.0 → short stop = entry-1.0R = 90
     entry = Decimal("100")
     initial = Decimal("110")
-    low = Decimal("86")  # mfe 1.4R
+    low = Decimal("85")  # mfe 1.5R
     cand = ratchet_e_stop_candidate(
         "short", entry, Decimal("100"), None, low,
-        initial_stop=initial, mark=Decimal("86"), be_moved=True,
+        initial_stop=initial, mark=Decimal("85"), be_moved=True,
     )
-    assert cand is not None and abs(float(cand)-90.0)<1e-9
+    assert cand is not None and abs(float(cand) - 90.0) < 1e-9
 
 
 def test_ratchet_be_moved_skips_be_only():
