@@ -1210,6 +1210,102 @@ async def detect_position_missing_with_orders(broker, *, positions_path: Path | 
     return {"missing": missing}
 
 
+async def detect_ghost_positions(
+    broker,
+    *,
+    positions_path: Path | None = None,
+    send_tg=None,
+) -> dict:
+    """F23: exchange position without a live plan → journal + TG warn.
+
+    Unknown protection state. Dedup 1h via models/zeus_ghost_position_warn.json.
+    No trading action (no auto-close) — owner decides.
+    """
+    from astra_bot.decision.live_arm_wiring import append_journal
+    from astra_bot.decision.live_positions import load_positions
+
+    path = positions_path or Path("models/zeus_live_positions.json")
+    flag = Path("models/zeus_ghost_position_warn.json")
+    ghosts: list[dict] = []
+    try:
+        plans = load_positions(path)
+        positions = await broker.client.get_positions()
+    except Exception as exc:
+        logger.warning("detect_ghost_positions: setup %s", type(exc).__name__)
+        return {"ghosts": [], "error": type(exc).__name__}
+
+    plan_syms: set[str] = set()
+    for _key, plan in (plans or {}).items():
+        if not isinstance(plan, dict):
+            continue
+        sym = str(plan.get("symbol") or _key.split("|")[0] or "")
+        if sym:
+            plan_syms.add(sym)
+
+    try:
+        st = json.loads(flag.read_text(encoding="utf-8")) if flag.exists() else {}
+    except Exception:
+        st = {}
+    if not isinstance(st, dict):
+        st = {}
+    now = time.time()
+    tg = send_tg
+
+    for pos in positions or []:
+        sym = str(getattr(pos, "symbol", "") or "")
+        qty = getattr(pos, "quantity", None)
+        try:
+            qty_d = float(qty) if qty is not None else 0.0
+        except (TypeError, ValueError):
+            qty_d = 0.0
+        if not sym or qty_d <= 0:
+            continue
+        if sym in plan_syms:
+            continue
+        entry = getattr(pos, "entry_price", None) or getattr(pos, "avg_price", None)
+        side = str(getattr(pos, "side", "") or "").lower()
+        last = float(st.get(sym) or 0)
+        row = {
+            "symbol": sym,
+            "side": side,
+            "qty": str(qty),
+            "entry": str(entry) if entry is not None else None,
+        }
+        ghosts.append(row)
+        if now - last < 3600:
+            continue
+        try:
+            append_journal({
+                "event": "ghost_position",
+                "symbol": sym,
+                "side": side,
+                "qty": str(qty),
+                "entry": str(entry) if entry is not None else None,
+                "ts": now,
+            })
+        except Exception:
+            pass
+        st[sym] = now
+        msg = f"⚠️ {sym}: позиция без плана (qty={qty}"
+        if entry is not None:
+            msg += f", entry={entry}"
+        msg += ") — защита неизвестна"
+        if tg is not None:
+            try:
+                await tg(msg)
+            except Exception as texc:
+                logger.warning("ghost_position TG %s: %s", sym, type(texc).__name__)
+        logger.warning("ghost_position: %s qty=%s side=%s", sym, qty, side)
+
+    try:
+        flag.parent.mkdir(parents=True, exist_ok=True)
+        flag.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+    return {"ghosts": ghosts}
+
+
+
 DIGEST_PATH = Path("models/zeus_live_digest.json")
 TRADES_PATH = Path("models/zeus_live_trades.jsonl")
 
@@ -1796,6 +1892,14 @@ async def one_tick(*, dry: bool = False) -> int:
             logger.info("position_missing_with_open_orders: %s", miss)
     except Exception as _miss_exc:
         logger.warning("detect_position_missing failed: %s", type(_miss_exc).__name__)
+
+    # F23: exchange position without plan → ghost_position + TG warn
+    try:
+        ghosts = await detect_ghost_positions(broker, send_tg=_send_live_tg)
+        if ghosts.get("ghosts"):
+            logger.info("ghost_positions: %s", ghosts)
+    except Exception as _ghost_exc:
+        logger.warning("detect_ghost_positions failed: %s", type(_ghost_exc).__name__)
 
     # C: partial TP1 → BE — EVERY tick (owner rule), after restore so stop is present
     try:
