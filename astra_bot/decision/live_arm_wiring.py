@@ -18,7 +18,7 @@ from astra_bot.decision.live_arm import (
     same_side_cluster_blocks,
 )
 from astra_bot.decision.live_broker import LiveBroker, append_live_trade
-from astra_bot.decision.live_positions import load_positions, plan_key, remove_plan, upsert_plan
+from astra_bot.decision.live_positions import load_positions, upsert_plan
 from astra_bot.decision.live_tg_flags import try_claim
 
 logger = logging.getLogger(__name__)
