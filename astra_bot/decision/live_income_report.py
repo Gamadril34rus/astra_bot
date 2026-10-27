@@ -638,39 +638,6 @@ async def process_income_fill_tape(
             except Exception as exc:
                 logger.warning("fill_tape append %s: %s", sym, type(exc).__name__)
                 seen.discard(rid)
-                continue
-            # F24c R3 forward-only: if symbol has no open position, also write
-            # a full exit row so epoch PF/trades see the R (partial_fill alone
-            # was a known gap 27.10 DOGE/SOL).
-            try:
-                from astra_bot.decision.live_positions import load_positions
-
-                plans = load_positions()
-                has_plan = any(
-                    (k == sym or k.startswith(sym + "|") or str(v.get("symbol") or "") == sym)
-                    for k, v in plans.items()
-                    if isinstance(v, dict)
-                )
-                if not has_plan and fill.get("pnl") is not None:
-                    append_live_trade(
-                        {
-                            "event": "exit",
-                            "symbol": sym,
-                            "side": None,
-                            "exit_reason": "income_tape",
-                            "pnl": fill.get("pnl"),
-                            "pnl_source": "income_tape",
-                            "qty": fill.get("qty"),
-                            "entry": None,
-                            "exit": fill.get("price"),
-                            "income_id": fill.get("income_id"),
-                            "source": "income_tape_close",
-                            "ts": fill.get("ts") or time.time(),
-                        },
-                        path=trades_path,
-                    )
-            except Exception as exc:
-                logger.warning("fill_tape exit-row %s: %s", sym, type(exc).__name__)
     try:
         save_fill_tape_seen(seen, state_path)
     except Exception as exc:

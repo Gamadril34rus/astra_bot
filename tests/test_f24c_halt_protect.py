@@ -4,11 +4,11 @@ from __future__ import annotations
 import json
 from decimal import Decimal
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from astra_bot.decision.live_broker import LiveBroker, LiveBrokerConfig
+from astra_bot.decision.live_broker import LiveBroker, LiveBrokerConfig, LiveEntryPlan
 
 
 @pytest.mark.asyncio
@@ -19,7 +19,6 @@ async def test_move_stop_allowed_under_halt():
     client.cancel_order = AsyncMock(return_value=True)
     broker = LiveBroker(client, LiveBrokerConfig())
     broker.set_halt("PF=0.7 n=7 < 1 (window=20)")
-    # must NOT raise HALT before place_order
     await broker.move_stop("SOL-USDT", "short", Decimal("10"), Decimal("100.5"))
     assert client.place_order.await_count >= 1
 
@@ -44,8 +43,6 @@ async def test_open_with_protection_blocked_under_halt():
     client = MagicMock()
     broker = LiveBroker(client, LiveBrokerConfig())
     broker.set_halt("kill")
-    from astra_bot.decision.live_broker import LiveEntryPlan
-
     plan = LiveEntryPlan(
         symbol="SOL-USDT",
         side="short",
@@ -58,30 +55,25 @@ async def test_open_with_protection_blocked_under_halt():
         await broker.open_with_protection(plan)
 
 
-def test_plan_allows_new_entry_blocks_foreign(tmp_path, monkeypatch):
+def test_plan_allows_new_entry_blocks_foreign(monkeypatch):
     from astra_bot.decision import live_arm_wiring as w
-    from astra_bot.decision import live_positions as lp
 
-    monkeypatch.setattr(lp, "DEFAULT_PATH", tmp_path / "pos.json")
+    plans = {
+        "DOGE-USDT|short": {
+            "symbol": "DOGE-USDT",
+            "side": "short",
+            "signal_id": "old-sid",
+            "qty": 1,
+        }
+    }
+    monkeypatch.setattr(w, "load_positions", lambda path=None: plans)
     monkeypatch.setattr(w, "append_journal", lambda row: None)
-    lp.save_positions(
-        {
-            "DOGE-USDT|short": {
-                "symbol": "DOGE-USDT",
-                "side": "short",
-                "signal_id": "old-sid",
-                "qty": 1,
-            }
-        },
-        path=tmp_path / "pos.json",
-    )
     assert w._plan_allows_new_entry("DOGE-USDT", "new-sid") is False
     assert w._plan_allows_new_entry("DOGE-USDT", "old-sid") is True
     assert w._plan_allows_new_entry("SOL-USDT", "x") is True
 
 
-def test_write_live_equity_not_hard_cap(tmp_path, monkeypatch):
-    """R4: writer stores passed float; caller must not pass HARD_CAP 100."""
+def test_write_live_equity_not_hard_cap(tmp_path):
     import scripts.zeus_live_clock as clock
 
     path = tmp_path / "eq.json"
