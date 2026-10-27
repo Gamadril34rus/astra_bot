@@ -1733,8 +1733,11 @@ async def one_tick(*, dry: bool = False) -> int:
         await _diag(client, logger)
 
     rec = await broker.reconcile()
+    # F24c R4: never write HARD_CAP-clamped broker.equity() (100) into TG state —
+    # wallet from get_balance_usdt only (sizing already uses uncapped path).
     try:
-        write_live_equity(float(rec["equity"]) if rec.get("equity") is not None else None)
+        _eq = await client.get_balance_usdt()
+        write_live_equity(float(_eq) if _eq is not None else None)
     except Exception:
         pass
     logger.info(

@@ -409,8 +409,9 @@ class LiveBroker:
         with clamped qty (same as client_live.close_position:498).
         client_live.close_position(quantity=trim) closes PARTIAL qty when set
         (else full pos.quantity) — see client_live.py:498.
+
+        F24c: protect path — allowed under kill-halt (entries stay blocked).
         """
-        self._assert_can_trade()
         qty = abs(Decimal(str(quantity)))
         if qty <= 0:
             return True
@@ -1822,8 +1823,9 @@ class LiveBroker:
         STOP_* for this symbol/side by id, then one place retry. No amend API in
         client_live (grep) — cancel-first is the only path; naked window covered
         by restore_missing_stops next tick.
+
+        F24c: protect path — allowed under kill-halt (entries stay blocked).
         """
-        self._assert_can_trade()
         ps = "LONG" if side.lower() == "long" else "SHORT"
         stop_side = "SELL" if side.lower() == "long" else "BUY"
 

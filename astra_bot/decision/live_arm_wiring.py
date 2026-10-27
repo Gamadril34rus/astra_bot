@@ -18,7 +18,7 @@ from astra_bot.decision.live_arm import (
     same_side_cluster_blocks,
 )
 from astra_bot.decision.live_broker import LiveBroker, append_live_trade
-from astra_bot.decision.live_positions import load_positions, remove_plan, upsert_plan
+from astra_bot.decision.live_positions import load_positions, plan_key, remove_plan, upsert_plan
 from astra_bot.decision.live_tg_flags import try_claim
 
 logger = logging.getLogger(__name__)
@@ -49,40 +49,56 @@ async def resolve_step_size(
     return default
 
 
-def _archive_prior_plan_if_any(symbol: str, new_signal_id: str | None) -> None:
+def _existing_plans_for_symbol(symbol: str) -> list[tuple[str, dict]]:
+    """All plan keys for symbol (symbol|side keys)."""
     plans = load_positions()
-    old = plans.get(symbol)
-    if not old:
-        return
+    out: list[tuple[str, dict]] = []
+    for k, v in plans.items():
+        if not isinstance(v, dict):
+            continue
+        if k == symbol or k.startswith(symbol + "|") or str(v.get("symbol") or "") == symbol:
+            out.append((k, v))
+    return out
+
+
+def _plan_allows_new_entry(symbol: str, new_signal_id: str | None) -> bool:
+    """F24c R2: block entry while an unreconciled plan for symbol remains.
+
+    Same signal_id → allow (idempotent retry). Otherwise skip — sync_closed
+    must finish first (exit from tape + remove plan). Never overwrite with
+    pnl=None (known gap 27.10 DOGE/SOL).
+    """
+    existing = _existing_plans_for_symbol(symbol)
+    if not existing:
+        return True
+    for _k, old in existing:
+        old_sid = str(old.get("signal_id") or "")
+        if new_signal_id and old_sid and old_sid == new_signal_id:
+            return True
+    old = existing[0][1]
     old_sid = str(old.get("signal_id") or "")
-    if new_signal_id and old_sid and old_sid == new_signal_id:
-        return
     logger.warning(
-        "arm: overwriting plan %s old_sid=%s new_sid=%s — archive interrupted exit",
+        "arm: SKIP %s — unreconciled plan sid=%s blocks new sid=%s",
         symbol,
         old_sid,
         new_signal_id,
     )
     try:
-        append_live_trade(
+        append_journal(
             {
-                "event": "exit",
+                "event": "arm_skip",
+                "reason": "plan_unreconciled",
                 "symbol": symbol,
-                "side": old.get("side"),
-                "entry": old.get("entry"),
-                "exit": None,
-                "exit_reason": "plan_overwritten",
-                "pnl": None,
-                "signal_id": old_sid or None,
+                "old_signal_id": old_sid or None,
+                "new_signal_id": new_signal_id,
                 "ts": time.time(),
             }
         )
     except Exception:
         pass
-    try:
-        remove_plan(symbol)
-    except Exception:
-        pass
+    return False
+
+
 
 
 DEFAULT_STRATEGY = "zeus_channel_boundary"
@@ -381,6 +397,7 @@ async def run_arm_entries(
         "htf_gate": 0,
         "filters": 0,
         "entries_per_tick_limit": 0,
+        "plan_unreconciled": 0,
         "other": 0,
     }
 
@@ -658,6 +675,10 @@ async def run_arm_entries(
                 )
                 _skip("other")
                 continue
+            sid_pre = str(getattr(plan, "signal_id", None) or "") or None
+            if not _plan_allows_new_entry(plan.symbol, sid_pre):
+                _skip("plan_unreconciled")
+                continue
             try:
                 res = await broker.open_with_protection(plan)
             except Exception as protect_exc:
@@ -781,7 +802,6 @@ async def run_arm_entries(
                                     pass
             except Exception as _pf_exc:
                 logger.warning("arm: post-fill risk check failed: %s", type(_pf_exc).__name__)
-            _archive_prior_plan_if_any(plan.symbol, sid or None)
             upsert_plan(
                 plan.symbol,
                 side=plan.side,
