@@ -46313,3 +46313,5 @@
 {"event": "exit_shadow", "symbol": "XRP-USDT", "action": "mae_cut", "ts": 1793114540.5037832, "mark": "1.3207", "stop": "1.323504"}
 {"event": "exit_shadow", "symbol": "XRP-USDT", "action": "d1_structural", "ts": 1793114540.5038605, "stop": "1.3192378", "stop_before": "1.323504"}
 {"event": "exit_shadow", "action": "defer_ratchet", "symbol": "XRP-USDT", "side": "short", "stop": "1.3192378", "stop_before": "1.323504", "mark": "1.3207", "reason": "exchange_invalid", "ts": 1793114540.5041664}
+{"event": "order_audit", "symbol": "SOL-USDT", "side": "short", "n_stop": 0, "n_tp": 0, "be_moved": false, "orders": [], "ts": 1793114805.8831532}
+{"event": "order_audit", "symbol": "XRP-USDT", "side": "short", "n_stop": 0, "n_tp": 0, "be_moved": false, "orders": [], "ts": 1793114805.8832161}
