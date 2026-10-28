@@ -1,4 +1,56 @@
 {
-  "positions": {},
-  "ts": 1793114814.1545208
+  "positions": {
+    "ETH-USDT|short": {
+      "symbol": "ETH-USDT",
+      "side": "short",
+      "qty": "44.84931475278861813600467074",
+      "stop": "2374.78752",
+      "tp": "2318.244960",
+      "entry": "2353.96",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|ETH-USDT|short|1793174400000",
+      "ts": 1793179641.1332943,
+      "be_moved": false,
+      "initial_stop": "2374.78752",
+      "plan_qty": "49.56089713",
+      "qty_ratio": 1.0,
+      "tp1": "2318.244960"
+    },
+    "SOL-USDT|short": {
+      "symbol": "SOL-USDT",
+      "side": "short",
+      "qty": "1135.54442809",
+      "stop": "103.470192",
+      "tp": "101.0066160",
+      "entry": "102.618",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|SOL-USDT|short|1793174400000",
+      "ts": 1793179645.055654,
+      "be_moved": false,
+      "initial_stop": "103.470192",
+      "plan_qty": "1135.54442809",
+      "qty_ratio": 1.0,
+      "tp1": "101.0066160"
+    },
+    "AVAX-USDT|short": {
+      "symbol": "AVAX-USDT",
+      "side": "short",
+      "qty": "12901.37487526",
+      "stop": "9.091152000000001",
+      "tp": "8.874695999999998",
+      "entry": "9.012",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|AVAX-USDT|short|1793174400000",
+      "ts": 1793179649.8724031,
+      "be_moved": false,
+      "initial_stop": "9.091152000000001",
+      "plan_qty": "12901.37487526",
+      "qty_ratio": 1.0,
+      "tp1": "8.874695999999998"
+    }
+  },
+  "ts": 1793179649.8724358
 }
