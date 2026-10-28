@@ -70,6 +70,9 @@ MAX_OPEN = 5
 # 4th/5th of same sign only if sum(unrealizedProfit) of that side >= 0.
 SAME_SIDE_SOFT_CAP = 3
 MAX_OPEN_SAME_SIDE = 3  # alias for soft threshold (compat)
+# Owner 28.10 anti-cluster: hard max same-side open (in addition to soft upnl rule).
+# Blocks N+1 when already N of that side open. MAX_OPEN=5 unchanged.
+SAME_SIDE_CLUSTER_MAX = 3
 COOLDOWN_MS = 20 * 60 * 1000  # strategy|symbol|side as paper
 COOLDOWN_PATH = Path("models/zeus_live_cooldown.json")
 _COOLDOWN: dict[str, float] = {}  # key -> unblock_ts_ms
@@ -141,20 +144,27 @@ def same_side_cluster_blocks(
     *,
     side_count: int,
     side_upnl: float | Decimal,
+    hard_max: int | None = None,
 ) -> bool:
     """True → skip new entry on this side.
 
-    0–3 open on side: never block (caller still respects MAX_OPEN=5 total).
-    4th or 5th on side: block only when cluster unrealized PnL < 0.
-    net == 0 is allowed (boundary).
+    Owner 28.10: HARD cap SAME_SIDE_CLUSTER_MAX (default 3) — never open 4th+
+    of the same side regardless of unrealized PnL (anti-correlated pack).
+    Soft rule (owner 14.10) remains for edge cases if hard_max disabled via
+    hard_max=0: 4th/5th only when side_upnl < 0.
+    Caller still respects MAX_OPEN=5 total.
     """
     s = str(side or "").lower()
     if s not in ("long", "short"):
         return False
     n = int(side_count)
+    cap = SAME_SIDE_CLUSTER_MAX if hard_max is None else int(hard_max)
+    # Hard anti-cluster: already at/above cap → block (entry would be cap+1)
+    if cap > 0 and n >= cap:
+        return True
+    # Legacy soft rule (only if hard cap disabled)
     if n < SAME_SIDE_SOFT_CAP:
         return False
-    # n >= 3 means this entry would be 4th+ on the side
     try:
         upnl = float(side_upnl)
     except (TypeError, ValueError):

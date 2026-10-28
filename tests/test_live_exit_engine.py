@@ -119,3 +119,55 @@ def test_regime_exit_fires_when_current_adverse_differs():
     assert would_regime_exit("long", "TREND_UP", adverse) is True
     assert would_regime_exit("long", None, adverse) is True
     assert would_regime_exit("long", adverse, "") is False
+
+
+# --- Owner 28.10 anti-scratch BE gate ---
+from decimal import Decimal
+
+from astra_bot.decision.live_exit_engine import be_gate_mfe_allows, ratchet_e_stop_candidate
+
+
+def test_be_gate_mfe_threshold() -> None:
+    assert be_gate_mfe_allows(0.0) is False
+    assert be_gate_mfe_allows(0.49) is False
+    assert be_gate_mfe_allows(0.5) is True
+    assert be_gate_mfe_allows(1.2) is True
+    assert be_gate_mfe_allows(0.9, be_moved=True) is False
+
+
+def test_ratchet_no_be_below_half_r() -> None:
+    """MFE 0.3R → no BE candidate (anti-scratch)."""
+    entry = Decimal("100")
+    init_stop = Decimal("99")  # 1R = 1.0
+    # long: high = 100.3 → mfe 0.3R
+    cand = ratchet_e_stop_candidate(
+        "long", entry, init_stop,
+        highest_price=Decimal("100.3"), lowest_price=Decimal("99.5"),
+        initial_stop=init_stop, be_moved=False,
+    )
+    assert cand is None
+
+
+def test_ratchet_be_at_half_r() -> None:
+    """MFE 0.5R → BE at entry."""
+    entry = Decimal("100")
+    init_stop = Decimal("99")
+    cand = ratchet_e_stop_candidate(
+        "long", entry, init_stop,
+        highest_price=Decimal("100.5"), lowest_price=Decimal("99.5"),
+        initial_stop=init_stop, be_moved=False,
+    )
+    assert cand == entry
+
+
+def test_ratchet_step_lock_still_on_be_moved() -> None:
+    entry = Decimal("100")
+    init_stop = Decimal("99")
+    cur = Decimal("100")  # already at BE
+    cand = ratchet_e_stop_candidate(
+        "long", entry, cur,
+        highest_price=Decimal("101.5"), lowest_price=Decimal("99.5"),
+        initial_stop=init_stop, be_moved=True,
+    )
+    # mfe 1.5R → locked 1.0R → stop 101
+    assert cand == Decimal("101")

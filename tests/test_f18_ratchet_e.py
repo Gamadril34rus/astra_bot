@@ -46,14 +46,23 @@ def test_ratchet_mfe_1_5_to_stop_1_0():
 
 
 def test_ratchet_be_after_touch_entry():
-    entry, init_stop = Decimal("100"), Decimal("90")
+    entry, init_stop = Decimal("100"), Decimal("90")  # R=10
     cur = Decimal("90")
-    # peak at entry only → BE
+    # Owner 28.10: BE requires MFE >= 0.5R → peak 105
     cand = ratchet_e_stop_candidate(
-        "long", entry, cur, Decimal("100"), None, initial_stop=init_stop
+        "long", entry, cur, Decimal("105"), None, initial_stop=init_stop
     )
     assert cand is not None
     assert abs(float(cand) - 100.0) < 1e-9
+
+
+def test_ratchet_no_be_on_zero_mfe():
+    entry, init_stop = Decimal("100"), Decimal("90")
+    cur = Decimal("90")
+    cand = ratchet_e_stop_candidate(
+        "long", entry, cur, Decimal("100"), None, initial_stop=init_stop
+    )
+    assert cand is None  # anti-scratch: mfe 0 < 0.5R
 
 
 def test_ratchet_short_mfe_1_5():
