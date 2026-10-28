@@ -111,7 +111,61 @@
       "tp_frac": 0.3,
       "tp_parity_v1": true,
       "current_regime": "RANGE"
+    },
+    "ARB-USDT|short": {
+      "symbol": "ARB-USDT",
+      "side": "short",
+      "qty": "682998.37535351",
+      "stop": "0.16751952",
+      "tp": "0.16353096",
+      "entry": "0.16618",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|ARB-USDT|short|1793203200000",
+      "ts": 1793204321.6784327,
+      "be_moved": false,
+      "initial_stop": "0.16751952",
+      "opened_at_ms": 1793204321678,
+      "plan_qty": "682998.37535351",
+      "qty_ratio": 1.0,
+      "tp1": "0.16353096"
+    },
+    "OP-USDT|short": {
+      "symbol": "OP-USDT",
+      "side": "short",
+      "qty": "1024365.4593081",
+      "stop": "0.11159568",
+      "tp": "0.10893864",
+      "entry": "0.11066",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|OP-USDT|short|1793203200000",
+      "ts": 1793204325.3431752,
+      "be_moved": false,
+      "initial_stop": "0.11159568",
+      "opened_at_ms": 1793204325343,
+      "plan_qty": "1024365.45930810",
+      "qty_ratio": 1.0,
+      "tp1": "0.10893864"
+    },
+    "AAVE-USDT|short": {
+      "symbol": "AAVE-USDT",
+      "side": "short",
+      "qty": "856.20272314",
+      "stop": "133.2576",
+      "tp": "130.0847999999999700000000000",
+      "entry": "132.14",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|AAVE-USDT|short|1793203200000",
+      "ts": 1793204329.0549269,
+      "be_moved": false,
+      "initial_stop": "133.2576",
+      "opened_at_ms": 1793204329054,
+      "plan_qty": "856.20272314",
+      "qty_ratio": 1.0,
+      "tp1": "130.0847999999999700000000000"
     }
   },
-  "ts": 1793203971.7943208
+  "ts": 1793204329.0549443
 }
