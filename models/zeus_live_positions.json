@@ -5,7 +5,7 @@
       "side": "short",
       "qty": "44.84931475278861813600467074",
       "stop": "2374.78752",
-      "tp": "2318.244960",
+      "tp": "2312.304960",
       "entry": "2353.96",
       "leverage": 6,
       "pending_verify": false,
@@ -15,14 +15,19 @@
       "initial_stop": "2374.78752",
       "plan_qty": "49.56089713",
       "qty_ratio": 1.0,
-      "tp1": "2318.244960"
+      "tp1": "2312.304960",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true,
+      "migrate_stop_v1": true,
+      "current_regime": "RANGE"
     },
     "SOL-USDT|short": {
       "symbol": "SOL-USDT",
       "side": "short",
       "qty": "1135.54442809",
       "stop": "103.470192",
-      "tp": "101.0066160",
+      "tp": "100.9136160",
       "entry": "102.618",
       "leverage": 6,
       "pending_verify": false,
@@ -32,14 +37,18 @@
       "initial_stop": "103.470192",
       "plan_qty": "1135.54442809",
       "qty_ratio": 1.0,
-      "tp1": "101.0066160"
+      "tp1": "100.9136160",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true,
+      "current_regime": "LOW_VOLATILITY"
     },
     "AVAX-USDT|short": {
       "symbol": "AVAX-USDT",
       "side": "short",
       "qty": "12901.37487526",
       "stop": "9.091152000000001",
-      "tp": "8.874695999999998",
+      "tp": "8.8536959999999980",
       "entry": "9.012",
       "leverage": 6,
       "pending_verify": false,
@@ -49,8 +58,46 @@
       "initial_stop": "9.091152000000001",
       "plan_qty": "12901.37487526",
       "qty_ratio": 1.0,
-      "tp1": "8.874695999999998"
+      "tp1": "8.8536959999999980",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true,
+      "current_regime": "RANGE"
+    },
+    "DOT-USDT|short": {
+      "symbol": "DOT-USDT",
+      "side": "short",
+      "qty": "115357.56588688",
+      "stop": "1.0212047999999998",
+      "tp": "0.9968904000000001000000000000",
+      "entry": "1.0125",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|DOT-USDT|short|1793174400000",
+      "ts": 1793180285.0664802,
+      "be_moved": false,
+      "initial_stop": "1.0212047999999998",
+      "plan_qty": "115357.56588688",
+      "qty_ratio": 1.0,
+      "tp1": "0.9968904000000001000000000000"
+    },
+    "BCH-USDT|long": {
+      "symbol": "BCH-USDT",
+      "side": "long",
+      "qty": "51.05268974",
+      "stop": "282.0716290731705",
+      "tp": "336.9067418536590",
+      "entry": "300.51",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|BCH-USDT|long|1793174400000",
+      "ts": 1793180289.0532515,
+      "be_moved": false,
+      "initial_stop": "282.0716290731705",
+      "plan_qty": "51.05268974",
+      "qty_ratio": 1.0,
+      "tp1": "336.9067418536590"
     }
   },
-  "ts": 1793179649.8724358
+  "ts": 1793180289.053275
 }
