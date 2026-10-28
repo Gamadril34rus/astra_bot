@@ -22,29 +22,6 @@
       "tp_parity_v1": true,
       "current_regime": "WEAK_BEAR_TREND"
     },
-    "BCH-USDT|long": {
-      "symbol": "BCH-USDT",
-      "side": "long",
-      "qty": "49.95756369",
-      "stop": "283.8812691829266",
-      "tp": "311.53746163414680",
-      "entry": "293.10",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|BCH-USDT|long|1793188800000",
-      "ts": 1793202479.260752,
-      "be_moved": false,
-      "initial_stop": "283.8812691829266",
-      "opened_at_ms": 1793202479260,
-      "plan_qty": "49.95756369",
-      "qty_ratio": 1.0,
-      "tp1": "311.53746163414680",
-      "initial_stop_v1": true,
-      "tp_frac": 0.3,
-      "tp_parity_v1": true,
-      "be_earned": true,
-      "current_regime": "WEAK_BULL_TREND"
-    },
     "OP-USDT|short": {
       "symbol": "OP-USDT",
       "side": "short",
@@ -72,7 +49,7 @@
       "symbol": "ATOM-USDT",
       "side": "short",
       "qty": "53169.72693031952483843066950",
-      "stop": "1.620",
+      "stop": "1.61150399999999990",
       "tp": "1.58601599999999960",
       "entry": "1.620",
       "leverage": 6,
@@ -92,5 +69,5 @@
       "current_regime": "RANGE"
     }
   },
-  "ts": 1793207911.5488963
+  "ts": 1793208180.2761772
 }
