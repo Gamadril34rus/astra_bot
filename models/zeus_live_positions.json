@@ -20,7 +20,8 @@
       "tp_frac": 0.3,
       "tp_parity_v1": true,
       "migrate_stop_v1": true,
-      "current_regime": "RANGE"
+      "current_regime": "RANGE",
+      "be_earned": true
     },
     "DOT-USDT|short": {
       "symbol": "DOT-USDT",
@@ -69,7 +70,7 @@
       "side": "short",
       "qty": "83698.10633648",
       "stop": "0.691992",
-      "tp": "0.6755159999999999000000000000",
+      "tp": "0.6746160",
       "entry": "0.6862",
       "leverage": 6,
       "pending_verify": false,
@@ -79,14 +80,18 @@
       "initial_stop": "0.691992",
       "plan_qty": "83698.10633648",
       "qty_ratio": 1.0,
-      "tp1": "0.6755159999999999000000000000"
+      "tp1": "0.6746160",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true,
+      "current_regime": "STRONG_BEAR_TREND"
     },
     "HYPE-USDT|long": {
       "symbol": "HYPE-USDT",
       "side": "long",
       "qty": "104.96121207",
       "stop": "77.77124032926832",
-      "tp": "90.901519341463360",
+      "tp": "91.030519341463360",
       "entry": "82.191",
       "leverage": 6,
       "pending_verify": false,
@@ -96,8 +101,47 @@
       "initial_stop": "77.77124032926832",
       "plan_qty": "104.96121207",
       "qty_ratio": 1.0,
-      "tp1": "90.901519341463360"
+      "tp1": "91.030519341463360",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true,
+      "be_earned": true,
+      "current_regime": "RANGE"
+    },
+    "SUI-USDT|short": {
+      "symbol": "SUI-USDT",
+      "side": "short",
+      "qty": "60464.99311513",
+      "stop": "0.9516528000000001",
+      "tp": "0.92899439999999980",
+      "entry": "0.9444",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|SUI-USDT|short|1793174400000",
+      "ts": 1793180883.6100163,
+      "be_moved": false,
+      "initial_stop": "0.9516528000000001",
+      "plan_qty": "60464.99311513",
+      "qty_ratio": 1.0,
+      "tp1": "0.92899439999999980"
+    },
+    "1000PEPE-USDT|long": {
+      "symbol": "1000PEPE-USDT",
+      "side": "long",
+      "qty": "676517.00452675",
+      "stop": "0.004342375868536586",
+      "tp": "0.006366848262926828",
+      "entry": "0.0050115",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|1000PEPE-USDT|long|1793174400000",
+      "ts": 1793180888.2916012,
+      "be_moved": false,
+      "initial_stop": "0.004342375868536586",
+      "plan_qty": "676517.00452675",
+      "qty_ratio": 1.0,
+      "tp1": "0.006366848262926828"
     }
   },
-  "ts": 1793180603.5837653
+  "ts": 1793180888.2916243
 }
