@@ -479,6 +479,53 @@ def migrate_open_stops(plans: dict) -> list[dict]:
     return out
 
 
+
+async def _exchange_stop_price(broker, symbol: str, side: str) -> Decimal | None:
+    """Best-effort current STOP price on exchange for only-tighten gate."""
+    try:
+        orders = await broker.client.get_open_orders(symbol)
+    except Exception as exc:
+        logger.warning("_exchange_stop_price %s: %s", symbol, type(exc).__name__)
+        return None
+    side_l = (side or "").lower()
+    best = None
+    for o in orders or []:
+        typ = str(getattr(o, "type", "") or getattr(o, "order_type", "") or "").upper()
+        if "STOP" not in typ or "TAKE_PROFIT" in typ:
+            continue
+        # position side filter when present
+        ps = str(getattr(o, "position_side", "") or getattr(o, "positionSide", "") or "").lower()
+        if ps and ps not in ("both", "") and ps != side_l and not (
+            (side_l == "long" and ps == "long") or (side_l == "short" and ps == "short")
+        ):
+            # also accept empty
+            if ps in ("long", "short") and ps != side_l:
+                continue
+        sp = getattr(o, "stop_price", None) or getattr(o, "stopPrice", None) or getattr(o, "trigger_price", None)
+        if sp is None:
+            continue
+        try:
+            sp_d = Decimal(str(sp))
+        except Exception:
+            continue
+        if best is None:
+            best = sp_d
+        else:
+            # short: tighter = lower; long: tighter = higher
+            if side_l == "short":
+                best = min(best, sp_d)
+            else:
+                best = max(best, sp_d)
+    return best
+
+
+def _is_only_tighten(side: str, new_stop: Decimal, current_stop: Decimal) -> bool:
+    """True if new_stop tightens or equals current (never loosens)."""
+    if side == "long":
+        return new_stop >= current_stop
+    return new_stop <= current_stop
+
+
 async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
     """Tick: migrate first, then paper rules. BE owned by PR-A."""
     from astra_bot.decision.live_arm_wiring import append_journal
@@ -668,7 +715,51 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
                         except Exception:
                             pass
                         continue
+                    # Owner 28.10 only-tighten vs EXCHANGE stop (not stale plan stop).
+                    exch_stop = await _exchange_stop_price(broker, sym, side)
+                    ref_stop = exch_stop if exch_stop is not None else stop
+                    if not _is_only_tighten(side, new_stop, ref_stop):
+                        try:
+                            append_journal({
+                                "event": "STOP_UPDATE",
+                                "symbol": sym,
+                                "side": side,
+                                "stop_before": str(ref_stop),
+                                "stop_after": str(new_stop),
+                                "source": "exchange" if exch_stop is not None else "plan",
+                                "ok": False,
+                                "reason": "would_loosen",
+                                "action": act_name,
+                                "ts": time.time(),
+                            })
+                        except Exception:
+                            pass
+                        continue
                     await broker.move_stop(sym, side, qty, new_stop)
+                    # Owner 28.10: keep plan stop in sync after successful move
+                    # so next only-tighten compare is not vs a stale plan level.
+                    plan["stop"] = str(new_stop)
+                    stop = new_stop
+                    if act_name in ("ratchet_e", "trailing", "d1_structural"):
+                        try:
+                            if abs(new_stop - entry) <= (abs(entry) * Decimal("0.0001") + Decimal("1e-12")):
+                                plan["be_moved"] = True
+                        except Exception:
+                            pass
+                    try:
+                        append_journal({
+                            "event": "STOP_UPDATE",
+                            "symbol": sym,
+                            "side": side,
+                            "stop_before": str(ref_stop),
+                            "stop_after": str(new_stop),
+                            "source": "exchange" if exch_stop is not None else "plan",
+                            "ok": True,
+                            "action": act_name,
+                            "ts": time.time(),
+                        })
+                    except Exception:
+                        pass
                     try:
                         record_stop_change(
                             symbol=sym, stop_price=str(new_stop),
