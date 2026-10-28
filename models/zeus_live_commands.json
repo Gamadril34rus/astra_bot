@@ -703,6 +703,22 @@
       "status": "done",
       "result": "ok",
       "done_ts": 1793215323042
+    },
+    {
+      "cmd": "reset_kill",
+      "ts": 1793220982046,
+      "source": "tg",
+      "status": "done",
+      "result": "already_clear",
+      "done_ts": 1793220983322
+    },
+    {
+      "cmd": "resume",
+      "ts": 1793220982377,
+      "source": "tg",
+      "status": "done",
+      "result": "ok",
+      "done_ts": 1793220983324
     }
   ],
   "last_tg_update_id": 774152827
