@@ -638,6 +638,20 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
                     qty = Decimal(str(getattr(pos, "quantity", 0) or plan.get("qty") or 0))
                     if qty <= 0:
                         continue
+                    # F24c: visible marker when protecting under kill-halt
+                    if getattr(broker, "_halted", False):
+                        try:
+                            append_journal({
+                                "event": "exit_apply_under_halt",
+                                "symbol": sym,
+                                "side": side,
+                                "action": act_name,
+                                "stop": str(new_stop),
+                                "halt_reason": getattr(broker, "_halt_reason", None),
+                                "ts": time.time(),
+                            })
+                        except Exception:
+                            pass
                     # F19-1: exchange-validity gate (long cand < mark; short cand > mark)
                     if not stop_exchange_valid(side, new_stop, mark):
                         try:
@@ -663,6 +677,18 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
                     except Exception:
                         pass
                 elif act_name in ("mae_cut", "regime_exit", "max_hold", "vol_expansion"):
+                    if getattr(broker, "_halted", False):
+                        try:
+                            append_journal({
+                                "event": "exit_apply_under_halt",
+                                "symbol": sym,
+                                "side": side,
+                                "action": act_name,
+                                "halt_reason": getattr(broker, "_halt_reason", None),
+                                "ts": time.time(),
+                            })
+                        except Exception:
+                            pass
                     try:
                         await broker.reduce_position_qty(
                             sym, side, Decimal(str(getattr(pos, "quantity", 0) or 0)),
