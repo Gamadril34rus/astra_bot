@@ -97,7 +97,12 @@ def upsert_plan(
         "be_moved": bool(be_moved),
         "initial_stop": str(initial_stop) if initial_stop is not None else None,
     }
-    for _k in ("tp_parity_v1", "be_earned", "tp_frac"):
+    # Owner 28.10: opened_at_ms fixed at first entry; never rewrite on BE/ratchet.
+    if prev.get("opened_at_ms") is not None:
+        row["opened_at_ms"] = prev["opened_at_ms"]
+    else:
+        row["opened_at_ms"] = int(time.time() * 1000)
+    for _k in ("tp_parity_v1", "be_earned", "tp_frac", "peak_high", "peak_low", "current_regime"):
         if _k in prev and _k not in row:
             row[_k] = prev[_k]
     if plan_qty is not None:
