@@ -71,14 +71,14 @@
       "symbol": "APT-USDT",
       "side": "short",
       "qty": "144276.7255624761662641413499",
-      "stop": "0.6921936",
+      "stop": "0.6859",
       "tp": "0.67331280",
       "entry": "0.6859",
       "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|APT-USDT|short|1793203200000",
       "ts": 1793203452.161455,
-      "be_moved": false,
+      "be_moved": true,
       "initial_stop": "0.6921936",
       "opened_at_ms": 1793203452161,
       "plan_qty": "165286.87927770",
@@ -87,20 +87,21 @@
       "initial_stop_v1": true,
       "tp_frac": 0.3,
       "tp_parity_v1": true,
-      "current_regime": "WEAK_BEAR_TREND"
+      "current_regime": "WEAK_BEAR_TREND",
+      "be_earned": true
     },
     "SUI-USDT|short": {
       "symbol": "SUI-USDT",
       "side": "short",
       "qty": "110488.3516911979725119407350",
-      "stop": "0.9333072",
+      "stop": "0.9251",
       "tp": "0.90868560",
       "entry": "0.9251",
       "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|SUI-USDT|short|1793203200000",
       "ts": 1793203463.4618495,
-      "be_moved": false,
+      "be_moved": true,
       "initial_stop": "0.9333072",
       "opened_at_ms": 1793203463461,
       "plan_qty": "122421.42779997",
@@ -112,5 +113,5 @@
       "current_regime": "RANGE"
     }
   },
-  "ts": 1793203686.318919
+  "ts": 1793203971.7943208
 }

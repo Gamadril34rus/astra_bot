@@ -1439,3 +1439,5 @@
 {"event":"order_cancel","symbol":"SUI-USDT","order_id":"2115474736842104832","type":"TAKE_PROFIT","reason":"tp_parity_replace","path":"apply_tp_parity_v1","ts":1793203623.2703688}
 {"event":"exit","symbol":"ADA-USDT","side":"short","entry":0.2029,"exit":null,"exit_reason":"стоп","pnl":-49.134098,"pnl_source":"income_backfill","signal_id":"zeus_channel_boundary|ADA-USDT|short|1793188800000","qty":238414.00083090985,"ts":1793203628.3503947,"backfill_ts":1793203649.9838321}
 {"event": "order_cancel", "symbol": "AVAX-USDT", "order_id": "2115474672333709312", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793203667.811488}
+{"event": "order_cancel", "symbol": "APT-USDT", "order_id": "2115474687147991040", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793203962.0187156}
+{"event": "order_cancel", "symbol": "SUI-USDT", "order_id": "2115474735042748416", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793203971.2832355}
