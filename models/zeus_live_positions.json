@@ -45,28 +45,6 @@
       "current_regime": "RANGE",
       "be_earned": true
     },
-    "AVAX-USDT|short": {
-      "symbol": "AVAX-USDT",
-      "side": "short",
-      "qty": "6452.14382174",
-      "stop": "8.882",
-      "tp": "8.7318240000000020",
-      "entry": "8.882",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|AVAX-USDT|short|1793188800000",
-      "ts": 1793202141.8407896,
-      "be_moved": true,
-      "initial_stop": "8.957087999999999",
-      "opened_at_ms": 1793202141840,
-      "plan_qty": "6452.14382174",
-      "qty_ratio": 1.0,
-      "tp1": "8.7318240000000020",
-      "initial_stop_v1": true,
-      "tp_frac": 0.3,
-      "tp_parity_v1": true,
-      "current_regime": "RANGE"
-    },
     "DOT-USDT|short": {
       "symbol": "DOT-USDT",
       "side": "short",
@@ -111,7 +89,23 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "current_regime": "RANGE"
+    },
+    "ENA-USDT|long": {
+      "symbol": "ENA-USDT",
+      "side": "long",
+      "qty": "574755.70857171",
+      "stop": "0.19592991999999998",
+      "tp": "0.200670160000000040",
+      "entry": "0.19751",
+      "leverage": 6,
+      "pending_verify": true,
+      "signal_id": null,
+      "ts": 1793203059.5452337,
+      "be_moved": false,
+      "initial_stop": "0.19592991999999998",
+      "opened_at_ms": 1793203059545,
+      "tp1": "0.200670160000000040"
     }
   },
-  "ts": 1793202776.5664077
+  "ts": 1793203059.5452807
 }
