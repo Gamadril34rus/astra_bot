@@ -23,6 +23,18 @@ from astra_bot.decision.live_tg_flags import try_claim
 
 logger = logging.getLogger(__name__)
 
+# Owner 28.10: hard notional cap (BingX demo rejects ~100k USDT position value).
+# Risk% unchanged — only clips oversized qty before place. ENV override allowed.
+def max_position_value_usdt() -> float:
+    import os
+    raw = (os.environ.get("ZEUS_MAX_POSITION_VALUE_USDT") or "50000").strip()
+    try:
+        v = float(raw)
+        return v if v > 0 else 50000.0
+    except ValueError:
+        return 50000.0
+
+
 
 async def resolve_step_size(
     broker: LiveBroker, symbol: str, default: Decimal = Decimal("0.001")
@@ -390,6 +402,7 @@ async def run_arm_entries(
         "margin_M4": 0,
         "equity_unknown": 0,
         "sized_qty_zero": 0,
+        "position_value_too_large": 0,
         "max_open": 0,
         "cooldown": 0,
         "symbol_conflict": 0,
@@ -650,6 +663,35 @@ async def run_arm_entries(
                 else:
                     _skip("sized_qty_zero")
                 continue
+            # Owner 28.10: notional cap (BingX max position value ~100k; start 50k)
+            try:
+                _entry = float(getattr(plan, "entry_price", None) or cand.entry or 0)
+                _qty = float(getattr(plan, "quantity", None) or 0)
+                _notional = abs(_entry * _qty)
+                _cap = max_position_value_usdt()
+                if _notional > _cap and _entry > 0:
+                    logger.info(
+                        "arm: skip %s — position_value_too_large notional=%.0f cap=%.0f",
+                        cand.symbol, _notional, _cap,
+                    )
+                    _skip("position_value_too_large")
+                    try:
+                        append_journal({
+                            "event": "arm_skip",
+                            "reason": "position_value_too_large",
+                            "symbol": cand.symbol,
+                            "side": cand.side,
+                            "notional": round(_notional, 2),
+                            "cap": _cap,
+                            "qty": _qty,
+                            "entry": _entry,
+                            "ts": time.time(),
+                        })
+                    except Exception:
+                        pass
+                    continue
+            except Exception as _nv_exc:
+                logger.warning("arm: notional gate %s", type(_nv_exc).__name__)
             try:
                 dist = abs(float(cand.entry) - float(cand.stop)) / max(
                     abs(float(cand.entry)), 1e-12

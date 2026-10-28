@@ -18,12 +18,21 @@ def _write_exits(path: Path, rows: list[dict]) -> None:
     path.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
 
 
+def _isolate_pf_paths(tmp_path, monkeypatch, *, epoch: float | None = None) -> Path:
+    """CI checkout may contain models/zeus_pf_window_reset.json — isolate both floors."""
+    epoch_path = tmp_path / "epoch.json"
+    reset_path = tmp_path / "no_reset.json"  # absent → no reset floor
+    if epoch is not None:
+        epoch_path.write_text(json.dumps({"kill_epoch_ts": float(epoch)}), encoding="utf-8")
+    monkeypatch.setattr("astra_bot.decision.live_risk.KILL_EPOCH_PATH", epoch_path)
+    monkeypatch.setattr("astra_bot.decision.live_risk.PF_WINDOW_RESET_PATH", reset_path)
+    return epoch_path
+
+
 def test_window_only_after_epoch(tmp_path, monkeypatch):
     monkeypatch.setenv("ZEUS_KILL_PF_WINDOW", "20")
     trades = tmp_path / "t.jsonl"
-    epoch_path = tmp_path / "epoch.json"
-    epoch_path.write_text(json.dumps({"kill_epoch_ts": 1000.0}), encoding="utf-8")
-    monkeypatch.setattr("astra_bot.decision.live_risk.KILL_EPOCH_PATH", epoch_path)
+    _isolate_pf_paths(tmp_path, monkeypatch, epoch=1000.0)
     rows = [{"event": "exit", "pnl": 100, "ts": 100 + i} for i in range(5)]
     rows += [{"event": "exit", "pnl": -50, "ts": 2000 + i} for i in range(5)]
     _write_exits(trades, rows)
@@ -36,9 +45,7 @@ def test_window_only_after_epoch(tmp_path, monkeypatch):
 def test_n_less_than_5_no_kill(tmp_path, monkeypatch):
     monkeypatch.setenv("ZEUS_KILL_PF_WINDOW", "20")
     trades = tmp_path / "t.jsonl"
-    epoch_path = tmp_path / "epoch.json"
-    epoch_path.write_text(json.dumps({"kill_epoch_ts": 1.0}), encoding="utf-8")
-    monkeypatch.setattr("astra_bot.decision.live_risk.KILL_EPOCH_PATH", epoch_path)
+    _isolate_pf_paths(tmp_path, monkeypatch, epoch=1.0)
     _write_exits(trades, [{"event": "exit", "pnl": -10, "ts": 10 + i} for i in range(4)])
     assert check_pf_kill(path=trades, state_path=tmp_path / "k.json") is None
 
@@ -46,6 +53,7 @@ def test_n_less_than_5_no_kill(tmp_path, monkeypatch):
 def test_flag_off_uses_cumulative(tmp_path, monkeypatch):
     monkeypatch.delenv("ZEUS_KILL_PF_WINDOW", raising=False)
     trades = tmp_path / "t.jsonl"
+    _isolate_pf_paths(tmp_path, monkeypatch)  # no epoch file
     rows = [{"event": "exit", "pnl": 10, "ts": i} for i in range(3)]
     rows += [{"event": "exit", "pnl": -20, "ts": 100 + i} for i in range(5)]
     _write_exits(trades, rows)
@@ -57,7 +65,8 @@ def test_flag_off_uses_cumulative(tmp_path, monkeypatch):
 def test_epoch_missing_stays_cumulative(tmp_path, monkeypatch):
     monkeypatch.setenv("ZEUS_KILL_PF_WINDOW", "20")
     trades = tmp_path / "t.jsonl"
-    monkeypatch.setattr("astra_bot.decision.live_risk.KILL_EPOCH_PATH", tmp_path / "nope.json")
+    # no epoch + no reset → cumulative despite window env
+    _isolate_pf_paths(tmp_path, monkeypatch)
     _write_exits(trades, [{"event": "exit", "pnl": -5, "ts": i} for i in range(6)])
     reason = check_pf_kill(path=trades, state_path=tmp_path / "k.json")
     assert reason is not None and "cumulative" in reason
@@ -74,9 +83,7 @@ def test_epoch_stable_read(tmp_path, monkeypatch):
 def test_pre_epoch_excluded(tmp_path, monkeypatch):
     monkeypatch.setenv("ZEUS_KILL_PF_WINDOW", "20")
     trades = tmp_path / "t.jsonl"
-    epoch_path = tmp_path / "epoch.json"
-    epoch_path.write_text(json.dumps({"kill_epoch_ts": 500.0}), encoding="utf-8")
-    monkeypatch.setattr("astra_bot.decision.live_risk.KILL_EPOCH_PATH", epoch_path)
+    _isolate_pf_paths(tmp_path, monkeypatch, epoch=500.0)
     rows = [{"event": "exit", "pnl": -100, "ts": i} for i in range(10)]
     rows += [{"event": "exit", "pnl": -100, "ts": 600 + i} for i in range(3)]
     _write_exits(trades, rows)
@@ -103,9 +110,7 @@ def test_pf_window_reset_drops_pre_reset_losses(tmp_path, monkeypatch):
     reset_path.write_text(json.dumps({"pf_window_reset_at": 5000.0}), encoding="utf-8")
     monkeypatch.setattr("astra_bot.decision.live_risk.KILL_EPOCH_PATH", epoch_path)
     monkeypatch.setattr("astra_bot.decision.live_risk.PF_WINDOW_RESET_PATH", reset_path)
-    # 6 losers between epoch and reset → would kill without reset floor
     rows = [{"event": "exit", "pnl": -50, "ts": 1000 + i} for i in range(6)]
-    # after reset: only 2 losers → n<5, no kill
     rows += [{"event": "exit", "pnl": -10, "ts": 6000 + i} for i in range(2)]
     _write_exits(trades, rows)
     from astra_bot.decision.live_risk import effective_pf_after_ts
