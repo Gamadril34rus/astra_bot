@@ -206,18 +206,58 @@ async def apply_pending(
                 res = await broker.flat_all()
                 lines.append(f"cmd flat: {res}")
             elif cmd == "reset_kill":
-                from astra_bot.decision.live_risk import KILL_STATE_PATH
-                # Idempotent: no kill file → already clear, no TG spam (owner №26)
-                if not KILL_STATE_PATH.exists():
-                    mark_done(row, path, result="already_clear")
-                    lines.append("cmd reset_kill: already_clear (no kill file)")
-                    continue
+                from astra_bot.decision.live_risk import (
+                    KILL_STATE_PATH,
+                    TRADES_PATH,
+                    _read_exit_pnls,
+                    write_pf_window_reset,
+                )
+                # Idempotent clear of halt file (owner №26) + ALWAYS advance PF
+                # window floor so the next tick cannot re-arm on pre-reset losses
+                # (owner 28.10). Thresholds n/PF/window unchanged.
+                had_file = KILL_STATE_PATH.exists()
+                if had_file:
+                    try:
+                        KILL_STATE_PATH.unlink()
+                    except Exception:
+                        pass
                 try:
-                    KILL_STATE_PATH.unlink()
+                    broker.clear_halt()
                 except Exception:
                     pass
-                broker.clear_halt()
-                lines.append("cmd reset_kill: kill state cleared")
+                reset_at = write_pf_window_reset()
+                dropped = 0
+                try:
+                    for _er in _read_exit_pnls(TRADES_PATH):
+                        try:
+                            if float(_er.get("ts") or 0) < float(reset_at):
+                                dropped += 1
+                        except (TypeError, ValueError):
+                            pass
+                except Exception:
+                    pass
+                try:
+                    from astra_bot.decision.live_arm_wiring import append_journal
+                    append_journal({
+                        "event": "KILL_WINDOW_RESET",
+                        "symbol": None,
+                        "ts": reset_at,
+                        "pf_window_reset_at": reset_at,
+                        "dropped_exit_count": dropped,
+                    })
+                except Exception:
+                    pass
+                if not had_file:
+                    mark_done(row, path, result="already_clear")
+                    lines.append(
+                        f"cmd reset_kill: already_clear (no kill file); "
+                        f"pf_window_reset_at={reset_at}"
+                    )
+                    continue
+                lines.append(
+                    f"cmd reset_kill: kill state cleared; "
+                    f"pf_window_reset_at={reset_at}"
+                )
             mark_done(row, path, result="ok")
             lines.append(f"cmd {cmd}: ok")
             if send_tg is not None:
