@@ -91,3 +91,32 @@ def test_day_week_limits_untouched(tmp_path):
     _write_exits(trades, [{"event": "exit", "pnl": -500, "ts": time.time()}])
     reason = check_day_week_limits(Decimal("10000"), path=trades)
     assert reason is not None and "day_loss" in reason
+
+
+def test_pf_window_reset_drops_pre_reset_losses(tmp_path, monkeypatch):
+    """Owner 28.10: reset_kill writes pf_window_reset_at → pre-reset exits excluded."""
+    monkeypatch.setenv("ZEUS_KILL_PF_WINDOW", "20")
+    trades = tmp_path / "t.jsonl"
+    epoch_path = tmp_path / "epoch.json"
+    reset_path = tmp_path / "reset.json"
+    epoch_path.write_text(json.dumps({"kill_epoch_ts": 100.0}), encoding="utf-8")
+    reset_path.write_text(json.dumps({"pf_window_reset_at": 5000.0}), encoding="utf-8")
+    monkeypatch.setattr("astra_bot.decision.live_risk.KILL_EPOCH_PATH", epoch_path)
+    monkeypatch.setattr("astra_bot.decision.live_risk.PF_WINDOW_RESET_PATH", reset_path)
+    # 6 losers between epoch and reset → would kill without reset floor
+    rows = [{"event": "exit", "pnl": -50, "ts": 1000 + i} for i in range(6)]
+    # after reset: only 2 losers → n<5, no kill
+    rows += [{"event": "exit", "pnl": -10, "ts": 6000 + i} for i in range(2)]
+    _write_exits(trades, rows)
+    from astra_bot.decision.live_risk import effective_pf_after_ts
+    assert effective_pf_after_ts() == 5000.0
+    assert check_pf_kill(path=trades, state_path=tmp_path / "k.json") is None
+
+
+def test_write_pf_window_reset_roundtrip(tmp_path, monkeypatch):
+    from astra_bot.decision.live_risk import write_pf_window_reset, load_pf_window_reset
+    path = tmp_path / "r.json"
+    monkeypatch.setattr("astra_bot.decision.live_risk.PF_WINDOW_RESET_PATH", path)
+    ts = write_pf_window_reset(12345.5)
+    assert ts == 12345.5
+    assert load_pf_window_reset() == 12345.5
