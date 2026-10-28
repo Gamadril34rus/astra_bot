@@ -45,28 +45,6 @@
       "be_earned": true,
       "current_regime": "WEAK_BULL_TREND"
     },
-    "AVAX-USDT|short": {
-      "symbol": "AVAX-USDT",
-      "side": "short",
-      "qty": "12797.25695617",
-      "stop": "8.877",
-      "tp": "8.734968",
-      "entry": "8.877",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|AVAX-USDT|short|1793203200000",
-      "ts": 1793203440.7198887,
-      "be_moved": true,
-      "initial_stop": "8.948016",
-      "opened_at_ms": 1793203440719,
-      "plan_qty": "12797.25695617",
-      "qty_ratio": 1.0,
-      "tp1": "8.734968",
-      "initial_stop_v1": true,
-      "tp_parity_v1": true,
-      "be_earned": true,
-      "current_regime": "WEAK_BEAR_TREND"
-    },
     "OP-USDT|short": {
       "symbol": "OP-USDT",
       "side": "short",
@@ -89,29 +67,6 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "current_regime": "RANGE"
-    },
-    "FIL-USDT|short": {
-      "symbol": "FIL-USDT",
-      "side": "short",
-      "qty": "126892.45261859",
-      "stop": "0.8988336",
-      "tp": "0.87533280",
-      "entry": "0.8910",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|FIL-USDT|short|1793203200000",
-      "ts": 1793204922.4918394,
-      "be_moved": false,
-      "initial_stop": "0.8988336",
-      "opened_at_ms": 1793204922491,
-      "plan_qty": "126892.45261859",
-      "qty_ratio": 1.0,
-      "tp1": "0.87533280",
-      "initial_stop_v1": true,
-      "tp_frac": 0.3,
-      "tp_parity_v1": true,
-      "be_earned": true,
-      "current_regime": "WEAK_BEAR_TREND"
     },
     "ATOM-USDT|short": {
       "symbol": "ATOM-USDT",
@@ -137,5 +92,5 @@
       "current_regime": "RANGE"
     }
   },
-  "ts": 1793206115.2625113
+  "ts": 1793207011.6494603
 }
