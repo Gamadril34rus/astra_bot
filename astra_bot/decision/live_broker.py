@@ -981,6 +981,57 @@ class LiveBroker:
 
             try:
                 from astra_bot.decision.live_income_report import strategy_from_signal_id
+                # Owner 28.10: classify income exits + R observability
+                exchange_fill_type = "UNKNOWN"
+                if reason in ("стоп", "stop", "stop_loss"):
+                    exchange_fill_type = "ENGINE_STOP"
+                elif reason in ("тейк", "tp", "take_profit") or (reason and "тейк" in str(reason)):
+                    exchange_fill_type = "ENGINE_TP"
+                elif reason == "income":
+                    exchange_fill_type = "UNKNOWN"
+                r_multiple = None
+                try:
+                    risk_px = plan.get("initial_stop") or plan.get("stop")
+                    if entry_px is not None and risk_px is not None and exit_fill is not None:
+                        risk = abs(float(entry_px) - float(risk_px))
+                        if risk > 0:
+                            if side == "long":
+                                r_multiple = (float(exit_fill) - float(entry_px)) / risk
+                            else:
+                                r_multiple = (float(entry_px) - float(exit_fill)) / risk
+                except Exception:
+                    r_multiple = None
+                # anomaly: income close far from plan stop/tp
+                if reason == "income":
+                    try:
+                        from astra_bot.decision.live_arm_wiring import append_journal as _aj
+                        stop_p = float(plan["stop"]) if plan.get("stop") is not None else None
+                        tp_p = float(plan["tp"]) if plan.get("tp") is not None else None
+                        xf = float(exit_fill) if exit_fill is not None else None
+                        near_stop = stop_p is not None and xf is not None and abs(xf - stop_p) / max(abs(stop_p), 1e-12) < 0.003
+                        near_tp = tp_p is not None and xf is not None and abs(xf - tp_p) / max(abs(tp_p), 1e-12) < 0.003
+                        if not near_stop and not near_tp:
+                            exchange_fill_type = "UNKNOWN"
+                            _aj({
+                                "event": "exit_income_anomaly",
+                                "symbol": sym,
+                                "side": side,
+                                "exit_reason": reason,
+                                "fill_price": xf,
+                                "plan_stop": stop_p,
+                                "plan_tp": tp_p,
+                                "mark_price_at_exit": None,
+                                "current_exchange_stop": stop_p,
+                                "r_multiple": r_multiple,
+                                "pnl": pnl,
+                                "ts": now,
+                            })
+                        elif near_stop:
+                            exchange_fill_type = "ENGINE_STOP"
+                        elif near_tp:
+                            exchange_fill_type = "ENGINE_TP"
+                    except Exception:
+                        pass
                 trade_row = {
                     "event": "exit",
                     "symbol": sym,
@@ -998,6 +1049,8 @@ class LiveBroker:
                     "signal_id": signal_id,
                     "strategy": strategy_from_signal_id(signal_id),
                     "ts": now,
+                    "r_multiple": None if r_multiple is None else round(float(r_multiple), 4),
+                    "exchange_fill_type": exchange_fill_type,
                 }
                 # C5: split legs when plan had TP1 partial (40/60 channel parity)
                 if plan.get("tp1") is not None and entry_px is not None:

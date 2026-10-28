@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 TRADES_PATH = Path("models/zeus_live_trades.jsonl")
 KILL_STATE_PATH = Path("models/kill_switch_state.json")
 KILL_EPOCH_PATH = Path("models/zeus_kill_epoch.json")
+PF_WINDOW_RESET_PATH = Path("models/zeus_pf_window_reset.json")
 
 DAY_LOSS_LIMIT = Decimal("0.04")  # README 4%
 WEEK_LOSS_LIMIT = Decimal("0.06")  # README 6%
@@ -131,6 +132,49 @@ def load_kill_epoch(path: Path | None = None) -> float | None:
         return None
 
 
+
+def load_pf_window_reset(path: Path | None = None) -> float | None:
+    """Owner 28.10: reset_kill writes this so PF window drops pre-reset exits."""
+    path = path if path is not None else PF_WINDOW_RESET_PATH
+    try:
+        if not path.exists():
+            return None
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        ts = raw.get("pf_window_reset_at")
+        if ts is None:
+            return None
+        return float(ts)
+    except Exception:
+        return None
+
+
+def write_pf_window_reset(ts: float | None = None, path: Path | None = None) -> float:
+    """Persist pf_window_reset_at (unix seconds). Returns the written ts."""
+    path = path if path is not None else PF_WINDOW_RESET_PATH
+    t = float(ts if ts is not None else time.time())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"pf_window_reset_at": t}, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    return t
+
+
+def effective_pf_after_ts(
+    epoch_path: Path | None = None,
+    reset_path: Path | None = None,
+) -> float | None:
+    """Floor for PF exits: max(kill_epoch_ts, pf_window_reset_at). None → cumulative."""
+    vals: list[float] = []
+    ep = load_kill_epoch(epoch_path)
+    if ep is not None:
+        vals.append(float(ep))
+    rs = load_pf_window_reset(reset_path)
+    if rs is not None:
+        vals.append(float(rs))
+    return max(vals) if vals else None
+
+
 def kill_pf_window_size() -> int:
     """ZEUS_KILL_PF_WINDOW=20 → last N exits after epoch; empty/0 → cumulative."""
     raw = (os.environ.get("ZEUS_KILL_PF_WINDOW") or "").strip()
@@ -203,14 +247,18 @@ def check_day_week_limits(
 def check_pf_kill(path: Path = TRADES_PATH, state_path: Path = KILL_STATE_PATH) -> str | None:
     """If n>=5 and PF<1 → persist halt and return reason.
 
-    Owner 20.10 window: ZEUS_KILL_PF_WINDOW>0 AND kill_epoch_ts set →
-    PF over last N exits with ts >= epoch. Else cumulative (legacy).
-    Thresholds PF_TRIGGER and PF_MIN_N unchanged.
+    Owner 20.10 window: ZEUS_KILL_PF_WINDOW>0 AND (kill_epoch_ts or
+    pf_window_reset_at) set → PF over last N exits with ts >= max(epoch, reset).
+    Else cumulative (legacy). Thresholds PF_TRIGGER and PF_MIN_N unchanged.
+    Owner 28.10: reset_kill writes pf_window_reset_at so halt does not re-arm
+    on the same pre-reset losses.
     """
     win = kill_pf_window_size()
-    epoch = load_kill_epoch()
-    if win > 0 and epoch is not None:
-        pf, n = profit_factor(path, after_ts=epoch, window=win)
+    # Owner 28.10: floor = max(kill_epoch_ts, pf_window_reset_at) so reset_kill
+    # drops pre-reset losers from the sliding window without changing thresholds.
+    after = effective_pf_after_ts()
+    if win > 0 and after is not None:
+        pf, n = profit_factor(path, after_ts=after, window=win)
         mode = f"window={win}"
     else:
         pf, n = profit_factor(path)
