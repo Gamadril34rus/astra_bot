@@ -20,7 +20,61 @@
       "migrate_stop_v1": true,
       "current_regime": "RANGE",
       "initial_stop_v1": true
+    },
+    "SOL-USDT|short": {
+      "symbol": "SOL-USDT",
+      "side": "short",
+      "qty": "567.47275675",
+      "stop": "101.93500800000001",
+      "tp": "99.507983999999980",
+      "entry": "101.081",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|SOL-USDT|short|1793188800000",
+      "ts": 1793202125.5854967,
+      "be_moved": false,
+      "initial_stop": "101.93500800000001",
+      "opened_at_ms": 1793202125585,
+      "plan_qty": "567.47275675",
+      "qty_ratio": 1.0,
+      "tp1": "99.507983999999980"
+    },
+    "ADA-USDT|short": {
+      "symbol": "ADA-USDT",
+      "side": "short",
+      "qty": "238414.0008309098462816784379",
+      "stop": "0.2048256",
+      "tp": "0.1999487999999999800000000000",
+      "entry": "0.2029",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|ADA-USDT|short|1793188800000",
+      "ts": 1793202138.4021134,
+      "be_moved": false,
+      "initial_stop": "0.2048256",
+      "opened_at_ms": 1793202138402,
+      "plan_qty": "282228.10039370",
+      "qty_ratio": 1.0,
+      "tp1": "0.1999487999999999800000000000"
+    },
+    "AVAX-USDT|short": {
+      "symbol": "AVAX-USDT",
+      "side": "short",
+      "qty": "6452.14382174",
+      "stop": "8.957087999999999",
+      "tp": "8.743824000000000000000000000",
+      "entry": "8.882",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|AVAX-USDT|short|1793188800000",
+      "ts": 1793202141.8407896,
+      "be_moved": false,
+      "initial_stop": "8.957087999999999",
+      "opened_at_ms": 1793202141840,
+      "plan_qty": "6452.14382174",
+      "qty_ratio": 1.0,
+      "tp1": "8.743824000000000000000000000"
     }
   },
-  "ts": 1793201833.292773
+  "ts": 1793202141.8408036
 }
