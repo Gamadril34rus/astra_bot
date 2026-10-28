@@ -210,6 +210,20 @@ def classify_current_regime(closed_bars: list[Any]) -> tuple[str, str]:
         return "", "engine_error"
 
 
+
+
+def be_gate_mfe_allows(mfe_r: float, *, threshold: float = 0.5, be_moved: bool = False) -> bool:
+    """True if ratchet/BE may move stop to entry (anti-scratch gate).
+
+    Owner 28.10: require MFE >= 0.5R before BE. When be_moved already True, gate N/A.
+    """
+    if be_moved:
+        return False  # BE already done — step-lock path only
+    try:
+        return float(mfe_r) >= float(threshold)
+    except (TypeError, ValueError):
+        return False
+
 def ratchet_e_stop_candidate(
     direction: str,
     entry: Decimal,
@@ -221,13 +235,14 @@ def ratchet_e_stop_candidate(
     mark: Decimal | None = None,
     be_moved: bool = False,
 ) -> Decimal | None:
-    """Owner ratchet E: BE on entry touch; MFE steps 0.5R → stop = trigger−0.5R.
+    """Owner ratchet E: BE when MFE>=0.5R (anti-scratch 28.10); MFE steps 0.5R → stop = trigger−0.5R.
 
     Only tightens (long: stop rises; short: stop falls). No take-profit.
     Examples: MFE 1.0R→stop +0.5R; 1.5R→+1.0R; 2.0R→+1.5R from entry.
 
     F19-2: when be_moved=True, BE is owned by PR-A — skip BE-only candidate
     (mfe in [0, 1)); still emit step-lock levels (mfe >= 1.0, only-tighten).
+    Owner 28.10: BE gate MFE>=0.5R (blocks mfe in [0, 0.5)).
     """
     side = direction.lower()
     entry = Decimal(str(entry))
@@ -252,8 +267,10 @@ def ratchet_e_stop_candidate(
             return None
         mfe_r = float((entry - Decimal(str(lo))) / risk)
     cand: Decimal | None = None
-    # BE on touch of entry (MFE >= 0) — skip when be_moved (PR-A owns BE)
-    if mfe_r >= 0 and not be_moved:
+    # Owner 28.10 anti-scratch: BE only when MFE >= 0.5R (was mfe>=0 → fee scratches).
+    # PR-A still owns BE when be_moved; ratchet must not pull stop to entry on noise.
+    BE_GATE_MFE_R = 0.5
+    if (not be_moved) and mfe_r >= BE_GATE_MFE_R:
         cand = entry
     # Staircase locks: floor(mfe/0.5)*0.5 - 0.5 when MFE >= 1.0 (also on be_moved)
     if mfe_r >= 1.0:

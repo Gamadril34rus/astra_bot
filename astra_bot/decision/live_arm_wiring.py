@@ -394,6 +394,7 @@ async def run_arm_entries(
 
     skipped: dict[str, int] = {
         "same_side_guard": 0,
+        "side_cluster_full": 0,
         "vol_cooldown": 0,
         "conf": 0,
         "margin": 0,
@@ -510,15 +511,35 @@ async def run_arm_entries(
         if same_side_cluster_blocks(
             side_l, side_count=int(st["count"]), side_upnl=st["upnl"]
         ):
+            # Owner 28.10: hard SAME_SIDE_CLUSTER_MAX or soft underwater 4th+
+            from astra_bot.decision.live_arm import SAME_SIDE_CLUSTER_MAX as _SSC_MAX
+            _hard = int(st["count"]) >= int(_SSC_MAX)
+            _reason = "side_cluster_full" if _hard else "same_side_guard"
             logger.info(
-                "arm: skip %s — same_side cluster %s n=%d upnl=%.4f < 0 "
-                "(4th/5th blocked while underwater)",
+                "arm: skip %s — %s side=%s n=%d upnl=%.4f hard_max=%d",
                 cand.symbol,
+                _reason,
                 side_l,
                 int(st["count"]),
                 float(st["upnl"]),
+                int(_SSC_MAX),
             )
-            _skip("same_side_guard")
+            try:
+                append_journal(
+                    {
+                        "event": "arm_skip",
+                        "reason": _reason,
+                        "symbol": cand.symbol,
+                        "side": side_l,
+                        "cluster_count": int(st["count"]),
+                        "side_upnl": float(st["upnl"]),
+                        "hard_max": int(_SSC_MAX),
+                        "ts": __import__("time").time(),
+                    }
+                )
+            except Exception:
+                pass
+            _skip(_reason)
             continue
 
         try:
