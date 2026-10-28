@@ -23,27 +23,6 @@
       "current_regime": "RANGE",
       "be_earned": true
     },
-    "APT-USDT|short": {
-      "symbol": "APT-USDT",
-      "side": "short",
-      "qty": "83698.10633648",
-      "stop": "0.691992",
-      "tp": "0.6746160",
-      "entry": "0.6862",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|APT-USDT|short|1793174400000",
-      "ts": 1793180599.79583,
-      "be_moved": false,
-      "initial_stop": "0.691992",
-      "plan_qty": "83698.10633648",
-      "qty_ratio": 1.0,
-      "tp1": "0.6746160",
-      "initial_stop_v1": true,
-      "tp_frac": 0.3,
-      "tp_parity_v1": true,
-      "current_regime": "STRONG_BEAR_TREND"
-    },
     "HYPE-USDT|long": {
       "symbol": "HYPE-USDT",
       "side": "long",
@@ -66,33 +45,12 @@
       "be_earned": true,
       "current_regime": "RANGE"
     },
-    "1000PEPE-USDT|long": {
-      "symbol": "1000PEPE-USDT",
-      "side": "long",
-      "qty": "676517.00452675",
-      "stop": "0.004342375868536586",
-      "tp": "0.006366848262926828",
-      "entry": "0.0050115",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|1000PEPE-USDT|long|1793174400000",
-      "ts": 1793180888.2916012,
-      "be_moved": false,
-      "initial_stop": "0.004342375868536586",
-      "plan_qty": "676517.00452675",
-      "qty_ratio": 1.0,
-      "tp1": "0.006366848262926828",
-      "initial_stop_v1": true,
-      "tp_parity_v1": true,
-      "be_earned": true,
-      "current_regime": "RANGE"
-    },
     "ARB-USDT|short": {
       "symbol": "ARB-USDT",
       "side": "short",
       "qty": "336160.68798963",
       "stop": "0.17112816",
-      "tp": "0.16705368",
+      "tp": "0.166723680",
       "entry": "0.16966",
       "leverage": 6,
       "pending_verify": false,
@@ -102,8 +60,12 @@
       "initial_stop": "0.17112816",
       "plan_qty": "336160.68798963",
       "qty_ratio": 1.0,
-      "tp1": "0.16705368"
+      "tp1": "0.166723680",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true,
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1793181455.287666
+  "ts": 1793181776.5879614
 }
