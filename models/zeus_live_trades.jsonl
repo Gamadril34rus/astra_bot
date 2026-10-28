@@ -1450,3 +1450,11 @@
 {"event": "protect_place", "ts": 1793204328.4956293, "symbol": "AAVE-USDT", "kind": "stop", "stop_price": "133.2576", "qty": "856.20272314", "close_position": true, "order_id": "2115478397852934144"}
 {"event": "protect_place", "ts": 1793204329.0545986, "symbol": "AAVE-USDT", "kind": "tp", "stop_price": "130.0847999999999700000000000", "qty": "256.86081694", "reduce_only": false, "order_id": "2115478400210132992"}
 {"event": "entry", "signal_id": "zeus_channel_boundary|AAVE-USDT|short|1793203200000", "symbol": "AAVE-USDT", "side": "short", "plan_entry": "132.2", "fill_price": "132.14", "slip_pct": 0.045385779122543324, "slip_r": 0.056732223903177004, "qty": "856.20272314", "stop": "133.2576", "tp": "130.0847999999999700000000000", "tp_frac": 0.3, "leverage": 6, "ts": 1793204329.0556881}
+{"event": "partial_fill", "symbol": "ARB-USDT", "side": null, "qty": null, "price": null, "pnl": -32.407897, "income_type": "REALIZED_PNL", "income_id": "1793084516986549206_512_287847_PNL", "source": "income_tape", "ts": 1793182940.0}
+{"event": "order_cancel", "symbol": "ARB-USDT", "order_id": "2115478369239392256", "type": "TAKE_PROFIT", "reason": "tp_parity_replace", "path": "apply_tp_parity_v1", "ts": 1793204527.2885845}
+{"event": "order_cancel", "symbol": "OP-USDT", "order_id": "2115478384645070848", "type": "TAKE_PROFIT", "reason": "tp_parity_replace", "path": "apply_tp_parity_v1", "ts": 1793204528.5511703}
+{"event": "order_cancel", "symbol": "AAVE-USDT", "order_id": "2115478400210132992", "type": "TAKE_PROFIT", "reason": "tp_parity_replace", "path": "apply_tp_parity_v1", "ts": 1793204529.8006802}
+{"event": "order_cancel", "symbol": "DOT-USDT", "order_id": "2115474625755963392", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793204630.8763933}
+{"event": "order_cancel", "symbol": "ARB-USDT", "order_id": "2115478365418381312", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793204642.0274496}
+{"event": "order_cancel", "symbol": "OP-USDT", "order_id": "2115478382501781504", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793204650.275656}
+{"event": "order_cancel", "symbol": "AAVE-USDT", "order_id": "2115478397852934144", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793204660.0492637}
