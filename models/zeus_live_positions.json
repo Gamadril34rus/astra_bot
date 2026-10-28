@@ -180,7 +180,43 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "current_regime": "WEAK_BEAR_TREND"
+    },
+    "FIL-USDT|short": {
+      "symbol": "FIL-USDT",
+      "side": "short",
+      "qty": "126892.45261859",
+      "stop": "0.8988336",
+      "tp": "0.87743280",
+      "entry": "0.8910",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|FIL-USDT|short|1793203200000",
+      "ts": 1793204922.4918394,
+      "be_moved": false,
+      "initial_stop": "0.8988336",
+      "opened_at_ms": 1793204922491,
+      "plan_qty": "126892.45261859",
+      "qty_ratio": 1.0,
+      "tp1": "0.87743280"
+    },
+    "ATOM-USDT|short": {
+      "symbol": "ATOM-USDT",
+      "side": "short",
+      "qty": "53169.72693031952483843066950",
+      "stop": "1.6369920000000002",
+      "tp": "1.59801599999999960",
+      "entry": "1.620",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|ATOM-USDT|short|1793203200000",
+      "ts": 1793204934.2950237,
+      "be_moved": false,
+      "initial_stop": "1.6369920000000002",
+      "opened_at_ms": 1793204934295,
+      "plan_qty": "69539.71674876",
+      "qty_ratio": 1.0,
+      "tp1": "1.59801599999999960"
     }
   },
-  "ts": 1793204660.5566313
+  "ts": 1793204934.2950652
 }
