@@ -23,28 +23,6 @@
       "current_regime": "RANGE",
       "be_earned": true
     },
-    "HYPE-USDT|long": {
-      "symbol": "HYPE-USDT",
-      "side": "long",
-      "qty": "104.96121207",
-      "stop": "77.77124032926832",
-      "tp": "91.030519341463360",
-      "entry": "82.191",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|HYPE-USDT|long|1793174400000",
-      "ts": 1793180603.5837407,
-      "be_moved": false,
-      "initial_stop": "77.77124032926832",
-      "plan_qty": "104.96121207",
-      "qty_ratio": 1.0,
-      "tp1": "91.030519341463360",
-      "initial_stop_v1": true,
-      "tp_frac": 0.3,
-      "tp_parity_v1": true,
-      "be_earned": true,
-      "current_regime": "RANGE"
-    },
     "ARB-USDT|short": {
       "symbol": "ARB-USDT",
       "side": "short",
@@ -64,8 +42,9 @@
       "initial_stop_v1": true,
       "tp_frac": 0.3,
       "tp_parity_v1": true,
-      "current_regime": "RANGE"
+      "current_regime": "RANGE",
+      "be_earned": true
     }
   },
-  "ts": 1793182039.2801323
+  "ts": 1793182643.081164
 }
