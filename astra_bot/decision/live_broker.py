@@ -992,15 +992,31 @@ class LiveBroker:
                 r_multiple = None
                 try:
                     risk_px = plan.get("initial_stop") or plan.get("stop")
-                    if entry_px is not None and risk_px is not None and exit_fill is not None:
+                    risk = None
+                    if entry_px is not None and risk_px is not None:
                         risk = abs(float(entry_px) - float(risk_px))
-                        if risk > 0:
-                            if side == "long":
-                                r_multiple = (float(exit_fill) - float(entry_px)) / risk
-                            else:
-                                r_multiple = (float(entry_px) - float(exit_fill)) / risk
+                    if risk and risk > 0 and exit_fill is not None:
+                        if side == "long":
+                            r_multiple = (float(exit_fill) - float(entry_px)) / risk
+                        else:
+                            r_multiple = (float(entry_px) - float(exit_fill)) / risk
+                    elif risk and risk > 0 and pnl is not None and qty_closed:
+                        # Owner 28.10: fill price often missing on VST income path —
+                        # approximate R from pnl / (risk_px * qty)
+                        try:
+                            risk_usd = risk * abs(float(qty_closed))
+                            if risk_usd > 0:
+                                r_multiple = float(pnl) / risk_usd
+                        except Exception:
+                            pass
                 except Exception:
                     r_multiple = None
+                scratched = False
+                try:
+                    if r_multiple is not None and abs(float(r_multiple)) < 0.1:
+                        scratched = True
+                except Exception:
+                    pass
                 # anomaly: income close far from plan stop/tp
                 if reason == "income":
                     try:
@@ -1051,6 +1067,7 @@ class LiveBroker:
                     "ts": now,
                     "r_multiple": None if r_multiple is None else round(float(r_multiple), 4),
                     "exchange_fill_type": exchange_fill_type,
+                    "scratched": scratched,
                 }
                 # C5: split legs when plan had TP1 partial (40/60 channel parity)
                 if plan.get("tp1") is not None and entry_px is not None:
