@@ -1,26 +1,5 @@
 {
   "positions": {
-    "ETH-USDT|short": {
-      "symbol": "ETH-USDT",
-      "side": "short",
-      "qty": "44.849",
-      "stop": "2351.606040",
-      "tp": "2312.304960",
-      "entry": "2353.96",
-      "leverage": 5,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|ETH-USDT|short|1793174400000",
-      "ts": 1793195229.7445533,
-      "be_moved": true,
-      "initial_stop": "2374.78752",
-      "tp_parity_v1": true,
-      "be_earned": true,
-      "tp_frac": 0.3,
-      "tp1": "2312.304960",
-      "migrate_stop_v1": true,
-      "current_regime": "RANGE",
-      "initial_stop_v1": true
-    },
     "SOL-USDT|short": {
       "symbol": "SOL-USDT",
       "side": "short",
@@ -63,7 +42,8 @@
       "initial_stop_v1": true,
       "tp_frac": 0.3,
       "tp_parity_v1": true,
-      "current_regime": "RANGE"
+      "current_regime": "RANGE",
+      "be_earned": true
     },
     "AVAX-USDT|short": {
       "symbol": "AVAX-USDT",
@@ -92,7 +72,7 @@
       "side": "short",
       "qty": "56751.37020428",
       "stop": "1.011528",
-      "tp": "0.9874440",
+      "tp": "0.9868440",
       "entry": "1.0033",
       "leverage": 6,
       "pending_verify": false,
@@ -103,14 +83,18 @@
       "opened_at_ms": 1793202475874,
       "plan_qty": "56751.37020428",
       "qty_ratio": 1.0,
-      "tp1": "0.9874440"
+      "tp1": "0.9868440",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true,
+      "current_regime": "WEAK_BEAR_TREND"
     },
     "BCH-USDT|long": {
       "symbol": "BCH-USDT",
       "side": "long",
       "qty": "49.95756369",
       "stop": "283.8812691829266",
-      "tp": "311.2074616341468500000000000",
+      "tp": "311.53746163414680",
       "entry": "293.10",
       "leverage": 6,
       "pending_verify": false,
@@ -121,8 +105,13 @@
       "opened_at_ms": 1793202479260,
       "plan_qty": "49.95756369",
       "qty_ratio": 1.0,
-      "tp1": "311.2074616341468500000000000"
+      "tp1": "311.53746163414680",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true,
+      "be_earned": true,
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1793202479.260764
+  "ts": 1793202776.5664077
 }
