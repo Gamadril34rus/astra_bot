@@ -498,6 +498,60 @@ async def run_arm_entries(
         if cand is None:
             _skip("conf")
             continue
+        # Owner 29.10 C: min confidence 0.7 (strict quality)
+        _min_conf = 0.7
+        try:
+            import os as _os
+            _min_conf = float((_os.environ.get("ZEUS_ARM_MIN_CONF") or "0.7").strip() or "0.7")
+        except ValueError:
+            _min_conf = 0.7
+        _c = float(cand.confidence) if cand.confidence is not None else 0.0
+        if _c < _min_conf:
+            logger.info(
+                "arm: skip %s — conf %.3f < min %.2f",
+                cand.symbol, _c, _min_conf,
+            )
+            try:
+                append_journal({
+                    "event": "arm_skip",
+                    "reason": "conf",
+                    "symbol": cand.symbol,
+                    "side": cand.side,
+                    "confidence": _c,
+                    "min_conf": _min_conf,
+                    "ts": time.time(),
+                })
+            except Exception:
+                pass
+            _skip("conf")
+            continue
+        # Owner 29.10 C: HTF bias must not fight side (channel already require_htf_bias;
+        # arm-level guard for rows that carry htf_bias / bias field).
+        _bias = str(row.get("htf_bias") or row.get("bias") or row.get("htf") or "").lower()
+        if _bias in ("up", "down", "long", "short", "bull", "bear"):
+            _side = str(cand.side or "").lower()
+            _against = (
+                (_side == "long" and _bias in ("down", "short", "bear"))
+                or (_side == "short" and _bias in ("up", "long", "bull"))
+            )
+            if _against:
+                logger.info(
+                    "arm: skip %s — htf_gate side=%s bias=%s",
+                    cand.symbol, _side, _bias,
+                )
+                try:
+                    append_journal({
+                        "event": "arm_skip",
+                        "reason": "htf_gate",
+                        "symbol": cand.symbol,
+                        "side": _side,
+                        "htf_bias": _bias,
+                        "ts": time.time(),
+                    })
+                except Exception:
+                    pass
+                _skip("htf_gate")
+                continue
         if cand.symbol in open_syms:
             logger.info("arm: skip %s — already open on exchange", cand.symbol)
             _skip("symbol_conflict")
@@ -684,33 +738,49 @@ async def run_arm_entries(
                 else:
                     _skip("sized_qty_zero")
                 continue
-            # Owner 28.10: notional cap (BingX max position value ~100k; start 50k)
+            # Owner 29.10 B: notional CAP clips qty (enter smaller), does NOT skip.
+            # Was skip→position_value_too_large; majors were blocked while alts entered.
             try:
+                from astra_bot.decision.live_arm import quantize_qty as _qqty
+                from decimal import Decimal as _Dec
                 _entry = float(getattr(plan, "entry_price", None) or cand.entry or 0)
                 _qty = float(getattr(plan, "quantity", None) or 0)
                 _notional = abs(_entry * _qty)
                 _cap = max_position_value_usdt()
                 if _notional > _cap and _entry > 0:
+                    _step = getattr(plan, "step_size", None) or getattr(cand, "step_size", None) or _Dec("0.001")
+                    _new_qty = _qqty(_Dec(str(_cap / _entry)), _Dec(str(_step)))
+                    if _new_qty <= 0:
+                        logger.info(
+                            "arm: skip %s — notional clip qty=0 (cap=%.0f entry=%s)",
+                            cand.symbol, _cap, _entry,
+                        )
+                        _skip("position_value_too_large")
+                        continue
                     logger.info(
-                        "arm: skip %s — position_value_too_large notional=%.0f cap=%.0f",
-                        cand.symbol, _notional, _cap,
+                        "arm: clip %s notional %.0f→%.0f qty %s→%s (cap=%.0f)",
+                        cand.symbol, _notional, float(_new_qty) * _entry,
+                        _qty, _new_qty, _cap,
                     )
-                    _skip("position_value_too_large")
+                    try:
+                        plan.quantity = _new_qty
+                    except Exception:
+                        object.__setattr__(plan, "quantity", _new_qty)
                     try:
                         append_journal({
-                            "event": "arm_skip",
-                            "reason": "position_value_too_large",
+                            "event": "arm_qty_clipped",
                             "symbol": cand.symbol,
                             "side": cand.side,
-                            "notional": round(_notional, 2),
+                            "notional_before": round(_notional, 2),
+                            "notional_after": round(float(_new_qty) * _entry, 2),
                             "cap": _cap,
-                            "qty": _qty,
+                            "qty_before": _qty,
+                            "qty_after": float(_new_qty),
                             "entry": _entry,
                             "ts": time.time(),
                         })
                     except Exception:
                         pass
-                    continue
             except Exception as _nv_exc:
                 logger.warning("arm: notional gate %s", type(_nv_exc).__name__)
             try:

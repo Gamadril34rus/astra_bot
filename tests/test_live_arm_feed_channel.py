@@ -38,12 +38,12 @@ def _sig(symbol="BTC-USDT", side="long", entry=100, stop=95, tp=110, conf=0.7):
 
 
 def test_feed_symbols_match_paper_clock():
-    assert len(FEED_SYMBOLS) == 31
+    assert len(FEED_SYMBOLS) == 5
     assert FEED_SYMBOLS[0] == "BTC-USDT"
-    assert FEED_SYMBOLS[-1] == "TRX-USDT"
+    assert FEED_SYMBOLS[-1] == "LTC-USDT"
     assert "BTC-USDT" in FEED_SYMBOLS and "ETH-USDT" in FEED_SYMBOLS
-    assert "DOT-USDT" in FEED_SYMBOLS
-    assert "1000PEPE-USDT" in FEED_SYMBOLS
+    assert "DOT-USDT" not in FEED_SYMBOLS
+    assert "PENDLE-USDT" not in FEED_SYMBOLS
 
 
 def test_paper_channel_config_capital_parity():
