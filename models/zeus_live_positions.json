@@ -1,29 +1,5 @@
 {
   "positions": {
-    "ETH-USDT|long": {
-      "symbol": "ETH-USDT",
-      "side": "long",
-      "qty": "14.70129604",
-      "stop": "2296.161446560973",
-      "tp": "2491.4871068780540",
-      "entry": "2361.27",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|ETH-USDT|long|1793232000000",
-      "ts": 1793232185.8656158,
-      "be_moved": false,
-      "initial_stop": "2296.161446560973",
-      "opened_at_ms": 1793232185865,
-      "plan_qty": "14.70129604",
-      "qty_ratio": 1.0,
-      "tp1": "2491.4871068780540",
-      "initial_stop_v1": true,
-      "tp_frac": 0.3,
-      "tp_parity_v1": true,
-      "migrate_stop_v1": true,
-      "current_regime": "RANGE",
-      "be_earned": true
-    },
     "ADA-USDT|short": {
       "symbol": "ADA-USDT",
       "side": "short",
@@ -40,7 +16,11 @@
       "opened_at_ms": 1793239233622,
       "plan_qty": "105173.05122202",
       "qty_ratio": 1.0,
-      "tp1": "0.1807613270731707500000000000"
+      "tp1": "0.1807613270731707500000000000",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "be_earned": true,
+      "current_regime": "RANGE"
     },
     "AVAX-USDT|short": {
       "symbol": "AVAX-USDT",
@@ -58,14 +38,18 @@
       "opened_at_ms": 1793239237416,
       "plan_qty": "2763.70727553",
       "qty_ratio": 1.0,
-      "tp1": "7.999814273170738000000000000"
+      "tp1": "7.999814273170738000000000000",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "be_earned": true,
+      "current_regime": "RANGE"
     },
     "PENDLE-USDT|short": {
       "symbol": "PENDLE-USDT",
       "side": "short",
       "qty": "14631.05517383",
       "stop": "1.9717345843902425",
-      "tp": "1.792530831219514700000000000",
+      "tp": "1.78713083121951500",
       "entry": "1.9102",
       "leverage": 6,
       "pending_verify": false,
@@ -76,8 +60,12 @@
       "opened_at_ms": 1793239247940,
       "plan_qty": "14631.05517383",
       "qty_ratio": 1.0,
-      "tp1": "1.792530831219514700000000000"
+      "tp1": "1.78713083121951500",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true,
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1793239247.9409127
+  "ts": 1793239373.5993116
 }
