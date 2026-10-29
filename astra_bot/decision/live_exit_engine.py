@@ -145,6 +145,60 @@ def trail_policy() -> str:
     return v if v in ("atr", "ratchet_e") else "atr"
 
 
+def stop_pull_pct() -> float:
+    """ZEUS_STOP_PULL_PCT — fraction of entry to lock as profit (default 0.05 = 5%)."""
+    raw = (os.environ.get("ZEUS_STOP_PULL_PCT") or "0.05").strip()
+    try:
+        v = float(raw)
+        return v if 0 < v < 0.5 else 0.05
+    except ValueError:
+        return 0.05
+
+
+def pct_profit_stop_candidate(
+    direction: str,
+    entry: Decimal,
+    current_stop: Decimal,
+    mark: Decimal | None,
+    *,
+    pct: float | None = None,
+) -> Decimal | None:
+    """Pull protective stop to lock ~pct profit once price moved pct in our favor.
+
+    Owner 29.10 (VST): not a full take-profit — only tighten stop.
+    Long: mark >= entry*(1+pct) → stop = entry*(1+pct)
+    Short: mark <= entry*(1-pct) → stop = entry*(1-pct)
+    (Locks ~pct profit if stop is hit on reverse.) Only-tighten vs current_stop.
+    """
+    if mark is None:
+        return None
+    side = direction.lower()
+    entry = Decimal(str(entry))
+    cur = Decimal(str(current_stop))
+    m = Decimal(str(mark))
+    p = Decimal(str(pct if pct is not None else stop_pull_pct()))
+    if p <= 0:
+        return None
+    if side == "long":
+        trigger = entry * (Decimal("1") + p)
+        if m < trigger:
+            return None
+        cand = trigger
+        if cand > cur:  # tighten long stop upward
+            return cand
+        return None
+    if side == "short":
+        trigger = entry * (Decimal("1") - p)
+        if m > trigger:
+            return None
+        cand = trigger
+        if cand < cur:  # tighten short stop downward
+            return cand
+        return None
+    return None
+
+
+
 def stop_exchange_valid(direction: str, cand: Decimal, mark: Decimal | None) -> bool:
     """F19-1: long stop must be below mark; short stop must be above mark."""
     if mark is None:
@@ -388,6 +442,15 @@ def evaluate_plan_actions(
             shadow_row(
                 symbol, "ratchet_e", stop=str(rat), stop_before=str(stop),
                 trail_policy=trail_policy(),
+            )
+        )
+    # Owner 29.10: lock ~pct profit by pulling protective stop (not full TP)
+    pull = pct_profit_stop_candidate(side, entry, stop, mark)
+    if pull is not None:
+        actions.append(
+            shadow_row(
+                symbol, "pct_profit_pull", stop=str(pull), stop_before=str(stop),
+                pull_pct=stop_pull_pct(), mark=str(mark), entry=str(entry),
             )
         )
     return actions
@@ -693,7 +756,7 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
                     continue  # shadow: journal only, never place_order/move_stop
                 act_name = act.get("action")
                 # trail apply: atr→trailing, ratchet_e→ratchet_e (not both)
-                if (act_name == "d1_structural" and act.get("stop")) or (act_name == "trailing" and policy == "atr" and act.get("stop")) or (act_name == "ratchet_e" and policy == "ratchet_e" and act.get("stop")):
+                if (act_name == "d1_structural" and act.get("stop")) or (act_name == "trailing" and policy == "atr" and act.get("stop")) or (act_name == "ratchet_e" and policy == "ratchet_e" and act.get("stop")) or (act_name == "pct_profit_pull" and act.get("stop")):
                     apply_stop = True
                 else:
                     apply_stop = False
@@ -761,6 +824,22 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
                         try:
                             if abs(new_stop - entry) <= (abs(entry) * Decimal("0.0001") + Decimal("1e-12")):
                                 plan["be_moved"] = True
+                        except Exception:
+                            pass
+                    if act_name == "pct_profit_pull":
+                        try:
+                            from astra_bot.decision.live_arm_wiring import append_journal as _aj
+                            _aj({
+                                "event": "stop_pulled_to_5pct",
+                                "symbol": sym,
+                                "side": side,
+                                "entry": str(entry),
+                                "old_stop": str(stop),
+                                "new_stop": str(new_stop),
+                                "price_at_trigger": str(mark) if mark is not None else None,
+                                "pull_pct": stop_pull_pct(),
+                                "ts": time.time(),
+                            })
                         except Exception:
                             pass
                     try:
