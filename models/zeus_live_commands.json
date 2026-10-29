@@ -404,13 +404,17 @@
       "cmd": "reset_kill",
       "ts": 1793256098157,
       "source": "grok_owner_word",
-      "status": "pending"
+      "status": "done",
+      "result": "already_clear",
+      "done_ts": 1793256210316
     },
     {
       "cmd": "resume",
       "ts": 1793256098158,
       "source": "grok_owner_word",
-      "status": "pending"
+      "status": "done",
+      "result": "ok",
+      "done_ts": 1793256210317
     }
   ],
   "last_tg_update_id": 774152827
