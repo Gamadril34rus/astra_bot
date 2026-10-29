@@ -24,39 +24,17 @@ TIMEFRAME = "4h"
 CANDLE_LIMIT = 120
 STRATEGY_NAME = "zeus_channel_boundary"
 
-# Full paper-clock --symbols list (zeus-paper-clock.yml), 31 pairs.
+# Universe v2 (owner 29.10): majors + liquid — 8 pairs (was 31 paper-parity).
+# Canon ZEUS_METHOD_MAP §5: BTC/ETH/SOL over diluted buckets. VST only.
 FEED_SYMBOLS = (
     "BTC-USDT",
     "ETH-USDT",
     "SOL-USDT",
     "BNB-USDT",
     "XRP-USDT",
-    "DOGE-USDT",
-    "ADA-USDT",
-    "AVAX-USDT",
-    "DOT-USDT",
-    "LINK-USDT",
     "LTC-USDT",
-    "BCH-USDT",
-    "NEAR-USDT",
-    "APT-USDT",
-    "SUI-USDT",
-    "ARB-USDT",
-    "OP-USDT",
-    "UNI-USDT",
+    "AVAX-USDT",
     "AAVE-USDT",
-    "FIL-USDT",
-    "ATOM-USDT",
-    "INJ-USDT",
-    "TIA-USDT",
-    "WLD-USDT",
-    "TAO-USDT",
-    "HYPE-USDT",
-    "1000PEPE-USDT",
-    "WIF-USDT",
-    "ENA-USDT",
-    "PENDLE-USDT",
-    "TRX-USDT",
 )
 
 # asdict-diff vs ZeusChannelBoundaryConfig defaults (paper channel_capital_config):
