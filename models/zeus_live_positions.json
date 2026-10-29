@@ -1,72 +1,5 @@
 {
   "positions": {
-    "ADA-USDT|short": {
-      "symbol": "ADA-USDT",
-      "side": "short",
-      "qty": "105173.05122202",
-      "stop": "0.20571933646341461",
-      "tp": "0.1807613270731707500000000000",
-      "entry": "0.1977",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|ADA-USDT|short|1793232000000",
-      "ts": 1793239233.6220765,
-      "be_moved": false,
-      "initial_stop": "0.20571933646341461",
-      "opened_at_ms": 1793239233622,
-      "plan_qty": "105173.05122202",
-      "qty_ratio": 1.0,
-      "tp1": "0.1807613270731707500000000000",
-      "initial_stop_v1": true,
-      "tp_parity_v1": true,
-      "be_earned": true,
-      "current_regime": "RANGE"
-    },
-    "AVAX-USDT|short": {
-      "symbol": "AVAX-USDT",
-      "side": "short",
-      "qty": "2763.70727553",
-      "stop": "8.94959286341463",
-      "tp": "7.999814273170738000000000000",
-      "entry": "8.639",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|AVAX-USDT|short|1793232000000",
-      "ts": 1793239237.416284,
-      "be_moved": false,
-      "initial_stop": "8.94959286341463",
-      "opened_at_ms": 1793239237416,
-      "plan_qty": "2763.70727553",
-      "qty_ratio": 1.0,
-      "tp1": "7.999814273170738000000000000",
-      "initial_stop_v1": true,
-      "tp_parity_v1": true,
-      "be_earned": true,
-      "current_regime": "RANGE"
-    },
-    "PENDLE-USDT|short": {
-      "symbol": "PENDLE-USDT",
-      "side": "short",
-      "qty": "14631.05517383",
-      "stop": "1.9717345843902425",
-      "tp": "1.78713083121951500",
-      "entry": "1.9102",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|PENDLE-USDT|short|1793232000000",
-      "ts": 1793239247.9408703,
-      "be_moved": false,
-      "initial_stop": "1.9717345843902425",
-      "opened_at_ms": 1793239247940,
-      "plan_qty": "14631.05517383",
-      "qty_ratio": 1.0,
-      "tp1": "1.78713083121951500",
-      "initial_stop_v1": true,
-      "tp_frac": 0.3,
-      "tp_parity_v1": true,
-      "current_regime": "RANGE",
-      "be_earned": true
-    },
     "XRP-USDT|short": {
       "symbol": "XRP-USDT",
       "side": "short",
@@ -83,8 +16,10 @@
       "opened_at_ms": 1793246818591,
       "plan_qty": "11248.74396838",
       "qty_ratio": 1.0,
-      "tp1": "1.208849052439024000000000000"
+      "tp1": "1.208849052439024000000000000",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true
     }
   },
-  "ts": 1793246818.5914037
+  "ts": 1793247169.485985
 }
