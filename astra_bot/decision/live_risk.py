@@ -20,6 +20,7 @@ TRADES_PATH = Path("models/zeus_live_trades.jsonl")
 KILL_STATE_PATH = Path("models/kill_switch_state.json")
 KILL_EPOCH_PATH = Path("models/zeus_kill_epoch.json")
 PF_WINDOW_RESET_PATH = Path("models/zeus_pf_window_reset.json")
+WEEK_LOSS_RESET_PATH = Path("models/zeus_week_loss_reset.json")
 
 DAY_LOSS_LIMIT = Decimal("0.04")  # README 4%
 WEEK_LOSS_LIMIT = Decimal("0.06")  # README 6%
@@ -227,18 +228,56 @@ def profit_factor(
     return wins / losses, n
 
 
+
+def load_week_loss_reset(path: Path | None = None) -> float | None:
+    """Owner 29.10: manual week-loss accounting reset (epoch ts). Missing → None."""
+    path = path if path is not None else WEEK_LOSS_RESET_PATH
+    try:
+        if not path.exists():
+            return None
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        ts = raw.get("week_loss_reset_at") or raw.get("ts")
+        if ts is None:
+            return None
+        return float(ts)
+    except Exception:
+        return None
+
+
+def write_week_loss_reset(ts: float | None = None, path: Path | None = None) -> float:
+    """Write week_loss_reset_at (default now). Returns the ts written."""
+    path = path if path is not None else WEEK_LOSS_RESET_PATH
+    t = float(ts if ts is not None else time.time())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps({"week_loss_reset_at": t, "ts": t}, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    return t
+
 def check_day_week_limits(
     equity: Decimal,
     path: Path = TRADES_PATH,
     now: datetime | None = None,
 ) -> str | None:
-    """Return halt reason or None. Loss limit as fraction of equity."""
+    """Return halt reason or None. Loss limit as fraction of equity.
+
+    Owner 29.10: week_loss_reset_at (models/zeus_week_loss_reset.json) floors the
+    week window so pre-reset exits do not count toward the 6% week limit.
+    Day window unchanged unless reset_at is newer than day start.
+    """
     if equity <= 0:
         return None
-    day_pnl = sum_pnl_since(utc_day_start_ts(now), path, equity=equity)
+    reset_at = load_week_loss_reset()
+    day_since = utc_day_start_ts(now)
+    week_since = utc_week_start_ts(now)
+    if reset_at is not None:
+        day_since = max(day_since, float(reset_at))
+        week_since = max(week_since, float(reset_at))
+    day_pnl = sum_pnl_since(day_since, path, equity=equity)
     if day_pnl < 0 and abs(day_pnl) / equity >= DAY_LOSS_LIMIT:
         return f"day_loss {float(day_pnl):.2f} >= {float(DAY_LOSS_LIMIT)*100:.0f}% equity"
-    week_pnl = sum_pnl_since(utc_week_start_ts(now), path, equity=equity)
+    week_pnl = sum_pnl_since(week_since, path, equity=equity)
     if week_pnl < 0 and abs(week_pnl) / equity >= WEEK_LOSS_LIMIT:
         return f"week_loss {float(week_pnl):.2f} >= {float(WEEK_LOSS_LIMIT)*100:.0f}% equity"
     return None
