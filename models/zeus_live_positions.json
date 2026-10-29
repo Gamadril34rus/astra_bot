@@ -1,4 +1,59 @@
 {
-  "positions": {},
-  "ts": 1793247427.5715954
+  "positions": {
+    "ADA-USDT|short": {
+      "symbol": "ADA-USDT",
+      "side": "short",
+      "qty": "103953.61705343",
+      "stop": "0.20525502085365843",
+      "tp": "0.17988995829268314",
+      "entry": "0.1968",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|ADA-USDT|short|1793246400000",
+      "ts": 1793258895.5146217,
+      "be_moved": false,
+      "initial_stop": "0.20525502085365843",
+      "opened_at_ms": 1793258895514,
+      "plan_qty": "103953.61705343",
+      "qty_ratio": 1.0,
+      "tp1": "0.17988995829268314"
+    },
+    "TAO-USDT|short": {
+      "symbol": "TAO-USDT",
+      "side": "short",
+      "qty": "103.80700531",
+      "stop": "254.9130126585366",
+      "tp": "229.5239746829268",
+      "entry": "246.49",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|TAO-USDT|short|1793246400000",
+      "ts": 1793258900.611177,
+      "be_moved": false,
+      "initial_stop": "254.9130126585366",
+      "opened_at_ms": 1793258900611,
+      "plan_qty": "103.80700531",
+      "qty_ratio": 1.0,
+      "tp1": "229.5239746829268"
+    },
+    "PENDLE-USDT|short": {
+      "symbol": "PENDLE-USDT",
+      "side": "short",
+      "qty": "12052.06902197",
+      "stop": "1.9671829214634127",
+      "tp": "1.74853415707317460",
+      "entry": "1.8925",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|PENDLE-USDT|short|1793246400000",
+      "ts": 1793258905.3927503,
+      "be_moved": false,
+      "initial_stop": "1.9671829214634127",
+      "opened_at_ms": 1793258905392,
+      "plan_qty": "12052.06902197",
+      "qty_ratio": 1.0,
+      "tp1": "1.74853415707317460"
+    }
+  },
+  "ts": 1793258905.392775
 }
