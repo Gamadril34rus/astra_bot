@@ -66,7 +66,25 @@
       "tp_parity_v1": true,
       "current_regime": "RANGE",
       "be_earned": true
+    },
+    "XRP-USDT|short": {
+      "symbol": "XRP-USDT",
+      "side": "short",
+      "qty": "11248.74396838",
+      "stop": "1.3260754737804878",
+      "tp": "1.208849052439024000000000000",
+      "entry": "1.2870",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|XRP-USDT|short|1793246400000",
+      "ts": 1793246818.5913918,
+      "be_moved": false,
+      "initial_stop": "1.3260754737804878",
+      "opened_at_ms": 1793246818591,
+      "plan_qty": "11248.74396838",
+      "qty_ratio": 1.0,
+      "tp1": "1.208849052439024000000000000"
     }
   },
-  "ts": 1793245628.7478328
+  "ts": 1793246818.5914037
 }
