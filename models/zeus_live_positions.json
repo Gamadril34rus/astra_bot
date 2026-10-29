@@ -24,26 +24,6 @@
       "migrate_stop_v1": true,
       "current_regime": "RANGE"
     },
-    "SOL-USDT|short": {
-      "symbol": "SOL-USDT",
-      "side": "short",
-      "qty": "493.31557397",
-      "stop": "102.16584",
-      "tp": "99.73332",
-      "entry": "101.361",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|SOL-USDT|short|1793275200000",
-      "ts": 1793284466.5488088,
-      "be_moved": false,
-      "initial_stop": "102.16584",
-      "opened_at_ms": 1793284466548,
-      "plan_qty": "493.31557397",
-      "qty_ratio": 1.0,
-      "tp1": "99.73332",
-      "initial_stop_v1": true,
-      "tp_parity_v1": true
-    },
     "BTC-USDT|short": {
       "symbol": "BTC-USDT",
       "side": "short",
@@ -68,5 +48,5 @@
       "current_regime": "LOW_VOLATILITY"
     }
   },
-  "ts": 1793285708.9412901
+  "ts": 1793285989.6416917
 }
