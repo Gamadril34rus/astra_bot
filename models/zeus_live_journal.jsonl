@@ -48448,3 +48448,5 @@
 {"event": "regime_tick", "symbol": "BTC-USDT", "side": "short", "regime": "RANGE", "reason": "ok", "entry_regime": null, "n_bars": 249, "mark": "81711.8", "mark_fallback": false, "ts": 1793289693.1444082}
 {"event": "exit_shadow", "symbol": "BTC-USDT", "action": "vol_expansion", "ts": 1793289693.1445422}
 {"event": "exit_apply_under_halt", "symbol": "BTC-USDT", "side": "short", "action": "vol_expansion", "halt_reason": "PF=0.000 n=5 < 1 (window=20)", "ts": 1793289693.1446788}
+{"event": "order_audit", "symbol": "BTC-USDT", "side": "short", "n_stop": 0, "n_tp": 0, "be_moved": false, "orders": [], "ts": 1793290009.9056716}
+{"event": "exit_income_anomaly", "symbol": "BTC-USDT", "side": "short", "exit_reason": "income", "fill_price": null, "plan_stop": 82021.1127, "plan_tp": 80066.54639999998, "mark_price_at_exit": null, "current_exchange_stop": 82021.1127, "r_multiple": null, "pnl": 50.021915920000005, "ts": 1793290011.1712403}
