@@ -16,7 +16,10 @@
       "opened_at_ms": 1793258895514,
       "plan_qty": "103953.61705343",
       "qty_ratio": 1.0,
-      "tp1": "0.17988995829268314"
+      "tp1": "0.17988995829268314",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "current_regime": "RANGE"
     },
     "TAO-USDT|short": {
       "symbol": "TAO-USDT",
@@ -34,14 +37,17 @@
       "opened_at_ms": 1793258900611,
       "plan_qty": "103.80700531",
       "qty_ratio": 1.0,
-      "tp1": "229.5239746829268"
+      "tp1": "229.5239746829268",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "current_regime": "RANGE"
     },
     "PENDLE-USDT|short": {
       "symbol": "PENDLE-USDT",
       "side": "short",
       "qty": "12052.06902197",
       "stop": "1.9671829214634127",
-      "tp": "1.74853415707317460",
+      "tp": "1.74313415707317460",
       "entry": "1.8925",
       "leverage": 6,
       "pending_verify": false,
@@ -52,8 +58,12 @@
       "opened_at_ms": 1793258905392,
       "plan_qty": "12052.06902197",
       "qty_ratio": 1.0,
-      "tp1": "1.74853415707317460"
+      "tp1": "1.74313415707317460",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true,
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1793258905.392775
+  "ts": 1793259184.7944891
 }
