@@ -5,7 +5,7 @@
       "side": "short",
       "qty": "21.37930739",
       "stop": "2357.41968",
-      "tp": "2301.29064",
+      "tp": "2292.800640",
       "entry": "2335.88",
       "leverage": 6,
       "pending_verify": false,
@@ -16,8 +16,14 @@
       "opened_at_ms": 1793282386776,
       "plan_qty": "21.37930739",
       "qty_ratio": 1.0,
-      "tp1": "2301.29064"
+      "tp1": "2292.800640",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true,
+      "be_earned": true,
+      "migrate_stop_v1": true,
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1793282386.7762702
+  "ts": 1793283263.0222304
 }
