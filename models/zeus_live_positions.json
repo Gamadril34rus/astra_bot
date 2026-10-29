@@ -5,7 +5,7 @@
       "side": "long",
       "qty": "14.70129604",
       "stop": "2296.161446560973",
-      "tp": "2479.637106878054",
+      "tp": "2491.4871068780540",
       "entry": "2361.27",
       "leverage": 6,
       "pending_verify": false,
@@ -16,14 +16,19 @@
       "opened_at_ms": 1793232185865,
       "plan_qty": "14.70129604",
       "qty_ratio": 1.0,
-      "tp1": "2479.637106878054"
+      "tp1": "2491.4871068780540",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true,
+      "migrate_stop_v1": true,
+      "current_regime": "RANGE"
     },
     "SOL-USDT|long": {
       "symbol": "SOL-USDT",
       "side": "long",
       "qty": "331.20280116",
       "stop": "99.60583213414643",
-      "tp": "107.748335731707140",
+      "tp": "107.979335731707140",
       "entry": "102.397",
       "leverage": 6,
       "pending_verify": false,
@@ -34,14 +39,18 @@
       "opened_at_ms": 1793232189297,
       "plan_qty": "331.20280116",
       "qty_ratio": 1.0,
-      "tp1": "107.748335731707140"
+      "tp1": "107.979335731707140",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true,
+      "current_regime": "RANGE"
     },
     "BNB-USDT|long": {
       "symbol": "BNB-USDT",
       "side": "long",
       "qty": "56.54677926",
       "stop": "743.9057260609757",
-      "tp": "791.58854787804860",
+      "tp": "794.31854787804860",
       "entry": "760.71",
       "leverage": 6,
       "pending_verify": false,
@@ -52,8 +61,12 @@
       "opened_at_ms": 1793232192734,
       "plan_qty": "56.54677926",
       "qty_ratio": 1.0,
-      "tp1": "791.58854787804860"
+      "tp1": "794.31854787804860",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true,
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1793232192.7340457
+  "ts": 1793232431.304396
 }
