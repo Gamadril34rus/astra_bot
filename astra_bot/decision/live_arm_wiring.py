@@ -15,6 +15,7 @@ from astra_bot.decision.live_arm import (
     format_entry_tg,
     mark_cooldown,
     plan_from_candidate,
+    quantize_qty,
     same_side_cluster_blocks,
 )
 from astra_bot.decision.live_broker import LiveBroker, append_live_trade
@@ -741,15 +742,13 @@ async def run_arm_entries(
             # Owner 29.10 B: notional CAP clips qty (enter smaller), does NOT skip.
             # Was skip→position_value_too_large; majors were blocked while alts entered.
             try:
-                from astra_bot.decision.live_arm import quantize_qty as _qqty
-                from decimal import Decimal as _Dec
                 _entry = float(getattr(plan, "entry_price", None) or cand.entry or 0)
                 _qty = float(getattr(plan, "quantity", None) or 0)
                 _notional = abs(_entry * _qty)
                 _cap = max_position_value_usdt()
                 if _notional > _cap and _entry > 0:
-                    _step = getattr(plan, "step_size", None) or getattr(cand, "step_size", None) or _Dec("0.001")
-                    _new_qty = _qqty(_Dec(str(_cap / _entry)), _Dec(str(_step)))
+                    _step = getattr(plan, "step_size", None) or getattr(cand, "step_size", None) or Decimal("0.001")
+                    _new_qty = quantize_qty(Decimal(str(_cap / _entry)), Decimal(str(_step)))
                     if _new_qty <= 0:
                         logger.info(
                             "arm: skip %s — notional clip qty=0 (cap=%.0f entry=%s)",
