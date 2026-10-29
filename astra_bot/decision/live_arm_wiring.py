@@ -499,13 +499,13 @@ async def run_arm_entries(
         if cand is None:
             _skip("conf")
             continue
-        # Owner 29.10 C: min confidence 0.7 (strict quality)
-        _min_conf = 0.7
+        # Owner 29.10: min confidence 0.55 (channel-typical; was 0.7 — blocked all candidates)
+        _min_conf = 0.55
         try:
             import os as _os
-            _min_conf = float((_os.environ.get("ZEUS_ARM_MIN_CONF") or "0.7").strip() or "0.7")
+            _min_conf = float((_os.environ.get("ZEUS_ARM_MIN_CONF") or "0.55").strip() or "0.55")
         except ValueError:
-            _min_conf = 0.7
+            _min_conf = 0.55
         _c = float(cand.confidence) if cand.confidence is not None else 0.0
         if _c < _min_conf:
             logger.info(
