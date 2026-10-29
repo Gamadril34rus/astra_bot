@@ -1,4 +1,59 @@
 {
-  "positions": {},
-  "ts": 1793209627.6428974
+  "positions": {
+    "ETH-USDT|long": {
+      "symbol": "ETH-USDT",
+      "side": "long",
+      "qty": "14.70129604",
+      "stop": "2296.161446560973",
+      "tp": "2479.637106878054",
+      "entry": "2361.27",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|ETH-USDT|long|1793232000000",
+      "ts": 1793232185.8656158,
+      "be_moved": false,
+      "initial_stop": "2296.161446560973",
+      "opened_at_ms": 1793232185865,
+      "plan_qty": "14.70129604",
+      "qty_ratio": 1.0,
+      "tp1": "2479.637106878054"
+    },
+    "SOL-USDT|long": {
+      "symbol": "SOL-USDT",
+      "side": "long",
+      "qty": "331.20280116",
+      "stop": "99.60583213414643",
+      "tp": "107.748335731707140",
+      "entry": "102.397",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|SOL-USDT|long|1793232000000",
+      "ts": 1793232189.297478,
+      "be_moved": false,
+      "initial_stop": "99.60583213414643",
+      "opened_at_ms": 1793232189297,
+      "plan_qty": "331.20280116",
+      "qty_ratio": 1.0,
+      "tp1": "107.748335731707140"
+    },
+    "BNB-USDT|long": {
+      "symbol": "BNB-USDT",
+      "side": "long",
+      "qty": "56.54677926",
+      "stop": "743.9057260609757",
+      "tp": "791.58854787804860",
+      "entry": "760.71",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|BNB-USDT|long|1793232000000",
+      "ts": 1793232192.7340243,
+      "be_moved": false,
+      "initial_stop": "743.9057260609757",
+      "opened_at_ms": 1793232192734,
+      "plan_qty": "56.54677926",
+      "qty_ratio": 1.0,
+      "tp1": "791.58854787804860"
+    }
+  },
+  "ts": 1793232192.7340457
 }

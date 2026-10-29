@@ -47460,3 +47460,27 @@
 {"event": "live_digest", "key": "2026-10-28:pm", "day_pnl": -2173.7244, "n_pos": 1, "n_neg": 21, "open_n": 0, "risk_sum": 0.0, "equity": 89911.0418, "halt": "PF=0.909 n=9 < 1 (window=20)", "ts": 1793210228.86372}
 {"event": "KILL_WINDOW_RESET", "symbol": null, "ts": 1793215322.914666, "pf_window_reset_at": 1793215322.914666, "dropped_exit_count": 67}
 {"event": "KILL_WINDOW_RESET", "symbol": null, "ts": 1793220983.1807814, "pf_window_reset_at": 1793220983.1807814, "dropped_exit_count": 67}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|ETH-USDT|long|1793232000000", "symbol": "ETH-USDT", "side": "long", "ts": 1793232180.263351}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|SOL-USDT|long|1793232000000", "symbol": "SOL-USDT", "side": "long", "ts": 1793232180.2633636}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|BNB-USDT|long|1793232000000", "symbol": "BNB-USDT", "side": "long", "ts": 1793232180.2633703}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|AVAX-USDT|long|1793232000000", "symbol": "AVAX-USDT", "side": "long", "ts": 1793232180.263375}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|DOT-USDT|short|1793232000000", "symbol": "DOT-USDT", "side": "short", "ts": 1793232180.2633796}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|APT-USDT|short|1793232000000", "symbol": "APT-USDT", "side": "short", "ts": 1793232180.2633839}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|ARB-USDT|long|1793232000000", "symbol": "ARB-USDT", "side": "long", "ts": 1793232180.263388}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|UNI-USDT|long|1793232000000", "symbol": "UNI-USDT", "side": "long", "ts": 1793232180.263392}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|AAVE-USDT|short|1793232000000", "symbol": "AAVE-USDT", "side": "short", "ts": 1793232180.263396}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|ATOM-USDT|short|1793232000000", "symbol": "ATOM-USDT", "side": "short", "ts": 1793232180.2634006}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|INJ-USDT|long|1793232000000", "symbol": "INJ-USDT", "side": "long", "ts": 1793232180.2634053}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|TIA-USDT|long|1793232000000", "symbol": "TIA-USDT", "side": "long", "ts": 1793232180.2634096}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|TAO-USDT|long|1793232000000", "symbol": "TAO-USDT", "side": "long", "ts": 1793232180.2634137}
+{"event": "pending_signal", "signal_id": "zeus_channel_boundary|PENDLE-USDT|long|1793232000000", "symbol": "PENDLE-USDT", "side": "long", "ts": 1793232180.2634182}
+{"event": "protect_place", "ts": 1793232185.3773456, "symbol": "ETH-USDT", "kind": "stop", "stop_price": "2296.161446560973", "qty": "14.70129604", "close_position": true, "order_id": "2115595237975482368"}
+{"event": "protect_place", "ts": 1793232185.8654504, "symbol": "ETH-USDT", "kind": "tp", "stop_price": "2479.637106878054", "qty": "4.41038881", "reduce_only": false, "order_id": "2115595240131354624"}
+{"event": "entry", "signal_id": "zeus_channel_boundary|ETH-USDT|long|1793232000000", "symbol": "ETH-USDT", "side": "long", "qty": "14.70129604", "plan_qty": "14.70129604", "qty_ratio": 1.0, "entry": "2357.32", "stop": "2296.161446560973", "tp": "2479.637106878054", "ts": 1793232185.8666406}
+{"event": "protect_place", "ts": 1793232188.8879988, "symbol": "SOL-USDT", "kind": "stop", "stop_price": "99.60583213414643", "qty": "331.20280116", "close_position": true, "order_id": "2115595252819124224"}
+{"event": "protect_place", "ts": 1793232189.2973084, "symbol": "SOL-USDT", "kind": "tp", "stop_price": "107.748335731707140", "qty": "99.36084034", "reduce_only": false, "order_id": "2115595254538788864"}
+{"event": "entry", "signal_id": "zeus_channel_boundary|SOL-USDT|long|1793232000000", "symbol": "SOL-USDT", "side": "long", "qty": "331.20280116", "plan_qty": "331.20280116", "qty_ratio": 1.0, "entry": "102.32", "stop": "99.60583213414643", "tp": "107.74833573170713", "ts": 1793232189.2983997}
+{"event": "protect_place", "ts": 1793232192.2932248, "symbol": "BNB-USDT", "kind": "stop", "stop_price": "743.9057260609757", "qty": "56.54677926", "close_position": true, "order_id": "2115595267100729344"}
+{"event": "protect_place", "ts": 1793232192.7338083, "symbol": "BNB-USDT", "kind": "tp", "stop_price": "791.58854787804860", "qty": "16.96403377", "reduce_only": false, "order_id": "2115595268895891456"}
+{"event": "entry", "signal_id": "zeus_channel_boundary|BNB-USDT|long|1793232000000", "symbol": "BNB-USDT", "side": "long", "qty": "56.54677926", "plan_qty": "56.54677926", "qty_ratio": 1.0, "entry": "759.8", "stop": "743.9057260609757", "tp": "791.5885478780485", "ts": 1793232192.7349317}
+{"event": "arm_summary", "dry": false, "entries_allowed": true, "halt": null, "candidates": 14, "entered": ["ETH-USDT|long", "SOL-USDT|long", "BNB-USDT|long"], "skipped": {"same_side_guard": 0, "side_cluster_full": 0, "vol_cooldown": 0, "conf": 0, "margin": 0, "margin_M2": 0, "margin_M3": 0, "margin_M4": 0, "equity_unknown": 0, "sized_qty_zero": 0, "position_value_too_large": 0, "max_open": 0, "cooldown": 0, "symbol_conflict": 0, "retest_not_triggered": 0, "htf_gate": 0, "filters": 0, "entries_per_tick_limit": 0, "plan_unreconciled": 0, "other": 0}, "unrealized_sum": null, "identity_ok": false, "ts": 1793232193.2405593}
