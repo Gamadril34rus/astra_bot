@@ -1,7 +1,7 @@
 """Zeus multi-top / multi-bottom breakdown (owner 30.10).
 
-Catch continuation dumps/pumps after 2–3 swing extremes — the gap that
-missed BTC 29.10 19:00→30.10 04:00 (~5.5k drop) after flat highs near 81.9k.
+Catch continuation dumps/pumps after 2-3 swing extremes - the gap that
+missed BTC 29.10 19:00->30.10 04:00 (~5.5k drop) after flat highs near 81.9k.
 
 Pure functions + optional async evaluate adapter for live_arm_feed.
 No exchange IO. Short primary; long symmetric.
@@ -62,9 +62,9 @@ def detect_multi_top_breakdown(
     tp1_rr: float = 0.6,
     require_close_break: bool = True,
 ) -> BreakdownSignal | None:
-    """Short after 2–3 flat swing highs + close below neckline (low between tops).
+    """Short after 2-3 flat swing highs + close below neckline (low between tops).
 
-    tops_flat_pct: max (max_top - min_top) / mid_top — «полка» вершин.
+    tops_flat_pct: max (max_top - min_top) / mid_top - "полка" вершин.
     Neckline: min low from first to last top inclusive.
     """
     n = len(closes)
@@ -137,7 +137,7 @@ def detect_multi_bottom_breakout(
     tp1_rr: float = 0.6,
     require_close_break: bool = True,
 ) -> BreakdownSignal | None:
-    """Long mirror: 2–3 flat swing lows + close above neckline."""
+    """Long mirror: 2-3 flat swing lows + close above neckline."""
     n = len(closes)
     if n < radius * 2 + 10 or min_bottoms < 2:
         return None
