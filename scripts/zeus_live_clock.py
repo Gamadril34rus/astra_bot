@@ -114,11 +114,11 @@ async def _send_live_tg(msg: str) -> None:
 
 
 
-# F15: margin-reject warn + tp_parity_v1
-from astra_bot.decision.live_margin_warn import (
+# F15: margin-reject warn + tp_parity_v1 (imports after sys.path insert above)
+from astra_bot.decision.live_margin_warn import (  # noqa: E402
     maybe_warn_margin_reject as _maybe_warn_margin_reject,
 )
-from astra_bot.decision.live_margin_warn import (
+from astra_bot.decision.live_margin_warn import (  # noqa: E402
     set_send_tg as _set_margin_warn_tg,
 )
 
@@ -1953,7 +1953,7 @@ async def one_tick(*, dry: bool = False) -> int:
         from astra_bot.decision.live_income_report import process_income_fill_tape
         from astra_bot.decision.live_positions import load_positions as _lp_f13
         _syms = sorted({
-            str((p.get("symbol") or k.split("|")[0]))
+            str(p.get("symbol") or k.split("|")[0])
             for k, p in (_lp_f13() or {}).items()
             if isinstance(p, dict)
         })
