@@ -282,17 +282,32 @@ async def plan_from_candidate(
             lev = min(int(force_lev), int(broker.config.max_leverage))
         except ValueError:
             pass
-    # F15: clamp_take_rr [2.0, 2.3] + PLAN_TP_FRACTIONS; stop/size/entry unchanged.
+    # Early TP1 lock (30.10): typical live MFE band ~0.5–2% of price ≈ 0.6–1.0R.
+    # F15 put the *exchange* TP leg at clamp 2.0–2.3R → partial almost never filled,
+    # runners gave back the path. Exchange TP1 = ZEUS_TP1_RR (default 0.6)×R;
+    # tail clamp kept only as metadata (tp_tail) for parity/telemetry.
     entry_d = Decimal(str(cand.entry))
     stop_d = Decimal(str(cand.stop))
     r_abs = abs(entry_d - stop_d)
     side_l = cand.side.lower()
-    # F15: parity with paper — clamp_take_rr [2.0, 2.3], not hard 1.5R
+    try:
+        tp1_rr = Decimal(str(os.environ.get("ZEUS_TP1_RR", "0.6") or "0.6"))
+        if tp1_rr <= 0 or tp1_rr > 3:
+            tp1_rr = Decimal("0.6")
+    except Exception:
+        tp1_rr = Decimal("0.6")
     raw_tp = cand.take_profit
     if raw_tp is None and r_abs > 0:
         raw_tp = entry_d + r_abs * Decimal("2.0") if side_l == "long" else entry_d - r_abs * Decimal("2.0")
+    # tail at clamp kept for log/telemetry only (not exchange TP1 price)
     if raw_tp is not None and r_abs > 0:
-        tp1 = clamp_take_rr(entry_d, stop_d, Decimal(str(raw_tp)), side_l, 2.0, 2.3)
+        _tp_tail = clamp_take_rr(entry_d, stop_d, Decimal(str(raw_tp)), side_l, 2.0, 2.3)
+        logger.debug("arm tp1_rr early=%s tail_clamp=%s", tp1_rr, _tp_tail)
+    if r_abs > 0:
+        if side_l == "long":
+            tp1 = entry_d + r_abs * tp1_rr
+        else:
+            tp1 = entry_d - r_abs * tp1_rr
     else:
         tp1 = cand.take_profit  # fail-open
     tp_frac = float(PLAN_TP_FRACTIONS[0]) if PLAN_TP_FRACTIONS else 0.3
