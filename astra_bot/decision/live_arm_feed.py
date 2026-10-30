@@ -17,6 +17,10 @@ from astra_bot.strategies.zeus_channel_boundary import (
     ZeusChannelBoundaryConfig,
     ZeusChannelBoundaryStrategy,
 )
+from astra_bot.strategies.zeus_multi_top_breakdown import (
+    detect_breakdown_from_ohlc,
+    series_from_candles,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -150,14 +154,38 @@ async def scan_symbol(
         sig = await strat.evaluate(symbol, series)
     except Exception as exc:
         logger.warning("arm feed: %s evaluate failed: %s", symbol, type(exc).__name__)
-        return None
-    if sig is None:
-        return None
+        sig = None
+    if sig is not None:
+        try:
+            return signal_to_row(sig, bar_ts=bar_ts)
+        except Exception as exc:
+            logger.warning("arm feed: %s row map failed: %s", symbol, type(exc).__name__)
+            return None
+    # Owner 30.10: multi-top/bottom breakdown (missed BTC dump after 2–3 tops)
     try:
-        return signal_to_row(sig, bar_ts=bar_ts)
+        highs, lows, closes = series_from_candles(series)
+        br = detect_breakdown_from_ohlc(highs, lows, closes)
     except Exception as exc:
-        logger.warning("arm feed: %s row map failed: %s", symbol, type(exc).__name__)
+        logger.warning("arm feed: %s breakdown failed: %s", symbol, type(exc).__name__)
         return None
+    if br is None:
+        return None
+    now = time.time()
+    return {
+        "signal_id": make_signal_id(symbol, br.side, bar_ts, strategy="zeus_multi_top_breakdown"),
+        "symbol": symbol,
+        "side": br.side,
+        "entry": br.entry,
+        "stop": br.stop,
+        "tp": br.take_profit,
+        "retest_ts": int(bar_ts),
+        "ts": now,
+        "strategy": "zeus_multi_top_breakdown",
+        "confidence": br.confidence,
+        "pattern": (br.meta or {}).get("pattern"),
+        "neckline": br.neckline,
+        "n_tops": br.n_tops,
+    }
 
 
 async def produce_pending(
