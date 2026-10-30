@@ -66,7 +66,9 @@ jobs:
           ZEUS_PF_SKIP_SCRATCHED: "1"
           ZEUS_PF_INCLUDE_PARTIAL: "1"
           ZEUS_MIN_STOP_PCT: "0.01"
-          ZEUS_DEAD_FLAT_EXIT: "0"
+          ZEUS_DEAD_FLAT_EXIT: "1"
+          ZEUS_DEAD_FLAT_AGE_H: "12"
+          ZEUS_DEAD_FLAT_MFE: "0.15"
           ENVIRONMENT: live
           BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
           BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
