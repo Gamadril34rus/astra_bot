@@ -1,8 +1,8 @@
-"""Arm feed: paper-parity channel detector → models/zeus_arm_pending.jsonl.
+"""Arm feed: paper-parity channel detector -> models/zeus_arm_pending.jsonl.
 
 Strategy = ZeusChannelBoundary with channel_capital_config() fields from
 scripts/zeus_research_wrap.py (active paper runner). No new thresholds.
-No orders — write pending only. ≤1 candidate per symbol per tick.
+No orders - write pending only. ≤1 candidate per symbol per tick.
 """
 from __future__ import annotations
 
@@ -17,6 +17,10 @@ from astra_bot.strategies.zeus_channel_boundary import (
     ZeusChannelBoundaryConfig,
     ZeusChannelBoundaryStrategy,
 )
+from astra_bot.strategies.zeus_multi_top_breakdown import (
+    detect_breakdown_from_ohlc,
+    series_from_candles,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +28,7 @@ TIMEFRAME = "4h"
 CANDLE_LIMIT = 120
 STRATEGY_NAME = "zeus_channel_boundary"
 
-# Universe v2 (owner 29.10): majors + liquid — 8 pairs (was 31 paper-parity).
+# Universe v2 (owner 29.10): majors + liquid - 8 pairs (was 31 paper-parity).
 # Canon ZEUS_METHOD_MAP §5: BTC/ETH/SOL over diluted buckets. VST only.
 FEED_SYMBOLS = (
     "BTC-USDT",
@@ -35,13 +39,13 @@ FEED_SYMBOLS = (
 )
 
 # asdict-diff vs ZeusChannelBoundaryConfig defaults (paper channel_capital_config):
-#   enabled: False → True
-#   lookback: 30 → 40
-#   min_width_pct: 0.012 → 0.01
-#   min_rr: 1.5 → 2.0
-#   max_hold_bars: 8 → 5
-#   tp2_rr: 3.0 → 2.0
-# (min_stop_pct 0.008, require_htf_bias True, tp1_rr 1.5, fractions 0.4/0.6 — same)
+#   enabled: False -> True
+#   lookback: 30 -> 40
+#   min_width_pct: 0.012 -> 0.01
+#   min_rr: 1.5 -> 2.0
+#   max_hold_bars: 8 -> 5
+#   tp2_rr: 3.0 -> 2.0
+# (min_stop_pct 0.008, require_htf_bias True, tp1_rr 1.5, fractions 0.4/0.6 - same)
 
 
 def paper_channel_config() -> ZeusChannelBoundaryConfig:
@@ -144,20 +148,44 @@ async def scan_symbol(
     last = series[-1]
     bar_ts = int(getattr(last, "open_time", 0) or 0)
     if bar_ts <= 0:
-        logger.warning("arm feed: %s bar missing open_time — skip", symbol)
+        logger.warning("arm feed: %s bar missing open_time - skip", symbol)
         return None
     try:
         sig = await strat.evaluate(symbol, series)
     except Exception as exc:
         logger.warning("arm feed: %s evaluate failed: %s", symbol, type(exc).__name__)
-        return None
-    if sig is None:
-        return None
+        sig = None
+    if sig is not None:
+        try:
+            return signal_to_row(sig, bar_ts=bar_ts)
+        except Exception as exc:
+            logger.warning("arm feed: %s row map failed: %s", symbol, type(exc).__name__)
+            return None
+    # Owner 30.10: multi-top/bottom breakdown (missed BTC dump after 2-3 tops)
     try:
-        return signal_to_row(sig, bar_ts=bar_ts)
+        highs, lows, closes = series_from_candles(series)
+        br = detect_breakdown_from_ohlc(highs, lows, closes)
     except Exception as exc:
-        logger.warning("arm feed: %s row map failed: %s", symbol, type(exc).__name__)
+        logger.warning("arm feed: %s breakdown failed: %s", symbol, type(exc).__name__)
         return None
+    if br is None:
+        return None
+    now = time.time()
+    return {
+        "signal_id": make_signal_id(symbol, br.side, bar_ts, strategy="zeus_multi_top_breakdown"),
+        "symbol": symbol,
+        "side": br.side,
+        "entry": br.entry,
+        "stop": br.stop,
+        "tp": br.take_profit,
+        "retest_ts": int(bar_ts),
+        "ts": now,
+        "strategy": "zeus_multi_top_breakdown",
+        "confidence": br.confidence,
+        "pattern": (br.meta or {}).get("pattern"),
+        "neckline": br.neckline,
+        "n_tops": br.n_tops,
+    }
 
 
 async def produce_pending(
@@ -176,7 +204,7 @@ async def produce_pending(
             continue
         sid = row["signal_id"]
         if sid in seen:
-            logger.info("arm feed: skip %s — signal_id already seen", sid)
+            logger.info("arm feed: skip %s - signal_id already seen", sid)
             continue
         if any(r["symbol"] == row["symbol"] for r in out):
             continue
@@ -204,5 +232,5 @@ async def produce_pending(
                 )
     except Exception as exc:
         logger.warning("arm feed journal: %s", type(exc).__name__)
-    logger.info("arm feed: wrote %d channel candidate(s) → %s", len(out), path)
+    logger.info("arm feed: wrote %d channel candidate(s) -> %s", len(out), path)
     return out
