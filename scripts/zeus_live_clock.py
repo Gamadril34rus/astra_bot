@@ -114,11 +114,11 @@ async def _send_live_tg(msg: str) -> None:
 
 
 
-# F15: margin-reject warn + tp_parity_v1
-from astra_bot.decision.live_margin_warn import (
+# F15: margin-reject warn + tp_parity_v1 (imports after sys.path insert above)
+from astra_bot.decision.live_margin_warn import (  # noqa: E402
     maybe_warn_margin_reject as _maybe_warn_margin_reject,
 )
-from astra_bot.decision.live_margin_warn import (
+from astra_bot.decision.live_margin_warn import (  # noqa: E402
     set_send_tg as _set_margin_warn_tg,
 )
 
@@ -303,6 +303,26 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
                 save_positions(plans)
                 out["skipped"] += 1
                 continue
+            # Early TP1 (ZEUS_TP1_RR default 0.6): intentional sub-2R leg.
+            # Parity must NOT widen early locks to 2.0–2.3 (owner 30.10 — #279).
+            if rr < Decimal("2.0"):
+                plan[_TP_PARITY_DONE] = True
+                plan["early_tp1"] = True
+                plans[key] = plan
+                save_positions(plans)
+                append_journal(
+                    {
+                        "event": "tp_parity_early_preserved",
+                        "symbol": sym,
+                        "side": side,
+                        "tp": str(tp_d),
+                        "rr": float(rr),
+                        "ts": __import__("time").time(),
+                    }
+                )
+                out["skipped"] += 1
+                continue
+            # rr > 2.3 only: clamp down to corridor
             new_tp = clamp_take_rr(entry_d, init_d, tp_d, side, 2.0, 2.3)
             pos = by_sym.get(sym)
             exch_qty = Decimal(
@@ -437,6 +457,178 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
             out["skipped"] += 1
     return out
 
+
+
+
+async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
+    """One-shot: plans already parity-clamped to 2.xR → restore ZEUS_TP1_RR leg.
+
+    After #279, apply_tp_parity_v1 had widened intentional 0.6R TPs to 2.0–2.3R.
+    Replace-first restore early TP once per plan (flag early_tp_repair_v1).
+    """
+    import os
+    import time
+    from decimal import Decimal
+
+    from astra_bot.decision.live_arm_wiring import append_journal
+    from astra_bot.decision.live_positions import DEFAULT_PATH, load_positions, save_positions
+
+    out = {"checked": 0, "repaired": 0, "failed": 0, "skipped": 0}
+    plans = load_positions(DEFAULT_PATH)
+    if not plans:
+        return out
+    try:
+        early_rr = Decimal(str(os.environ.get("ZEUS_TP1_RR", "0.6") or "0.6"))
+        if early_rr <= 0 or early_rr > 3:
+            early_rr = Decimal("0.6")
+    except Exception:
+        early_rr = Decimal("0.6")
+    try:
+        positions = await broker.client.get_positions()
+    except Exception as exc:
+        return {**out, "error": type(exc).__name__}
+    by_sym: dict = {}
+    for p in positions or []:
+        sym = getattr(p, "symbol", None) or getattr(p, "symbol_name", None)
+        if sym:
+            by_sym[str(sym)] = p
+    for key, plan in list(plans.items()):
+        if not isinstance(plan, dict):
+            continue
+        if plan.get("early_tp_repair_v1") or plan.get("early_tp1"):
+            out["skipped"] += 1
+            continue
+        if not plan.get(_TP_PARITY_DONE):
+            out["skipped"] += 1
+            continue
+        sym = plan.get("symbol") or key.split("|")[0]
+        side = (plan.get("side") or "").lower()
+        entry = plan.get("entry")
+        init_raw = plan.get("initial_stop") or plan.get("stop")
+        tp = plan.get("tp") or plan.get("tp1")
+        if entry is None or init_raw is None or tp is None:
+            out["skipped"] += 1
+            continue
+        try:
+            entry_d = Decimal(str(entry))
+            init_d = Decimal(str(init_raw))
+            tp_d = Decimal(str(tp))
+            risk = abs(entry_d - init_d)
+            if risk <= 0:
+                out["skipped"] += 1
+                continue
+            rr = abs(tp_d - entry_d) / risk
+            out["checked"] += 1
+            if rr < Decimal("2.0"):
+                plan["early_tp1"] = True
+                plan["early_tp_repair_v1"] = True
+                plans[key] = plan
+                save_positions(plans)
+                out["skipped"] += 1
+                continue
+            # Restore early TP1 price
+            if side == "long":
+                new_tp = entry_d + risk * early_rr
+            else:
+                new_tp = entry_d - risk * early_rr
+            pos = by_sym.get(sym)
+            exch_qty = Decimal(
+                str(
+                    getattr(pos, "quantity", None)
+                    or getattr(pos, "qty", None)
+                    or plan.get("qty")
+                    or 0
+                )
+            )
+            if exch_qty <= 0:
+                out["skipped"] += 1
+                continue
+            frac = Decimal(str(plan.get("tp_frac") or "0.3"))
+            if frac <= 0 or frac >= 1:
+                frac = Decimal("0.3")
+            q_tp = (exch_qty * frac).quantize(Decimal("0.00000001"))
+            old_tp = str(tp)
+            old_tp_ids: list[str] = []
+            try:
+                if hasattr(broker, "client") and hasattr(broker.client, "get_open_orders"):
+                    orders = await broker.client.get_open_orders(sym)
+                    for o in orders or []:
+                        ot = str(
+                            getattr(o, "type", "") or getattr(o, "order_type", "") or ""
+                        ).upper()
+                        if "TAKE_PROFIT" in ot:
+                            oid = getattr(o, "id", None) or getattr(o, "order_id", None)
+                            if oid:
+                                old_tp_ids.append(str(oid))
+            except Exception:
+                old_tp_ids = []
+            ps = "LONG" if side == "long" else "SHORT"
+            stop_side = "SELL" if side == "long" else "BUY"
+            try:
+                await broker.client.place_order(
+                    symbol=sym,
+                    side=stop_side,
+                    order_type="TAKE_PROFIT_MARKET",
+                    quantity=q_tp,
+                    stop_price=new_tp,
+                    position_side=ps,
+                    reduce_only=False,
+                    close_position=False,
+                )
+                for oid in old_tp_ids:
+                    try:
+                        await broker.client.cancel_order(sym, oid)
+                    except Exception as cexc:
+                        append_journal(
+                            {
+                                "event": "early_tp_repair_cancel_failed",
+                                "symbol": sym,
+                                "order_id": oid,
+                                "error": f"{type(cexc).__name__}: {cexc}",
+                                "ts": time.time(),
+                            }
+                        )
+                plan["tp"] = str(new_tp)
+                plan["tp1"] = str(new_tp)
+                plan["early_tp1"] = True
+                plan["early_tp_repair_v1"] = True
+                plans[key] = plan
+                save_positions(plans)
+                append_journal(
+                    {
+                        "event": "early_tp_repair",
+                        "symbol": sym,
+                        "side": side,
+                        "old_tp": old_tp,
+                        "new_tp": str(new_tp),
+                        "rr_old": float(rr),
+                        "rr_new": float(early_rr),
+                        "qty": str(q_tp),
+                        "ts": time.time(),
+                    }
+                )
+                out["repaired"] += 1
+            except Exception as exc:
+                append_journal(
+                    {
+                        "event": "early_tp_repair_failed",
+                        "symbol": sym,
+                        "side": side,
+                        "old_tp": old_tp,
+                        "new_tp": str(new_tp),
+                        "error": f"{type(exc).__name__}: {exc}",
+                        "ts": time.time(),
+                    }
+                )
+                if send_tg:
+                    try:
+                        await send_tg(f"⚠️ {sym}: early TP repair failed — {exc}")
+                    except Exception:
+                        pass
+                out["failed"] += 1
+        except Exception:
+            out["skipped"] += 1
+    return out
 
 
 # F17: L3 latch be_earned from 5m extremes (owner 24.10)
@@ -1761,7 +1953,7 @@ async def one_tick(*, dry: bool = False) -> int:
         from astra_bot.decision.live_income_report import process_income_fill_tape
         from astra_bot.decision.live_positions import load_positions as _lp_f13
         _syms = sorted({
-            str((p.get("symbol") or k.split("|")[0]))
+            str(p.get("symbol") or k.split("|")[0])
             for k, p in (_lp_f13() or {}).items()
             if isinstance(p, dict)
         })
@@ -1783,6 +1975,9 @@ async def one_tick(*, dry: bool = False) -> int:
             _par = await apply_tp_parity_v1(broker, send_tg=_send_live_tg)
             if _par.get("replaced") or _par.get("failed"):
                 logger.info("tp_parity_v1: %s", _par)
+            _rep = await repair_early_tp_after_parity(broker, send_tg=_send_live_tg)
+            if _rep.get("repaired") or _rep.get("failed"):
+                logger.info("early_tp_repair: %s", _rep)
         except Exception as _p_exc:
             logger.warning("tp_parity_v1 failed: %s", type(_p_exc).__name__)
         _set_margin_warn_tg(_send_live_tg)

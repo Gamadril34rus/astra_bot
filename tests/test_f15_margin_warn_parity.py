@@ -125,8 +125,8 @@ def test_tp_parity_place_before_cancel(tmp_path, monkeypatch):
                 "side": "long",
                 "entry": "100",
                 "stop": "90",
-                "tp": "115",  # 1.5R → outside [2.0,2.3]
-                "tp1": "115",
+                "tp": "140",  # 4R overshoot → outside [2.0,2.3]
+                "tp1": "140",
                 "qty": "10",
             }
         }
@@ -182,8 +182,8 @@ def test_tp_parity_old_filled_not_hard_fail(tmp_path, monkeypatch):
                 "side": "long",
                 "entry": "100",
                 "stop": "90",
-                "tp": "115",
-                "tp1": "115",
+                "tp": "140",
+                "tp1": "140",
                 "qty": "5",
             }
         }
