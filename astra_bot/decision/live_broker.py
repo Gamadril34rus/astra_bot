@@ -1365,8 +1365,8 @@ class LiveBroker:
         - market-close first, then cancel leftover orders (not the reverse)
         - emergency close uses client.close_position (positionSide path, no upside-down qty)
         """
-        from pathlib import Path as _Path
         import os as _os
+        from pathlib import Path as _Path
 
         from astra_bot.decision.live_positions import get_plan, remove_plan, upsert_plan
 
