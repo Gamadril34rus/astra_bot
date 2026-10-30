@@ -88,7 +88,7 @@ def test_fail_does_not_set_flag(tmp_path, monkeypatch):
                 "entry": "0.07964",
                 "stop": "0.07956",
                 "initial_stop": "0.082",
-                "tp": "0.077",
+                "tp": "0.073",  # ~2.8R — overshoot so parity attempts place (not early preserve)
                 "qty": "100",
             }
         }
@@ -156,7 +156,7 @@ def test_order_cancel_on_parity(tmp_path, monkeypatch):
                 "entry": "100",
                 "stop": "90",
                 "initial_stop": "90",
-                "tp": "115",  # 1.5R
+                "tp": "140",  # 4R overshoot — parity must clamp+replace
                 "qty": "10",
             }
         }
