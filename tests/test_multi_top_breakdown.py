@@ -1,4 +1,4 @@
-"""Multi-top breakdown: 2–3 flat highs → close under neckline → short."""
+"""Multi-top breakdown: 2-3 flat highs -> close under neckline -> short."""
 from __future__ import annotations
 
 from astra_bot.strategies.zeus_multi_top_breakdown import (
@@ -81,7 +81,7 @@ def test_multi_top_breakdown_short():
 
 def test_no_signal_without_break():
     h, l, c = _series_flat_tops_then_break()
-    # remove break — last close still above neck
+    # remove break - last close still above neck
     c[-1] = 96.0
     h[-1] = 97.0
     l[-1] = 95.5
