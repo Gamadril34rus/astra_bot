@@ -72,7 +72,7 @@ SAME_SIDE_SOFT_CAP = 2
 MAX_OPEN_SAME_SIDE = 2  # alias for soft threshold (compat)
 # Owner 28.10 anti-cluster: hard max same-side open (in addition to soft upnl rule).
 # Blocks N+1 when already N of that side open. MAX_OPEN=5 unchanged.
-SAME_SIDE_CLUSTER_MAX = 2
+SAME_SIDE_CLUSTER_MAX = 3
 COOLDOWN_MS = 20 * 60 * 1000  # strategy|symbol|side as paper
 COOLDOWN_PATH = Path("models/zeus_live_cooldown.json")
 _COOLDOWN: dict[str, float] = {}  # key -> unblock_ts_ms
