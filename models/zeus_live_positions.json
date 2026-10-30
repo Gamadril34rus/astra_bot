@@ -54,7 +54,7 @@
     "LTC-USDT|short": {
       "symbol": "LTC-USDT",
       "side": "short",
-      "qty": "479.66838395",
+      "qty": 439.1,
       "stop": "56.58294",
       "tp": "53.682236",
       "entry": "54.75",
@@ -66,9 +66,14 @@
       "initial_stop": "56.58294",
       "opened_at_ms": 1793386263181,
       "plan_qty": "479.66838395",
-      "qty_ratio": 1.0,
-      "tp1": "53.682236"
+      "qty_ratio": 0.9154241027604838,
+      "tp1": "53.682236",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "be_earned": true,
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1793386263.1812363
+  "ts": 1793386628.3634317
 }
