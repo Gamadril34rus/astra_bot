@@ -84,7 +84,7 @@ def test_no_signal_without_break():
     # remove break - last close still above neck
     c[-1] = 96.0
     h[-1] = 97.0
-    l[-1] = 95.5
+    lows[-1] = 95.5
     sig = detect_multi_top_breakdown(h, lows, c, min_tops=2, max_tops=3, radius=2)
     assert sig is None
 
