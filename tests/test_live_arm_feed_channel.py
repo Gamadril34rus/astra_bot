@@ -38,10 +38,11 @@ def _sig(symbol="BTC-USDT", side="long", entry=100, stop=95, tp=110, conf=0.7):
 
 
 def test_feed_symbols_match_paper_clock():
-    assert len(FEED_SYMBOLS) == 5
+    # Owner 30.10: majors + INJ/AVAX/HYPE/ZEC/TOTAL/NEAR
+    assert len(FEED_SYMBOLS) == 11
     assert FEED_SYMBOLS[0] == "BTC-USDT"
-    assert FEED_SYMBOLS[-1] == "LTC-USDT"
     assert "BTC-USDT" in FEED_SYMBOLS and "ETH-USDT" in FEED_SYMBOLS
+    assert "INJ-USDT" in FEED_SYMBOLS and "AVAX-USDT" in FEED_SYMBOLS
     assert "DOT-USDT" not in FEED_SYMBOLS
     assert "PENDLE-USDT" not in FEED_SYMBOLS
 
