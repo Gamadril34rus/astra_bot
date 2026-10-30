@@ -146,8 +146,8 @@ def trail_policy() -> str:
 
 
 def stop_pull_pct() -> float:
-    """ZEUS_STOP_PULL_PCT — fraction of entry to lock as profit (default 0.05 = 5%)."""
-    raw = (os.environ.get("ZEUS_STOP_PULL_PCT") or "0.05").strip()
+    """ZEUS_STOP_PULL_PCT — fraction of entry to lock as profit (default 0 = off; was 0.05)."""
+    raw = (os.environ.get("ZEUS_STOP_PULL_PCT") or "0").strip()
     try:
         v = float(raw)
         return v if 0 < v < 0.5 else 0.05
