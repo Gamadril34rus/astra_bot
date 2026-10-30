@@ -465,6 +465,11 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
 
     After #279, apply_tp_parity_v1 had widened intentional 0.6R TPs to 2.0–2.3R.
     Replace-first restore early TP once per plan (flag early_tp_repair_v1).
+
+    If early TP level is already through the mark (short: mark<=new_tp,
+    long: mark>=new_tp) — do NOT place invalid TP: market-close frac leg +
+    move_stop to entry (same as open_with_protection TP-past). Always set the
+    repair flag so we do not spam TG every tick (SOL 30.10).
     """
     import os
     import time
@@ -473,7 +478,13 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
     from astra_bot.decision.live_arm_wiring import append_journal
     from astra_bot.decision.live_positions import DEFAULT_PATH, load_positions, save_positions
 
-    out = {"checked": 0, "repaired": 0, "failed": 0, "skipped": 0}
+    out = {
+        "checked": 0,
+        "repaired": 0,
+        "past_level": 0,
+        "failed": 0,
+        "skipped": 0,
+    }
     plans = load_positions(DEFAULT_PATH)
     if not plans:
         return out
@@ -492,6 +503,28 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
         sym = getattr(p, "symbol", None) or getattr(p, "symbol_name", None)
         if sym:
             by_sym[str(sym)] = p
+
+    def _mark_of(pos) -> Decimal | None:
+        if pos is None:
+            return None
+        for attr in ("mark_price", "markPrice", "mark", "last_price", "lastPrice"):
+            v = getattr(pos, attr, None)
+            if v is not None:
+                try:
+                    d = Decimal(str(v))
+                    if d > 0:
+                        return d
+                except Exception:
+                    pass
+        return None
+
+    def _price_past(side: str, new_tp: Decimal, mark: Decimal | None) -> bool:
+        if mark is None or mark <= 0:
+            return False
+        if side == "short":
+            return mark <= new_tp  # need TP < mark
+        return mark >= new_tp  # long: need TP > mark
+
     for key, plan in list(plans.items()):
         if not isinstance(plan, dict):
             continue
@@ -526,12 +559,12 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
                 save_positions(plans)
                 out["skipped"] += 1
                 continue
-            # Restore early TP1 price
             if side == "long":
                 new_tp = entry_d + risk * early_rr
             else:
                 new_tp = entry_d - risk * early_rr
             pos = by_sym.get(sym)
+            mark = _mark_of(pos)
             exch_qty = Decimal(
                 str(
                     getattr(pos, "quantity", None)
@@ -548,22 +581,117 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
                 frac = Decimal("0.3")
             q_tp = (exch_qty * frac).quantize(Decimal("0.00000001"))
             old_tp = str(tp)
-            old_tp_ids: list[str] = []
-            try:
-                if hasattr(broker, "client") and hasattr(broker.client, "get_open_orders"):
+            ps = "LONG" if side == "long" else "SHORT"
+            stop_side = "SELL" if side == "long" else "BUY"
+
+            async def _cancel_old_tps() -> None:
+                try:
+                    if not (hasattr(broker, "client") and hasattr(broker.client, "get_open_orders")):
+                        return
                     orders = await broker.client.get_open_orders(sym)
                     for o in orders or []:
                         ot = str(
                             getattr(o, "type", "") or getattr(o, "order_type", "") or ""
                         ).upper()
-                        if "TAKE_PROFIT" in ot:
-                            oid = getattr(o, "id", None) or getattr(o, "order_id", None)
-                            if oid:
-                                old_tp_ids.append(str(oid))
-            except Exception:
-                old_tp_ids = []
-            ps = "LONG" if side == "long" else "SHORT"
-            stop_side = "SELL" if side == "long" else "BUY"
+                        if "TAKE_PROFIT" not in ot:
+                            continue
+                        oid = getattr(o, "id", None) or getattr(o, "order_id", None)
+                        if not oid:
+                            continue
+                        try:
+                            await broker.client.cancel_order(sym, str(oid))
+                        except Exception as cexc:
+                            append_journal(
+                                {
+                                    "event": "early_tp_repair_cancel_failed",
+                                    "symbol": sym,
+                                    "order_id": str(oid),
+                                    "error": f"{type(cexc).__name__}: {cexc}",
+                                    "ts": time.time(),
+                                }
+                            )
+                except Exception:
+                    pass
+
+            async def _past_level_market() -> bool:
+                """Market-close frac leg + BE stop; always marks repair done."""
+                market_ok = False
+                be_ok = False
+                try:
+                    await broker.client.place_order(
+                        symbol=sym,
+                        side=stop_side,
+                        order_type="MARKET",
+                        quantity=q_tp,
+                        position_side=ps,
+                        reduce_only=False,
+                        close_position=False,
+                    )
+                    market_ok = True
+                except Exception as mex:
+                    append_journal(
+                        {
+                            "event": "early_tp_repair_market_failed",
+                            "symbol": sym,
+                            "side": side,
+                            "qty": str(q_tp),
+                            "error": f"{type(mex).__name__}: {mex}",
+                            "ts": time.time(),
+                        }
+                    )
+                if market_ok and hasattr(broker, "move_stop"):
+                    try:
+                        await broker.move_stop(sym, side, exch_qty - q_tp if exch_qty > q_tp else exch_qty, entry_d)
+                        be_ok = True
+                        plan["be_moved"] = True
+                    except Exception as bex:
+                        append_journal(
+                            {
+                                "event": "early_tp_repair_be_failed",
+                                "symbol": sym,
+                                "error": f"{type(bex).__name__}: {bex}",
+                                "ts": time.time(),
+                            }
+                        )
+                await _cancel_old_tps()
+                plan["tp"] = str(new_tp)
+                plan["tp1"] = str(new_tp)
+                plan["early_tp1"] = True
+                plan["early_tp_repair_v1"] = True
+                plans[key] = plan
+                save_positions(plans)
+                append_journal(
+                    {
+                        "event": "early_tp_repair_past_level",
+                        "symbol": sym,
+                        "side": side,
+                        "old_tp": old_tp,
+                        "new_tp": str(new_tp),
+                        "mark": str(mark) if mark is not None else None,
+                        "qty": str(q_tp),
+                        "market_ok": market_ok,
+                        "be_ok": be_ok,
+                        "ts": time.time(),
+                    }
+                )
+                return market_ok
+
+            # Pre-check: level already through mark → market path (no invalid TP)
+            if _price_past(side, new_tp, mark):
+                ok = await _past_level_market()
+                if ok:
+                    out["past_level"] += 1
+                else:
+                    out["failed"] += 1
+                    if send_tg:
+                        try:
+                            await send_tg(
+                                f"⚠️ {sym}: early TP уже за mark — market-нога не прошла"
+                            )
+                        except Exception:
+                            pass
+                continue
+
             try:
                 await broker.client.place_order(
                     symbol=sym,
@@ -575,19 +703,7 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
                     reduce_only=False,
                     close_position=False,
                 )
-                for oid in old_tp_ids:
-                    try:
-                        await broker.client.cancel_order(sym, oid)
-                    except Exception as cexc:
-                        append_journal(
-                            {
-                                "event": "early_tp_repair_cancel_failed",
-                                "symbol": sym,
-                                "order_id": oid,
-                                "error": f"{type(cexc).__name__}: {cexc}",
-                                "ts": time.time(),
-                            }
-                        )
+                await _cancel_old_tps()
                 plan["tp"] = str(new_tp)
                 plan["tp1"] = str(new_tp)
                 plan["early_tp1"] = True
@@ -609,6 +725,35 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
                 )
                 out["repaired"] += 1
             except Exception as exc:
+                err = str(exc).lower()
+                past = any(
+                    x in err
+                    for x in (
+                        "should be lower",
+                        "should be higher",
+                        "price should be",
+                        "would trigger",
+                        "immediately trigger",
+                    )
+                )
+                if past:
+                    ok = await _past_level_market()
+                    if ok:
+                        out["past_level"] += 1
+                    else:
+                        out["failed"] += 1
+                        if send_tg:
+                            try:
+                                await send_tg(
+                                    f"⚠️ {sym}: early TP past mark — market-нога не прошла"
+                                )
+                            except Exception:
+                                pass
+                    continue
+                # Hard fail: still mark done to avoid TG spam every tick
+                plan["early_tp_repair_v1"] = True
+                plans[key] = plan
+                save_positions(plans)
                 append_journal(
                     {
                         "event": "early_tp_repair_failed",
