@@ -3,9 +3,9 @@
     "SOL-USDT|short": {
       "symbol": "SOL-USDT",
       "side": "short",
-      "qty": "233.91817334",
+      "qty": 238.64,
       "stop": "100.85940979512189",
-      "tp": "89.79118040975622",
+      "tp": "89.623180409756220",
       "entry": "97.114",
       "leverage": 6,
       "pending_verify": false,
@@ -15,9 +15,13 @@
       "initial_stop": "100.85940979512189",
       "opened_at_ms": 1793347271295,
       "plan_qty": "233.91817334",
-      "qty_ratio": 1.0,
-      "tp1": "89.79118040975622"
+      "qty_ratio": 1.0201858051154358,
+      "tp1": "89.623180409756220",
+      "initial_stop_v1": true,
+      "tp_frac": 0.3,
+      "tp_parity_v1": true,
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1793347271.2957714
+  "ts": 1793347663.9992545
 }
