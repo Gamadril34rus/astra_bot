@@ -162,7 +162,9 @@ def same_side_cluster_blocks(
     # Hard anti-cluster: already at/above cap → block (entry would be cap+1)
     if cap > 0 and n >= cap:
         return True
-    # Legacy soft rule (only if hard cap disabled)
+    # Legacy soft rule ONLY when hard cap disabled (hard_max=0)
+    if cap > 0:
+        return False
     if n < SAME_SIDE_SOFT_CAP:
         return False
     try:
