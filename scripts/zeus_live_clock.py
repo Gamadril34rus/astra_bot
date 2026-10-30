@@ -2343,7 +2343,13 @@ async def one_tick(*, dry: bool = False) -> int:
 
     # Owner 20.10 §4: no live STOP → place; fail → BE@0.8R or market-close THIS symbol
     try:
-        ens = await broker.ensure_protection(send_tg=_send_live_tg)
+        _be_tr = 0.5
+        try:
+            import os as _os_be
+            _be_tr = float((_os_be.environ.get("ZEUS_BE_TRIGGER_R") or "0.5").strip() or "0.5")
+        except Exception:
+            _be_tr = 0.5
+        ens = await broker.ensure_protection(send_tg=_send_live_tg, trigger_be_r=_be_tr)
         if ens.get("placed") or ens.get("closed"):
             logger.info("ensure_protection: %s", ens)
     except Exception as exc:

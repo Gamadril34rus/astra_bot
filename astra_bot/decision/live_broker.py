@@ -1351,10 +1351,12 @@ class LiveBroker:
         *,
         positions_path: Path | None = None,
         send_tg=None,
-        trigger_be_r: float = 0.8,
+        trigger_be_r: float | None = None,
         bare_state_path: Path | None = None,
     ) -> dict[str, Any]:
         """Owner 20.10 §4 + arena B2: protect or close ONE symbol — never global flat.
+
+        trigger_be_r: default ZEUS_BE_TRIGGER_R or 0.5 (parity with clock BE gate).
 
         Safety:
         - get_open_orders failure → abort pass (None sentinel), close nothing
@@ -1364,8 +1366,17 @@ class LiveBroker:
         - emergency close uses client.close_position (positionSide path, no upside-down qty)
         """
         from pathlib import Path as _Path
+        import os as _os
 
         from astra_bot.decision.live_positions import get_plan, remove_plan, upsert_plan
+
+        if trigger_be_r is None:
+            try:
+                trigger_be_r = float((_os.environ.get("ZEUS_BE_TRIGGER_R") or "0.5").strip() or "0.5")
+            except Exception:
+                trigger_be_r = 0.5
+            if trigger_be_r <= 0 or trigger_be_r > 3:
+                trigger_be_r = 0.5
 
         path = positions_path or _Path("models/zeus_live_positions.json")
         state_path = bare_state_path or _Path("models/zeus_protect_bare_ticks.json")
