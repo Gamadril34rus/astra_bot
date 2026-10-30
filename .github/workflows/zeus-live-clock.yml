@@ -60,6 +60,8 @@ jobs:
           ZEUS_LIVE_MAX_LEVERAGE: "10"
           ZEUS_LIVE_EXIT_ENGINE: "on"
           ZEUS_LIVE_TRAIL_POLICY: "atr"
+          ZEUS_BE_TRIGGER_R: "0.5"
+          ZEUS_TP1_RR: "0.6"
           ZEUS_STOP_PULL_PCT: "0"
           ENVIRONMENT: live
           BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}

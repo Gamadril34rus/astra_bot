@@ -776,6 +776,192 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
     return out
 
 
+
+async def scale_out_early_if_due(broker, send_tg=None) -> dict:
+    """If MFE >= ZEUS_TP1_RR and exchange TP still at far RR (>=2), market 30% once.
+
+    Covers: parity left 2.xR leg; price already through 0.6R; be_moved runners
+    that never scaled out (SOL 30.10 qty full, tp far). Flag early_scaled.
+    """
+    import os
+    import time
+    from decimal import Decimal
+
+    from astra_bot.decision.live_arm_wiring import append_journal
+    from astra_bot.decision.live_positions import DEFAULT_PATH, load_positions, save_positions
+
+    out = {"checked": 0, "scaled": 0, "failed": 0, "skipped": 0}
+    plans = load_positions(DEFAULT_PATH)
+    if not plans:
+        return out
+    try:
+        early_rr = Decimal(str(os.environ.get("ZEUS_TP1_RR", "0.6") or "0.6"))
+        if early_rr <= 0 or early_rr > 3:
+            early_rr = Decimal("0.6")
+    except Exception:
+        early_rr = Decimal("0.6")
+    try:
+        positions = await broker.client.get_positions()
+    except Exception as exc:
+        return {**out, "error": type(exc).__name__}
+    by_sym: dict = {}
+    for p in positions or []:
+        sym = getattr(p, "symbol", None) or getattr(p, "symbol_name", None)
+        if sym:
+            by_sym[str(sym)] = p
+
+    def _mark(pos):
+        if pos is None:
+            return None
+        for a in ("mark_price", "markPrice", "current_price", "price", "mark"):
+            v = getattr(pos, a, None)
+            if v is not None:
+                try:
+                    d = Decimal(str(v))
+                    if d > 0:
+                        return d
+                except Exception:
+                    pass
+        return None
+
+    for key, plan in list(plans.items()):
+        if not isinstance(plan, dict):
+            continue
+        if plan.get("early_scaled") or plan.get("early_tp1"):
+            # early_tp1 means leg already at early RR or handled
+            if plan.get("early_scaled") or (
+                plan.get("early_tp1") and plan.get("early_tp_repair_v1")
+            ):
+                out["skipped"] += 1
+                continue
+        sym = plan.get("symbol") or key.split("|")[0]
+        side = (plan.get("side") or "").lower()
+        entry = plan.get("entry")
+        init_raw = plan.get("initial_stop") or plan.get("stop")
+        tp = plan.get("tp") or plan.get("tp1")
+        if entry is None or init_raw is None:
+            out["skipped"] += 1
+            continue
+        try:
+            entry_d = Decimal(str(entry))
+            init_d = Decimal(str(init_raw))
+            risk = abs(entry_d - init_d)
+            if risk <= 0:
+                out["skipped"] += 1
+                continue
+            pos = by_sym.get(sym)
+            mark = _mark(pos)
+            if mark is None:
+                out["skipped"] += 1
+                continue
+            if side == "long":
+                mfe_r = float((mark - entry_d) / risk)
+            else:
+                mfe_r = float((entry_d - mark) / risk)
+            if mfe_r < float(early_rr):
+                out["skipped"] += 1
+                continue
+            # Far TP? if no tp or rr>=2.0 → scale out due
+            far = True
+            if tp is not None:
+                try:
+                    tp_d = Decimal(str(tp))
+                    rr_tp = abs(tp_d - entry_d) / risk
+                    far = rr_tp >= Decimal("1.5")
+                except Exception:
+                    far = True
+            if not far and plan.get("early_tp1"):
+                out["skipped"] += 1
+                continue
+            out["checked"] += 1
+            exch_qty = Decimal(
+                str(
+                    getattr(pos, "quantity", None)
+                    or getattr(pos, "qty", None)
+                    or plan.get("qty")
+                    or 0
+                )
+            )
+            if exch_qty <= 0:
+                out["skipped"] += 1
+                continue
+            frac = Decimal(str(plan.get("tp_frac") or "0.3"))
+            if frac <= 0 or frac >= 1:
+                frac = Decimal("0.3")
+            q_tp = (exch_qty * frac).quantize(Decimal("0.00000001"))
+            ps = "LONG" if side == "long" else "SHORT"
+            stop_side = "SELL" if side == "long" else "BUY"
+            try:
+                await broker.client.place_order(
+                    symbol=sym,
+                    side=stop_side,
+                    order_type="MARKET",
+                    quantity=q_tp,
+                    position_side=ps,
+                    reduce_only=False,
+                    close_position=False,
+                )
+                # cancel far TP legs
+                try:
+                    orders = await broker.client.get_open_orders(sym)
+                    for o in orders or []:
+                        ot = str(getattr(o, "type", "") or getattr(o, "order_type", "") or "").upper()
+                        if "TAKE_PROFIT" in ot:
+                            oid = getattr(o, "id", None) or getattr(o, "order_id", None)
+                            if oid:
+                                try:
+                                    await broker.client.cancel_order(sym, str(oid))
+                                except Exception:
+                                    pass
+                except Exception:
+                    pass
+                new_qty = exch_qty - q_tp
+                if new_qty < 0:
+                    new_qty = Decimal("0")
+                plan["qty"] = str(new_qty)
+                plan["early_scaled"] = True
+                plan["early_tp1"] = True
+                plan["early_tp_repair_v1"] = True
+                # leave tp field as metadata; far leg cancelled
+                plans[key] = plan
+                save_positions(plans)
+                append_journal(
+                    {
+                        "event": "early_scale_out",
+                        "symbol": sym,
+                        "side": side,
+                        "mfe_r": round(mfe_r, 4),
+                        "qty": str(q_tp),
+                        "qty_left": str(new_qty),
+                        "mark": str(mark),
+                        "ts": time.time(),
+                    }
+                )
+                out["scaled"] += 1
+            except Exception as exc:
+                plan["early_scaled"] = True  # prevent spam; manual review
+                plans[key] = plan
+                save_positions(plans)
+                append_journal(
+                    {
+                        "event": "early_scale_out_failed",
+                        "symbol": sym,
+                        "side": side,
+                        "error": f"{type(exc).__name__}: {exc}",
+                        "ts": time.time(),
+                    }
+                )
+                if send_tg:
+                    try:
+                        await send_tg(f"⚠️ {sym}: early scale-out failed — {exc}")
+                    except Exception:
+                        pass
+                out["failed"] += 1
+        except Exception:
+            out["skipped"] += 1
+    return out
+
+
 # F17: L3 latch be_earned from 5m extremes (owner 24.10)
 _F17_5M_CACHE: dict[str, list] = {}
 
@@ -2141,8 +2327,11 @@ async def one_tick(*, dry: bool = False) -> int:
             if _par.get("replaced") or _par.get("failed"):
                 logger.info("tp_parity_v1: %s", _par)
             _rep = await repair_early_tp_after_parity(broker, send_tg=_send_live_tg)
-            if _rep.get("repaired") or _rep.get("failed"):
+            if _rep.get("repaired") or _rep.get("failed") or _rep.get("past_level"):
                 logger.info("early_tp_repair: %s", _rep)
+            _sc = await scale_out_early_if_due(broker, send_tg=_send_live_tg)
+            if _sc.get("scaled") or _sc.get("failed"):
+                logger.info("early_scale_out: %s", _sc)
         except Exception as _p_exc:
             logger.warning("tp_parity_v1 failed: %s", type(_p_exc).__name__)
         _set_margin_warn_tg(_send_live_tg)
