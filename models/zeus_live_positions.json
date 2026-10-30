@@ -22,7 +22,25 @@
       "tp_parity_v1": true,
       "current_regime": "RANGE",
       "be_earned": true
+    },
+    "ETH-USDT|short": {
+      "symbol": "ETH-USDT",
+      "side": "short",
+      "qty": "10.12017066",
+      "stop": "2325.0433036951213",
+      "tp": "2188.47801778292722",
+      "entry": "2234.48",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|ETH-USDT|short|1793361600000",
+      "ts": 1793361733.3560448,
+      "be_moved": false,
+      "initial_stop": "2325.0433036951213",
+      "opened_at_ms": 1793361733356,
+      "plan_qty": "10.12017066",
+      "qty_ratio": 1.0,
+      "tp1": "2188.47801778292722"
     }
   },
-  "ts": 1793361136.525419
+  "ts": 1793361733.356072
 }
