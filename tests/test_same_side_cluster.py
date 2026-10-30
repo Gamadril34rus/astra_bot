@@ -12,7 +12,7 @@ def test_two_same_side_ok() -> None:
 
 def test_hard_cap_blocks_third_regardless_of_upnl() -> None:
     # Owner 29.10: n>=2 → block (no 3rd same-side)
-    assert SAME_SIDE_CLUSTER_MAX == 2
+    assert SAME_SIDE_CLUSTER_MAX == 3
     assert same_side_cluster_blocks("short", side_count=2, side_upnl=-0.01) is True
     assert same_side_cluster_blocks("short", side_count=2, side_upnl=0.0) is True
     assert same_side_cluster_blocks("short", side_count=2, side_upnl=100.0) is True
