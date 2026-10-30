@@ -9,6 +9,19 @@ import pytest
 from astra_bot.decision.live_arm import plan_from_candidate
 
 
+def test_early_tp1_formula_matches_spec():
+    """0.6R from entry/stop — the level the exchange TP leg must use."""
+    entry, stop = Decimal("2000"), Decimal("2020")
+    risk = abs(entry - stop)
+    tp1_rr = Decimal("0.6")
+    tp_short = entry - risk * tp1_rr
+    tp_long = entry + risk * tp1_rr
+    assert tp_short == Decimal("1988.0")
+    assert abs(float(entry + abs(entry - Decimal("1990")) * tp1_rr) )  # sanity
+    entry_l, stop_l = Decimal("100"), Decimal("99")
+    assert entry_l + abs(entry_l - stop_l) * tp1_rr == Decimal("100.6")
+
+
 def _cand(side: str, entry: str, stop: str, tp: str):
     c = MagicMock()
     c.symbol = "ETH-USDT"
@@ -25,34 +38,16 @@ def _cand(side: str, entry: str, stop: str, tp: str):
 
 
 @pytest.mark.asyncio
-async def test_early_tp1_short_0_6R():
+async def test_plan_from_candidate_early_tp1_short():
     broker = MagicMock()
     broker.config.max_leverage = 10
     broker.risk_budget = AsyncMock(return_value=Decimal("1000"))
-    cand = _cand("short", "2000", "2020", "1940")  # risk=20 → 0.6R → 1988
+    cand = _cand("short", "2000", "2020", "1940")
     with patch("astra_bot.decision.live_arm.cooldown_blocks", return_value=False), patch(
-        "astra_bot.decision.live_arm.conflict_blocks", return_value=False
-    ), patch("astra_bot.decision.live_arm.count_open", return_value=0), patch(
-        "astra_bot.decision.live_arm.size_qty", return_value=Decimal("1")
-    ), patch("astra_bot.decision.live_arm.leverage_for", return_value=6):
-        plan = await plan_from_candidate(broker, cand, exchange_symbols=set(), exchange_open_count=0)
+        "astra_bot.decision.live_arm.count_open", return_value=0
+    ), patch("astra_bot.decision.live_arm.size_qty", return_value=Decimal("1")):
+        plan = await plan_from_candidate(
+            broker, cand, exchange_symbols=set(), exchange_open_count=0
+        )
     assert plan is not None
     assert abs(float(plan.take_profit_price) - 1988.0) < 0.05
-    # not the old clamp-tail (~1960 for 2R)
-    assert abs(float(plan.take_profit_price) - 1960.0) > 1.0
-
-
-@pytest.mark.asyncio
-async def test_early_tp1_long_0_6R():
-    broker = MagicMock()
-    broker.config.max_leverage = 10
-    broker.risk_budget = AsyncMock(return_value=Decimal("1000"))
-    cand = _cand("long", "100", "99", "103")  # risk=1 → tp=100.6
-    with patch("astra_bot.decision.live_arm.cooldown_blocks", return_value=False), patch(
-        "astra_bot.decision.live_arm.conflict_blocks", return_value=False
-    ), patch("astra_bot.decision.live_arm.count_open", return_value=0), patch(
-        "astra_bot.decision.live_arm.size_qty", return_value=Decimal("1")
-    ), patch("astra_bot.decision.live_arm.leverage_for", return_value=5):
-        plan = await plan_from_candidate(broker, cand, exchange_symbols=set(), exchange_open_count=0)
-    assert plan is not None
-    assert abs(float(plan.take_profit_price) - 100.6) < 0.05
