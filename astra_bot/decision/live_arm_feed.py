@@ -226,7 +226,18 @@ async def produce_pending(
     strat = _channel_strategy()
     seen = set(seen_ids or ())
     out: list[dict[str, Any]] = []
+    open_syms: set[str] = set()
+    try:
+        from astra_bot.decision.live_positions import DEFAULT_PATH, load_positions
+        for _pl in (load_positions(DEFAULT_PATH) or {}).values():
+            if isinstance(_pl, dict) and _pl.get("symbol"):
+                open_syms.add(str(_pl["symbol"]))
+    except Exception:
+        pass
     for sym in symbols:
+        if sym in open_syms:
+            logger.info("arm feed: skip %s - already open", sym)
+            continue
         row = await scan_symbol(client, sym, strategy=strat)
         if row is None:
             continue

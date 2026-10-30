@@ -820,6 +820,276 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
 
 
 
+
+async def heal_ratchet_and_runner_tp(broker, send_tg=None) -> dict:
+    """Owner 30.10: apply post-BE ratchet + missing runner TP on live plans.
+
+    Exit-engine can miss ticks (shadow/import/path). Explicit heal each clock:
+    - be_moved + MFE>=0.75 from initial_stop → tighten stop to 0.25R profit (or classic >=1.0)
+    - early_tp1/early_scaled + no TP on exchange → place 1.5R runner TP
+    - dead flat: open >6h, peak MFE <0.25, not be_moved → market close (stop-out zone edge)
+    """
+    import os
+    import time
+    from decimal import Decimal
+
+    from astra_bot.decision.live_arm_wiring import append_journal
+    from astra_bot.decision.live_exit_engine import ratchet_e_stop_candidate, stop_exchange_valid
+    from astra_bot.decision.live_positions import DEFAULT_PATH, load_positions, save_positions
+
+    out = {"ratchet": 0, "runner_tp": 0, "dead_flat": 0, "skipped": 0}
+    plans = load_positions(DEFAULT_PATH)
+    if not plans:
+        return out
+    try:
+        positions = await broker.client.get_positions()
+    except Exception as exc:
+        return {**out, "error": type(exc).__name__}
+    by_sym: dict = {}
+    for p in positions or []:
+        sym = getattr(p, "symbol", None) or getattr(p, "symbol_name", None)
+        if sym:
+            by_sym[str(sym)] = p
+
+    def _mark(pos):
+        if pos is None:
+            return None
+        for a in ("mark_price", "markPrice", "current_price", "price", "mark"):
+            v = getattr(pos, a, None)
+            if v is not None:
+                try:
+                    d = Decimal(str(v))
+                    if d > 0:
+                        return d
+                except Exception:
+                    pass
+        return None
+
+    now = time.time()
+    for key, plan in list(plans.items()):
+        if not isinstance(plan, dict):
+            continue
+        sym = plan.get("symbol") or key.split("|")[0]
+        side = (plan.get("side") or "").lower()
+        entry = plan.get("entry")
+        init_raw = plan.get("initial_stop") or plan.get("stop")
+        if entry is None or init_raw is None or side not in ("long", "short"):
+            out["skipped"] += 1
+            continue
+        try:
+            entry_d = Decimal(str(entry))
+            init_d = Decimal(str(init_raw))
+            stop_d = Decimal(str(plan.get("stop") or init_raw))
+            risk = abs(entry_d - init_d)
+        except Exception:
+            out["skipped"] += 1
+            continue
+        if risk <= 0:
+            out["skipped"] += 1
+            continue
+        pos = by_sym.get(sym)
+        mark = _mark(pos)
+        qty = Decimal(
+            str(
+                getattr(pos, "quantity", None)
+                or getattr(pos, "qty", None)
+                or plan.get("qty")
+                or 0
+            )
+        )
+        if qty <= 0 or mark is None:
+            out["skipped"] += 1
+            continue
+        peak_h = plan.get("peak_high")
+        peak_l = plan.get("peak_low")
+        try:
+            hi = Decimal(str(peak_h)) if peak_h is not None else None
+            lo = Decimal(str(peak_l)) if peak_l is not None else None
+        except Exception:
+            hi, lo = None, None
+        # update peaks from mark
+        if side == "long":
+            if hi is None or mark > hi:
+                hi = mark
+                plan["peak_high"] = str(mark)
+        else:
+            if lo is None or mark < lo:
+                lo = mark
+                plan["peak_low"] = str(mark)
+        be_moved = bool(plan.get("be_moved"))
+        # MFE from initial
+        if side == "long":
+            mfe_r = float(((hi or mark) - entry_d) / risk)
+        else:
+            mfe_r = float((entry_d - (lo or mark)) / risk)
+
+        # Dead flat: >6h open, never 0.25R, no BE → close
+        opened = plan.get("opened_at_ms") or plan.get("ts")
+        try:
+            opened_s = float(opened) / 1000.0 if float(opened) > 1e12 else float(opened)
+        except Exception:
+            opened_s = now
+        age_h = (now - opened_s) / 3600.0
+        if (
+            age_h >= 6.0
+            and (not be_moved)
+            and mfe_r < 0.25
+            and os.environ.get("ZEUS_DEAD_FLAT_EXIT", "1").strip().lower()
+            not in ("0", "false", "no", "off")
+        ):
+            try:
+                close_side = "SELL" if side == "long" else "BUY"
+                ps = "LONG" if side == "long" else "SHORT"
+                await broker.client.place_order(
+                    symbol=sym,
+                    side=close_side,
+                    order_type="MARKET",
+                    quantity=qty,
+                    position_side=ps,
+                    reduce_only=False,
+                    close_position=False,
+                )
+                append_journal(
+                    {
+                        "event": "dead_flat_exit",
+                        "symbol": sym,
+                        "side": side,
+                        "age_h": round(age_h, 2),
+                        "mfe_r": round(mfe_r, 4),
+                        "mark": str(mark),
+                        "ts": now,
+                    }
+                )
+                out["dead_flat"] += 1
+                continue
+            except Exception as dex:
+                append_journal(
+                    {
+                        "event": "dead_flat_exit_failed",
+                        "symbol": sym,
+                        "error": f"{type(dex).__name__}: {dex}",
+                        "ts": now,
+                    }
+                )
+
+        # Ratchet heal after BE
+        if be_moved:
+            cand = ratchet_e_stop_candidate(
+                side,
+                entry_d,
+                stop_d,
+                hi,
+                lo,
+                initial_stop=init_d,
+                mark=mark,
+                be_moved=True,
+            )
+            if cand is not None and stop_exchange_valid(side, cand, mark):
+                tighter = (side == "long" and cand > stop_d) or (
+                    side == "short" and cand < stop_d
+                )
+                if tighter and hasattr(broker, "move_stop"):
+                    try:
+                        await broker.move_stop(sym, side, qty, cand)
+                        plan["stop"] = str(cand)
+                        plans[key] = plan
+                        save_positions(plans)
+                        append_journal(
+                            {
+                                "event": "STOP_UPDATE",
+                                "symbol": sym,
+                                "side": side,
+                                "stop_before": str(stop_d),
+                                "stop_after": str(cand),
+                                "source": "heal_ratchet",
+                                "ok": True,
+                                "action": "ratchet_e",
+                                "mfe_r": round(mfe_r, 4),
+                                "ts": now,
+                            }
+                        )
+                        out["ratchet"] += 1
+                        stop_d = cand
+                    except Exception as rex:
+                        append_journal(
+                            {
+                                "event": "heal_ratchet_failed",
+                                "symbol": sym,
+                                "error": f"{type(rex).__name__}: {rex}",
+                                "ts": now,
+                            }
+                        )
+
+        # Runner TP if missing (early path left n_tp=0)
+        need_tp = bool(plan.get("early_tp1") or plan.get("early_scaled") or be_moved)
+        if need_tp and not plan.get("runner_tp_healed_v1"):
+            try:
+                orders = await broker.client.get_open_orders(sym)
+                n_tp = 0
+                for o in orders or []:
+                    ot = str(getattr(o, "type", "") or getattr(o, "order_type", "") or "").upper()
+                    if "TAKE_PROFIT" in ot:
+                        n_tp += 1
+                if n_tp == 0:
+                    if side == "long":
+                        runner_tp = entry_d + risk * Decimal("1.5")
+                    else:
+                        runner_tp = entry_d - risk * Decimal("1.5")
+                    # only if TP still on profitable side of mark
+                    valid = (side == "long" and runner_tp > mark) or (
+                        side == "short" and runner_tp < mark
+                    )
+                    if valid:
+                        stop_side = "SELL" if side == "long" else "BUY"
+                        ps = "LONG" if side == "long" else "SHORT"
+                        await broker.client.place_order(
+                            symbol=sym,
+                            side=stop_side,
+                            order_type="TAKE_PROFIT_MARKET",
+                            quantity=qty,
+                            stop_price=runner_tp,
+                            position_side=ps,
+                            reduce_only=False,
+                            close_position=False,
+                        )
+                        plan["tp"] = str(runner_tp)
+                        plan["runner_tp_rr"] = 1.5
+                        plan["runner_tp_healed_v1"] = True
+                        plans[key] = plan
+                        save_positions(plans)
+                        append_journal(
+                            {
+                                "event": "runner_tp_heal",
+                                "symbol": sym,
+                                "side": side,
+                                "tp": str(runner_tp),
+                                "qty": str(qty),
+                                "ts": now,
+                            }
+                        )
+                        out["runner_tp"] += 1
+                    else:
+                        plan["runner_tp_healed_v1"] = True  # avoid spam; level past
+                        plans[key] = plan
+                        save_positions(plans)
+            except Exception as tex:
+                append_journal(
+                    {
+                        "event": "runner_tp_heal_failed",
+                        "symbol": sym,
+                        "error": f"{type(tex).__name__}: {tex}",
+                        "ts": now,
+                    }
+                )
+
+        plans[key] = plan
+    try:
+        save_positions(plans)
+    except Exception:
+        pass
+    return out
+
+
 async def scale_out_early_if_due(broker, send_tg=None) -> dict:
     """If MFE >= ZEUS_TP1_RR and exchange TP still at far RR (>=2), market 30% once.
 
@@ -2413,6 +2683,12 @@ async def one_tick(*, dry: bool = False) -> int:
             _rep = await repair_early_tp_after_parity(broker, send_tg=_send_live_tg)
             if _rep.get("repaired") or _rep.get("failed") or _rep.get("past_level"):
                 logger.info("early_tp_repair: %s", _rep)
+            try:
+                _heal = await heal_ratchet_and_runner_tp(broker, send_tg=_send_live_tg)
+                if any(_heal.get(k) for k in ("ratchet", "runner_tp", "dead_flat")):
+                    logger.info("heal_ratchet_runner: %s", _heal)
+            except Exception as _he:
+                logger.warning("heal_ratchet_runner failed: %s", type(_he).__name__)
             _sc = await scale_out_early_if_due(broker, send_tg=_send_live_tg)
             if _sc.get("scaled") or _sc.get("failed"):
                 logger.info("early_scale_out: %s", _sc)

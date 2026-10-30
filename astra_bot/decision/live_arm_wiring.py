@@ -526,6 +526,38 @@ async def run_arm_entries(
                 pass
             _skip("conf")
             continue
+
+        # Owner 30.10: reject ultra-tight stops (noise → <15m scratches, 0% WR)
+        try:
+            import os as _os2
+            _min_stop_pct = float((_os2.environ.get("ZEUS_MIN_STOP_PCT") or "0.01").strip() or "0.01")
+        except ValueError:
+            _min_stop_pct = 0.01
+        try:
+            _ent = float(cand.entry)
+            _stp = float(cand.stop)
+            _stop_pct = abs(_ent - _stp) / _ent if _ent else 0.0
+        except Exception:
+            _stop_pct = 0.0
+        if _min_stop_pct > 0 and _stop_pct < _min_stop_pct:
+            logger.info(
+                "arm: skip %s — stop_pct %.4f < min %.4f",
+                cand.symbol, _stop_pct, _min_stop_pct,
+            )
+            try:
+                append_journal({
+                    "event": "arm_skip",
+                    "reason": "stop_too_tight",
+                    "symbol": cand.symbol,
+                    "side": cand.side,
+                    "stop_pct": round(_stop_pct, 6),
+                    "min_stop_pct": _min_stop_pct,
+                    "ts": time.time(),
+                })
+            except Exception:
+                pass
+            _skip("stop_too_tight")
+            continue
         # Owner 29.10 C: HTF bias must not fight side (channel already require_htf_bias;
         # arm-level guard for rows that carry htf_bias / bias field).
         _bias = str(row.get("htf_bias") or row.get("bias") or row.get("htf") or "").lower()
