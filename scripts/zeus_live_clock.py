@@ -845,7 +845,7 @@ async def sync_partial_breakeven(
     *,
     positions_path: Path | None = None,
     send_tg=None,
-    trigger_r: float = 0.8,
+    trigger_r: float | None = None,
 ) -> dict:
     """P2: BE when mark reaches +trigger_r MFE (not TP1 fill). Net BE + only-tighten.
 
@@ -854,7 +854,18 @@ async def sync_partial_breakeven(
 
     F10: deferred BE catch-up — place entry-stop only when mark allows (long mark>=entry);
     else be_pending, no place_order; journal be_catchup_pending (dedup 1h).
+
+    Owner 30.10: MFE in R uses initial_stop (canonical risk), not current stop —
+    after any tighten, current-stop R inflated/deflated and BE never fired at 0.6–0.7R.
+    Default trigger_r = ZEUS_BE_TRIGGER_R or 0.5 (aligned with early TP / BE-gate).
     """
+    if trigger_r is None:
+        try:
+            trigger_r = float(os.environ.get("ZEUS_BE_TRIGGER_R", "0.5") or "0.5")
+        except Exception:
+            trigger_r = 0.5
+        if trigger_r <= 0 or trigger_r > 3:
+            trigger_r = 0.5
     from astra_bot.decision.live_arm_wiring import append_journal
     from astra_bot.decision.live_margin_budget import only_tighter_stop
     from astra_bot.decision.live_positions import load_positions, upsert_plan
@@ -1174,7 +1185,15 @@ async def sync_partial_breakeven(
                 skipped.append(sym)
                 continue
             mark_px = Decimal(str(mark))
-            r_abs = abs(entry_px - stop_px)
+            # Canonical risk from initial_stop (F15b); fallback current stop
+            try:
+                init_raw = plan.get("initial_stop")
+                init_px = Decimal(str(init_raw)) if init_raw is not None else stop_px
+            except Exception:
+                init_px = stop_px
+            r_abs = abs(entry_px - init_px)
+            if r_abs <= 0:
+                r_abs = abs(entry_px - stop_px)
             if r_abs <= 0 or exch_qty <= 0:
                 continue
             side = str(plan.get("side") or "long").lower()
@@ -1190,6 +1209,7 @@ async def sync_partial_breakeven(
                     "mark": str(mark_px),
                     "entry": str(entry_px),
                     "stop": str(stop_px),
+                    "initial_stop": str(init_px),
                     "mfe_r": round(mfe_r, 4),
                     "trigger_r": float(trigger_r),
                     "be_moved": bool(plan.get("be_moved")),
