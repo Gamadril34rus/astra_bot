@@ -50,7 +50,25 @@
       "current_regime": "RANGE",
       "early_tp1": true,
       "early_tp_repair_v1": true
+    },
+    "LTC-USDT|short": {
+      "symbol": "LTC-USDT",
+      "side": "short",
+      "qty": "479.66838395",
+      "stop": "56.58294",
+      "tp": "53.682236",
+      "entry": "54.75",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_multi_top_breakdown|LTC-USDT|short|1793383200000",
+      "ts": 1793386263.1812224,
+      "be_moved": false,
+      "initial_stop": "56.58294",
+      "opened_at_ms": 1793386263181,
+      "plan_qty": "479.66838395",
+      "qty_ratio": 1.0,
+      "tp1": "53.682236"
     }
   },
-  "ts": 1793385725.987489
+  "ts": 1793386263.1812363
 }
