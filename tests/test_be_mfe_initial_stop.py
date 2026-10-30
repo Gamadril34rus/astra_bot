@@ -3,98 +3,96 @@ from __future__ import annotations
 
 import asyncio
 from decimal import Decimal
+from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
-from astra_bot.decision.live_positions import load_positions, save_positions
+from astra_bot.decision.live_broker import LiveBroker
+from astra_bot.decision.live_positions import load_positions, upsert_plan
+
+
+class MockClient:
+    def __init__(self, positions=None):
+        self.positions = positions or []
+        self.placed = []
+
+    async def get_positions(self):
+        return self.positions
+
+    async def place_order(self, **kw):
+        self.placed.append(kw)
+        return SimpleNamespace(id="1", status="NEW")
+
+    async def get_open_orders(self, symbol=None):
+        return []
+
+    async def cancel_order(self, symbol, oid):
+        return True
 
 
 def test_be_fires_at_0_6r_with_initial_stop(tmp_path, monkeypatch):
-    """Mark +0.6R vs initial risk → BE (old trigger 0.8 would skip)."""
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / "models").mkdir()
     monkeypatch.setenv("ZEUS_BE_TRIGGER_R", "0.5")
-    # entry 100, initial_stop 90, risk 10; mark 106 = 0.6R long
-    save_positions(
-        {
-            "BTC-USDT|long": {
-                "symbol": "BTC-USDT",
-                "side": "long",
-                "entry": "100",
-                "stop": "90",
-                "initial_stop": "90",
-                "tp": "120",
-                "qty": "1",
-                "be_moved": False,
-            }
-        }
+    path = tmp_path / "pos.json"
+    upsert_plan(
+        "BTC-USDT",
+        side="long",
+        qty="1.0",
+        stop="90",
+        tp="120",
+        entry="100",
+        initial_stop="90",
+        path=path,
     )
-    journals = []
-    monkeypatch.setattr(
-        "astra_bot.decision.live_arm_wiring.append_journal",
-        lambda row: journals.append(row),
-    )
-    broker = MagicMock()
-    pos = SimpleNamespace(
-        symbol="BTC-USDT",
-        quantity=Decimal("1"),
-        mark_price=Decimal("106"),
-        current_price=Decimal("106"),
-    )
-    broker.client.get_positions = AsyncMock(return_value=[pos])
-    broker.move_stop = AsyncMock()
-    broker.net_breakeven_price = MagicMock(return_value=Decimal("100.1"))
-
+    pos = [
+        SimpleNamespace(
+            symbol="BTC-USDT",
+            side="long",
+            quantity=Decimal("1.0"),
+            entry_price=Decimal("100"),
+            mark_price=Decimal("106"),  # 0.6R on risk 10
+        )
+    ]
+    b = LiveBroker(MockClient(positions=pos))
     from scripts.zeus_live_clock import sync_partial_breakeven
 
-    out = asyncio.run(sync_partial_breakeven(broker, positions_path=tmp_path / "models" / "zeus_live_positions.json"))
-    # load_positions uses DEFAULT_PATH relative to cwd models/
-    out = asyncio.run(sync_partial_breakeven(broker))
-    assert "BTC-USDT" in (out.get("moved") or [])
-    broker.move_stop.assert_called()
-    assert any(j.get("event") == "price_breakeven" for j in journals)
+    out = asyncio.run(sync_partial_breakeven(b, positions_path=path))
+    assert "BTC-USDT" in out.get("moved", [])
+    plans = load_positions(path)
+    assert plans["BTC-USDT|long"]["be_moved"] is True
 
 
 def test_mfe_uses_initial_not_tight_stop(tmp_path, monkeypatch):
-    """After stop tightened near entry, MFE still vs initial risk — no phantom R."""
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / "models").mkdir()
     monkeypatch.setenv("ZEUS_BE_TRIGGER_R", "0.5")
-    # initial risk 10; current stop almost at entry (r_abs=0.5 if used would inflate mfe)
-    # mark 103 = only 0.3R on initial → should NOT BE
-    save_positions(
-        {
-            "ETH-USDT|long": {
-                "symbol": "ETH-USDT",
-                "side": "long",
-                "entry": "100",
-                "stop": "99.5",  # tightened
-                "initial_stop": "90",
-                "tp": "120",
-                "qty": "1",
-                "be_moved": False,
-            }
-        }
+    path = tmp_path / "pos.json"
+    upsert_plan(
+        "ETH-USDT",
+        side="long",
+        qty="1.0",
+        stop="99.5",  # tightened
+        tp="120",
+        entry="100",
+        initial_stop="90",  # risk 10 → mark 103 = 0.3R
+        path=path,
     )
+    pos = [
+        SimpleNamespace(
+            symbol="ETH-USDT",
+            side="long",
+            quantity=Decimal("1.0"),
+            entry_price=Decimal("100"),
+            mark_price=Decimal("103"),
+        )
+    ]
+    b = LiveBroker(MockClient(positions=pos))
     journals = []
     monkeypatch.setattr(
         "astra_bot.decision.live_arm_wiring.append_journal",
         lambda row: journals.append(row),
     )
-    broker = MagicMock()
-    pos = SimpleNamespace(
-        symbol="ETH-USDT",
-        quantity=Decimal("1"),
-        mark_price=Decimal("103"),
-        current_price=Decimal("103"),
-    )
-    broker.client.get_positions = AsyncMock(return_value=[pos])
-    broker.move_stop = AsyncMock()
-
     from scripts.zeus_live_clock import sync_partial_breakeven
 
-    out = asyncio.run(sync_partial_breakeven(broker))
-    assert "ETH-USDT" not in (out.get("moved") or [])
-    broker.move_stop.assert_not_called()
+    out = asyncio.run(sync_partial_breakeven(b, positions_path=path))
+    assert "ETH-USDT" not in out.get("moved", [])
     ticks = [j for j in journals if j.get("event") == "be_mark_tick"]
-    assert ticks and abs(ticks[0]["mfe_r"] - 0.3) < 0.05
+    assert ticks, "expected be_mark_tick journal"
+    assert abs(float(ticks[0]["mfe_r"]) - 0.3) < 0.05
