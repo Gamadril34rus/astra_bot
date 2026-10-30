@@ -18,7 +18,7 @@
       "be_earned": true,
       "tp_frac": 0.3,
       "peak_high": "96.879",
-      "peak_low": "94.0",
+      "peak_low": "93.626",
       "current_regime": "RANGE",
       "tp1": "94.866754122926866",
       "initial_stop_v1": true,
@@ -47,9 +47,11 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "migrate_stop_v1": true,
-      "current_regime": "RANGE",
+      "current_regime": "WEAK_BEAR_TREND",
       "early_tp1": true,
-      "early_tp_repair_v1": true
+      "early_tp_repair_v1": true,
+      "peak_high": "2253.15",
+      "peak_low": "2213.53"
     },
     "LTC-USDT|short": {
       "symbol": "LTC-USDT",
@@ -72,8 +74,8 @@
       "tp_parity_v1": true,
       "early_tp1": true,
       "be_earned": true,
-      "current_regime": "RANGE"
+      "current_regime": "WEAK_BEAR_TREND"
     }
   },
-  "ts": 1793390236.1872585
+  "ts": 1793390986.287468
 }
