@@ -11,7 +11,7 @@ from astra_bot.decision.live_exit_engine import (
 
 def test_stop_pull_pct_default(monkeypatch):
     monkeypatch.delenv("ZEUS_STOP_PULL_PCT", raising=False)
-    assert abs(stop_pull_pct() - 0.05) < 1e-12
+    assert abs(stop_pull_pct() - 0.0) < 1e-12  # default off (owner restore working config)
     monkeypatch.setenv("ZEUS_STOP_PULL_PCT", "0.03")
     assert abs(stop_pull_pct() - 0.03) < 1e-12
 

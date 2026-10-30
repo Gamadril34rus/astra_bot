@@ -59,7 +59,8 @@ jobs:
           ZEUS_KILL_PF_WINDOW: "20"
           ZEUS_LIVE_MAX_LEVERAGE: "10"
           ZEUS_LIVE_EXIT_ENGINE: "on"
-          ZEUS_LIVE_TRAIL_POLICY: "ratchet_e"
+          ZEUS_LIVE_TRAIL_POLICY: "atr"
+          ZEUS_STOP_PULL_PCT: "0"
           ENVIRONMENT: live
           BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
           BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
