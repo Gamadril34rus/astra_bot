@@ -827,7 +827,7 @@ async def heal_ratchet_and_runner_tp(broker, send_tg=None) -> dict:
     Exit-engine can miss ticks (shadow/import/path). Explicit heal each clock:
     - be_moved + MFE>=0.75 from initial_stop → tighten stop to 0.25R profit (or classic >=1.0)
     - early_tp1/early_scaled + no TP on exchange → place 1.5R runner TP
-    - dead flat: OPT-IN only (ZEUS_DEAD_FLAT_EXIT=1): >12h, peak MFE<0.15, not be_moved
+    - dead flat: default ON — age>=12h, peak MFE<0.15, mark not in profit, not be_moved
     """
     import os
     import time
@@ -930,14 +930,32 @@ async def heal_ratchet_and_runner_tp(broker, send_tg=None) -> dict:
         except Exception:
             opened_s = now
         age_h = (now - opened_s) / 3600.0
-        # Default OFF — ETH 30.10 closed at +0.23R / 9.5h after merge (too aggressive).
-        # Opt-in: ZEUS_DEAD_FLAT_EXIT=1 with age>=12h and peak MFE<0.15.
+        # Default ON with sane gates (ETH 30.10 false close was 6h/0.25 — too tight).
+        # age>=12h, peak MFE<0.15, not BE, AND currently not in profit (mark mfe<=0).
+        try:
+            if side == "long":
+                mark_mfe = float((mark - entry_d) / risk)
+            else:
+                mark_mfe = float((entry_d - mark) / risk)
+        except Exception:
+            mark_mfe = mfe_r
+        _df_on = os.environ.get("ZEUS_DEAD_FLAT_EXIT", "1").strip().lower() not in (
+            "0", "false", "no", "off",
+        )
+        try:
+            _df_age = float(os.environ.get("ZEUS_DEAD_FLAT_AGE_H", "12") or "12")
+        except Exception:
+            _df_age = 12.0
+        try:
+            _df_mfe = float(os.environ.get("ZEUS_DEAD_FLAT_MFE", "0.15") or "0.15")
+        except Exception:
+            _df_mfe = 0.15
         if (
-            age_h >= 12.0
+            _df_on
+            and age_h >= _df_age
             and (not be_moved)
-            and mfe_r < 0.15
-            and os.environ.get("ZEUS_DEAD_FLAT_EXIT", "0").strip().lower()
-            in ("1", "true", "yes", "on")
+            and mfe_r < _df_mfe
+            and mark_mfe <= 0.0
         ):
             try:
                 close_side = "SELL" if side == "long" else "BUY"
