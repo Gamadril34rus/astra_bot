@@ -1048,12 +1048,33 @@ class LiveBroker:
                             exchange_fill_type = "ENGINE_TP"
                     except Exception:
                         pass
+                # Telemetry: exit_price alias, initial_stop, mfe_r from plan peak if any
+                init_stop_v = plan.get("initial_stop") or plan.get("stop")
+                try:
+                    init_stop_f = float(init_stop_v) if init_stop_v is not None else None
+                except (TypeError, ValueError):
+                    init_stop_f = None
+                mfe_r_v = None
+                try:
+                    if plan.get("mfe_r") is not None:
+                        mfe_r_v = round(float(plan["mfe_r"]), 4)
+                    elif plan.get("mfe") is not None and entry_px is not None and init_stop_f is not None:
+                        risk_abs = abs(float(entry_px) - float(init_stop_f))
+                        if risk_abs > 0:
+                            mfe_px = float(plan["mfe"])
+                            if side == "long":
+                                mfe_r_v = round((mfe_px - float(entry_px)) / risk_abs, 4)
+                            else:
+                                mfe_r_v = round((float(entry_px) - mfe_px) / risk_abs, 4)
+                except (TypeError, ValueError, ZeroDivisionError):
+                    mfe_r_v = None
                 trade_row = {
                     "event": "exit",
                     "symbol": sym,
                     "side": side,
                     "entry": entry_px,
                     "exit": exit_fill,
+                    "exit_price": exit_fill,  # explicit alias for reports
                     "exit_reason": reason,
                     "pnl": round(pnl, 4),
                     "pnl_source": "income" if reason == "income" else "fills",
@@ -1068,6 +1089,8 @@ class LiveBroker:
                     "r_multiple": None if r_multiple is None else round(float(r_multiple), 4),
                     "exchange_fill_type": exchange_fill_type,
                     "scratched": scratched,
+                    "initial_stop": init_stop_f,
+                    "mfe_r": mfe_r_v,
                 }
                 # C5: split legs when plan had TP1 partial (40/60 channel parity)
                 if plan.get("tp1") is not None and entry_px is not None:
