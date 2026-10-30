@@ -3,27 +3,24 @@
     "SOL-USDT|short": {
       "symbol": "SOL-USDT",
       "side": "short",
-      "qty": 238.64,
-      "stop": "98.58085714285714",
+      "qty": "238.64",
+      "stop": "97.0168860",
       "tp": "89.623180409756220",
       "entry": "97.114",
-      "leverage": 6,
+      "leverage": 5,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|SOL-USDT|short|1793347200000",
-      "ts": 1793347271.2957463,
-      "be_moved": false,
+      "ts": 1793376431.1019585,
+      "be_moved": true,
       "initial_stop": "100.85940979512189",
       "opened_at_ms": 1793347271295,
-      "plan_qty": "233.91817334",
-      "qty_ratio": 1.0201858051154358,
-      "tp1": "89.623180409756220",
-      "initial_stop_v1": true,
-      "tp_frac": 0.3,
       "tp_parity_v1": true,
-      "current_regime": "RANGE",
       "be_earned": true,
+      "tp_frac": 0.3,
       "peak_high": "96.879",
-      "peak_low": "94.0"
+      "peak_low": "94.0",
+      "current_regime": "RANGE",
+      "tp1": "89.623180409756220"
     },
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
@@ -52,5 +49,5 @@
       "early_tp_repair_v1": true
     }
   },
-  "ts": 1793376254.0026112
+  "ts": 1793376468.5141714
 }
