@@ -197,6 +197,9 @@ def profit_factor(
 
     after_ts: only exits with ts >= after_ts (kill epoch).
     window: if >0, keep only the last `window` such exits (newest by ts).
+
+    ZEUS_PF_SKIP_SCRATCHED=1 (default): skip exits flagged scratched
+    (|r_multiple| < 0.1) so fee noise does not drag PF toward kill.
     """
     rows = list(_read_exit_pnls(path))
     if after_ts is not None:
@@ -209,6 +212,14 @@ def profit_factor(
             if ts >= float(after_ts):
                 filtered.append(row)
         rows = filtered
+    skip_scratched = os.environ.get("ZEUS_PF_SKIP_SCRATCHED", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+    if skip_scratched:
+        rows = [r for r in rows if not r.get("scratched")]
     if window is not None and window > 0:
         rows = sorted(rows, key=lambda r: float(r.get("ts") or 0))[-int(window) :]
     wins = Decimal("0")

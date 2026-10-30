@@ -63,6 +63,7 @@ jobs:
           ZEUS_BE_TRIGGER_R: "0.5"
           ZEUS_TP1_RR: "0.6"
           ZEUS_STOP_PULL_PCT: "0"
+          ZEUS_PF_SKIP_SCRATCHED: "1"
           ENVIRONMENT: live
           BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
           BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
