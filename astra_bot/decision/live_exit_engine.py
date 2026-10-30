@@ -328,12 +328,18 @@ def ratchet_e_stop_candidate(
     BE_GATE_MFE_R = 0.5
     if (not be_moved) and mfe_r >= BE_GATE_MFE_R:
         cand = entry
-    # Staircase locks: floor(mfe/0.5)*0.5 - 0.5 when MFE >= 1.0 (also on be_moved)
+    # Staircase locks (also on be_moved):
+    # - classic: MFE>=1.0 → floor(mfe/0.5)*0.5 - 0.5  (1.0R→0.5R, 1.5→1.0, …)
+    # - owner 30.10 profit-leak: after BE, first lock at MFE>=0.75 → 0.25R profit
+    #   so runners do not sit at entry while price already gave 0.8–0.9R.
     if mfe_r >= 1.0:
         locked = math.floor(mfe_r / 0.5) * 0.5 - 0.5
         if locked > 0:
             delta = risk * Decimal(str(locked))
             cand = entry + delta if side == "long" else entry - delta
+    elif be_moved and mfe_r >= 0.75:
+        delta = risk * Decimal("0.25")
+        cand = entry + delta if side == "long" else entry - delta
     if cand is None:
         return None
     cur = Decimal(str(current_stop))

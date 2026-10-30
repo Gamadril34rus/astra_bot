@@ -75,8 +75,43 @@ def _read_exit_rows(path: Path = TRADES_PATH, *, require_pnl: bool = True) -> li
 
 
 def _read_exit_pnls(path: Path = TRADES_PATH) -> list[dict[str, Any]]:
-    """PF path: only exits with pnl≠null."""
-    return _read_exit_rows(path, require_pnl=True)
+    """PF path: exits with pnl≠null; optional partial_fill (realized scale legs).
+
+    ZEUS_PF_INCLUDE_PARTIAL=1 (default): count partial_fill rows so scale-out
+    profits (SOL +175 style) enter PF before full position close.
+    """
+    rows = _read_exit_rows(path, require_pnl=True)
+    include_partial = os.environ.get("ZEUS_PF_INCLUDE_PARTIAL", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+    if not include_partial or not path.exists():
+        return rows
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(row, dict):
+                continue
+            if row.get("event") != "partial_fill":
+                continue
+            if row.get("pnl") is None:
+                continue
+            try:
+                float(row["pnl"])
+            except (TypeError, ValueError):
+                continue
+            rows.append(row)
+    except OSError as exp:
+        logger.warning("live_risk read partial_fill: %s", type(exp).__name__)
+    return rows
 
 
 def sum_pnl_since(

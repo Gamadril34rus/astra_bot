@@ -75,9 +75,12 @@ def test_scale_out_when_mfe_past_early_and_far_tp(tmp_path, monkeypatch):
 
     out = asyncio.run(scale_out_early_if_due(broker))
     assert out.get("scaled", 0) == 1
-    kw = broker.client.place_order.call_args.kwargs
-    assert kw["order_type"] == "MARKET"
-    assert Decimal(str(kw["quantity"])) == Decimal("3.00000000")
+    calls = broker.client.place_order.call_args_list
+    types = [c.kwargs.get("order_type") for c in calls]
+    assert "MARKET" in types
+    assert "TAKE_PROFIT_MARKET" in types
+    mkt = next(c for c in calls if c.kwargs.get("order_type") == "MARKET")
+    assert Decimal(str(mkt.kwargs["quantity"])) == Decimal("3.00000000")
     plan = load_positions()["SOL-USDT|short"]
     assert plan.get("early_scaled") is True
     assert any(j.get("event") == "early_scale_out" for j in journals)

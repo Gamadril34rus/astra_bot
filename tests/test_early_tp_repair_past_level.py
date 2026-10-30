@@ -47,14 +47,16 @@ def test_repair_past_level_short_markets_and_flags(tmp_path, monkeypatch):
 
     out = asyncio.run(repair_early_tp_after_parity(broker, send_tg=None))
     assert out.get("past_level", 0) == 1
-    # market order, not TAKE_PROFIT
+    # market scale leg, then runner TAKE_PROFIT 1.5R
     assert broker.client.place_order.called
-    kw = broker.client.place_order.call_args.kwargs
-    assert kw["order_type"] == "MARKET"
+    types = [c.kwargs.get("order_type") for c in broker.client.place_order.call_args_list]
+    assert "MARKET" in types
+    assert "TAKE_PROFIT_MARKET" in types
     saved = load_positions()
     plan = saved["SOL-USDT|short"]
     assert plan.get("early_tp_repair_v1") is True
     assert plan.get("early_tp1") is True
+    assert plan.get("early_scaled") is True
     assert any(j.get("event") == "early_tp_repair_past_level" for j in journals)
 
     # second call must skip (no spam)
