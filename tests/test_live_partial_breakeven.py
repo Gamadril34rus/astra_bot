@@ -73,8 +73,8 @@ class MockClient:
         return None
 
 
-def test_plan_tp_clamped_2_0_2_3r_long(tmp_path, monkeypatch):
-    """F15: take_profit clamped into [2.0, 2.3]R (not hard 1.5R)."""
+def test_plan_tp_early_0_6r_long(tmp_path, monkeypatch):
+    """30.10: exchange TP1 at 0.6R (not clamp 2.0–2.3R tail)."""
     async def _():
         monkeypatch.chdir(tmp_path)
         b = LiveBroker(MockClient(Decimal("500")))
@@ -83,19 +83,19 @@ def test_plan_tp_clamped_2_0_2_3r_long(tmp_path, monkeypatch):
             side="long",
             entry=Decimal("100"),
             stop=Decimal("90"),
-            take_profit=Decimal("130"),  # 3R → clamp max 2.3R
+            take_profit=Decimal("130"),  # raw 3R — exchange leg still 0.6R
             confidence=0.9,
             step_size=Decimal("0.001"),
         )
         plan = await plan_from_candidate(b, cand, exchange_open_count=0, exchange_symbols=set())
         assert plan is not None
-        # R=10 → clamp max 2.3R = 123
-        assert plan.take_profit_price == Decimal("123.0")
+        # R=10 → 0.6R = 106
+        assert plan.take_profit_price == Decimal("106.0")
         assert abs(float(plan.tp_frac) - 0.3) < 1e-9
     asyncio.run(_())
 
 
-def test_plan_tp_clamped_2_0_2_3r_short(tmp_path, monkeypatch):
+def test_plan_tp_early_0_6r_short(tmp_path, monkeypatch):
     async def _():
         monkeypatch.chdir(tmp_path)
         b = LiveBroker(MockClient(Decimal("500")))
@@ -104,13 +104,14 @@ def test_plan_tp_clamped_2_0_2_3r_short(tmp_path, monkeypatch):
             side="short",
             entry=Decimal("100"),
             stop=Decimal("110"),
-            take_profit=Decimal("70"),  # 3R → clamp 2.3R
+            take_profit=Decimal("70"),
             confidence=0.9,
             step_size=Decimal("0.001"),
         )
         plan = await plan_from_candidate(b, cand, exchange_open_count=0, exchange_symbols=set())
         assert plan is not None
-        assert plan.take_profit_price == Decimal("77.0")
+        # R=10 → 0.6R = 94
+        assert plan.take_profit_price == Decimal("94.0")
         assert abs(float(plan.tp_frac) - 0.3) < 1e-9
     asyncio.run(_())
 
