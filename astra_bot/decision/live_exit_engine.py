@@ -757,8 +757,17 @@ async def run_exit_pass(broker, *, send_tg=None, positions_path=None) -> dict:
                 if mode != "on":
                     continue  # shadow: journal only, never place_order/move_stop
                 act_name = act.get("action")
-                # trail apply: atr→trailing, ratchet_e→ratchet_e (not both)
-                if (act_name == "d1_structural" and act.get("stop")) or (act_name == "trailing" and policy == "atr" and act.get("stop")) or (act_name == "ratchet_e" and policy == "ratchet_e" and act.get("stop")) or (act_name == "pct_profit_pull" and act.get("stop")):
+                # trail apply: atr→trailing; ratchet_e→ratchet_e;
+                # Owner 30.10 hybrid: after be_moved, also apply ratchet step-locks
+                # under atr policy so runners do not sit at entry while MFE≥1R.
+                be_done = bool(plan.get("be_moved"))
+                if (act_name == "d1_structural" and act.get("stop")) or (
+                    act_name == "trailing" and policy == "atr" and act.get("stop")
+                ) or (
+                    act_name == "ratchet_e"
+                    and act.get("stop")
+                    and (policy == "ratchet_e" or (policy == "atr" and be_done))
+                ) or (act_name == "pct_profit_pull" and act.get("stop")):
                     apply_stop = True
                 else:
                     apply_stop = False
