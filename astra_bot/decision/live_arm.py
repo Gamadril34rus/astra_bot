@@ -299,9 +299,10 @@ async def plan_from_candidate(
     raw_tp = cand.take_profit
     if raw_tp is None and r_abs > 0:
         raw_tp = entry_d + r_abs * Decimal("2.0") if side_l == "long" else entry_d - r_abs * Decimal("2.0")
-    tp_tail = None
+    # tail at clamp kept for log/telemetry only (not exchange TP1 price)
     if raw_tp is not None and r_abs > 0:
-        tp_tail = clamp_take_rr(entry_d, stop_d, Decimal(str(raw_tp)), side_l, 2.0, 2.3)
+        _tp_tail = clamp_take_rr(entry_d, stop_d, Decimal(str(raw_tp)), side_l, 2.0, 2.3)
+        logger.debug("arm tp1_rr early=%s tail_clamp=%s", tp1_rr, _tp_tail)
     if r_abs > 0:
         if side_l == "long":
             tp1 = entry_d + r_abs * tp1_rr
