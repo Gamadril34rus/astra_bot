@@ -76,47 +76,49 @@ def detect_multi_top_breakdown(
     swings = [s for s in swings if s <= i - radius]
     if len(swings) < min_tops:
         return None
-    use = swings[-max_tops:]
-    if len(use) < min_tops:
-        return None
-    top_px = [float(highs[s]) for s in use]
-    mid = sum(top_px) / len(top_px)
-    if mid <= 0:
-        return None
-    if (max(top_px) - min(top_px)) / mid > tops_flat_pct:
-        return None
-    neck = min(float(lows[j]) for j in range(use[0], use[-1] + 1))
     close = float(closes[i])
     low = float(lows[i])
-    broke = close < neck * (1.0 - min_break_pct)
-    if not require_close_break:
-        broke = broke or low < neck * (1.0 - min_break_pct)
-    if not broke:
-        return None
-    if i >= 1 and float(closes[i - 1]) < neck:
-        return None
-    stop = max(top_px) * (1.0 + stop_buffer_pct)
-    risk = stop - close
-    if risk <= 0:
-        return None
-    tp = close - risk * tp1_rr
-    conf = min(0.55 + 0.08 * (len(use) - 2) + 0.05, 0.85)
-    return BreakdownSignal(
-        side="short",
-        entry=close,
-        stop=stop,
-        take_profit=tp,
-        confidence=conf,
-        neckline=neck,
-        n_tops=len(use),
-        bar_index=i,
-        meta={
-            "tops": top_px,
-            "top_idx": list(use),
-            "pattern": "multi_top_breakdown",
-            "tp1_rr": tp1_rr,
-        },
-    )
+    # Prefer more tops when flat; else fall back to fewer (2) so a third
+    # non-flat swing does not kill a valid 2-top shelf (owner continuation).
+    for n_use in range(min(max_tops, len(swings)), min_tops - 1, -1):
+        use = swings[-n_use:]
+        top_px = [float(highs[s]) for s in use]
+        mid = sum(top_px) / len(top_px)
+        if mid <= 0:
+            continue
+        if (max(top_px) - min(top_px)) / mid > tops_flat_pct:
+            continue
+        neck = min(float(lows[j]) for j in range(use[0], use[-1] + 1))
+        broke = close < neck * (1.0 - min_break_pct)
+        if not require_close_break:
+            broke = broke or low < neck * (1.0 - min_break_pct)
+        if not broke:
+            continue
+        if i >= 1 and float(closes[i - 1]) < neck:
+            continue
+        stop = max(top_px) * (1.0 + stop_buffer_pct)
+        risk = stop - close
+        if risk <= 0:
+            continue
+        tp = close - risk * tp1_rr
+        conf = min(0.55 + 0.08 * (len(use) - 2) + 0.05, 0.85)
+        return BreakdownSignal(
+            side="short",
+            entry=close,
+            stop=stop,
+            take_profit=tp,
+            confidence=conf,
+            neckline=neck,
+            n_tops=len(use),
+            bar_index=i,
+            meta={
+                "tops": top_px,
+                "top_idx": list(use),
+                "pattern": "multi_top_breakdown",
+                "tp1_rr": tp1_rr,
+            },
+        )
+    return None
 
 
 def detect_multi_bottom_breakout(
@@ -142,47 +144,47 @@ def detect_multi_bottom_breakout(
     swings = [s for s in swings if s <= i - radius]
     if len(swings) < min_bottoms:
         return None
-    use = swings[-max_bottoms:]
-    if len(use) < min_bottoms:
-        return None
-    bot_px = [float(lows[s]) for s in use]
-    mid = sum(bot_px) / len(bot_px)
-    if mid <= 0:
-        return None
-    if (max(bot_px) - min(bot_px)) / mid > bottoms_flat_pct:
-        return None
-    neck = max(float(highs[j]) for j in range(use[0], use[-1] + 1))
     close = float(closes[i])
     high = float(highs[i])
-    broke = close > neck * (1.0 + min_break_pct)
-    if not require_close_break:
-        broke = broke or high > neck * (1.0 + min_break_pct)
-    if not broke:
-        return None
-    if i >= 1 and float(closes[i - 1]) > neck:
-        return None
-    stop = min(bot_px) * (1.0 - stop_buffer_pct)
-    risk = close - stop
-    if risk <= 0:
-        return None
-    tp = close + risk * tp1_rr
-    conf = min(0.55 + 0.08 * (len(use) - 2) + 0.05, 0.85)
-    return BreakdownSignal(
-        side="long",
-        entry=close,
-        stop=stop,
-        take_profit=tp,
-        confidence=conf,
-        neckline=neck,
-        n_tops=len(use),
-        bar_index=i,
-        meta={
-            "bottoms": bot_px,
-            "bottom_idx": list(use),
-            "pattern": "multi_bottom_breakout",
-            "tp1_rr": tp1_rr,
-        },
-    )
+    for n_use in range(min(max_bottoms, len(swings)), min_bottoms - 1, -1):
+        use = swings[-n_use:]
+        bot_px = [float(lows[s]) for s in use]
+        mid = sum(bot_px) / len(bot_px)
+        if mid <= 0:
+            continue
+        if (max(bot_px) - min(bot_px)) / mid > bottoms_flat_pct:
+            continue
+        neck = max(float(highs[j]) for j in range(use[0], use[-1] + 1))
+        broke = close > neck * (1.0 + min_break_pct)
+        if not require_close_break:
+            broke = broke or high > neck * (1.0 + min_break_pct)
+        if not broke:
+            continue
+        if i >= 1 and float(closes[i - 1]) > neck:
+            continue
+        stop = min(bot_px) * (1.0 - stop_buffer_pct)
+        risk = close - stop
+        if risk <= 0:
+            continue
+        tp = close + risk * tp1_rr
+        conf = min(0.55 + 0.08 * (len(use) - 2) + 0.05, 0.85)
+        return BreakdownSignal(
+            side="long",
+            entry=close,
+            stop=stop,
+            take_profit=tp,
+            confidence=conf,
+            neckline=neck,
+            n_tops=len(use),
+            bar_index=i,
+            meta={
+                "bottoms": bot_px,
+                "bottom_idx": list(use),
+                "pattern": "multi_bottom_breakout",
+                "tp1_rr": tp1_rr,
+            },
+        )
+    return None
 
 
 def detect_breakdown_from_ohlc(

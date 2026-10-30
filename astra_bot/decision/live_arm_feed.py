@@ -119,8 +119,14 @@ def write_pending(rows: list[dict[str, Any]], path: Path = PENDING_PATH) -> None
             f.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
 
 
-async def fetch_candles(client: Any, symbol: str, *, limit: int = CANDLE_LIMIT) -> list:
-    return await client.get_candles(symbol, TIMEFRAME, limit=limit)
+async def fetch_candles(
+    client: Any,
+    symbol: str,
+    *,
+    timeframe: str = TIMEFRAME,
+    limit: int = CANDLE_LIMIT,
+) -> list:
+    return await client.get_candles(symbol, timeframe, limit=limit)
 
 
 def _channel_strategy() -> ZeusChannelBoundaryStrategy:
@@ -161,13 +167,27 @@ async def scan_symbol(
         except Exception as exc:
             logger.warning("arm feed: %s row map failed: %s", symbol, type(exc).__name__)
             return None
-    # Owner 30.10: multi-top/bottom breakdown (missed BTC dump after 2-3 tops)
+    # Owner 30.10: multi-top/bottom breakdown (missed BTC dump after 2-3 tops).
+    # Prefer 4h structure; if silent, 1h fallback catches intra-4h continuations.
+    br = None
+    src_tf = "4h"
     try:
         highs, lows, closes = series_from_candles(series)
         br = detect_breakdown_from_ohlc(highs, lows, closes)
     except Exception as exc:
-        logger.warning("arm feed: %s breakdown failed: %s", symbol, type(exc).__name__)
-        return None
+        logger.warning("arm feed: %s breakdown 4h failed: %s", symbol, type(exc).__name__)
+    if br is None:
+        try:
+            c1h = await fetch_candles(client, symbol, timeframe="1h", limit=120)
+            if c1h and len(c1h) >= 30:
+                h1, l1, cl1 = series_from_candles(list(c1h))
+                br = detect_breakdown_from_ohlc(h1, l1, cl1)
+                if br is not None:
+                    src_tf = "1h"
+                    last1 = c1h[-1]
+                    bar_ts = int(getattr(last1, "open_time", 0) or bar_ts)
+        except Exception as exc:
+            logger.warning("arm feed: %s breakdown 1h failed: %s", symbol, type(exc).__name__)
     if br is None:
         return None
     now = time.time()
@@ -185,6 +205,7 @@ async def scan_symbol(
         "pattern": (br.meta or {}).get("pattern"),
         "neckline": br.neckline,
         "n_tops": br.n_tops,
+        "tf": src_tf,
     }
 
 
