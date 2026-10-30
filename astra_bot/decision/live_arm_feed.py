@@ -36,6 +36,13 @@ FEED_SYMBOLS = (
     "SOL-USDT",
     "BNB-USDT",
     "LTC-USDT",
+    # Owner 30.10 expand: liquid + requested (INJ/AVAX/HYPE/ZEC/TOTAL/NEAR)
+    "INJ-USDT",
+    "AVAX-USDT",
+    "HYPE-USDT",
+    "ZEC-USDT",
+    "TOTAL-USDT",
+    "NEAR-USDT",
 )
 
 # asdict-diff vs ZeusChannelBoundaryConfig defaults (paper channel_capital_config):

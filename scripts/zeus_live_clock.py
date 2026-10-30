@@ -658,6 +658,48 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
                 plan["tp1"] = str(new_tp)
                 plan["early_tp1"] = True
                 plan["early_tp_repair_v1"] = True
+                if market_ok:
+                    plan["early_scaled"] = True
+                    try:
+                        q_left = exch_qty - q_tp
+                        if q_left > 0:
+                            if side == "long":
+                                runner_tp = entry_d + risk * Decimal("1.5")
+                            else:
+                                runner_tp = entry_d - risk * Decimal("1.5")
+                            await broker.client.place_order(
+                                symbol=sym,
+                                side=stop_side,
+                                order_type="TAKE_PROFIT_MARKET",
+                                quantity=q_left,
+                                stop_price=runner_tp,
+                                position_side=ps,
+                                reduce_only=False,
+                                close_position=False,
+                            )
+                            plan["tp"] = str(runner_tp)
+                            plan["runner_tp_rr"] = 1.5
+                            append_journal(
+                                {
+                                    "event": "runner_tp_after_scale",
+                                    "symbol": sym,
+                                    "side": side,
+                                    "qty": str(q_left),
+                                    "tp": str(runner_tp),
+                                    "rr": 1.5,
+                                    "source": "past_level",
+                                    "ts": time.time(),
+                                }
+                            )
+                    except Exception as rtex:
+                        append_journal(
+                            {
+                                "event": "runner_tp_after_scale_failed",
+                                "symbol": sym,
+                                "error": f"{type(rtex).__name__}: {rtex}",
+                                "ts": time.time(),
+                            }
+                        )
                 plans[key] = plan
                 save_positions(plans)
                 append_journal(
@@ -671,6 +713,7 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
                         "qty": str(q_tp),
                         "market_ok": market_ok,
                         "be_ok": be_ok,
+                        "early_scaled": bool(plan.get("early_scaled")),
                         "ts": time.time(),
                     }
                 )
@@ -922,7 +965,47 @@ async def scale_out_early_if_due(broker, send_tg=None) -> dict:
                 plan["early_scaled"] = True
                 plan["early_tp1"] = True
                 plan["early_tp_repair_v1"] = True
-                # leave tp field as metadata; far leg cancelled
+                runner_tp_ok = False
+                try:
+                    if new_qty > 0 and risk > 0:
+                        if side == "long":
+                            runner_tp = entry_d + risk * Decimal("1.5")
+                        else:
+                            runner_tp = entry_d - risk * Decimal("1.5")
+                        await broker.client.place_order(
+                            symbol=sym,
+                            side=stop_side,
+                            order_type="TAKE_PROFIT_MARKET",
+                            quantity=new_qty,
+                            stop_price=runner_tp,
+                            position_side=ps,
+                            reduce_only=False,
+                            close_position=False,
+                        )
+                        plan["tp"] = str(runner_tp)
+                        plan["runner_tp_rr"] = 1.5
+                        runner_tp_ok = True
+                        append_journal(
+                            {
+                                "event": "runner_tp_after_scale",
+                                "symbol": sym,
+                                "side": side,
+                                "qty": str(new_qty),
+                                "tp": str(runner_tp),
+                                "rr": 1.5,
+                                "source": "scale_out",
+                                "ts": time.time(),
+                            }
+                        )
+                except Exception as rtex:
+                    append_journal(
+                        {
+                            "event": "runner_tp_after_scale_failed",
+                            "symbol": sym,
+                            "error": f"{type(rtex).__name__}: {rtex}",
+                            "ts": time.time(),
+                        }
+                    )
                 plans[key] = plan
                 save_positions(plans)
                 append_journal(
@@ -934,6 +1017,7 @@ async def scale_out_early_if_due(broker, send_tg=None) -> dict:
                         "qty": str(q_tp),
                         "qty_left": str(new_qty),
                         "mark": str(mark),
+                        "runner_tp_ok": runner_tp_ok,
                         "ts": time.time(),
                     }
                 )
