@@ -1607,3 +1607,4 @@
 {"event": "order_cancel", "symbol": "SOL-USDT", "order_id": "2116078751476965376", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793376092.9959638}
 {"event": "order_cancel", "symbol": "SOL-USDT", "order_id": "2116199503580717056", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793376430.527936}
 {"event": "order_cancel", "symbol": "SOL-USDT", "order_id": "2116200247629275136", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793378835.5754557}
+{"event": "qty_reconcile", "symbol": "SOL-USDT", "side": "short", "old_qty": 238.64, "new_qty": 167.05, "rel_diff": 0.299992, "signal_id": "zeus_channel_boundary|SOL-USDT|short|1793347200000", "ts": 1793379112.1112857}
