@@ -7,9 +7,9 @@ Pure functions for live_arm_feed. No exchange IO. Short primary; long symmetric.
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Literal, Sequence
-
+from typing import Any, Literal
 
 Side = Literal["long", "short"]
 
