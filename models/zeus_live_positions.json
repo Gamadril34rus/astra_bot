@@ -5,7 +5,7 @@
       "side": "short",
       "qty": "238.64",
       "stop": "97.0168860",
-      "tp": "89.623180409756220",
+      "tp": "94.866754122926866",
       "entry": "97.114",
       "leverage": 5,
       "pending_verify": false,
@@ -20,8 +20,10 @@
       "peak_high": "96.879",
       "peak_low": "94.0",
       "current_regime": "RANGE",
-      "tp1": "89.623180409756220",
-      "initial_stop_v1": true
+      "tp1": "94.866754122926866",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     },
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
@@ -50,5 +52,5 @@
       "early_tp_repair_v1": true
     }
   },
-  "ts": 1793376758.1459439
+  "ts": 1793378865.803238
 }
