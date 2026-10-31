@@ -93,9 +93,12 @@ def _env_float(key: str, default: float) -> float:
 
 
 def session_enabled() -> bool:
-    """ZEUS_SESSION_PROFILE=0|off disables dynamic hours (use static env only)."""
-    v = (os.environ.get("ZEUS_SESSION_PROFILE") or "1").strip().lower()
-    return v not in ("0", "false", "no", "off")
+    """Opt-in: ZEUS_SESSION_PROFILE=1 enables dynamic hours (workflow sets it).
+
+    Default off so unit tests / local runs keep static ZEUS_ARM behavior.
+    """
+    v = (os.environ.get("ZEUS_SESSION_PROFILE") or "0").strip().lower()
+    return v in ("1", "true", "yes", "on")
 
 
 def now_msk(now: datetime | None = None) -> datetime:

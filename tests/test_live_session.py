@@ -1,3 +1,6 @@
+import os
+os.environ["ZEUS_SESSION_PROFILE"] = "1"
+
 """MSK session buckets: fat/normal/thin/off."""
 from __future__ import annotations
 
