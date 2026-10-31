@@ -1637,3 +1637,4 @@
 {"event": "qty_reconcile", "symbol": "LTC-USDT", "side": "short", "old_qty": 682.89938671, "new_qty": 671.8, "rel_diff": 0.016253, "signal_id": "zeus_multi_top_breakdown|LTC-USDT|short|1793430000000", "ts": 1793433103.4034214}
 {"event": "partial_fill", "symbol": "LTC-USDT", "side": null, "qty": null, "price": null, "pnl": -332.397, "income_type": "REALIZED_PNL", "income_id": "1793084516986549206_512_935086_PNL", "source": "income_tape", "ts": 1793429516.0}
 {"event": "order_cancel", "symbol": "AVAX-USDT", "order_id": "2116437213029425152", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793433142.8288503}
+{"event": "order_cancel", "symbol": "AVAX-USDT", "order_id": "2116438115673006080", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793433447.359342}
