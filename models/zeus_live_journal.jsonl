@@ -51070,3 +51070,6 @@
 {"event": "be_mark_tick", "symbol": "AVAX-USDT", "side": "short", "mark": "8.574", "entry": "8.511", "stop": "8.890857142857143", "initial_stop": "9.186335999999999", "mfe_r": -0.0933, "trigger_r": 0.5, "be_moved": false, "ts": 1793483522.602903}
 {"event": "session_profile", "name": "off", "arm": false, "be_trigger_r": 0.3, "tp1_rr": 0.45, "ts": 1793483549.0091949}
 {"event": "regime_tick", "symbol": "AVAX-USDT", "side": "short", "regime": "WEAK_BEAR_TREND", "reason": "ok", "entry_regime": null, "n_bars": 249, "mark": "8.571", "mark_fallback": false, "ts": 1793483550.1528728}
+{"event": "order_audit", "symbol": "AVAX-USDT", "side": "short", "n_stop": 0, "n_tp": 0, "be_moved": false, "orders": [], "ts": 1793483810.0073705}
+{"event": "exit_income_anomaly", "symbol": "AVAX-USDT", "side": "short", "exit_reason": "income", "fill_price": null, "plan_stop": 8.890857142857143, "plan_tp": 8.104198400000001, "mark_price_at_exit": null, "current_exchange_stop": 8.890857142857143, "r_multiple": null, "pnl": -5.421507, "ts": 1793483811.5043592}
+{"event": "session_profile", "name": "off", "arm": false, "be_trigger_r": 0.3, "tp1_rr": 0.45, "ts": 1793483831.4114938}
