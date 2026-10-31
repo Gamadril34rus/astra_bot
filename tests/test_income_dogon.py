@@ -43,8 +43,8 @@ def test_format_no_question_mark():
     assert corr.startswith("уточнение: ")
     assert "-120.50$" in corr
     est = format_estimate_rocket("DOT-USDT", "short", est=80.0)
-    assert "оценка" in est
-    assert "сверь с UI" in est
+    assert "-80" not in est and "80.00$" not in est  # no fake dollars
+    assert "UI" in est
 
 
 def test_dogon_pending_then_confirm(tmp_path):
@@ -155,8 +155,9 @@ def test_dogon_24h_estimate(tmp_path):
             now=1.0 + 25 * 3600,
         )
     )
-    assert n == 1
-    assert "оценка" in sent[0]
+    # Owner 31.10: TTL drops silently — no fake −1R TG
+    assert n == 0
+    assert sent == []
     assert load_pending(pending_path) == []
 
 
@@ -205,4 +206,6 @@ def test_backfill_correct_tiny(tmp_path):
 
 def test_stop_reason_marker():
     # pure convention unit: dogon reason defaults to стоп
-    assert "стоп" in format_estimate_rocket("X", "long", est=1.0, reason="стоп")
+    msg_e = format_estimate_rocket("X", "long", est=1.0, reason="стоп")
+    assert "стоп" in msg_e
+    assert "1.00$" not in msg_e

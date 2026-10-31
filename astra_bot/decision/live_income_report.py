@@ -319,13 +319,14 @@ def format_estimate_rocket(
     est: float,
     reason: str = "стоп",
 ) -> str:
+    """Owner 31.10: NEVER invent −1R dollars. Soft note only (prefer no TG)."""
     base = symbol.replace("-USDT", "").replace("USDT", "")
     side_l = (side or "").lower()
     side_ru = "ЛОНГ" if side_l == "long" else "ШОРТ"
-    net_s = format_usd(-abs(float(est))) or "0.00$"
+    _ = est  # kept for API compat; intentionally unused in text
     return (
-        f"🏁 {base} {side_ru}: закрыта {net_s} нетто "
-        f"({reason}; оценка, сверь с UI)"
+        f"🏁 {base} {side_ru}: закрыта — точная сумма в income не подтвердилась "
+        f"({reason}; смотри UI, без оценки $)"
     )
 
 
@@ -409,7 +410,7 @@ async def resolve_pending_dogon(
     trades_path: Path = TRADES_PATH,
     now: float | None = None,
 ) -> int:
-    """Confirm income (≥0.5·est) → correction TG + trades patch; 24h → estimate TG."""
+    """Confirm income (≥0.5·est) → correction TG + trades patch; 24h → silent drop (no fake $)."""
     items = load_pending(path)
     if not items:
         return 0
@@ -474,16 +475,16 @@ async def resolve_pending_dogon(
             continue
 
         if age >= DOGON_TTL_SEC:
-            if est_f is not None and est_f > 0 and send_tg is not None:
-                try:
-                    await send_tg(
-                        format_estimate_rocket(sym, side, est=est_f, reason=reason)
-                    )
-                    sent += 1
-                except Exception as exc:
-                    logger.warning("dogon estimate TG %s: %s", sym, type(exc).__name__)
-                    remaining.append(item)
-                    continue
+            # Owner 31.10: do NOT TG fake −1R estimates. Drop quietly; UI is source of truth.
+            try:
+                logger.info(
+                    "dogon drop TTL %s est=%s reason=%s (no fake TG)",
+                    sym,
+                    est_f,
+                    reason,
+                )
+            except Exception:
+                pass
             continue
 
         remaining.append(item)
