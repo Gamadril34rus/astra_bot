@@ -8,9 +8,11 @@ from astra_bot.decision.live_arm_feed import FEED_SYMBOLS
 
 
 def test_feed_includes_owner_expand():
-    for s in ("INJ-USDT", "AVAX-USDT", "HYPE-USDT", "ZEC-USDT", "TOTAL-USDT", "NEAR-USDT"):
+    """Canon AUDIT 798/800/801 — narrow universe, not expand-11."""
+    for s in ("BTC-USDT", "ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT"):
         assert s in FEED_SYMBOLS
-    assert "BTC-USDT" in FEED_SYMBOLS
+    for s in ("AVAX-USDT", "ZEC-USDT", "TOTAL-USDT", "NEAR-USDT", "BNB-USDT", "LTC-USDT"):
+        assert s not in FEED_SYMBOLS
 
 
 def test_ratchet_after_be_locks_at_075():
