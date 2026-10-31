@@ -1,8 +1,8 @@
-import os
-os.environ["ZEUS_SESSION_PROFILE"] = "1"
-
 """MSK session buckets: fat/normal/thin/off."""
 from __future__ import annotations
+
+import os
+os.environ.setdefault("ZEUS_SESSION_PROFILE", "1")
 
 from datetime import datetime, timezone, timedelta
 
