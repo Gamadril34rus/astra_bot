@@ -28,21 +28,13 @@ TIMEFRAME = "4h"
 CANDLE_LIMIT = 120
 STRATEGY_NAME = "zeus_channel_boundary"
 
-# Universe v2 (owner 29.10): majors + liquid - 8 pairs (was 31 paper-parity).
-# Canon ZEUS_METHOD_MAP §5: BTC/ETH/SOL over diluted buckets. VST only.
+# Universe v3 (owner 31.10 shadow): majors only until alts prove net+.
+# Evidence: shadow 7d channel core +33%, alts drag; replay 48; hours thin/alts toxic.
+# HYPE only if owner explicitly says "с HYPE".
 FEED_SYMBOLS = (
     "BTC-USDT",
     "ETH-USDT",
     "SOL-USDT",
-    "BNB-USDT",
-    "LTC-USDT",
-    # Owner 30.10 expand: liquid + requested (INJ/AVAX/HYPE/ZEC/TOTAL/NEAR)
-    "INJ-USDT",
-    "AVAX-USDT",
-    "HYPE-USDT",
-    "ZEC-USDT",
-    "TOTAL-USDT",
-    "NEAR-USDT",
 )
 
 # asdict-diff vs ZeusChannelBoundaryConfig defaults (paper channel_capital_config):
