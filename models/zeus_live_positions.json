@@ -24,7 +24,43 @@
       "current_regime": "WEAK_BEAR_TREND",
       "peak_low": "54.97",
       "peak_high": "56.03"
+    },
+    "AVAX-USDT|short": {
+      "symbol": "AVAX-USDT",
+      "side": "short",
+      "qty": "1274.69186913",
+      "stop": "9.186335999999999",
+      "tp": "8.1041984000000006",
+      "entry": "8.511",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_multi_top_breakdown|AVAX-USDT|short|1793419200000",
+      "ts": 1793423245.3182008,
+      "be_moved": false,
+      "initial_stop": "9.186335999999999",
+      "opened_at_ms": 1793423245318,
+      "plan_qty": "1274.69186913",
+      "qty_ratio": 1.0,
+      "tp1": "8.1041984000000006"
+    },
+    "BTC-USDT|short": {
+      "symbol": "BTC-USDT",
+      "side": "short",
+      "qty": "0.40836506",
+      "stop": "79339.79918243893",
+      "tp": "75961.880490536642",
+      "entry": "77238.9",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|BTC-USDT|short|1793419200000",
+      "ts": 1793423249.1320522,
+      "be_moved": false,
+      "initial_stop": "79339.79918243893",
+      "opened_at_ms": 1793423249132,
+      "plan_qty": "0.40836506",
+      "qty_ratio": 1.0,
+      "tp1": "75961.880490536642"
     }
   },
-  "ts": 1793422960.3861177
+  "ts": 1793423249.1320763
 }
