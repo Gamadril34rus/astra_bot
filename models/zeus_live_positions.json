@@ -4,7 +4,7 @@
       "symbol": "AVAX-USDT",
       "side": "short",
       "qty": "1274.69186913",
-      "stop": "9.093857142857143",
+      "stop": "9.066857142857144",
       "tp": "8.1041984000000006",
       "entry": "8.511",
       "leverage": 6,
@@ -20,7 +20,7 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "8.497",
+      "peak_low": "8.470",
       "be_earned": true,
       "current_regime": "WEAK_BEAR_TREND"
     },
@@ -47,7 +47,25 @@
       "peak_low": "77171.0",
       "current_regime": "WEAK_BEAR_TREND",
       "be_earned": true
+    },
+    "LTC-USDT|short": {
+      "symbol": "LTC-USDT",
+      "side": "short",
+      "qty": "682.89938671",
+      "stop": "56.14206",
+      "tp": "54.3120730",
+      "entry": "54.83",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_multi_top_breakdown|LTC-USDT|short|1793430000000",
+      "ts": 1793432799.9698117,
+      "be_moved": false,
+      "initial_stop": "56.14206",
+      "opened_at_ms": 1793432799969,
+      "plan_qty": "682.89938671",
+      "qty_ratio": 1.0,
+      "tp1": "54.3120730"
     }
   },
-  "ts": 1793431885.599312
+  "ts": 1793432799.9698832
 }
