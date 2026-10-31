@@ -2917,6 +2917,46 @@ async def one_tick(*, dry: bool = False) -> int:
         logger.error("risk_check_failed: %s", type(exc).__name__)
         broker.set_halt("risk_check_failed")
 
+    # Session profile (MSK): fat/normal/thin/off → BE, TP1, arm gate
+    try:
+        from astra_bot.decision.live_session import apply_session_to_environ
+        from astra_bot.decision.live_arm_wiring import append_journal as _aj_sess
+        _sp = apply_session_to_environ()
+        logger.info(
+            "session_profile: %s arm=%s BE=%.2fR TP1=%.2fR (%s)",
+            _sp.name, _sp.arm, _sp.be_trigger_r, _sp.tp1_rr, _sp.note,
+        )
+        try:
+            from pathlib import Path as _P
+            import json as _json
+            _sf = _P("models/zeus_session_state.json")
+            _prev = None
+            if _sf.exists():
+                try:
+                    _prev = _json.loads(_sf.read_text()).get("name")
+                except Exception:
+                    _prev = None
+            if _prev != _sp.name:
+                _aj_sess({
+                    "event": "session_profile",
+                    "name": _sp.name,
+                    "arm": _sp.arm,
+                    "be_trigger_r": _sp.be_trigger_r,
+                    "tp1_rr": _sp.tp1_rr,
+                    "ts": __import__("time").time(),
+                })
+                _sf.write_text(_json.dumps({
+                    "name": _sp.name,
+                    "arm": _sp.arm,
+                    "be_trigger_r": _sp.be_trigger_r,
+                    "tp1_rr": _sp.tp1_rr,
+                    "ts": __import__("time").time(),
+                }) + "\n")
+        except Exception:
+            pass
+    except Exception as _sess_exc:
+        logger.warning("session_profile failed: %s", type(_sess_exc).__name__)
+
     # PR-B exit engine (shadow default) — after kill/risk, before arm
     try:
         from astra_bot.decision.live_exit_engine import engine_mode, run_exit_pass

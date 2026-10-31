@@ -79,7 +79,13 @@ _COOLDOWN: dict[str, float] = {}  # key -> unblock_ts_ms
 
 
 def arm_enabled() -> bool:
-    return (os.environ.get("ZEUS_ARM") or "").strip() in ("1", "true", "yes")
+    if (os.environ.get("ZEUS_ARM") or "").strip() not in ("1", "true", "yes"):
+        return False
+    try:
+        from astra_bot.decision.live_session import arm_allowed_by_session
+        return arm_allowed_by_session()
+    except Exception:
+        return True
 
 
 @dataclass
