@@ -30,12 +30,13 @@ STRATEGY_NAME = "zeus_channel_boundary"
 
 # Universe v3 (owner 31.10 shadow): majors only until alts prove net+.
 # Evidence: shadow 7d channel core +33%, alts drag; replay 48; hours thin/alts toxic.
-# HYPE added per owner AUDIT 800.
+# HYPE+INJ per owner AUDIT 800; INJ only when open_n <= MAX_OPEN-2.
 FEED_SYMBOLS = (
     "BTC-USDT",
     "ETH-USDT",
     "SOL-USDT",
     "HYPE-USDT",  # owner AUDIT 800
+    "INJ-USDT",  # owner AUDIT 800 + slot reserve (MAX_OPEN-2)
 )
 
 # asdict-diff vs ZeusChannelBoundaryConfig defaults (paper channel_capital_config):
