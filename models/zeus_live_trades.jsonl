@@ -1644,3 +1644,6 @@
 {"event": "order_cancel", "symbol": "AVAX-USDT", "order_id": "2116446865880342528", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793436139.4213157}
 {"event": "order_cancel", "symbol": "AVAX-USDT", "order_id": "2116450684466978816", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793438091.9727135}
 {"event": "order_cancel", "symbol": "AVAX-USDT", "order_id": "2116458874046865408", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793448158.372252}
+{"event": "protect_place", "ts": 1793450659.9546015, "symbol": "BNB-USDT", "kind": "stop", "stop_price": "697.09302", "qty": "70.72235816", "close_position": true, "order_id": "2116511586897715200"}
+{"event": "protect_place", "ts": 1793450660.3688595, "symbol": "BNB-USDT", "kind": "tp", "stop_price": "711.4436410", "qty": "21.21670744", "reduce_only": false, "order_id": "2116511588638351360"}
+{"event": "entry", "signal_id": "zeus_multi_top_breakdown|BNB-USDT|long|1793448000000", "symbol": "BNB-USDT", "side": "long", "plan_entry": "706.99", "fill_price": "706.53", "slip_pct": -0.06506456951301098, "slip_r": 0.04647882485364222, "qty": "70.72235816", "stop": "697.09302", "tp": "711.4436410", "tp_frac": 0.3, "leverage": 6, "ts": 1793450660.3699021}
