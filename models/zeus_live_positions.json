@@ -1,32 +1,5 @@
 {
   "positions": {
-    "SOL-USDT|short": {
-      "symbol": "SOL-USDT",
-      "side": "short",
-      "qty": 167.05,
-      "stop": "96.1776475512195275",
-      "tp": "91.495885307317165",
-      "entry": "97.114",
-      "leverage": 5,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|SOL-USDT|short|1793347200000",
-      "ts": 1793376431.1019585,
-      "be_moved": true,
-      "initial_stop": "100.85940979512189",
-      "opened_at_ms": 1793347271295,
-      "tp_parity_v1": true,
-      "be_earned": true,
-      "tp_frac": 0.3,
-      "peak_high": "96.879",
-      "peak_low": "93.626",
-      "current_regime": "WEAK_BEAR_TREND",
-      "tp1": "94.866754122926866",
-      "initial_stop_v1": true,
-      "early_tp1": true,
-      "early_tp_repair_v1": true,
-      "runner_tp_rr": 1.5,
-      "runner_tp_healed_v1": true
-    },
     "LTC-USDT|short": {
       "symbol": "LTC-USDT",
       "side": "short",
@@ -53,5 +26,5 @@
       "peak_high": "56.02"
     }
   },
-  "ts": 1793405536.1714745
+  "ts": 1793405837.293812
 }
