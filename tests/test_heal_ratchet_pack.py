@@ -14,8 +14,11 @@ def test_cluster_owner_expand():
 
 
 def test_feed_has_expand_coins():
-    assert len(FEED_SYMBOLS) >= 11
+    assert len(FEED_SYMBOLS) == 5
     assert "INJ-USDT" in FEED_SYMBOLS
+    assert "HYPE-USDT" in FEED_SYMBOLS
+    assert "BTC-USDT" in FEED_SYMBOLS
+    assert "AVAX-USDT" not in FEED_SYMBOLS
 
 
 def test_heal_ratchet_levels_match_engine():

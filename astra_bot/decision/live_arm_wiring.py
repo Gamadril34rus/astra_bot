@@ -593,6 +593,30 @@ async def run_arm_entries(
             logger.info("arm: skip — exchange max_open=%d", MAX_OPEN)
             _skip("max_open")
             break
+        try:
+            from astra_bot.decision.live_arm import inj_slot_blocks
+            if inj_slot_blocks(cand.symbol, open_n):
+                logger.info(
+                    "arm: skip %s — inj_slot_reserve open_n=%d",
+                    cand.symbol,
+                    open_n,
+                )
+                try:
+                    append_journal(
+                        {
+                            "event": "arm_skip",
+                            "reason": "inj_slot_reserve",
+                            "symbol": cand.symbol,
+                            "side": str(cand.side or "").lower(),
+                            "open_n": int(open_n),
+                        }
+                    )
+                except Exception:
+                    pass
+                _skip("inj_slot_reserve")
+                continue
+        except Exception:
+            pass
         side_l = str(cand.side or "").lower()
         st = side_stats.get(side_l) or {"count": 0, "upnl": 0.0}
         if same_side_cluster_blocks(

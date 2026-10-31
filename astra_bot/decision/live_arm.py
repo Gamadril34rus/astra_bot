@@ -66,6 +66,10 @@ def leverage_for(
     return max(1, lev)
 
 MAX_OPEN = 5
+# Owner AUDIT 800: INJ never takes last reserved major slots.
+# Enter INJ only if open_n <= MAX_OPEN - INJ_SLOT_RESERVE (e.g. 5-2 → open_n<=3).
+INJ_SLOT_RESERVE = 2
+INJ_SYMBOLS = frozenset({"INJ-USDT"})
 # Soft same-side cluster (owner 14.10): 0–3 of one sign always OK;
 # 4th/5th of same sign only if sum(unrealizedProfit) of that side >= 0.
 SAME_SIDE_SOFT_CAP = 3
@@ -73,6 +77,20 @@ MAX_OPEN_SAME_SIDE = 3  # alias for soft threshold (compat)
 # Owner 28.10 anti-cluster: hard max same-side open (in addition to soft upnl rule).
 # Blocks N+1 when already N of that side open. MAX_OPEN=5 unchanged.
 SAME_SIDE_CLUSTER_MAX = 4
+
+def inj_slot_blocks(symbol: str, open_n: int, *, max_open: int | None = None) -> bool:
+    """True → skip INJ: need at least INJ_SLOT_RESERVE free slots after this entry.
+
+    At MAX_OPEN=5 and RESERVE=2: allow INJ only when open_n <= 3
+    (after entry open would be <=4, still 1+ slot for a major).
+    Non-INJ symbols always False (no block).
+    """
+    if str(symbol or "").upper() not in {s.upper() for s in INJ_SYMBOLS}:
+        return False
+    cap = int(max_open if max_open is not None else MAX_OPEN)
+    # open_n is count *before* this entry; require open_n <= cap - RESERVE
+    return int(open_n) > int(cap) - int(INJ_SLOT_RESERVE)
+
 COOLDOWN_MS = 20 * 60 * 1000  # strategy|symbol|side as paper
 COOLDOWN_PATH = Path("models/zeus_live_cooldown.json")
 _COOLDOWN: dict[str, float] = {}  # key -> unblock_ts_ms
@@ -234,6 +252,16 @@ async def plan_from_candidate(
     )
     if open_n >= MAX_OPEN:
         logger.info("arm: skip — max_open=%d", MAX_OPEN)
+        return None
+    if inj_slot_blocks(cand.symbol, open_n):
+        logger.info(
+            "arm: skip %s — inj_slot_reserve open_n=%d need<=%d (MAX_OPEN=%d reserve=%d)",
+            cand.symbol,
+            open_n,
+            MAX_OPEN - INJ_SLOT_RESERVE,
+            MAX_OPEN,
+            INJ_SLOT_RESERVE,
+        )
         return None
     tier = conf_risk_pct(cand.confidence, CONF_RISK_LADDER, Decimal("0.01"))
     # heat can cap risk to 1% (paper parity) — applied if governor active
