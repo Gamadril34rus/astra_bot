@@ -55,7 +55,7 @@ jobs:
           grep -q 'PAPER_TRADING=true' .env
 
       - name: Zeus paper-clock --once multi-symbol
-        run: python scripts/run_paper_zeus.py --once --symbols BTC-USDT,ETH-USDT,SOL-USDT,BNB-USDT,LTC-USDT
+        run: python scripts/run_paper_zeus.py --once --symbols BTC-USDT,ETH-USDT,SOL-USDT
         continue-on-error: true
 
       - name: Telegram status
