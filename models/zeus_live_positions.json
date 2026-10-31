@@ -29,7 +29,7 @@
       "symbol": "AVAX-USDT",
       "side": "short",
       "qty": "1274.69186913",
-      "stop": "9.186335999999999",
+      "stop": "9.111857142857144",
       "tp": "8.1041984000000006",
       "entry": "8.511",
       "leverage": 6,
@@ -41,7 +41,13 @@
       "opened_at_ms": 1793423245318,
       "plan_qty": "1274.69186913",
       "qty_ratio": 1.0,
-      "tp1": "8.1041984000000006"
+      "tp1": "8.1041984000000006",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "8.515",
+      "be_earned": true,
+      "current_regime": "WEAK_BEAR_TREND"
     },
     "BTC-USDT|short": {
       "symbol": "BTC-USDT",
@@ -59,8 +65,13 @@
       "opened_at_ms": 1793423249132,
       "plan_qty": "0.40836506",
       "qty_ratio": 1.0,
-      "tp1": "75961.880490536642"
+      "tp1": "75961.880490536642",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "77230.1",
+      "current_regime": "WEAK_BEAR_TREND"
     }
   },
-  "ts": 1793423249.1320763
+  "ts": 1793423563.2493849
 }
