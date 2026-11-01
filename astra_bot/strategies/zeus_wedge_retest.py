@@ -579,7 +579,6 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                 ),
                 "min_rr": c.min_rr,
             }
-            # rest of evaluate from original
             stop_price = _enforce_min_stop(
                 "long" if direction == models.TradeDirection.LONG else "short",
                 price,
