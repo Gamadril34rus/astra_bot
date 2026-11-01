@@ -52114,3 +52114,6 @@
 {"event": "tp_heal_place_failed", "symbol": "HYPE-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be greater than the current price", "ts": 1793569931.0697544}
 {"event": "session_profile", "name": "thin", "arm": true, "be_trigger_r": 0.3, "tp1_rr": 0.45, "ts": 1793570464.4654224}
 {"event": "regime_tick", "symbol": "HYPE-USDT", "side": "long", "regime": "RANGE", "reason": "ok", "entry_regime": null, "n_bars": 249, "mark": "87.795", "mark_fallback": false, "ts": 1793570464.8487098}
+{"event": "order_audit", "symbol": "HYPE-USDT", "side": "long", "n_stop": 0, "n_tp": 0, "be_moved": true, "orders": [], "ts": 1793571169.8839276}
+{"event": "exit_income_anomaly", "symbol": "HYPE-USDT", "side": "long", "exit_reason": "income", "fill_price": null, "plan_stop": 87.424337, "plan_tp": 87.648652, "mark_price_at_exit": null, "current_exchange_stop": 87.424337, "r_multiple": null, "pnl": 31.34097859, "ts": 1793571171.3211489}
+{"event": "session_profile", "name": "thin", "arm": true, "be_trigger_r": 0.3, "tp1_rr": 0.45, "ts": 1793571195.5449486}
