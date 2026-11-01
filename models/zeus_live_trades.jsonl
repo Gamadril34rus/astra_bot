@@ -1689,3 +1689,6 @@
 {"event": "partial_fill", "symbol": "HYPE-USDT", "side": null, "qty": null, "price": null, "pnl": -55.3180542, "income_type": "REALIZED_PNL", "income_id": "1793084516986549206_512_1276468_PNL", "source": "income_tape", "ts": 1793567183.0}
 {"event": "partial_fill", "symbol": "HYPE-USDT", "side": null, "qty": null, "price": null, "pnl": -545.2954959, "income_type": "REALIZED_PNL", "income_id": "1793084516986549206_512_1270505_PNL", "source": "income_tape", "ts": 1793559717.0}
 {"event": "qty_reconcile", "symbol": "HYPE-USDT", "side": "long", "old_qty": 483.58852113, "new_qty": 338.3838, "rel_diff": 0.300265, "signal_id": "zeus_channel_boundary|HYPE-USDT|long|1793563200000", "ts": 1793568777.9787095}
+{"event": "qty_reconcile", "symbol": "HYPE-USDT", "side": "long", "old_qty": 483.58852113, "new_qty": 338.3838, "rel_diff": 0.300265, "signal_id": "zeus_channel_boundary|HYPE-USDT|long|1793563200000", "ts": 1793569005.68396}
+{"event": "partial_fill", "symbol": "HYPE-USDT", "side": null, "qty": null, "price": null, "pnl": 37.61102058, "income_type": "REALIZED_PNL", "income_id": "1793084516986549206_512_1276814_PNL", "source": "income_tape", "ts": 1793568522.0}
+{"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2117000647806640128", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793569019.6939535}
