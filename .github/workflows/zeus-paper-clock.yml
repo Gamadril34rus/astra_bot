@@ -41,6 +41,7 @@ jobs:
 
       - name: Write .env (paper only)
         env:
+          ZEUS_RETEST_V1: "shadow"
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_ADMIN_ID: ${{ secrets.TELEGRAM_ADMIN_ID }}
         run: |

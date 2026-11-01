@@ -56,7 +56,7 @@ async def test_disabled_returns_none():
 
 @pytest.mark.asyncio
 async def test_false_upside_break_short_when_enabled():
-    cfg = ZeusWedgeRetestConfig(enabled=True)
+    cfg = ZeusWedgeRetestConfig(enabled=True, lookback=24)
     strat = ZeusWedgeRetestStrategy(cfg)
     res = await strat.evaluate("BTC-USDT", _rising_wedge_then_false_break())
     assert res is not None
@@ -68,7 +68,7 @@ async def test_false_upside_break_short_when_enabled():
 
 @pytest.mark.asyncio
 async def test_too_few_bars_none():
-    cfg = ZeusWedgeRetestConfig(enabled=True)
+    cfg = ZeusWedgeRetestConfig(enabled=True, lookback=24)
     strat = ZeusWedgeRetestStrategy(cfg)
     res = await strat.evaluate("BTC-USDT", _rising_wedge_then_false_break()[:5])
     assert res is None

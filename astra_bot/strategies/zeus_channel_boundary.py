@@ -76,24 +76,55 @@ class ZeusChannelBoundaryConfig(StrategyConfig):
     name: str = "zeus_channel_boundary_4h"
     enabled: bool = False
     preferred_timeframe: str = "4h"
-    lookback: int = 30
+    # Proxy v1 (owner 01.11): author silent on numbers — bot assumptions, labeled.
+    lookback: int = 48  # bot_proxy; author: no fixed window
     min_touches: int = 3
-    parallel_tol: float = 0.45
+    parallel_tol: float = 0.25  # tighter vs ideal clone (author: clone line)
+    use_parallel_clone: bool = True  # mean slope, dual intercepts
     min_width_pct: float = 0.012
     max_width_pct: float = 0.12
-    near_boundary_pct: float = 0.015
+    # near = fraction of CHANNEL WIDTH (not price %). Author frames ~0–10% width; owner 20%.
+    near_boundary_width_frac: float = 0.20
+    near_boundary_pct: float = 0.015  # legacy price-% fallback if width_frac<=0
     stop_buffer_pct: float = 0.003
     min_rr: float = 1.5
-    enable_breakout_hold: bool = True
+    enable_breakout_hold: bool = True  # naked hold still on (author: risky ok)
     min_hold_bars: int = 2
     max_hold_bars: int = 8
-    # Zeus paper fixes
-    min_stop_pct: float = 0.008  # 0.8% floor — kill micro-stops
+    # Retest path: breakout → first return within 0.15*ATR → bounce
+    enable_breakout_retest: bool = True
+    retest_atr_mult: float = 0.15  # bot_proxy
+    retest_done_width_frac: float = 0.50  # retreat ≥0.5×width → setup dead
+    min_stop_pct: float = 0.01  # owner proxy v1
     require_htf_bias: bool = True
     tp1_rr: float = 1.5
     tp2_rr: float = 3.0
     tp1_fraction: float = 0.4
     tp2_fraction: float = 0.6
+
+
+
+def _atr14(highs: list[float], lows: list[float], closes: list[float]) -> float:
+    n = len(closes)
+    if n < 2:
+        return max(highs[-1] - lows[-1], 1e-12) if highs else 1e-12
+    trs: list[float] = []
+    start = max(1, n - 14)
+    for i in range(start, n):
+        h, l, pc = highs[i], lows[i], closes[i - 1]
+        trs.append(max(h - l, abs(h - pc), abs(l - pc)))
+    return sum(trs) / len(trs) if trs else max(highs[-1] - lows[-1], 1e-12)
+
+
+def _retest_mode() -> str:
+    """ZEUS_RETEST_V1: shadow=log only, live=signal, else off for would_signal."""
+    import os
+    v = (os.environ.get("ZEUS_RETEST_V1") or "shadow").strip().lower()
+    if v in ("1", "true", "yes", "live"):
+        return "live"
+    if v in ("0", "false", "no", "off"):
+        return "off"
+    return "shadow"
 
 
 class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
@@ -135,6 +166,15 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
 
         slope_h, int_h = _linreg(highs)
         slope_l, int_l = _linreg(lows)
+        if getattr(c, "use_parallel_clone", True):
+            # Author: clone one line — shared slope, separate intercepts (bot_proxy fit).
+            slope = 0.5 * (slope_h + slope_l)
+            n_w = float(len(window))
+            xs = list(range(len(window)))
+            # intercepts so mean residual on each side is 0 under common slope
+            int_h = sum(highs[i] - slope * xs[i] for i in xs) / n_w
+            int_l = sum(lows[i] - slope * xs[i] for i in xs) / n_w
+            slope_h = slope_l = slope
         x_last = len(window) - 1
         upper = int_h + slope_h * x_last
         lower = int_l + slope_l * x_last
@@ -173,8 +213,16 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
         out["has_channel"] = True
         out["stage"] = "pattern"
 
-        near_lo = price <= lower * (1 + c.near_boundary_pct)
-        near_hi = price >= upper * (1 - c.near_boundary_pct)
+        width_abs = max(upper - lower, 1e-12)
+        frac = float(getattr(c, "near_boundary_width_frac", 0) or 0)
+        if frac > 0:
+            near_lo = price <= lower + frac * width_abs
+            near_hi = price >= upper - frac * width_abs
+        else:
+            near_lo = price <= lower * (1 + c.near_boundary_pct)
+            near_hi = price >= upper * (1 - c.near_boundary_pct)
+        out["near_lo"] = near_lo
+        out["near_hi"] = near_hi
 
         bars_out = 0
         for bar in reversed(window):
@@ -184,6 +232,82 @@ class ZeusChannelBoundaryStrategy(BaseStrategy[ZeusChannelBoundaryConfig]):
             else:
                 break
         out["bars_outside"] = bars_out
+
+        # --- breakout + first retest (ZEUS priority path) ---
+        atr = _atr14(highs, lows, closes)
+        retest_tol = float(getattr(c, "retest_atr_mult", 0.15)) * atr
+        mode = _retest_mode()
+        out["retest_mode"] = mode
+        if getattr(c, "enable_breakout_retest", True) and mode != "off":
+            # scan last bars: was outside, now near line from outside, close still ok
+            retest_hit = None  # (side long|short)
+            for k in range(2, min(12, len(window))):
+                past = window[-k]
+                pc = float(past.close)
+                # prior close beyond upper then current near upper from above zone
+                if pc > upper * 1.001 and abs(price - upper) <= retest_tol and price >= upper - retest_tol:
+                    # not already run away: distance from upper < 0.5 width
+                    if abs(price - upper) <= float(getattr(c, "retest_done_width_frac", 0.5)) * width_abs:
+                        retest_hit = "long"
+                        break
+                if pc < lower * 0.999 and abs(price - lower) <= retest_tol and price <= lower + retest_tol:
+                    if abs(price - lower) <= float(getattr(c, "retest_done_width_frac", 0.5)) * width_abs:
+                        retest_hit = "short"
+                        break
+            if retest_hit == "long":
+                if not (c.require_htf_bias and bias == "down"):
+                    stop = _enforce_min_stop(
+                        "long", price, lower * (1 - c.stop_buffer_pct), c.min_stop_pct
+                    )
+                    risk = price - stop
+                    if risk > 0:
+                        target = price + risk * c.min_rr
+                        out["pattern_retest"] = "channel_breakout_up_retest"
+                        out["shadow_retest"] = {
+                            "side": "long",
+                            "entry": price,
+                            "stop": stop,
+                            "target": target,
+                            "upper": upper,
+                            "lower": lower,
+                        }
+                        if mode == "live":
+                            out.update(
+                                would_signal=True,
+                                direction="long",
+                                pattern="channel_breakout_up_retest",
+                                entry=price,
+                                stop=stop,
+                                target=target,
+                            )
+                            return out
+            if retest_hit == "short":
+                if not (c.require_htf_bias and bias == "up"):
+                    stop = _enforce_min_stop(
+                        "short", price, upper * (1 + c.stop_buffer_pct), c.min_stop_pct
+                    )
+                    risk = stop - price
+                    if risk > 0:
+                        target = price - risk * c.min_rr
+                        out["pattern_retest"] = "channel_breakout_down_retest"
+                        out["shadow_retest"] = {
+                            "side": "short",
+                            "entry": price,
+                            "stop": stop,
+                            "target": target,
+                            "upper": upper,
+                            "lower": lower,
+                        }
+                        if mode == "live":
+                            out.update(
+                                would_signal=True,
+                                direction="short",
+                                pattern="channel_breakout_down_retest",
+                                entry=price,
+                                stop=stop,
+                                target=target,
+                            )
+                            return out
 
         if c.enable_breakout_hold and c.min_hold_bars <= bars_out <= c.max_hold_bars:
             if price > upper:
