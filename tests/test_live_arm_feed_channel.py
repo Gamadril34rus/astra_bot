@@ -54,7 +54,7 @@ def test_feed_symbols_match_paper_clock():
 def test_paper_channel_config_capital_parity():
     c = paper_channel_config()
     assert c.enabled is True
-    assert c.lookback == 40
+    assert c.lookback == 48
     assert c.min_width_pct == 0.01
     assert c.max_width_pct == 0.12
     assert c.min_rr == 2.0

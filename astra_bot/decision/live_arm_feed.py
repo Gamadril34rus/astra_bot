@@ -41,7 +41,7 @@ FEED_SYMBOLS = (
 
 # asdict-diff vs ZeusChannelBoundaryConfig defaults (paper channel_capital_config):
 #   enabled: False -> True
-#   lookback: 30 -> 40
+#   lookback: 30 -> 48 (proxy v1)
 #   min_width_pct: 0.012 -> 0.01
 #   min_rr: 1.5 -> 2.0
 #   max_hold_bars: 8 -> 5
@@ -50,17 +50,22 @@ FEED_SYMBOLS = (
 
 
 def paper_channel_config() -> ZeusChannelBoundaryConfig:
-    """Same fields as scripts/zeus_research_wrap.channel_capital_config()."""
+    """Live/paper channel: Proxy v1 (owner 01.11) — numbers are bot assumptions."""
     return ZeusChannelBoundaryConfig(
         enabled=True,
-        lookback=40,
+        lookback=48,
         min_width_pct=0.01,
         max_width_pct=0.12,
+        near_boundary_width_frac=0.20,
+        use_parallel_clone=True,
+        parallel_tol=0.25,
         min_rr=2.0,
-        enable_breakout_hold=True,
+        enable_breakout_hold=True,  # naked hold remains (risky variant)
+        enable_breakout_retest=True,
+        retest_atr_mult=0.15,
         min_hold_bars=2,
         max_hold_bars=5,
-        min_stop_pct=0.008,
+        min_stop_pct=0.01,
         require_htf_bias=True,
         tp1_rr=1.5,
         tp2_rr=2.0,
@@ -168,6 +173,36 @@ async def scan_symbol(
         except Exception as exc:
             logger.warning("arm feed: %s row map failed: %s", symbol, type(exc).__name__)
             return None
+    # Proxy v1: ZEUS_RETEST_V1=shadow → journal only (no pending row / no live entry).
+    try:
+        diag = strat.diagnose(series)
+        shadow = (diag or {}).get("shadow_retest")
+        if shadow:
+            logger.info(
+                "arm feed: %s shadow_retest %s mode=%s",
+                symbol,
+                (diag or {}).get("pattern_retest"),
+                (diag or {}).get("retest_mode"),
+            )
+            try:
+                from astra_bot.decision.live_arm_wiring import append_journal
+                append_journal(
+                    {
+                        "event": "channel_retest_shadow",
+                        "symbol": symbol,
+                        "pattern": (diag or {}).get("pattern_retest"),
+                        "retest_mode": (diag or {}).get("retest_mode"),
+                        "side": shadow.get("side"),
+                        "entry": shadow.get("entry"),
+                        "stop": shadow.get("stop"),
+                        "target": shadow.get("target"),
+                        "bar_ts": bar_ts,
+                    }
+                )
+            except Exception:
+                pass
+    except Exception as exc:
+        logger.warning("arm feed: %s diagnose shadow failed: %s", symbol, type(exc).__name__)
     # Owner 30.10: multi-top/bottom breakdown (missed BTC dump after 2-3 tops).
     # Prefer 4h structure; if silent, 1h fallback catches intra-4h continuations.
     br = None

@@ -55,6 +55,7 @@ jobs:
           ZEUS_VST: ${{ secrets.ZEUS_VST }}
           ZEUS_MAINNET: ${{ secrets.ZEUS_MAINNET }}
           ZEUS_ARM: ${{ secrets.ZEUS_ARM }}
+          ZEUS_RETEST_V1: "shadow"
           ZEUS_LIVE_FORCE_LEVERAGE: "6"
           ZEUS_KILL_PF_WINDOW: "20"
           ZEUS_LIVE_MAX_LEVERAGE: "10"

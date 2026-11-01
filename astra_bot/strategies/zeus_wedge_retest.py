@@ -76,12 +76,13 @@ class ZeusWedgeRetestConfig(StrategyConfig):
     name: str = "zeus_wedge_retest_4h"
     enabled: bool = False  # prod default off; paper-clock sets True
     preferred_timeframe: str = "4h"
-    lookback: int = 24
+    lookback: int = 48  # bot_proxy v1 (was 24)
     min_touches: int = 3
     max_width_pct: float = 0.08
     min_width_pct: float = 0.008
     breakout_buffer_pct: float = 0.001
-    retest_tolerance_pct: float = 0.003
+    retest_tolerance_pct: float = 0.003  # legacy price%
+    retest_atr_mult: float = 0.15  # bot_proxy v1 preferred over price%
     stop_buffer_pct: float = 0.002
     min_rr: float = 1.5
     max_bars_outside: int = 5
@@ -192,7 +193,19 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             return out
 
         buf = c.breakout_buffer_pct
-        tol = c.retest_tolerance_pct
+        atr_est = 0.0
+        try:
+            _hs = [float(x.high) for x in formation]
+            _ls = [float(x.low) for x in formation]
+            _cs = [float(x.close) for x in formation]
+            _trs = []
+            for _i in range(max(1, len(_cs) - 14), len(_cs)):
+                _trs.append(max(_hs[_i] - _ls[_i], abs(_hs[_i] - _cs[_i - 1]), abs(_ls[_i] - _cs[_i - 1])))
+            atr_est = sum(_trs) / len(_trs) if _trs else (_hs[-1] - _ls[-1])
+        except Exception:
+            atr_est = 0.0
+        tol_atr = (float(getattr(c, "retest_atr_mult", 0.15)) * atr_est / price) if price else c.retest_tolerance_pct
+        tol = max(float(c.retest_tolerance_pct), float(tol_atr))
         broken_up = False
         broken_down = False
         extreme_hi = upper
