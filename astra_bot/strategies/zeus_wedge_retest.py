@@ -567,6 +567,17 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                 "wedge_lower": round(lower, 6),
                 "width_pct": round(width_pct, 6),
                 "bars_outside": bars_after,
+                "slope_hi": round(slope_hi, 8),
+                "slope_lo": round(slope_lo, 8),
+                "is_rising_wedge": bool(diag.get("is_rising_wedge")),
+                "is_falling_wedge": bool(diag.get("is_falling_wedge")),
+                "structure_role": diag.get("structure_role") or "4h_main",
+                "stop_structure": (
+                    "beyond_breakout_extreme"
+                    if pattern.startswith("true_breakout")
+                    else "beyond_false_break_extreme"
+                ),
+                "min_rr": c.min_rr,
             }
             # rest of evaluate from original
             stop_price = _enforce_min_stop(
