@@ -60,7 +60,7 @@ def test_paper_channel_config_capital_parity():
     assert c.min_rr == 2.0
     assert c.max_hold_bars == 5
     assert c.tp2_rr == 2.0
-    assert c.min_stop_pct == 0.008
+    assert c.min_stop_pct == 0.01
     assert c.require_htf_bias is True
 
 

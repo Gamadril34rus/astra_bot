@@ -98,7 +98,7 @@ def test_zeus_trade_log_entry_stop_exit(tmp_path: Path):
 
 def test_zeus_signal_features_contain_reason():
     async def _run():
-        strat = ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True))
+        strat = ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True, lookback=24))
         return await strat.evaluate("BTC-USDT", _rising_wedge_fixture())
 
     res = asyncio.run(_run())
@@ -107,13 +107,13 @@ def test_zeus_signal_features_contain_reason():
     assert ("zeus_reason" in res.features) or ("reason" in res.features)
     assert res.features.get("stop_structure") == "beyond_false_break_extreme"
     assert (
-        ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True)).preferred_timeframe
+        ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True, lookback=24)).preferred_timeframe
         == "4h"
     )
 
 
 def test_zeus_diagnose_would_signal_on_fixture():
-    strat = ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True))
+    strat = ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True, lookback=24))
     diag = strat.diagnose(_rising_wedge_fixture())
     assert diag.get("would_signal") is True
     assert diag.get("direction") == "short"
@@ -121,7 +121,7 @@ def test_zeus_diagnose_would_signal_on_fixture():
 
 
 def test_zeus_diagnose_reject_on_flat():
-    strat = ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True))
+    strat = ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True, lookback=24))
     flat = [_c(i, 100, 101, 99, 100) for i in range(30)]
     diag = strat.diagnose(flat)
     assert diag.get("would_signal") is not True
