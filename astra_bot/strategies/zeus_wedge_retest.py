@@ -204,7 +204,9 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             atr_est = sum(_trs) / len(_trs) if _trs else (_hs[-1] - _ls[-1])
         except Exception:
             atr_est = 0.0
-        tol_atr = (float(getattr(c, "retest_atr_mult", 0.15)) * atr_est / price) if price else c.retest_tolerance_pct
+        # price assigned later; use last formation close as ATR scale ref
+        _px = float(formation[-1].close) if formation else 0.0
+        tol_atr = (float(getattr(c, "retest_atr_mult", 0.15)) * atr_est / _px) if _px else float(c.retest_tolerance_pct)
         tol = max(float(c.retest_tolerance_pct), float(tol_atr))
         broken_up = False
         broken_down = False
