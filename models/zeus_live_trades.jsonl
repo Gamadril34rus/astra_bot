@@ -1671,3 +1671,5 @@
 {"event": "protect_place", "ts": 1793555377.6602068, "symbol": "SOL-USDT", "kind": "stop", "stop_price": "96.794202", "qty": "470.14144837", "close_position": true, "order_id": "2116950804690198528"}
 {"event": "protect_place", "ts": 1793555378.2723444, "symbol": "SOL-USDT", "kind": "tp", "stop_price": "94.17955910", "qty": "141.04243451", "reduce_only": false, "order_id": "2116950807252918272"}
 {"event": "entry", "signal_id": "zeus_multi_top_breakdown|SOL-USDT|short|1793552400000", "symbol": "SOL-USDT", "side": "short", "plan_entry": "94.991", "fill_price": "94.963", "slip_pct": 0.029476476718853156, "slip_r": 0.015527933087918049, "qty": "470.14144837", "stop": "96.794202", "tp": "94.17955910", "tp_frac": 0.3, "leverage": 6, "ts": 1793555378.273648}
+{"event": "order_cancel", "symbol": "SOL-USDT", "order_id": "2116950807252918272", "type": "TP", "reason": "restore_naked_close", "path": "restore_missing_stops.cancel_all", "ts": 1793555517.494513}
+{"event": "order_cancel", "symbol": "SOL-USDT", "order_id": "2116950804690198528", "type": "STOP", "reason": "restore_naked_close", "path": "restore_missing_stops.cancel_all", "ts": 1793555517.494663}
