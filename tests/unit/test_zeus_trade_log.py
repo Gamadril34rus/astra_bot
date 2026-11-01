@@ -96,7 +96,12 @@ def test_zeus_trade_log_entry_stop_exit(tmp_path: Path):
     assert "exit" in kinds
 
 
-def test_zeus_signal_features_contain_reason():
+def test_zeus_signal_features_contain_reason(monkeypatch):
+    import astra_bot.strategies.zeus_wedge_retest as zw
+
+    monkeypatch.setattr(zw, "div_zeus_like", lambda *a, **k: True)
+    monkeypatch.setattr(zw, "_htf_bias_closes", lambda closes: "neutral")
+
     async def _run():
         strat = ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True, lookback=24))
         return await strat.evaluate("BTC-USDT", _rising_wedge_fixture())
@@ -112,8 +117,13 @@ def test_zeus_signal_features_contain_reason():
     )
 
 
-def test_zeus_diagnose_would_signal_on_fixture():
-    strat = ZeusWedgeRetestStrategy(ZeusWedgeRetestConfig(enabled=True, lookback=24))
+def test_zeus_diagnose_would_signal_on_fixture(monkeypatch):
+    import astra_bot.strategies.zeus_wedge_retest as zw
+
+    monkeypatch.setattr(zw, "div_zeus_like", lambda *a, **k: True)
+    strat = ZeusWedgeRetestStrategy(
+        ZeusWedgeRetestConfig(enabled=True, lookback=24, require_htf_bias=False)
+    )
     diag = strat.diagnose(_rising_wedge_fixture())
     assert diag.get("would_signal") is True
     assert diag.get("direction") == "short"
