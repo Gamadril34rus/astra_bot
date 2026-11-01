@@ -187,6 +187,22 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
         out["has_wedge"] = True
         out["stage"] = "pattern"
 
+        # touches: thr = max(mid*0.008, width*0.05); < min_touches → reject
+        thr = max(mid * 0.008, width * 0.05)
+        touches = 0
+        for i in range(n):
+            u_line = intercept_hi + slope_hi * i
+            l_line = intercept_lo + slope_lo * i
+            if abs(highs[i] - u_line) <= thr:
+                touches += 1
+            if abs(lows[i] - l_line) <= thr:
+                touches += 1
+        out["touches"] = touches
+        if touches < int(getattr(c, "min_touches", 3)):
+            out["reject_reason"] = "not_enough_touches"
+            out["stage"] = "structure"
+            return out
+
         tail = candles[-tail_len:]
         if not tail:
             out["reject_reason"] = "empty_tail"
@@ -336,6 +352,18 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                 out["reject_reason"] = "rr_too_low"
                 out["stage"] = "risk"
                 return out
+            closes_all = [float(x.close) for x in candles[-(c.lookback + tail_len) :]]
+            bias = _htf_bias_closes(closes_all)
+            out["htf_bias"] = bias
+            if getattr(c, "require_htf_bias", True) and bias == "up":
+                out["reject_reason"] = "counter_trend_false_break_up"
+                out["stage"] = "bias"
+                return out
+            form_closes = [float(x.close) for x in formation]
+            if not div_zeus_like(highs, lows, form_closes, "short"):
+                out["reject_reason"] = "no_div_zeus"
+                out["stage"] = "divergence"
+                return out
             out["would_signal"] = True
             out["reject_reason"] = ""
             out["direction"] = "short"
@@ -424,6 +452,18 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
             if rr < c.min_rr:
                 out["reject_reason"] = "rr_too_low"
                 out["stage"] = "risk"
+                return out
+            closes_all = [float(x.close) for x in candles[-(c.lookback + tail_len) :]]
+            bias = _htf_bias_closes(closes_all)
+            out["htf_bias"] = bias
+            if getattr(c, "require_htf_bias", True) and bias == "down":
+                out["reject_reason"] = "counter_trend_false_break_down"
+                out["stage"] = "bias"
+                return out
+            form_closes = [float(x.close) for x in formation]
+            if not div_zeus_like(highs, lows, form_closes, "long"):
+                out["reject_reason"] = "no_div_zeus"
+                out["stage"] = "divergence"
                 return out
             out["would_signal"] = True
             out["reject_reason"] = ""
@@ -539,7 +579,6 @@ class ZeusWedgeRetestStrategy(BaseStrategy[ZeusWedgeRetestConfig]):
                 ),
                 "min_rr": c.min_rr,
             }
-
             stop_price = _enforce_min_stop(
                 "long" if direction == models.TradeDirection.LONG else "short",
                 price,

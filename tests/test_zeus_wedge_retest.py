@@ -55,7 +55,11 @@ async def test_disabled_returns_none():
 
 
 @pytest.mark.asyncio
-async def test_false_upside_break_short_when_enabled():
+async def test_false_upside_break_short_when_enabled(monkeypatch):
+    import astra_bot.strategies.zeus_wedge_retest as zw
+
+    monkeypatch.setattr(zw, "div_zeus_like", lambda *a, **k: True)
+    monkeypatch.setattr(zw, "_htf_bias_closes", lambda closes: "neutral")
     cfg = ZeusWedgeRetestConfig(enabled=True, lookback=24)
     strat = ZeusWedgeRetestStrategy(cfg)
     res = await strat.evaluate("BTC-USDT", _rising_wedge_then_false_break())
