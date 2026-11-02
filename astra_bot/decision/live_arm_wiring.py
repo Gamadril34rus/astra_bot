@@ -1213,6 +1213,16 @@ async def run_arm_entries(
                 await send_tg(msg)
             except Exception as exc:
                 logger.warning("arm TG send failed: %s", type(exc).__name__)
+        # Cosmetic trade chart: isolated from order/position flow.
+        try:
+            from astra_bot.decision.trade_viz import notify_trade_visual
+            await notify_trade_visual(
+                broker.client, cand.symbol, cand.side, cand.entry, cand.stop,
+                cand.take_profit, phase="ENTRY",
+            )
+        except Exception as exc:
+            logger.warning("viz_error event=viz_error phase=ENTRY symbol=%s error=%s",
+                           cand.symbol, type(exc).__name__)
         elif send_tg is not None:
             logger.info("arm TG skip dup entry %s %s", cand.symbol, sid)
         logger.info("arm entry done: %s", msg)
