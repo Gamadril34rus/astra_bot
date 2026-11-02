@@ -140,6 +140,90 @@ def _channel_strategy() -> ZeusChannelBoundaryStrategy:
     return ZeusChannelBoundaryStrategy(paper_channel_config())
 
 
+def _candle_value(row: Any, key: str) -> float:
+    aliases = {
+        "open_time": ("open_time", "time", "timestamp", "ts"),
+        "close": ("close", "close_price", "c"),
+    }.get(key, (key,))
+    for name in aliases:
+        raw = row.get(name) if isinstance(row, dict) else getattr(row, name, None)
+        if raw is not None:
+            try:
+                return float(raw)
+            except (TypeError, ValueError):
+                continue
+    return 0.0
+
+
+async def scan_zone_shadow(
+    client: Any,
+    symbols: list[str] | tuple[str, ...] = FEED_SYMBOLS,
+) -> dict[str, dict[str, Any]]:
+    """Observe all configured symbols independently of entry/risk gates."""
+    try:
+        from astra_bot.decision.zone_shadow import (
+            build_volume_zones,
+            is_enabled,
+            zone_context,
+        )
+        if not is_enabled():
+            return {}
+    except Exception as exc:
+        logger.warning("zone shadow unavailable: %s", type(exc).__name__)
+        return {}
+
+    from astra_bot.decision.live_arm_wiring import append_journal
+
+    out: dict[str, dict[str, Any]] = {}
+    for symbol in symbols:
+        try:
+            zone_candles = await fetch_candles(
+                client, symbol, timeframe="4h", limit=600
+            )
+            if len(zone_candles) < 2:
+                raise ValueError("not_enough_4h_candles")
+            closed = zone_candles[-2]
+            closed_ts = int(_candle_value(closed, "open_time") or 0)
+            if closed_ts <= 0:
+                closed_ts = int(time.time() // 14400 * 14400)
+            closed_price = _candle_value(closed, "close")
+            if closed_price <= 0:
+                raise ValueError("closed_candle_missing_close")
+
+            cached = _ZONE_CACHE.get(symbol)
+            if cached is None or cached[0] != closed_ts:
+                zones = build_volume_zones(list(zone_candles), price=closed_price)
+                _ZONE_CACHE[symbol] = (closed_ts, zones)
+            zones = _ZONE_CACHE[symbol][1]
+
+            price_now = _candle_value(zone_candles[-1], "close") or closed_price
+            context = zone_context(price_now, zones)
+            out[symbol] = context
+            append_journal({
+                "event": "zone_shadow",
+                "symbol": symbol,
+                "price": price_now,
+                "nearest_above": context.get("above"),
+                "nearest_below": context.get("below"),
+                "in_zone": context.get("in_zone"),
+                "zones": zones,
+                "bar_ts": closed_ts,
+                "ts": time.time(),
+            })
+        except Exception as exc:
+            logger.warning("zone shadow failed %s: %s", symbol, type(exc).__name__)
+            try:
+                append_journal({
+                    "event": "zone_shadow_error",
+                    "symbol": symbol,
+                    "error": type(exc).__name__,
+                    "ts": time.time(),
+                })
+            except Exception:
+                pass
+    return out
+
+
 async def scan_symbol(
     client: Any,
     symbol: str,
@@ -155,40 +239,13 @@ async def scan_symbol(
         return None
     zone_ctx = None
     try:
-        from astra_bot.decision.zone_shadow import is_enabled
-    except Exception:
-        def is_enabled():
-            return False
-    if is_enabled():
-        try:
-            from astra_bot.decision.zone_shadow import build_volume_zones, zone_context
-            zone_candles = await fetch_candles(client, symbol, timeframe="4h", limit=600)
-            closed_ts = int(getattr(zone_candles[-2], "open_time", 0) or 0) if len(zone_candles) > 1 else 0
-            cached = _ZONE_CACHE.get(symbol)
-            if cached is None or cached[0] != closed_ts:
-                mark = float(getattr(zone_candles[-2], "close", 0) or 0) if len(zone_candles) > 1 else 0.0
-                zones = build_volume_zones(list(zone_candles), price=mark)
-                _ZONE_CACHE[symbol] = (closed_ts, zones)
-            zones = _ZONE_CACHE[symbol][1]
-            price_now = float(getattr(candles[-1], "close", 0) or 0)
-            if price_now > 0:
-                zone_ctx = zone_context(price_now, zones)
-                from astra_bot.decision.live_arm_wiring import append_journal
-                append_journal({
-                    "event": "zone_shadow", "symbol": symbol, "price": price_now,
-                    "nearest_above": zone_ctx.get("above"),
-                    "nearest_below": zone_ctx.get("below"),
-                    "in_zone": zone_ctx.get("in_zone"), "zones": zones,
-                    "bar_ts": closed_ts, "ts": time.time(),
-                })
-        except Exception as exc:
-            logger.warning("zone shadow failed %s: %s", symbol, type(exc).__name__)
-            try:
-                from astra_bot.decision.live_arm_wiring import append_journal
-                append_journal({"event": "zone_shadow_error", "symbol": symbol,
-                                "error": type(exc).__name__, "ts": time.time()})
-            except Exception:
-                pass
+        from astra_bot.decision.zone_shadow import is_enabled, zone_context
+        cached = _ZONE_CACHE.get(symbol)
+        price_now = _candle_value(candles[-1], "close")
+        if is_enabled() and cached is not None and price_now > 0:
+            zone_ctx = zone_context(price_now, cached[1])
+    except Exception as exc:
+        logger.warning("zone shadow context failed %s: %s", symbol, type(exc).__name__)
     # Live parity with paper: feed sees the SAME candle the paper engine uses
     # (including the forming bar). bar_ts = open_time of that last candle.
     series = list(candles)

@@ -2970,6 +2970,14 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception as _ex_exc:
         logger.warning("exit_engine FAILED: %s", type(_ex_exc).__name__)
 
+    # Zone profile is observation-only: run even when entries are halted/disabled.
+    if not dry:
+        try:
+            from astra_bot.decision.live_arm_feed import FEED_SYMBOLS, scan_zone_shadow
+            await scan_zone_shadow(client, FEED_SYMBOLS)
+        except Exception as _zone_exc:
+            logger.warning("zone shadow scan failed: %s", type(_zone_exc).__name__)
+
     if (not dry) and broker.entries_allowed and arm_enabled():
         from astra_bot.decision.live_arm_feed import FEED_SYMBOLS, produce_pending
         from astra_bot.decision.live_arm_wiring import (
