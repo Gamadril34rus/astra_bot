@@ -37,7 +37,7 @@ def render_trade_chart(
     series = (("4h", candles_4h[-60:]), ("1h", candles_1h[-60:]))
     fig, axes = plt.subplots(2, 1, figsize=(12, 8), sharey=True)
     fig.patch.set_facecolor("#111318")
-    for ax, (label, candles) in zip(axes, series):
+    for ax, (label, candles) in zip(axes, series, strict=True):
         ax.set_facecolor("#171a21")
         if not candles:
             ax.text(0.5, 0.5, f"No {label} candles", transform=ax.transAxes,
@@ -135,8 +135,10 @@ async def notify_trade_visual(
         form.add_field("caption", f"{symbol} {side.upper()} • {phase}")
         form.add_field("photo", png, filename="trade.png", content_type="image/png")
         url = f"https://api.telegram.org/bot{token}/sendPhoto"
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=form, timeout=aiohttp.ClientTimeout(total=25)) as resp:
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(url, data=form, timeout=aiohttp.ClientTimeout(total=25)) as resp,
+        ):
                 if resp.status >= 400:
                     raise RuntimeError(f"telegram_http_{resp.status}")
                 payload = await resp.json()
