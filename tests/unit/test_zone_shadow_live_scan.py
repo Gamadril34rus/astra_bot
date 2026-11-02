@@ -3,7 +3,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-
 from astra_bot.decision import live_arm_feed as feed
 
 
