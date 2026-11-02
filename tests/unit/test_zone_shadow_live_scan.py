@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from astra_bot.decision import live_arm_feed as feed
-
 import pytest
+
+from astra_bot.decision import live_arm_feed as feed
 
 
 class _Client:
