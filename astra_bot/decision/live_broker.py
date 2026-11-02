@@ -924,6 +924,16 @@ class LiveBroker:
                         logger.warning("sync_closed TG: %s", type(exc).__name__)
             else:
                 logger.info("sync_closed: skip dup TG %s", sym)
+            # Cosmetic trade chart: never blocks close reconciliation.
+            try:
+                from astra_bot.decision.trade_viz import notify_trade_visual
+                await notify_trade_visual(
+                    self.client, sym, side, entry_px, plan.get("stop"),
+                    plan.get("tp"), phase="EXIT", exit_price=exit_fill,
+                )
+            except Exception as exc:
+                logger.warning("viz_error event=viz_error phase=EXIT symbol=%s error=%s",
+                               sym, type(exc).__name__)
 
             try:
                 from astra_bot.decision.live_income_report import strategy_from_signal_id
