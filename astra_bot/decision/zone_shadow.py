@@ -40,7 +40,10 @@ def build_volume_zones(
         low = _get(row, "low", "low_price")
         close = _get(row, "close", "close_price")
         volume = _get(row, "quote_volume", "quoteVolume", "turnover")
-        if volume is None:
+        # BingX Candle always exposes quote_volume, but its parser uses 0 when
+        # the API payload omits quoteVolume. Treat non-positive quote volume
+        # as unavailable and fall back to base volume converted at close.
+        if volume is None or volume <= 0:
             base = _get(row, "volume", "vol")
             volume = base * close if base is not None and close is not None else None
         if high is None or low is None or close is None or volume is None:
