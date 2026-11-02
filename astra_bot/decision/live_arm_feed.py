@@ -157,16 +157,18 @@ def _candle_value(row: Any, key: str) -> float:
 
 _ZONE_APPROACH_PATH = Path("models/zone_shadow_approach.json")
 
-def _load_zone_approach_state(path: Path = _ZONE_APPROACH_PATH) -> dict[str, Any]:
+def _load_zone_approach_state(path: Path | None = None) -> dict[str, Any]:
     try:
+        path = path or _ZONE_APPROACH_PATH
         with path.open("r", encoding="utf-8") as handle:
             value = json.load(handle)
         return value if isinstance(value, dict) else {}
     except Exception:
         return {}
 
-def _save_zone_approach_state(state: dict[str, Any], path: Path = _ZONE_APPROACH_PATH) -> None:
+def _save_zone_approach_state(state: dict[str, Any], path: Path | None = None) -> None:
     try:
+        path = path or _ZONE_APPROACH_PATH
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", encoding="utf-8") as handle:
             json.dump(state, handle, ensure_ascii=False, separators=(",", ":"))
