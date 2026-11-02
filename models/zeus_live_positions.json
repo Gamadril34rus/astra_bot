@@ -1,4 +1,59 @@
 {
-  "positions": {},
-  "ts": 1793571172.989616
+  "positions": {
+    "ETH-USDT|long": {
+      "symbol": "ETH-USDT",
+      "side": "long",
+      "qty": "10.54448183",
+      "stop": "2220.1036658035723",
+      "tp": "2355.91043393749939",
+      "entry": "2300.00",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|ETH-USDT|long|1793606400000",
+      "ts": 1793611087.2425277,
+      "be_moved": false,
+      "initial_stop": "2220.1036658035723",
+      "opened_at_ms": 1793611087242,
+      "plan_qty": "10.54448183",
+      "qty_ratio": 1.0,
+      "tp1": "2355.91043393749939"
+    },
+    "SOL-USDT|short": {
+      "symbol": "SOL-USDT",
+      "side": "short",
+      "qty": "527.73233416",
+      "stop": "95.69245000000001",
+      "tp": "94.081784999999993",
+      "entry": "94.680",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|SOL-USDT|short|1793606400000",
+      "ts": 1793611090.9896421,
+      "be_moved": false,
+      "initial_stop": "95.69245000000001",
+      "opened_at_ms": 1793611090989,
+      "plan_qty": "527.73233416",
+      "qty_ratio": 1.0,
+      "tp1": "94.081784999999993"
+    },
+    "HYPE-USDT|long": {
+      "symbol": "HYPE-USDT",
+      "side": "long",
+      "qty": "577.0606837",
+      "stop": "85.77954",
+      "tp": "87.252522",
+      "entry": "86.713",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|HYPE-USDT|long|1793606400000",
+      "ts": 1793611094.710635,
+      "be_moved": false,
+      "initial_stop": "85.77954",
+      "opened_at_ms": 1793611094710,
+      "plan_qty": "577.06068370",
+      "qty_ratio": 1.0,
+      "tp1": "87.252522"
+    }
+  },
+  "ts": 1793611094.71066
 }
