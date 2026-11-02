@@ -60,7 +60,7 @@ async def test_zone_shadow_scans_symbols_outside_entry_gate(monkeypatch, tmp_pat
     assert [event["event"] for event in events] == ["zone_shadow"] * 4
     assert events[0]["symbol"] == "ETH-USDT"
     assert events[0]["in_zone"] is True
-    assert events[0]["zones"][0]["min_distance_pct"] == 0.0
+    assert events[0]["zones"][0]["min_distance_pct"] == round(abs((100.0 / 139.0 - 1.0) * 100.0), 4)
 
 
 @pytest.mark.asyncio

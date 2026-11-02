@@ -209,9 +209,13 @@ async def scan_zone_shadow(client: Any, symbols: list[str] | tuple[str, ...] = F
             previous = approach_state.get(symbol)
             previous = previous if isinstance(previous, dict) else {}
             old_ts = previous.get("bar_ts")
+            try:
+                old_ts = int(old_ts) if old_ts is not None else None
+            except (TypeError, ValueError, OverflowError):
+                old_ts = None
             old_minima = previous.get("zones")
             old_minima = old_minima if isinstance(old_minima, dict) else {}
-            if old_ts is not None and int(old_ts) != closed_ts:
+            if old_ts is not None and old_ts != closed_ts:
                 summary_zones = []
                 for center_key, minimum in old_minima.items():
                     try:
@@ -219,11 +223,11 @@ async def scan_zone_shadow(client: Any, symbols: list[str] | tuple[str, ...] = F
                     except (TypeError, ValueError):
                         continue
                 try:
-                    append_journal({"event": "zone_shadow_summary", "symbol": symbol, "bar_ts": int(old_ts), "zones": summary_zones, "ts": time.time()})
+                    append_journal({"event": "zone_shadow_summary", "symbol": symbol, "bar_ts": old_ts, "zones": summary_zones, "ts": time.time()})
                 except Exception as exc:
                     logger.warning("zone shadow summary journal failed %s: %s", symbol, type(exc).__name__)
                 minima = {}
-            elif old_ts is not None and int(old_ts) == closed_ts:
+            elif old_ts is not None and old_ts == closed_ts:
                 minima = dict(old_minima)
             else:
                 minima = {}
