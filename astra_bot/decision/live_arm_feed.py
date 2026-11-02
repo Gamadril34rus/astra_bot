@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,7 @@ from astra_bot.strategies.zeus_multi_top_breakdown import (
 )
 
 logger = logging.getLogger(__name__)
+_ZONE_CACHE: dict[str, tuple[int, list[dict[str, float]]]] = {}
 
 TIMEFRAME = "4h"
 CANDLE_LIMIT = 120
@@ -152,6 +154,37 @@ async def scan_symbol(
         return None
     if not candles or len(candles) < 30:
         return None
+    zone_ctx = None
+    if __import__("astra_bot.decision.zone_shadow", fromlist=["is_enabled"]).is_enabled():
+        try:
+            from astra_bot.decision.zone_shadow import build_volume_zones, zone_context
+            zone_candles = await fetch_candles(client, symbol, timeframe="4h", limit=600)
+            closed_ts = int(getattr(zone_candles[-2], "open_time", 0) or 0) if len(zone_candles) > 1 else 0
+            cached = _ZONE_CACHE.get(symbol)
+            if cached is None or cached[0] != closed_ts:
+                mark = float(getattr(zone_candles[-2], "close", 0) or 0) if len(zone_candles) > 1 else 0.0
+                zones = build_volume_zones(list(zone_candles), price=mark)
+                _ZONE_CACHE[symbol] = (closed_ts, zones)
+            zones = _ZONE_CACHE[symbol][1]
+            price_now = float(getattr(candles[-1], "close", 0) or 0)
+            if price_now > 0:
+                zone_ctx = zone_context(price_now, zones)
+                from astra_bot.decision.live_arm_wiring import append_journal
+                append_journal({
+                    "event": "zone_shadow", "symbol": symbol, "price": price_now,
+                    "nearest_above": zone_ctx.get("above"),
+                    "nearest_below": zone_ctx.get("below"),
+                    "in_zone": zone_ctx.get("in_zone"), "zones": zones,
+                    "bar_ts": closed_ts, "ts": time.time(),
+                })
+        except Exception as exc:
+            logger.warning("zone shadow failed %s: %s", symbol, type(exc).__name__)
+            try:
+                from astra_bot.decision.live_arm_wiring import append_journal
+                append_journal({"event": "zone_shadow_error", "symbol": symbol,
+                                "error": type(exc).__name__, "ts": time.time()})
+            except Exception:
+                pass
     # Live parity with paper: feed sees the SAME candle the paper engine uses
     # (including the forming bar). bar_ts = open_time of that last candle.
     series = list(candles)
@@ -169,7 +202,10 @@ async def scan_symbol(
         sig = None
     if sig is not None:
         try:
-            return signal_to_row(sig, bar_ts=bar_ts)
+            row = signal_to_row(sig, bar_ts=bar_ts)
+            if zone_ctx is not None:
+                row["zone_shadow"] = zone_ctx
+            return row
         except Exception as exc:
             logger.warning("arm feed: %s row map failed: %s", symbol, type(exc).__name__)
             return None
@@ -242,6 +278,7 @@ async def scan_symbol(
         "neckline": br.neckline,
         "n_tops": br.n_tops,
         "tf": src_tf,
+        "zone_shadow": zone_ctx,
     }
 
 
