@@ -135,10 +135,10 @@ async def test_zone_shadow_minimum_resets_and_summarizes_once_on_new_bar(monkeyp
     assert summaries[0]["zones"] == [{"center": 100.0, "min_distance_pct": 0.0}]
     assert events[-1]["zones"][0]["min_distance_pct"] == 16.6667
 
-    client.price = 125.0
+    client.price = 110.0
     await feed.scan_zone_shadow(client, ("ETH-USDT",))
     assert len([event for event in events if event["event"] == "zone_shadow_summary"]) == 1
-    assert events[-1]["zones"][0]["min_distance_pct"] == 16.0
+    assert events[-1]["zones"][0]["min_distance_pct"] == 9.0909
 
 
 @pytest.mark.asyncio
