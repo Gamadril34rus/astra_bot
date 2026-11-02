@@ -155,31 +155,41 @@ def _candle_value(row: Any, key: str) -> float:
     return 0.0
 
 
-async def scan_zone_shadow(
-    client: Any,
-    symbols: list[str] | tuple[str, ...] = FEED_SYMBOLS,
-) -> dict[str, dict[str, Any]]:
-    """Observe all configured symbols independently of entry/risk gates."""
+_ZONE_APPROACH_PATH = Path("models/zone_shadow_approach.json")
+
+def _load_zone_approach_state(path: Path | None = None) -> dict[str, Any]:
     try:
-        from astra_bot.decision.zone_shadow import (
-            build_volume_zones,
-            is_enabled,
-            zone_context,
-        )
+        path = path or _ZONE_APPROACH_PATH
+        with path.open("r", encoding="utf-8") as handle:
+            value = json.load(handle)
+        return value if isinstance(value, dict) else {}
+    except Exception:
+        return {}
+
+def _save_zone_approach_state(state: dict[str, Any], path: Path | None = None) -> None:
+    try:
+        path = path or _ZONE_APPROACH_PATH
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("w", encoding="utf-8") as handle:
+            json.dump(state, handle, ensure_ascii=False, separators=(",", ":"))
+    except Exception as exc:
+        logger.warning("zone shadow approach state unavailable: %s", type(exc).__name__)
+
+async def scan_zone_shadow(client: Any, symbols: list[str] | tuple[str, ...] = FEED_SYMBOLS) -> dict[str, dict[str, Any]]:
+    """Observe zones and persist per-closed-4h-bar minimum approach distances."""
+    try:
+        from astra_bot.decision.zone_shadow import build_volume_zones, is_enabled, zone_context
         if not is_enabled():
             return {}
     except Exception as exc:
         logger.warning("zone shadow unavailable: %s", type(exc).__name__)
         return {}
-
     from astra_bot.decision.live_arm_wiring import append_journal
-
+    approach_state = _load_zone_approach_state()
     out: dict[str, dict[str, Any]] = {}
     for symbol in symbols:
         try:
-            zone_candles = await fetch_candles(
-                client, symbol, timeframe="4h", limit=600
-            )
+            zone_candles = await fetch_candles(client, symbol, timeframe="4h", limit=600)
             if len(zone_candles) < 2:
                 raise ValueError("not_enough_4h_candles")
             closed = zone_candles[-2]
@@ -189,40 +199,65 @@ async def scan_zone_shadow(
             closed_price = _candle_value(closed, "close")
             if closed_price <= 0:
                 raise ValueError("closed_candle_missing_close")
-
             cached = _ZONE_CACHE.get(symbol)
             if cached is None or cached[0] != closed_ts:
-                zones = build_volume_zones(list(zone_candles), price=closed_price)
-                _ZONE_CACHE[symbol] = (closed_ts, zones)
+                _ZONE_CACHE[symbol] = (closed_ts, build_volume_zones(list(zone_candles), price=closed_price))
             zones = _ZONE_CACHE[symbol][1]
-
             price_now = _candle_value(zone_candles[-1], "close") or closed_price
             context = zone_context(price_now, zones)
             out[symbol] = context
-            append_journal({
-                "event": "zone_shadow",
-                "symbol": symbol,
-                "price": price_now,
-                "nearest_above": context.get("above"),
-                "nearest_below": context.get("below"),
-                "in_zone": context.get("in_zone"),
-                "zones": zones,
-                "bar_ts": closed_ts,
-                "ts": time.time(),
-            })
+            previous = approach_state.get(symbol)
+            previous = previous if isinstance(previous, dict) else {}
+            old_ts = previous.get("bar_ts")
+            try:
+                old_ts = int(old_ts) if old_ts is not None else None
+            except (TypeError, ValueError, OverflowError):
+                old_ts = None
+            old_minima = previous.get("zones")
+            old_minima = old_minima if isinstance(old_minima, dict) else {}
+            if old_ts is not None and old_ts != closed_ts:
+                summary_zones = []
+                for center_key, minimum in old_minima.items():
+                    try:
+                        summary_zones.append({"center": float(center_key), "min_distance_pct": round(float(minimum), 4)})
+                    except (TypeError, ValueError):
+                        continue
+                try:
+                    append_journal({"event": "zone_shadow_summary", "symbol": symbol, "bar_ts": old_ts, "zones": summary_zones, "ts": time.time()})
+                except Exception as exc:
+                    logger.warning("zone shadow summary journal failed %s: %s", symbol, type(exc).__name__)
+                minima = {}
+            elif old_ts is not None and old_ts == closed_ts:
+                minima = dict(old_minima)
+            else:
+                minima = {}
+            zone_rows = []
+            if zones and price_now > 0:
+                for zone in zones:
+                    try:
+                        center = float(zone["center"])
+                        key = str(center)
+                        distance = round(abs((center / price_now - 1.0) * 100.0), 4)
+                        if key not in minima or distance < float(minima[key]):
+                            minima[key] = distance
+                        row = dict(zone)
+                        row["min_distance_pct"] = round(float(minima[key]), 4)
+                        zone_rows.append(row)
+                    except (KeyError, TypeError, ValueError, ZeroDivisionError):
+                        continue
+            approach_state[symbol] = {"bar_ts": closed_ts, "zones": minima}
+            _save_zone_approach_state(approach_state)
+            try:
+                append_journal({"event": "zone_shadow", "symbol": symbol, "price": price_now, "nearest_above": context.get("above"), "nearest_below": context.get("below"), "in_zone": context.get("in_zone"), "zones": zone_rows, "bar_ts": closed_ts, "ts": time.time()})
+            except Exception as exc:
+                logger.warning("zone shadow journal failed %s: %s", symbol, type(exc).__name__)
         except Exception as exc:
             logger.warning("zone shadow failed %s: %s", symbol, type(exc).__name__)
             try:
-                append_journal({
-                    "event": "zone_shadow_error",
-                    "symbol": symbol,
-                    "error": type(exc).__name__,
-                    "ts": time.time(),
-                })
+                append_journal({"event": "zone_shadow_error", "symbol": symbol, "error": type(exc).__name__, "ts": time.time()})
             except Exception:
                 pass
     return out
-
 
 async def scan_symbol(
     client: Any,
