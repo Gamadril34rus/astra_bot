@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import time
 from pathlib import Path
 from typing import Any
@@ -155,7 +154,11 @@ async def scan_symbol(
     if not candles or len(candles) < 30:
         return None
     zone_ctx = None
-    if __import__("astra_bot.decision.zone_shadow", fromlist=["is_enabled"]).is_enabled():
+    try:
+        from astra_bot.decision.zone_shadow import is_enabled
+    except Exception:
+        is_enabled = lambda: False
+    if is_enabled():
         try:
             from astra_bot.decision.zone_shadow import build_volume_zones, zone_context
             zone_candles = await fetch_candles(client, symbol, timeframe="4h", limit=600)
