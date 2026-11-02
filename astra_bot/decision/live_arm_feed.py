@@ -157,7 +157,8 @@ async def scan_symbol(
     try:
         from astra_bot.decision.zone_shadow import is_enabled
     except Exception:
-        is_enabled = lambda: False
+        def is_enabled():
+            return False
     if is_enabled():
         try:
             from astra_bot.decision.zone_shadow import build_volume_zones, zone_context
