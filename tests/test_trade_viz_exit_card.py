@@ -21,7 +21,7 @@ def test_hype_long_reference_roi():
 
 
 def _assert_png(data: bytes) -> None:
-    assert data.startswith(b"\\x89PNG\\r\\n\\x1a\\n")
+    assert data.startswith(b"\x89PNG\r\n\x1a\n")
     assert len(data) > 1000
     import io
     with Image.open(io.BytesIO(data)) as rendered:

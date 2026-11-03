@@ -1,6 +1,7 @@
 """Best-effort Telegram trade charts; visualization only, no trading decisions."""
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 import io
 import logging
 import os
@@ -152,8 +153,6 @@ async def notify_trade_visual(
 
 
 # EXIT share card: isolated from the existing ENTRY chart renderer.
-from datetime import datetime, timedelta, timezone
-
 _MSK = timezone(timedelta(hours=3))
 
 
@@ -171,7 +170,7 @@ def render_exit_stats_card(
 ) -> bytes:
     """Render a Pillow PNG exit card; optional artwork never blocks fallback rendering."""
     from pathlib import Path
-    from PIL import Image, ImageDraw, ImageFont, ImageEnhance
+    from PIL import Image, ImageDraw, ImageEnhance, ImageFont
 
     roi = leveraged_roi_pct(entry=entry, pnl=pnl, qty=qty, leverage=leverage)
     positive = pnl >= 0
