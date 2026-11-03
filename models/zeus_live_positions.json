@@ -3,8 +3,8 @@
     "ETH-USDT|long": {
       "symbol": "ETH-USDT",
       "side": "long",
-      "qty": "5.043423510972639683380823243",
-      "stop": "2215.999544128402",
+      "qty": 5.231,
+      "stop": "2225.1669",
       "tp": "2326.06575072937890",
       "entry": "2297.70",
       "leverage": 6,
@@ -15,9 +15,15 @@
       "initial_stop": "2215.999544128402",
       "opened_at_ms": 1793730120811,
       "plan_qty": "5.80266659",
-      "qty_ratio": 1.0,
-      "tp1": "2326.06575072937890"
+      "qty_ratio": 0.9014820891165487,
+      "tp1": "2326.06575072937890",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_high": "2293.21",
+      "migrate_stop_v1": true,
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1793730120.8119674
+  "ts": 1793730469.3019755
 }
