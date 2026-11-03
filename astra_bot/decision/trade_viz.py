@@ -156,6 +156,22 @@ async def notify_trade_visual(
 _MSK = timezone(timedelta(hours=3))
 
 
+
+
+def derive_exit_price(*, side: str, entry: float, pnl: float, qty: float) -> float:
+    """Derive a display-only close price from reconciled price-component PnL.
+
+    PnL calculation is unchanged; funding is recorded separately.
+    """
+    if entry <= 0 or qty <= 0:
+        raise ValueError("entry_and_qty_must_be_positive")
+    normalized_side = str(side).lower()
+    if normalized_side == "long":
+        return float(entry + pnl / qty)
+    if normalized_side == "short":
+        return float(entry - pnl / qty)
+    raise ValueError("side_must_be_long_or_short")
+
 def leveraged_roi_pct(*, entry: float, pnl: float, qty: float, leverage: float) -> float:
     """BingX-style leveraged ROI, using realized PnL already reconciled at close."""
     if entry <= 0 or qty <= 0:

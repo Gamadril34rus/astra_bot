@@ -46,3 +46,25 @@ def test_png_smoke_without_art_fallback():
         leverage=6, closed_at=1793652000, art_path=ASSETS / "missing.png",
     )
     _assert_png(png)
+
+
+from astra_bot.decision.trade_viz import derive_exit_price
+
+
+def test_derive_exit_price_long_from_reconciled_pnl():
+    exit_price = derive_exit_price(
+        side="long", entry=2300, pnl=-507.614, qty=10.54448183,
+    )
+    assert abs(exit_price - 2251.86) < 0.01
+
+
+def test_derive_exit_price_short_zero_pnl():
+    exit_price = derive_exit_price(side="short", entry=7.039, pnl=0, qty=3479)
+    assert exit_price == 7.039
+
+
+def test_derive_exit_price_rejects_zero_qty():
+    import pytest
+
+    with pytest.raises(ValueError):
+        derive_exit_price(side="long", entry=2300, pnl=-1, qty=0)
