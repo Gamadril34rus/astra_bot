@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from astra_bot.decision.trade_viz import leveraged_roi_pct, render_exit_stats_card
+from astra_bot.decision.trade_viz import (
+    derive_exit_price,
+    leveraged_roi_pct,
+    render_exit_stats_card,
+)
 from PIL import Image
 
 ASSETS = Path(__file__).parents[1] / "astra_bot" / "decision" / "assets"
@@ -47,8 +51,6 @@ def test_png_smoke_without_art_fallback():
     )
     _assert_png(png)
 
-
-from astra_bot.decision.trade_viz import derive_exit_price
 
 
 def test_derive_exit_price_long_from_reconciled_pnl():
