@@ -1736,3 +1736,6 @@
 {"event": "protect_place", "ts": 1793691172.9493268, "symbol": "INJ-USDT", "kind": "stop", "stop_price": "7.11242", "qty": "7100.2556092", "close_position": true, "order_id": "2117520371409838080"}
 {"event": "protect_place", "ts": 1793691173.4672804, "symbol": "INJ-USDT", "kind": "tp", "stop_price": "6.992706", "qty": "2130.07668276", "reduce_only": false, "order_id": "2117520373569904640"}
 {"event": "entry", "signal_id": "zeus_channel_boundary|INJ-USDT|short|1793678400000", "symbol": "INJ-USDT", "side": "short", "plan_entry": "7.042", "fill_price": "7.039", "slip_pct": 0.04260153365521321, "slip_r": 0.04260153365521159, "qty": "7100.25560920", "stop": "7.11242", "tp": "6.992706", "tp_frac": 0.3, "leverage": 6, "ts": 1793691173.4678621}
+{"event": "qty_reconcile", "symbol": "INJ-USDT", "side": "short", "old_qty": 7100.2556092, "new_qty": 4970.0, "rel_diff": 0.300025, "signal_id": "zeus_channel_boundary|INJ-USDT|short|1793678400000", "ts": 1793693011.892058}
+{"event": "order_cancel", "symbol": "INJ-USDT", "order_id": "2117520371409838080", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793693031.6443222}
+{"event": "partial_fill", "symbol": "INJ-USDT", "side": "short", "qty": "3621.25560920", "exch_qty": "3479.000", "plan_qty": "7100.25560920", "price": null, "ts": 1793693032.3244505, "source": "be_catchup_qty_gap"}
