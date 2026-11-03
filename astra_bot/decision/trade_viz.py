@@ -186,7 +186,6 @@ def render_exit_stats_card(
     )
     stamp_text = stamp.strftime("%d.%m.%Y  %H:%M:%S МСК")
 
-    scale = 2
     width, height = 1240, 1640
     image = Image.new("RGB", (width, height), "#0B0D12")
     draw = ImageDraw.Draw(image)
