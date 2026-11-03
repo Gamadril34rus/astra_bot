@@ -924,22 +924,48 @@ class LiveBroker:
                         logger.warning("sync_closed TG: %s", type(exc).__name__)
             else:
                 logger.info("sync_closed: skip dup TG %s", sym)
-            # Cosmetic exit card: uses only reconciled close data; no exchange reads.
+            # Cosmetic exit card: reconciled data only; no exchange reads.
             try:
                 card_qty = float(qty_closed or qty_plan or 0)
                 raw_leverage = plan.get("leverage") or plan.get("lev")
                 card_leverage = float(raw_leverage) if raw_leverage is not None else 0.0
-                if entry_px is not None and exit_fill is not None and pnl is not None:
-                    if card_qty > 0 and card_leverage > 0:
+                card_entry = float(entry_px) if entry_px is not None else 0.0
+                card_pnl = float(pnl) if pnl is not None else None
+                if card_qty <= 0 or card_leverage <= 0:
+                    logger.warning(
+                        "viz_error event=viz_error phase=EXIT_CARD symbol=%s reason=missing_qty_or_leverage",
+                        sym,
+                    )
+                elif card_entry <= 0 or card_pnl is None:
+                    logger.warning(
+                        "viz_error event=viz_error phase=EXIT_CARD symbol=%s reason=cannot_derive_exit",
+                        sym,
+                    )
+                else:
+                    if exit_fill is None:
+                        from astra_bot.decision.trade_viz import derive_exit_price
+                        try:
+                            card_exit = derive_exit_price(
+                                side=side, entry=card_entry, pnl=card_pnl, qty=card_qty,
+                            )
+                        except ValueError:
+                            logger.warning(
+                                "viz_error event=viz_error phase=EXIT_CARD symbol=%s reason=cannot_derive_exit",
+                                sym,
+                            )
+                            card_exit = None
+                    else:
+                        card_exit = float(exit_fill)
+                    if card_exit is not None and card_exit > 0:
                         from astra_bot.decision.trade_viz import notify_exit_stats_card
                         await notify_exit_stats_card(
-                            symbol=sym, side=side, entry=float(entry_px),
-                            exit_price=float(exit_fill), pnl=float(pnl), qty=card_qty,
+                            symbol=sym, side=side, entry=card_entry,
+                            exit_price=card_exit, pnl=card_pnl, qty=card_qty,
                             leverage=card_leverage, closed_at=now, virtual=True,
                         )
-                    else:
+                    elif exit_fill is not None:
                         logger.warning(
-                            "viz_error event=viz_error phase=EXIT_CARD symbol=%s reason=missing_qty_or_leverage",
+                            "viz_error event=viz_error phase=EXIT_CARD symbol=%s reason=cannot_derive_exit",
                             sym,
                         )
             except Exception as exc:
