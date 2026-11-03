@@ -1,10 +1,10 @@
 """Best-effort Telegram trade charts; visualization only, no trading decisions."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 import io
 import logging
 import os
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -170,6 +170,7 @@ def render_exit_stats_card(
 ) -> bytes:
     """Render a Pillow PNG exit card; optional artwork never blocks fallback rendering."""
     from pathlib import Path
+
     from PIL import Image, ImageDraw, ImageEnhance, ImageFont
 
     roi = leveraged_roi_pct(entry=entry, pnl=pnl, qty=qty, leverage=leverage)
@@ -199,7 +200,7 @@ def render_exit_stats_card(
         with Image.open(art_path) as source:
             source = source.convert("RGBA")
             w, h = source.size
-            crop = source.crop((int(0.50*w), int(0.01*h), w, int(0.71*h)))
+            crop = source.crop((int(0.58*w), int(0.01*h), w, int(0.71*h)))
             if crop.width > 0 and crop.height > 0:
                 max_h = int(height * 0.70)
                 ratio = min(max_h / crop.height, (width * 0.60) / crop.width, 1.0)

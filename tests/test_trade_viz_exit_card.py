@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PIL import Image
 from astra_bot.decision.trade_viz import leveraged_roi_pct, render_exit_stats_card
+from PIL import Image
 
 ASSETS = Path(__file__).parents[1] / "astra_bot" / "decision" / "assets"
 
