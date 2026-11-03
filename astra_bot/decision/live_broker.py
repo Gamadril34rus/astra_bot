@@ -924,15 +924,26 @@ class LiveBroker:
                         logger.warning("sync_closed TG: %s", type(exc).__name__)
             else:
                 logger.info("sync_closed: skip dup TG %s", sym)
-            # Cosmetic trade chart: never blocks close reconciliation.
+            # Cosmetic exit card: uses only reconciled close data; no exchange reads.
             try:
-                from astra_bot.decision.trade_viz import notify_trade_visual
-                await notify_trade_visual(
-                    self.client, sym, side, entry_px, plan.get("stop"),
-                    plan.get("tp"), phase="EXIT", exit_price=exit_fill,
-                )
+                card_qty = float(qty_closed or qty_plan or 0)
+                raw_leverage = plan.get("leverage") or plan.get("lev")
+                card_leverage = float(raw_leverage) if raw_leverage is not None else 0.0
+                if entry_px is not None and exit_fill is not None and pnl is not None:
+                    if card_qty > 0 and card_leverage > 0:
+                        from astra_bot.decision.trade_viz import notify_exit_stats_card
+                        await notify_exit_stats_card(
+                            symbol=sym, side=side, entry=float(entry_px),
+                            exit_price=float(exit_fill), pnl=float(pnl), qty=card_qty,
+                            leverage=card_leverage, closed_at=now, virtual=True,
+                        )
+                    else:
+                        logger.warning(
+                            "viz_error event=viz_error phase=EXIT_CARD symbol=%s reason=missing_qty_or_leverage",
+                            sym,
+                        )
             except Exception as exc:
-                logger.warning("viz_error event=viz_error phase=EXIT symbol=%s error=%s",
+                logger.warning("viz_error event=viz_error phase=EXIT_CARD symbol=%s error=%s",
                                sym, type(exc).__name__)
 
             try:

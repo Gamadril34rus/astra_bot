@@ -149,3 +149,149 @@ async def notify_trade_visual(
         logger.warning("viz_error event=viz_error phase=%s symbol=%s error=%s",
                        phase, symbol, type(exc).__name__)
         return False
+
+
+# EXIT share card: isolated from the existing ENTRY chart renderer.
+from datetime import datetime, timedelta, timezone
+
+_MSK = timezone(timedelta(hours=3))
+
+
+def leveraged_roi_pct(*, entry: float, pnl: float, qty: float, leverage: float) -> float:
+    """BingX-style leveraged ROI, using realized PnL already reconciled at close."""
+    if entry <= 0 or qty <= 0:
+        return 0.0
+    return pnl / (entry * qty) * 100.0 * leverage
+
+
+def render_exit_stats_card(
+    *, symbol: str, side: str, entry: float, exit_price: float, pnl: float,
+    qty: float, leverage: float, closed_at: float | None = None,
+    virtual: bool = True, art_path: str | os.PathLike[str] | None = None,
+) -> bytes:
+    """Render a Pillow PNG exit card; optional artwork never blocks fallback rendering."""
+    from pathlib import Path
+    from PIL import Image, ImageDraw, ImageFont, ImageEnhance
+
+    roi = leveraged_roi_pct(entry=entry, pnl=pnl, qty=qty, leverage=leverage)
+    positive = pnl >= 0
+    is_long = str(side).lower() == "long"
+    side_label = "Long" if is_long else "Short"
+    side_color = "#00C853" if is_long else "#B71C1C"
+    result_color = "#00E676" if positive else "#FF5252"
+    symbol_label = str(symbol).replace("-", "").replace("/", "")
+    if not symbol_label.endswith("USDT"):
+        symbol_label += "USDT"
+    stamp = datetime.fromtimestamp(
+        closed_at if closed_at is not None else datetime.now(_MSK).timestamp(), _MSK
+    )
+    stamp_text = stamp.strftime("%d.%m.%Y  %H:%M:%S МСК")
+
+    scale = 2
+    width, height = 1240, 1640
+    image = Image.new("RGB", (width, height), "#0B0D12")
+    draw = ImageDraw.Draw(image)
+    panel = (48, 48, width - 48, height - 48)
+    draw.rounded_rectangle(panel, radius=44, fill="#141820")
+
+    # Draw artwork first. Text is deliberately rendered afterwards.
+    if art_path is None:
+        art_path = Path(__file__).parent / "assets" / ("art_plus.png" if positive else "art_minus.png")
+    try:
+        with Image.open(art_path) as source:
+            source = source.convert("RGBA")
+            w, h = source.size
+            crop = source.crop((int(0.50*w), int(0.01*h), w, int(0.71*h)))
+            if crop.width > 0 and crop.height > 0:
+                max_h = int(height * 0.70)
+                ratio = min(max_h / crop.height, (width * 0.60) / crop.width, 1.0)
+                size = (max(1, int(crop.width * ratio)), max(1, int(crop.height * ratio)))
+                crop = crop.resize(size, Image.Resampling.LANCZOS)
+                alpha = crop.getchannel("A")
+                rgb = Image.new("RGB", crop.size, "#000000")
+                rgb.paste(crop.convert("RGB"), mask=alpha)
+                rgb = ImageEnhance.Brightness(rgb).enhance(0.45)
+                x = width - 76 - rgb.width
+                y = height - 170 - rgb.height
+                image.paste(rgb, (x, y))
+                draw = ImageDraw.Draw(image)
+    except (OSError, ValueError, TypeError):
+        pass
+
+    def font(size: int, bold: bool = False):
+        candidates = (
+            ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+             "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf"]
+            if bold else
+            ["/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+             "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"]
+        )
+        for candidate in candidates:
+            try:
+                return ImageFont.truetype(candidate, size)
+            except OSError:
+                continue
+        return ImageFont.load_default()
+
+    # Header
+    draw.text((92, 92), "BingX", fill="#FFFFFF", font=font(42, True))
+    draw.text((92, 230), symbol_label, fill="#FFFFFF", font=font(60, True))
+    draw.text((92, 320), "Perpetual", fill="#9CA3AF", font=font(30))
+    draw.text((92, 405), side_label, fill=side_color, font=font(34, True))
+    draw.text((300, 405), f"|  {leverage:g}X  |  Closed", fill="#D1D5DB", font=font(30))
+
+    draw.text((92, 560), f"{roi:+.2f}%", fill=result_color, font=font(104, True))
+    draw.text((92, 690), f"{pnl:+.4f} USDT", fill=result_color, font=font(48, True))
+    if virtual:
+        draw.text((92, 755), "(виртуальные)", fill="#6B7280", font=font(26))
+
+    draw.text((92, 930), "Цена входа", fill="#FFFFFF", font=font(30))
+    draw.text((520, 920), f"{entry:.6g}", fill="#FFFFFF", font=font(38, True))
+    draw.text((92, 1035), "Цена закрытия", fill="#FFFFFF", font=font(30))
+    draw.text((520, 1025), f"{exit_price:.6g}", fill="#FFFFFF", font=font(38, True))
+    draw.text((92, height - 125), stamp_text, fill="#9CA3AF", font=font(24))
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG", dpi=(200, 200), optimize=True)
+    return buffer.getvalue()
+
+
+async def notify_exit_stats_card(
+    *, symbol: str, side: str, entry: float, exit_price: float, pnl: float,
+    qty: float, leverage: float, closed_at: float | None = None,
+    virtual: bool = True,
+) -> bool:
+    """Send a rendered EXIT card; never performs exchange reads."""
+    try:
+        import aiohttp
+        token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
+        chat_id = ((os.environ.get("TELEGRAM_ADMIN_ID") or "").strip()
+                   or (os.environ.get("TELEGRAM_CHAT_ID") or "").strip())
+        if not token or not chat_id:
+            logger.warning("viz_error event=viz_error reason=telegram_config_missing")
+            return False
+        png = await __import__("asyncio").to_thread(
+            render_exit_stats_card, symbol=symbol, side=side, entry=entry,
+            exit_price=exit_price, pnl=pnl, qty=qty, leverage=leverage,
+            closed_at=closed_at, virtual=virtual,
+        )
+        form = aiohttp.FormData()
+        form.add_field("chat_id", chat_id)
+        form.add_field("caption", f"{symbol} {side.upper()} • EXIT")
+        form.add_field("photo", png, filename="exit_card.png", content_type="image/png")
+        async with (
+            aiohttp.ClientSession() as session,
+            session.post(
+                f"https://api.telegram.org/bot{token}/sendPhoto",
+                data=form, timeout=aiohttp.ClientTimeout(total=25),
+            ) as response,
+        ):
+            if response.status >= 400:
+                raise RuntimeError(f"telegram_http_{response.status}")
+            payload = await response.json()
+            if not payload.get("ok"):
+                raise RuntimeError("telegram_send_photo_not_ok")
+        return True
+    except Exception as exc:
+        logger.warning("viz_error event=viz_error phase=EXIT_CARD symbol=%s error=%s",
+                       symbol, type(exc).__name__)
+        return False
