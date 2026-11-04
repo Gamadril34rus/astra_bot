@@ -65,7 +65,13 @@
       "opened_at_ms": 1793751753688,
       "plan_qty": "0.64852020",
       "qty_ratio": 1.0,
-      "tp1": "76488.09725"
+      "tp1": "76488.09725",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "77199.6",
+      "be_earned": true,
+      "current_regime": "LOW_VOLATILITY"
     },
     "SOL-USDT|short": {
       "symbol": "SOL-USDT",
@@ -83,8 +89,14 @@
       "opened_at_ms": 1793751759659,
       "plan_qty": "375.39094650",
       "qty_ratio": 1.0,
-      "tp1": "90.79815"
+      "tp1": "90.79815",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "92.085",
+      "be_earned": true,
+      "current_regime": "STRONG_BEAR_TREND"
     }
   },
-  "ts": 1793751759.6599069
+  "ts": 1793752623.6856067
 }
