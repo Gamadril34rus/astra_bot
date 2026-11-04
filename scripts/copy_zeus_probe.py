@@ -57,8 +57,13 @@ async def run_probe() -> dict[str, Any]:
         page_counts = []
         end_time = int(now.timestamp() * 1000)
         last_response = {}
-        for _ in range(5):
-            last_response = await client.income(limit=5, startTime=since_ms, endTime=end_time)
+        for page in range(5):
+            # First page is the requested 24-hour window; subsequent pages walk
+            # backward without a lower bound so the actual available depth is measurable.
+            params = {"endTime": end_time}
+            if page == 0:
+                params["startTime"] = since_ms
+            last_response = await client.income(limit=5, **params)
             rows = _rows(last_response)[:5]
             page_counts.append(len(rows))
             all_income.extend(rows)
