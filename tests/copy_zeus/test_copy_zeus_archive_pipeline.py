@@ -109,7 +109,7 @@ def test_rotation_is_capped_at_ten_mib(tmp_path):
     state = tmp_path / "state"
     state.mkdir()
     # A nearly full monthly shard rolls into a numbered continuation.
-    (state / "copyzeus-2026-11.jsonl").write_bytes(b"x" * (ROTATION_LIMIT - 8))
+    (state / "copyzeus-2026-11.jsonl").write_bytes(b"x" * (archive_script.ROTATION_LIMIT - 8))
     row = {"fetched_at": "2026-11-04T00:00:00+00:00", "event": {"payload": "x" * 100}}
     (state / "archive.jsonl").write_text(json.dumps(row) + "\n", encoding="utf-8")
     archive_script.rotate_pending(state)
