@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from astra_bot.copy_zeus.archive import _rows
-from astra_bot.copy_zeus.client import CopyZeusClient, ENDPOINTS
+from astra_bot.copy_zeus.client import ENDPOINTS, CopyZeusClient
 
 IDENTIFIER_FIELDS = (
     "incomeId", "income_id", "tranId", "transactionId", "orderId", "id",

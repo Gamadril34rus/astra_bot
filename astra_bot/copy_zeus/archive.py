@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
-from collections.abc import Iterable
 from typing import Any
 
 from .client import CopyZeusClient, archive_directory, environment
@@ -125,7 +125,7 @@ class CopyZeusArchive:
             client = CopyZeusClient(env=self.env)
         counts: dict[str, int] = {}
         try:
-            fetched_at = datetime.now(timezone.utc).isoformat()
+            fetched_at = datetime.now(UTC).isoformat()
             positions = await client.positions(limit=limit)
             counts["positions"] = self.append("positions", _rows(positions), fetched_at)
             self.record_coverage("positions", None, None)
@@ -136,7 +136,7 @@ class CopyZeusArchive:
             times = [t for row in order_rows if (t := _event_time(row)) is not None]
             self.record_coverage("allOrders", min(times) if times else None, max(times) if times else None)
 
-            now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+            now_ms = int(datetime.now(UTC).timestamp() * 1000)
             coverage = _read_json(self.coverage_path, {"intervals": []})
             covered_ends = [
                 int(item["end_ms"]) for item in coverage.get("intervals", [])
