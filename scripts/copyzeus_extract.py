@@ -40,7 +40,10 @@ def _decimal(value) -> Decimal:
 def _run_gh(args: list[str], *, output: Path | None = None) -> str:
     command = ["gh", "api", *args]
     if output is not None:
-        command.extend(["--output", str(output)])
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with output.open("wb") as stream:
+            subprocess.run(command, check=True, stdout=stream, stderr=subprocess.PIPE)
+        return ""
     result = subprocess.run(command, check=True, capture_output=True, text=True)
     return result.stdout
 
