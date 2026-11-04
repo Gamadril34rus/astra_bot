@@ -3,6 +3,7 @@ import asyncio
 import json
 
 import pytest
+from cryptography.exceptions import InvalidTag
 
 from astra_bot.copy_zeus.archive import CopyZeusArchive
 from scripts.copy_zeus_archive import restore_state, seal_state
@@ -95,7 +96,7 @@ def test_wrong_secret_cannot_restore_archive(tmp_path):
     (state / "coverage.json").write_text('{"intervals":[],"gaps":[]}', encoding="utf-8")
     output = tmp_path / "out"
     seal_state(state, output, "right-secret")
-    with pytest.raises(Exception):
+    with pytest.raises(InvalidTag):
         restore_state(output, tmp_path / "bad-restore", "wrong-secret")
 
 
@@ -104,11 +105,13 @@ def test_rotation_is_capped_at_ten_mib(tmp_path):
 
     state = tmp_path / "state"
     state.mkdir()
-    # A valid single JSONL row must be rotated without exceeding the cap.
+    # A nearly full monthly shard rolls into a numbered continuation.
+    (state / "copyzeus-2026-11.jsonl").write_bytes(b"x" * (ROTATION_LIMIT - 8))
     row = {"fetched_at": "2026-11-04T00:00:00+00:00", "event": {"payload": "x" * 100}}
     (state / "archive.jsonl").write_text(json.dumps(row) + "\n", encoding="utf-8")
     rotate_pending(state)
-    files = list(state.glob("copyzeus-*.jsonl"))
-    assert len(files) == 1
-    assert files[0].stat().st_size <= ROTATION_LIMIT
+    files = sorted(state.glob("copyzeus-*.jsonl"))
+    assert len(files) == 2
+    assert files[1].name == "copyzeus-2026-11-002.jsonl"
+    assert files[1].stat().st_size <= ROTATION_LIMIT
     assert not (state / "archive.jsonl").exists()
