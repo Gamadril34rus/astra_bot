@@ -74,6 +74,9 @@ def test_rotation_manifest_and_authenticated_restore(tmp_path):
 
     output = tmp_path / "out"
     manifest = seal_state(state, output, "existing-bingx-secret")
+    repeated_output = tmp_path / "out-repeat"
+    seal_state(state, repeated_output, "existing-bingx-secret")
+    assert (output / "archive.enc").read_bytes() == (repeated_output / "archive.enc").read_bytes()
     assert manifest["total_rows"] == 2
     rotation = state / "copyzeus-2026-11.jsonl"
     assert rotation.exists()
