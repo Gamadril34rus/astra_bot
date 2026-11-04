@@ -69,18 +69,18 @@ def rotate_pending(state_dir: Path) -> None:
         month = fetched[:7] if len(fetched) >= 7 else datetime.now(UTC).strftime("%Y-%m")
         base = f"copyzeus-{month}"
         suffix = 1
+        encoded = (raw_line + "\n").encode("utf-8")
+        if len(encoded) > ROTATION_LIMIT:
+            raise RuntimeError("A single archive row exceeds the 10 MiB rotation cap")
         while True:
             name = f"{base}.jsonl" if suffix == 1 else f"{base}-{suffix:03d}.jsonl"
             target = state_dir / name
-            encoded = (raw_line + "\n").encode("utf-8")
             current_size = target.stat().st_size if target.exists() else 0
             if current_size + len(encoded) <= ROTATION_LIMIT:
                 with target.open("ab") as stream:
                     stream.write(encoded)
                 break
             suffix += 1
-        if len(encoded) > ROTATION_LIMIT:
-            raise RuntimeError("A single archive row exceeds the 10 MiB rotation cap")
     pending.unlink()
 
 
