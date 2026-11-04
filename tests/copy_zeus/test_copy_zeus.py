@@ -66,3 +66,11 @@ def test_post_is_forbidden_by_get_only_interface():
     client = object.__new__(CopyZeusClient)
     with __import__("pytest").raises(PermissionError):
         asyncio.run(client.get("/openApi/swap/v2/trade/order"))
+
+
+def test_positions_are_independent_observations(tmp_path):
+    archive = CopyZeusArchive(root=tmp_path, env="vst")
+    snapshot = {"symbol": "BTC-USDT", "positionAmt": "0"}
+    assert archive.append("positions", [snapshot], "2026-11-04T10:00:00Z") == 1
+    assert archive.append("positions", [snapshot], "2026-11-04T10:01:00Z") == 1
+    assert len(archive.archive_path.read_text().splitlines()) == 2

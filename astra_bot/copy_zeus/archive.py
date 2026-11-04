@@ -134,8 +134,22 @@ class CopyZeusArchive:
             times = [t for row in order_rows if (t := _event_time(row)) is not None]
             self.record_coverage("allOrders", min(times) if times else None, max(times) if times else None)
 
+            now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+            coverage = _read_json(self.coverage_path, {"intervals": []})
+            covered_ends = [
+                int(item["end_ms"]) for item in coverage.get("intervals", [])
+                if item.get("source") == "income" and item.get("end_ms") is not None
+            ]
+            if covered_ends:
+                counts["income"] = await self.backfill_income(
+                    client, max(0, max(covered_ends) + 1), now_ms,
+                    limit=limit, max_pages=max_pages,
+                )
+                return counts
             income_rows = 0
-            cursor = int(datetime.now(timezone.utc).timestamp() * 1000)
+            cursor = now_ms
+            oldest_seen = None
+            exhausted = True
             for _ in range(max_pages):
                 response = await client.income(limit=min(max(int(limit), 1), 5), endTime=cursor)
                 rows = _rows(response)
@@ -148,8 +162,11 @@ class CopyZeusArchive:
                 oldest = min(times)
                 self.record_coverage("income", oldest, max(times))
                 if len(rows) < limit:
+                    exhausted = False
                     break
                 cursor = oldest - 1
+            if oldest_seen is not None:
+                self.record_coverage("income", oldest_seen, now_ms, gap=exhausted)
             counts["income"] = income_rows
             return counts
         finally:
