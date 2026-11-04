@@ -174,12 +174,14 @@ class CopyZeusArchive:
             oldest_seen = None
             intersected = False
             pages_read = 0
+            last_page_count = 0
             for _ in range(page_cap):
                 response = await client.income(
                     limit=page_limit, startTime=start_ms, endTime=cursor
                 )
                 rows = _rows(response)[:page_limit]
                 pages_read += 1
+                last_page_count = len(rows)
                 if not rows:
                     break
                 page_keys = {dedup_key("income", row) for row in rows}
@@ -194,13 +196,28 @@ class CopyZeusArchive:
                     break
                 cursor = oldest - 1
 
-            gap = bool(
-                pages_read >= page_cap
-                and not intersected
-                and oldest_seen is not None
-                and oldest_seen > start_ms
-            )
-            self.record_coverage("income", start_ms, oldest_seen or now_ms, gap=gap)
+            coverage = _read_json(self.coverage_path, {"intervals": [], "gaps": []})
+            prior_intervals = [
+                item for item in coverage.get("intervals", [])
+                if item.get("source") == "income"
+                and item.get("start_ms") is not None
+                and item.get("end_ms") is not None
+            ]
+            if pages_read == 0 or last_page_count == 0:
+                self.record_coverage("income", start_ms, now_ms)
+            elif oldest_seen is None:
+                self.record_coverage("income", start_ms, now_ms, gap=True)
+            elif oldest_seen <= start_ms or (not intersected and last_page_count < page_limit):
+                self.record_coverage("income", start_ms, now_ms)
+            else:
+                prior_covers_boundary = any(
+                    int(item["start_ms"]) <= start_ms
+                    and int(item["end_ms"]) >= oldest_seen
+                    for item in prior_intervals
+                )
+                self.record_coverage("income", oldest_seen, now_ms)
+                if not prior_covers_boundary:
+                    self.record_coverage("income", start_ms, oldest_seen, gap=True)
             counts["income"] = income_added
             counts["income_pages"] = pages_read
             return counts
