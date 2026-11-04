@@ -104,7 +104,7 @@ def test_wrong_secret_cannot_restore_archive(tmp_path):
 
 
 def test_rotation_is_capped_at_ten_mib(tmp_path):
-    from scripts.copy_zeus_archive import ROTATION_LIMIT, _rotation_paths, rotate_pending
+    from scripts.copy_zeus_archive import _rotation_paths, ROTATION_LIMIT, rotate_pending
 
     state = tmp_path / "state"
     state.mkdir()
