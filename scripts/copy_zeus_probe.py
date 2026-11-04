@@ -5,12 +5,12 @@ import asyncio
 import json
 import os
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from astra_bot.copy_zeus.client import CopyZeusClient, ENDPOINTS
 from astra_bot.copy_zeus.archive import _rows
+from astra_bot.copy_zeus.client import CopyZeusClient, ENDPOINTS
 
 IDENTIFIER_FIELDS = (
     "incomeId", "income_id", "tranId", "transactionId", "orderId", "id",
@@ -32,11 +32,11 @@ def _sample(record: dict[str, Any]):
 
 
 async def run_probe() -> dict[str, Any]:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     since_ms = int((now - timedelta(hours=24)).timestamp() * 1000)
     report: dict[str, Any] = {
         "generated_at": now.isoformat(),
-        "environment": os.getenv("COPYZEUS_ENV", "real"),
+        "environment": os.getenv("COPYZEUS_ENV", "vst").strip().lower(),
         "endpoints": {},
     }
     async with CopyZeusClient() as client:

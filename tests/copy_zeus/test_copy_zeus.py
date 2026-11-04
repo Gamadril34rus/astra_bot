@@ -3,7 +3,12 @@ import asyncio
 
 from astra_bot.copy_zeus.archive import CopyZeusArchive, classify_income
 from astra_bot.copy_zeus.client import (
-    BINGX_MAINNET, BINGX_VST, CopyZeusClient, archive_directory, base_url_for, mask_identifier,
+    BINGX_MAINNET,
+    BINGX_VST,
+    CopyZeusClient,
+    archive_directory,
+    base_url_for,
+    mask_identifier,
 )
 
 

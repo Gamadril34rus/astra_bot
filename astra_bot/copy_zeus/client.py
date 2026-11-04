@@ -34,11 +34,11 @@ class CopyZeusAPIError(RuntimeError):
 def mask_identifier(value: str | None) -> str:
     """Never return a full credential; show only its final four characters."""
     value = str(value or "")
-    return f"***{value[-4:]}" if value else "***"
+    return f"***{value[-4:]}" if len(value) >= 4 else "***"
 
 
 def environment() -> str:
-    return "vst" if (os.getenv("COPYZEUS_ENV", "real").strip().lower() == "vst") else "real"
+    return "vst" if (os.getenv("COPYZEUS_ENV", "vst").strip().lower() == "vst") else "real"
 
 
 def base_url_for(env: str | None = None) -> str:
@@ -129,7 +129,7 @@ class CopyZeusClient:
                 if code not in {"0", "None"}:
                     raise CopyZeusAPIError(f"BingX API error code {code}: {payload.get('msg', '')}", code)
                 return payload
-            except (aiohttp.ClientError, asyncio.TimeoutError, TimeoutError) as exc:
+            except (aiohttp.ClientError, TimeoutError) as exc:
                 if attempt + 1 >= self.retries:
                     raise CopyZeusAPIError(f"BingX network request failed: {type(exc).__name__}") from exc
                 await self._sleep(2 ** attempt)

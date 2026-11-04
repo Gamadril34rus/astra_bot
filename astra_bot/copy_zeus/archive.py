@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from .client import CopyZeusClient, archive_directory, environment
 
@@ -59,7 +60,7 @@ class CopyZeusArchive:
         self.coverage_path = self.directory / "coverage.json"
 
     def append(self, source: str, events: Iterable[dict[str, Any]], fetched_at: str | None = None) -> int:
-        fetched_at = fetched_at or datetime.now(timezone.utc).isoformat()
+        fetched_at = fetched_at or datetime.now(UTC).isoformat()
         seen = set(_read_json(self.seen_path, []))
         added = 0
         with self.archive_path.open("a", encoding="utf-8") as stream:
@@ -67,7 +68,7 @@ class CopyZeusArchive:
                 if not isinstance(event, dict):
                     continue
                 key = dedup_key(source, event)
-                if key in seen:
+                if source != "positions" and key in seen:
                     continue
                 row = {
                     "env": self.env, "source": source, "fetched_at": fetched_at,
@@ -76,7 +77,8 @@ class CopyZeusArchive:
                 if source == "income":
                     row["event_kind"] = classify_income(event)
                 stream.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n")
-                seen.add(key)
+                if source != "positions":
+                    seen.add(key)
                 added += 1
         self.seen_path.write_text(json.dumps(sorted(seen), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         return added
