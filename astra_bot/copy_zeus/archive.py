@@ -152,7 +152,7 @@ class CopyZeusArchive:
         counts: dict[str, int] = {}
         try:
             fetched_at = datetime.now(UTC).isoformat()
-            positions = await client.positions(limit=page_limit)
+            positions = await client.positions(limit=min(page_limit, 5))
             counts["positions"] = self.append("positions", _rows(positions), fetched_at)
             self.record_coverage("positions", None, None)
 
