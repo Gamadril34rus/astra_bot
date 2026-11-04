@@ -4,7 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Iterable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -59,7 +59,9 @@ class CopyZeusArchive:
         self.seen_path = self.directory / "seen.json"
         self.coverage_path = self.directory / "coverage.json"
 
-    def append(self, source: str, events: Iterable[dict[str, Any]], fetched_at: str | None = None) -> int:
+    def append(
+        self, source: str, events: Iterable[dict[str, Any]], fetched_at: str | None = None
+    ) -> int:
         fetched_at = fetched_at or datetime.now(UTC).isoformat()
         seen = set(_read_json(self.seen_path, []))
         added = 0
@@ -71,8 +73,11 @@ class CopyZeusArchive:
                 if source != "positions" and key in seen:
                     continue
                 row = {
-                    "env": self.env, "source": source, "fetched_at": fetched_at,
-                    "event": event, "integrity": "raw_exchange_fields",
+                    "env": self.env,
+                    "source": source,
+                    "fetched_at": fetched_at,
+                    "event": event,
+                    "integrity": "raw_exchange_fields",
                 }
                 if source == "income":
                     row["event_kind"] = classify_income(event)
@@ -80,23 +85,37 @@ class CopyZeusArchive:
                 if source != "positions":
                     seen.add(key)
                 added += 1
-        self.seen_path.write_text(json.dumps(sorted(seen), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        self.seen_path.write_text(
+            json.dumps(sorted(seen), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
         return added
 
-    def record_coverage(self, source: str, start_ms: int | None, end_ms: int | None, gap: bool = False):
+    def record_coverage(
+        self, source: str, start_ms: int | None, end_ms: int | None, gap: bool = False
+    ):
         data = _read_json(self.coverage_path, {"intervals": [], "gaps": []})
         item = {"source": source, "start_ms": start_ms, "end_ms": end_ms}
         data["gaps" if gap else "intervals"].append(item)
-        self.coverage_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        self.coverage_path.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
 
-    async def backfill_income(self, client: CopyZeusClient, start_ms: int, end_ms: int, limit: int = 5, max_pages: int = 100) -> int:
+    async def backfill_income(
+        self,
+        client: CopyZeusClient,
+        start_ms: int,
+        end_ms: int,
+        limit: int = 5,
+        max_pages: int = 100,
+    ) -> int:
         """Fill a known interval backwards; persist a gap if pagination cannot cover it."""
         cursor = int(end_ms)
         added = 0
         oldest_seen = None
-        for _ in range(max_pages):
+        page_limit = min(max(int(limit), 1), 50)
+        for _ in range(max(1, int(max_pages))):
             response = await client.income(
-                limit=min(max(int(limit), 1), 5), startTime=int(start_ms), endTime=cursor,
+                limit=page_limit, startTime=int(start_ms), endTime=cursor
             )
             rows = _rows(response)
             if not rows:
@@ -107,7 +126,7 @@ class CopyZeusArchive:
                 break
             oldest = min(times)
             oldest_seen = oldest if oldest_seen is None else min(oldest_seen, oldest)
-            if oldest <= start_ms or len(rows) < limit:
+            if oldest <= start_ms or len(rows) < page_limit:
                 break
             if oldest >= cursor:
                 self.record_coverage("income", start_ms, oldest_seen, gap=True)
@@ -119,57 +138,88 @@ class CopyZeusArchive:
             self.record_coverage("income", start_ms, end_ms)
         return added
 
-    async def run_once(self, client: CopyZeusClient | None = None, limit: int = 5, max_pages: int = 5) -> dict[str, int]:
+    async def run_once(
+        self, client: CopyZeusClient | None = None, limit: int = 50, max_pages: int = 10
+    ) -> dict[str, int]:
+        """Collect one read-only tick; income walks back 24h until a seen event or page cap."""
+        if self.env != "real":
+            raise ValueError("COPY_ZEUS archive is real-account only; vst is rejected")
         own_client = client is None
         if client is None:
-            client = CopyZeusClient(env=self.env)
+            client = CopyZeusClient(env="real", retries=1)
+        page_limit = min(max(int(limit), 1), 50)
+        page_cap = min(max(int(max_pages), 1), 10)
         counts: dict[str, int] = {}
         try:
             fetched_at = datetime.now(UTC).isoformat()
-            positions = await client.positions(limit=limit)
+            positions = await client.positions(limit=min(page_limit, 5))
             counts["positions"] = self.append("positions", _rows(positions), fetched_at)
             self.record_coverage("positions", None, None)
 
-            orders = await client.all_orders(limit=limit)
+            orders = await client.all_orders(limit=page_limit)
             order_rows = _rows(orders)
             counts["allOrders"] = self.append("allOrders", order_rows, fetched_at)
-            times = [t for row in order_rows if (t := _event_time(row)) is not None]
-            self.record_coverage("allOrders", min(times) if times else None, max(times) if times else None)
+            order_times = [t for row in order_rows if (t := _event_time(row)) is not None]
+            self.record_coverage(
+                "allOrders",
+                min(order_times) if order_times else None,
+                max(order_times) if order_times else None,
+            )
 
             now_ms = int(datetime.now(UTC).timestamp() * 1000)
-            coverage = _read_json(self.coverage_path, {"intervals": []})
-            covered_ends = [
-                int(item["end_ms"]) for item in coverage.get("intervals", [])
-                if item.get("source") == "income" and item.get("end_ms") is not None
-            ]
-            if covered_ends:
-                counts["income"] = await self.backfill_income(
-                    client, max(0, max(covered_ends) + 1), now_ms,
-                    limit=limit, max_pages=max_pages,
-                )
-                return counts
-            income_rows = 0
+            start_ms = max(0, now_ms - int(timedelta(hours=24).total_seconds() * 1000))
+            seen = set(_read_json(self.seen_path, []))
             cursor = now_ms
+            income_added = 0
             oldest_seen = None
-            exhausted = True
-            for _ in range(max_pages):
-                response = await client.income(limit=min(max(int(limit), 1), 5), endTime=cursor)
-                rows = _rows(response)
+            intersected = False
+            pages_read = 0
+            last_page_count = 0
+            for _ in range(page_cap):
+                response = await client.income(
+                    limit=page_limit, startTime=start_ms, endTime=cursor
+                )
+                rows = _rows(response)[:page_limit]
+                pages_read += 1
+                last_page_count = len(rows)
                 if not rows:
                     break
-                income_rows += self.append("income", rows, fetched_at)
+                page_keys = {dedup_key("income", row) for row in rows}
+                intersected = bool(page_keys & seen)
+                income_added += self.append("income", rows, fetched_at)
                 times = [t for row in rows if (t := _event_time(row)) is not None]
                 if not times:
                     break
                 oldest = min(times)
-                self.record_coverage("income", oldest, max(times))
-                if len(rows) < limit:
-                    exhausted = False
+                oldest_seen = oldest if oldest_seen is None else min(oldest_seen, oldest)
+                if intersected or oldest <= start_ms or len(rows) < page_limit:
                     break
                 cursor = oldest - 1
-            if oldest_seen is not None:
-                self.record_coverage("income", oldest_seen, now_ms, gap=exhausted)
-            counts["income"] = income_rows
+
+            coverage = _read_json(self.coverage_path, {"intervals": [], "gaps": []})
+            prior_intervals = [
+                item for item in coverage.get("intervals", [])
+                if item.get("source") == "income"
+                and item.get("start_ms") is not None
+                and item.get("end_ms") is not None
+            ]
+            if pages_read == 0 or last_page_count == 0:
+                self.record_coverage("income", start_ms, now_ms)
+            elif oldest_seen is None:
+                self.record_coverage("income", start_ms, now_ms, gap=True)
+            elif oldest_seen <= start_ms or (not intersected and last_page_count < page_limit):
+                self.record_coverage("income", start_ms, now_ms)
+            else:
+                prior_covers_boundary = any(
+                    int(item["start_ms"]) <= start_ms
+                    and int(item["end_ms"]) >= oldest_seen
+                    for item in prior_intervals
+                )
+                self.record_coverage("income", oldest_seen, now_ms)
+                if not prior_covers_boundary:
+                    self.record_coverage("income", start_ms, oldest_seen, gap=True)
+            counts["income"] = income_added
+            counts["income_pages"] = pages_read
             return counts
         finally:
             if own_client:
