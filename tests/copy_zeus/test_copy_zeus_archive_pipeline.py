@@ -1,8 +1,6 @@
 """Offline tests for the real-only COPY_ZEUS archive; all state stays under tmp_path."""
 import asyncio
 import json
-import zipfile
-from pathlib import Path
 
 import pytest
 
@@ -87,8 +85,7 @@ def test_rotation_manifest_and_authenticated_restore(tmp_path):
     restore_state(output, restored, "existing-bingx-secret")
     assert (restored / rotation.name).read_bytes() == rotation.read_bytes()
     assert json.loads((restored / "seen.json").read_text()) == ["income:tranId:t1"]
-    with zipfile.ZipFile(output / "archive.enc") as _:
-        pytest.fail("ciphertext must not be a plaintext ZIP archive")
+    assert not (output / "archive.enc").read_bytes().startswith(b"PK\x03\x04")
 
 
 def test_wrong_secret_cannot_restore_archive(tmp_path):
