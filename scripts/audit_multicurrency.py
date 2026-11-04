@@ -43,7 +43,7 @@ def resample_klines(df_1h: pd.DataFrame, timeframe: str) -> pd.DataFrame:
     """Честный ресемплинг из закрытых 1H свечей без look-ahead bias."""
     df = df_1h.copy()
     df["dt"] = pd.to_datetime(df["open_time"], unit="ms", utc=True)
-    df.set_index("dt", inplace=True)
+    df = df.set_index("dt")
 
     rule = "4h" if timeframe == "4h" else "1D"
     resampled = df.resample(rule, closed="left", label="left").agg({
