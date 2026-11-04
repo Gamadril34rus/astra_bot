@@ -1,0 +1,96 @@
+name: COPY_ZEUS real archive
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: copyzeus-archive
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      COPYZEUS_ENV: real
+      PYTHONPATH: .
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install COPY_ZEUS runtime dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt cryptography
+
+      - name: Download previous encrypted archive artifact
+        id: previous
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          previous_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=copyzeus-archive&per_page=100" --jq '.artifacts | map(select(.expired == false)) | sort_by(.created_at) | last | .id // empty')"
+          echo "artifact_id=$previous_id" >> "$GITHUB_OUTPUT"
+          if [ -n "$previous_id" ]; then
+            mkdir -p "$RUNNER_TEMP/copyzeus-previous"
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$previous_id/zip" --output "$RUNNER_TEMP/copyzeus-previous.zip"
+            unzip -q "$RUNNER_TEMP/copyzeus-previous.zip" -d "$RUNNER_TEMP/copyzeus-previous"
+          fi
+
+      - name: Restore encrypted archive state
+        env:
+          BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
+        run: |
+          set -euo pipefail
+          args=(restore --state-dir models/copy_zeus/real)
+          if [ -d "$RUNNER_TEMP/copyzeus-previous" ]; then
+            args+=(--artifact-dir "$RUNNER_TEMP/copyzeus-previous")
+          fi
+          python scripts/copy_zeus_archive.py "${args[@]}"
+
+      - name: Collect one read-only real-account tick
+        env:
+          BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
+          BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
+        run: |
+          set -euo pipefail
+          set +x
+          python scripts/copy_zeus_archive.py collect --state-dir models/copy_zeus/real
+
+      - name: Encrypt archive and build public metadata manifest
+        env:
+          BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
+        run: |
+          set -euo pipefail
+          python scripts/copy_zeus_archive.py seal --state-dir models/copy_zeus/real --output-dir archive-output
+
+      - name: Upload encrypted archive artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: copyzeus-archive
+          path: |
+            archive-output/archive.enc
+            archive-output/MANIFEST.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Delete previous archive artifact
+        if: success() && steps.previous.outputs.artifact_id != ''
+        env:
+          PREVIOUS_ARTIFACT_ID: ${{ steps.previous.outputs.artifact_id }}
+        run: |
+          set -euo pipefail
+          gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$PREVIOUS_ARTIFACT_ID"
