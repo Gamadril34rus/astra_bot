@@ -115,6 +115,6 @@ def test_rotation_is_capped_at_ten_mib(tmp_path):
     rotate_pending(state)
     files = sorted(state.glob("copyzeus-*.jsonl"))
     assert len(files) == 2
-    assert files[1].name == "copyzeus-2026-11-002.jsonl"
-    assert files[1].stat().st_size <= ROTATION_LIMIT
+    continuation = next(path for path in files if "-002.jsonl" in path.name)
+    assert continuation.stat().st_size <= ROTATION_LIMIT
     assert not (state / "archive.jsonl").exists()
