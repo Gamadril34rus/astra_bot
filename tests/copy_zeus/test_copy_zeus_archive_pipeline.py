@@ -104,7 +104,7 @@ def test_wrong_secret_cannot_restore_archive(tmp_path):
 
 
 def test_rotation_is_capped_at_ten_mib(tmp_path):
-    from scripts.copy_zeus_archive import _rotation_paths, ROTATION_LIMIT, rotate_pending
+    import scripts.copy_zeus_archive as archive_script
 
     state = tmp_path / "state"
     state.mkdir()
@@ -112,12 +112,12 @@ def test_rotation_is_capped_at_ten_mib(tmp_path):
     (state / "copyzeus-2026-11.jsonl").write_bytes(b"x" * (ROTATION_LIMIT - 8))
     row = {"fetched_at": "2026-11-04T00:00:00+00:00", "event": {"payload": "x" * 100}}
     (state / "archive.jsonl").write_text(json.dumps(row) + "\n", encoding="utf-8")
-    rotate_pending(state)
+    archive_script.rotate_pending(state)
     files = sorted(state.glob("copyzeus-*.jsonl"))
     assert len(files) == 2
     continuation = next(path for path in files if "-002.jsonl" in path.name)
-    assert continuation.stat().st_size <= ROTATION_LIMIT
-    assert [path.name for path in _rotation_paths(state)] == [
+    assert continuation.stat().st_size <= archive_script.ROTATION_LIMIT
+    assert [path.name for path in archive_script._rotation_paths(state)] == [
         "copyzeus-2026-11.jsonl",
         "copyzeus-2026-11-002.jsonl",
     ]
