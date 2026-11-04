@@ -112,7 +112,15 @@ def _write_inner_zip(state_dir: Path, destination: Path) -> None:
     with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
         for path in sorted(state_dir.iterdir()):
             if path.is_file() and (path.name.endswith(".jsonl") or path.name in {"seen.json", "coverage.json"}):
-                archive.write(path, arcname=path.name)
+                info = zipfile.ZipInfo(path.name, date_time=(1980, 1, 1, 0, 0, 0))
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info.external_attr = 0o600 << 16
+                archive.writestr(
+                    info,
+                    path.read_bytes(),
+                    compress_type=zipfile.ZIP_DEFLATED,
+                    compresslevel=6,
+                )
 
 
 def seal_state(state_dir: Path, output_dir: Path, secret: str) -> dict:
