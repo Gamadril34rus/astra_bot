@@ -136,7 +136,7 @@ class CopyZeusClient:
         raise CopyZeusAPIError("BingX request exhausted retries")
 
     async def positions(self, limit: int = 5):
-        return await self.get(ENDPOINTS["positions"], {"limit": min(max(int(limit), 1), 50)})
+        return await self.get(ENDPOINTS["positions"], {"limit": min(max(int(limit), 1), 5)})
 
     async def all_orders(self, limit: int = 5, **params):
         return await self.get(ENDPOINTS["allOrders"], {**params, "limit": min(max(int(limit), 1), 5)})
