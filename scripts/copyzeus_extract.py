@@ -99,7 +99,7 @@ def print_summary(state_dir: Path, manifest: dict) -> None:
             elif row.get("source") == "income":
                 income.append(row)
 
-    print(f"Environment: real")
+    print("Environment: real")
     print(f"Last archive tick: {manifest.get('last_tick_at', 'unknown')}")
     print(f"Rows: {manifest.get('total_rows', 0)}; rotations: {len(manifest.get('rotations', []))}")
     print("\nORDERS (entry/exit classification is based on reduceOnly/closePosition flags)")
@@ -140,7 +140,11 @@ def print_summary(state_dir: Path, manifest: dict) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--artifact-id", type=int, help="Use this artifact ID instead of the latest")
+    parser.add_argument(
+        "--artifact-id",
+        type=int,
+        help="Use this artifact ID instead of the latest",
+    )
     args = parser.parse_args()
     secret = getpass.getpass("BINGX_API_SECRET (hidden input): ")
     if not secret:

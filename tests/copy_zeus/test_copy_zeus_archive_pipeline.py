@@ -3,9 +3,9 @@ import asyncio
 import json
 
 import pytest
-from cryptography.exceptions import InvalidTag
 
 from astra_bot.copy_zeus.archive import CopyZeusArchive
+from cryptography.exceptions import InvalidTag
 from scripts.copy_zeus_archive import restore_state, seal_state
 
 
