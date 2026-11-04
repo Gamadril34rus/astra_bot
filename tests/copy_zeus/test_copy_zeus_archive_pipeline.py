@@ -22,7 +22,7 @@ def test_run_once_uses_50_rows_and_stops_at_seen_income(tmp_path):
 
     class FakeClient:
         async def positions(self, limit):
-            assert limit == 50
+            assert limit == 5
             return {"data": [{"symbol": "BTC-USDT", "positionAmt": "0"}]}
 
         async def all_orders(self, limit):
