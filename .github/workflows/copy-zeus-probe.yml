@@ -2,6 +2,13 @@ name: COPY_ZEUS read-only probe
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "vst или real"
+        required: false
+        default: "vst"
+        type: choice
+        options: [vst, real]
 
 permissions:
   contents: read
@@ -26,7 +33,7 @@ jobs:
           PYTHONPATH: .
           BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
           BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
-          COPYZEUS_ENV: vst
+          COPYZEUS_ENV: ${{ inputs.environment || 'vst' }}
           COPYZEUS_REPORT: probe-report.json
         run: |
           set +x
