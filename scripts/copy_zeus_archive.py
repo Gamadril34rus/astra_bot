@@ -53,7 +53,13 @@ def _sha256(path: Path) -> str:
 
 
 def _rotation_paths(state_dir: Path) -> list[Path]:
-    return sorted(state_dir.glob("copyzeus-*.jsonl"))
+    def sort_key(path: Path):
+        parts = path.stem.split("-")
+        month = "-".join(parts[1:3])
+        sequence = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 1
+        return month, sequence
+
+    return sorted(state_dir.glob("copyzeus-*.jsonl"), key=sort_key)
 
 
 def rotate_pending(state_dir: Path) -> None:
