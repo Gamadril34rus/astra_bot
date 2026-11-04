@@ -45,7 +45,7 @@ jobs:
           echo "artifact_id=$previous_id" >> "$GITHUB_OUTPUT"
           if [ -n "$previous_id" ]; then
             mkdir -p "$RUNNER_TEMP/copyzeus-previous"
-            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$previous_id/zip" --output "$RUNNER_TEMP/copyzeus-previous.zip"
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$previous_id/zip" > "$RUNNER_TEMP/copyzeus-previous.zip"
             unzip -q "$RUNNER_TEMP/copyzeus-previous.zip" -d "$RUNNER_TEMP/copyzeus-previous"
           fi
 
