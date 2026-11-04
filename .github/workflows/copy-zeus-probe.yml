@@ -1,0 +1,38 @@
+name: COPY_ZEUS read-only probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install minimal dependencies
+        run: python -m pip install aiohttp
+      - name: Run sanitized probe
+        env:
+          PYTHONPATH: .
+          BINGX_API_KEY: ${{ secrets.BINGX_API_KEY }}
+          BINGX_API_SECRET: ${{ secrets.BINGX_API_SECRET }}
+          COPYZEUS_ENV: vst
+          COPYZEUS_REPORT: probe-report.json
+        run: |
+          set +x
+          python scripts/copy_zeus_probe.py
+      - name: Upload sanitized probe report
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-report
+          path: probe-report.json
+          if-no-files-found: error
+          retention-days: 14
