@@ -1,4 +1,11 @@
-"""Owner-side downloader, decryptor and human-readable COPY_ZEUS archive summary."""
+"""Owner-side downloader, decryptor and human-readable COPY_ZEUS archive summary.
+
+Key derivation (exact): SHA-512(
+    b"ASTRA/COPY_ZEUS/ARCHIVE/AES-SIV/v1\\\\0" + BINGX_API_SECRET.encode("utf-8")
+).digest() produces the 64-byte AES-256-SIV key. AES-SIV is deterministic and
+authenticated; the exact plaintext MANIFEST.json bytes are supplied as
+associated data. The secret is requested only through getpass and never echoed.
+"""
 from __future__ import annotations
 
 import argparse
