@@ -183,6 +183,8 @@ def restore_state(artifact_dir: Path | None, state_dir: Path, secret: str) -> No
         encrypted_path = artifact_dir / "archive.enc"
         manifest_path = artifact_dir / MANIFEST_NAME
         if encrypted_path.exists():
+            if not manifest_path.exists():
+                raise RuntimeError("Encrypted archive is missing its authenticated MANIFEST.json")
             manifest_bytes = manifest_path.read_bytes()
             plaintext = AESSIV(derive_key(secret)).decrypt(
                 encrypted_path.read_bytes(), [AAD[0], manifest_bytes]
@@ -194,9 +196,11 @@ def restore_state(artifact_dir: Path | None, state_dir: Path, secret: str) -> No
             temp_zip.unlink(missing_ok=True)
         if manifest_path.exists():
             (state_dir / MANIFEST_NAME).write_bytes(manifest_path.read_bytes())
-        elif encrypted_path.exists():
-            raise RuntimeError("Encrypted archive is missing its authenticated MANIFEST.json")
-    for name, default in (("seen.json", []), ("coverage.json", {"intervals": [], "gaps": []})):
+    for name, default in (
+        ("seen.json", []),
+        ("coverage.json", {"intervals": [], "gaps": []}),
+        ("last_tick.json", {"last_tick_at": None}),
+    ):
         path = state_dir / name
         if not path.exists():
             path.write_text(json.dumps(default, indent=2) + "\n", encoding="utf-8")
