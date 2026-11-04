@@ -150,8 +150,11 @@ def main() -> int:
 
         manifest_path = artifact_dir / "MANIFEST.json"
         encrypted_path = artifact_dir / "archive.enc"
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        plaintext = AESSIV(derive_key(secret)).decrypt(encrypted_path.read_bytes(), AAD)
+        manifest_bytes = manifest_path.read_bytes()
+        manifest = json.loads(manifest_bytes)
+        plaintext = AESSIV(derive_key(secret)).decrypt(
+            encrypted_path.read_bytes(), [AAD[0], manifest_bytes]
+        )
         state_dir = root / "state"
         state_dir.mkdir()
         inner_zip = root / "state.zip"
