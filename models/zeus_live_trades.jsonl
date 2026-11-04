@@ -1794,3 +1794,9 @@
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2117774463247933440", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793758779.151539}
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2117803933539328000", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793759262.692997}
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2117805961862799360", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793761626.7138274}
+{"event": "qty_reconcile", "symbol": "BTC-USDT", "side": "short", "old_qty": 0.6485, "new_qty": 0.4539, "rel_diff": 0.300077, "signal_id": "zeus_multi_top_breakdown|BTC-USDT|short|1793750400000", "ts": 1793761909.4344954}
+{"event": "qty_reconcile", "symbol": "SOL-USDT", "side": "short", "old_qty": 375.3909465, "new_qty": 183.94, "rel_diff": 0.510004, "signal_id": "zeus_multi_top_breakdown|SOL-USDT|short|1793750400000", "ts": 1793761909.4346468}
+{"event": "partial_fill", "symbol": "BTC-USDT", "side": null, "qty": null, "price": null, "pnl": 133.33992, "income_type": "REALIZED_PNL", "income_id": "1793084516986549206_512_1772278_PNL", "source": "income_tape", "ts": 1793761111.0}
+{"event": "partial_fill", "symbol": "SOL-USDT", "side": null, "qty": null, "price": null, "pnl": 206.19224, "income_type": "REALIZED_PNL", "income_id": "1793084516986549206_512_1772608_PNL", "source": "income_tape", "ts": 1793761210.0}
+{"event": "order_cancel", "symbol": "SOL-USDT", "order_id": "2117816579680460800", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793761941.86147}
+{"event": "partial_fill", "symbol": "SOL-USDT", "side": "short", "qty": "191.45094650", "exch_qty": "183.94", "plan_qty": "375.39094650", "price": null, "ts": 1793761942.3300393, "source": "be_catchup_qty_gap"}
