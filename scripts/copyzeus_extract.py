@@ -72,6 +72,10 @@ def _time(event: dict) -> str:
     return ""
 
 
+def _is_true(value) -> bool:
+    return value is True or str(value).strip().lower() in {"1", "true", "yes"}
+
+
 def print_summary(state_dir: Path, manifest: dict) -> None:
     orders = []
     income = []
@@ -91,7 +95,7 @@ def print_summary(state_dir: Path, manifest: dict) -> None:
     print("\nORDERS (entry/exit classification is based on reduceOnly/closePosition flags)")
     for row in sorted(orders, key=lambda item: _time(item.get("event", {}))):
         event = row.get("event", {})
-        is_exit = bool(event.get("reduceOnly")) or str(event.get("closePosition", "")).lower() == "true"
+        is_exit = _is_true(event.get("reduceOnly")) or _is_true(event.get("closePosition"))
         direction = "EXIT" if is_exit else "ENTRY/ORDER"
         print(
             f"{row.get('fetched_at', '')} | {direction} | {event.get('symbol', '')} "
