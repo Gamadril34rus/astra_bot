@@ -98,10 +98,18 @@ def _manifest(state_dir: Path, previous: dict | None = None) -> dict:
             "size_bytes": path.stat().st_size,
             "sha256": _sha256(path),
         })
+    tick_path = state_dir / "last_tick.json"
+    if tick_path.exists():
+        last_tick = json.loads(tick_path.read_text(encoding="utf-8")).get("last_tick_at")
+    else:
+        last_tick = max(
+            (item["end_time"] for item in rotations if item["end_time"]),
+            default=old.get("last_tick_at"),
+        )
     return {
         "format": "copyzeus-archive-v1",
         "environment": "real",
-        "last_tick_at": datetime.now(UTC).isoformat(),
+        "last_tick_at": last_tick,
         "rotations": rotations,
         "pruned": list(old.get("pruned", [])),
         "total_rows": sum(item["rows"] for item in rotations),
@@ -111,7 +119,7 @@ def _manifest(state_dir: Path, previous: dict | None = None) -> dict:
 def _write_inner_zip(state_dir: Path, destination: Path) -> None:
     with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
         for path in sorted(state_dir.iterdir()):
-            if path.is_file() and (path.name.endswith(".jsonl") or path.name in {"seen.json", "coverage.json"}):
+            if path.is_file() and (path.name.endswith(".jsonl") or path.name in {"seen.json", "coverage.json", "last_tick.json"}):
                 info = zipfile.ZipInfo(path.name, date_time=(1980, 1, 1, 0, 0, 0))
                 info.compress_type = zipfile.ZIP_DEFLATED
                 info.external_attr = 0o600 << 16
@@ -129,7 +137,11 @@ def seal_state(state_dir: Path, output_dir: Path, secret: str) -> dict:
     rotate_pending(state_dir)
     previous_path = state_dir / MANIFEST_NAME
     previous = json.loads(previous_path.read_text(encoding="utf-8")) if previous_path.exists() else {}
-    for name, default in (("seen.json", []), ("coverage.json", {"intervals": [], "gaps": []})):
+    for name, default in (
+        ("seen.json", []),
+        ("coverage.json", {"intervals": [], "gaps": []}),
+        ("last_tick.json", {"last_tick_at": None}),
+    ):
         path = state_dir / name
         if not path.exists():
             path.write_text(json.dumps(default, indent=2) + "\n", encoding="utf-8")
@@ -139,7 +151,9 @@ def seal_state(state_dir: Path, output_dir: Path, secret: str) -> dict:
         manifest_bytes = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode()
         inner_zip = output_dir / "archive-state.zip"
         _write_inner_zip(state_dir, inner_zip)
-        encrypted = AESSIV(derive_key(secret)).encrypt(inner_zip.read_bytes(), AAD)
+        encrypted = AESSIV(derive_key(secret)).encrypt(
+            inner_zip.read_bytes(), [AAD[0], manifest_bytes]
+        )
         if len(encrypted) + len(manifest_bytes) <= BUNDLE_LIMIT:
             break
         rotations = _rotation_paths(state_dir)
@@ -169,7 +183,10 @@ def restore_state(artifact_dir: Path | None, state_dir: Path, secret: str) -> No
         encrypted_path = artifact_dir / "archive.enc"
         manifest_path = artifact_dir / MANIFEST_NAME
         if encrypted_path.exists():
-            plaintext = AESSIV(derive_key(secret)).decrypt(encrypted_path.read_bytes(), AAD)
+            manifest_bytes = manifest_path.read_bytes()
+            plaintext = AESSIV(derive_key(secret)).decrypt(
+                encrypted_path.read_bytes(), [AAD[0], manifest_bytes]
+            )
             temp_zip = state_dir / ".restore.zip"
             temp_zip.write_bytes(plaintext)
             with zipfile.ZipFile(temp_zip) as archive:
@@ -177,6 +194,8 @@ def restore_state(artifact_dir: Path | None, state_dir: Path, secret: str) -> No
             temp_zip.unlink(missing_ok=True)
         if manifest_path.exists():
             (state_dir / MANIFEST_NAME).write_bytes(manifest_path.read_bytes())
+        elif encrypted_path.exists():
+            raise RuntimeError("Encrypted archive is missing its authenticated MANIFEST.json")
     for name, default in (("seen.json", []), ("coverage.json", {"intervals": [], "gaps": []})):
         path = state_dir / name
         if not path.exists():
@@ -189,6 +208,10 @@ async def collect_tick(state_dir: Path) -> dict[str, int]:
     archive = CopyZeusArchive(root=state_dir.parent.parent, env="real")
     async with CopyZeusClient(env="real", retries=1) as client:
         counts = await archive.run_once(client=client, limit=50, max_pages=10)
+    (state_dir / "last_tick.json").write_text(
+        json.dumps({"last_tick_at": datetime.now(UTC).isoformat()}) + "\n",
+        encoding="utf-8",
+    )
     rotate_pending(state_dir)
     return counts
 
