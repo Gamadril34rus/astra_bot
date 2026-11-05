@@ -70,3 +70,18 @@ def test_derive_exit_price_rejects_zero_qty():
 
     with pytest.raises(ValueError):
         derive_exit_price(side="long", entry=2300, pnl=-1, qty=0)
+
+
+def test_art_slot_frame_and_canonical_dpi():
+    qty = 87.4861 * 100 * 6 / (94.679 * 1.50)
+    png = render_exit_stats_card(
+        symbol="SOL-USDT", side="short", entry=94.679, exit_price=94.443,
+        pnl=87.4861, qty=qty, leverage=6, closed_at=1793652000,
+        art_path=ASSETS / "art_plus.png",
+    )
+    import io
+
+    with Image.open(io.BytesIO(png)) as rendered:
+        assert rendered.size == (1240, 1640)
+        assert rendered.info["dpi"] == (200.0, 200.0)
+        assert rendered.convert("RGB").getpixel((660, 900)) == (42, 49, 64)
