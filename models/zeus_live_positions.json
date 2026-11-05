@@ -42,7 +42,13 @@
       "opened_at_ms": 1793892530223,
       "plan_qty": "0.65369389",
       "qty_ratio": 1.0,
-      "tp1": "77023.818800000007"
+      "tp1": "77023.818800000007",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_high": "76589.8",
+      "be_earned": true,
+      "current_regime": "RANGE"
     },
     "ETH-USDT|long": {
       "symbol": "ETH-USDT",
@@ -60,8 +66,15 @@
       "opened_at_ms": 1793892536905,
       "plan_qty": "21.95621053",
       "qty_ratio": 1.0,
-      "tp1": "2293.20082"
+      "tp1": "2293.20082",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_high": "2282.22",
+      "be_earned": true,
+      "migrate_stop_v1": true,
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1793892536.9054642
+  "ts": 1793893358.634947
 }
