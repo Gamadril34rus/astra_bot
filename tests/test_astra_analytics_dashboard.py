@@ -30,7 +30,7 @@ def test_separates_contours_and_coalesces_paper_legs(tmp_path: Path) -> None:
     assert {r["mode"] for r in data["strategy_metrics"]} == {
         "PAPER", "DEMO / VST", "LIVE / REAL", "LIVE / UNKNOWN"
     }
-    assert data["data_quality"]["paper_trades_after_partial_coalescing"] == 1
+    assert data["data_quality"]["paper_trades"] == 1
     assert data["timelines"]["paper"][0]["equity_pnl"] == 3
     assert data["data_quality"]["environment_classification"] == {
         "VST": 1, "REAL": 1, "UNKNOWN": 1
@@ -55,5 +55,5 @@ def test_generates_html_and_machine_readable_json(tmp_path: Path) -> None:
     assert (target / "index.html").is_file()
     assert (target / "dashboard.json").is_file()
     report = json.loads((target / "dashboard.json").read_text(encoding="utf-8"))
-    assert report["data_quality"]["paper_trades_after_partial_coalescing"] == 1
+    assert report["data_quality"]["paper_trades"] == 1
     assert "<!doctype html>" in (target / "index.html").read_text(encoding="utf-8")
