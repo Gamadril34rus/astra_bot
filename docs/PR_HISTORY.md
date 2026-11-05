@@ -10,6 +10,8 @@ ASTRA BOT движется от бумажного симулятора к уп�
 
 | № PR | дата (МСК) | заголовок | что сделано — одной строкой |
 |---:|:---:|---|---|
+| [#322](https://github.com/Gamadril34rus/astra_bot/pull/322) | 2026-11-05 17:23 | docs: establish Zeus configuration canon and repository showcase | Разделены общий конфиг, paper Zeus и live Zeus; обновлены SETTINGS, карта конфигурации, исторические пометки, роли, cron и обложка на owner art. |
+| [#321](https://github.com/Gamadril34rus/astra_bot/pull/321) | 2026-11-05 13:48 | docs: refresh repository showcase and PR history (2026-11-05) | Обновлена главная витрина проекта: контуры, стратегия, zone/session shadow, EXIT-карточки и синтетический ENTRY/EXIT-график. |
 | [#320](https://github.com/Gamadril34rus/astra_bot/pull/320) | 2026-11-05 13:23 | fix(copy-zeus): extend 100410 cooldown to four attempts | CopyZeusClient: four attempts, retry delays 5/30/60 seconds; default and upper clamp are 4. |
 | [#319](https://github.com/Gamadril34rus/astra_bot/pull/319) | 2026-11-05 13:01 | feat(viz): use owner full-bleed backgrounds for exit cards | Вся карточка — ImageOps.fit канон-арта на 1240×1640; слот, рамка и cover-обрезка больше не используются. |
 | [#318](https://github.com/Gamadril34rus/astra_bot/pull/318) | 2026-11-05 12:47 | fix(copy-zeus): align retry backoff and disable archive schedule | Для retryable BingX HTTP 200 / API 100410 и сетевых временных ошибок архивный GET-клиент использует шкалу пауз (2, 5, 15) как боевой BingX-клиент; лимит остаётся 3 попытки. |
