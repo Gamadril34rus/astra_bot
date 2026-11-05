@@ -22,8 +22,9 @@ def render_gamadril_exit_animation(
     animation_path: str | os.PathLike[str] | None = None,
 ) -> bytes:
     """Overlay exit metrics onto a prebuilt GIF; never generate effects per tick."""
-    from astra_bot.decision.trade_viz import leveraged_roi_pct
     from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageSequence
+
+    from astra_bot.decision.trade_viz import leveraged_roi_pct
 
     path = Path(animation_path) if animation_path is not None else (
         Path(__file__).parent / "assets" / "gamadril" / "long_short_animation.gif"
