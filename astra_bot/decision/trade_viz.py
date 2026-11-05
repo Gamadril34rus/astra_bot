@@ -194,7 +194,7 @@ def render_exit_stats_card(
     is_long = str(side).lower() == "long"
     side_label = "Long" if is_long else "Short"
     side_color = "#00C853" if is_long else "#B71C1C"
-    result_color = "#00E676" if positive else "#FF5252"
+    result_color = "#00C853" if positive else "#B71C1C"
     symbol_label = str(symbol).replace("-", "").replace("/", "")
     if not symbol_label.endswith("USDT"):
         symbol_label += "USDT"
@@ -288,9 +288,9 @@ def render_exit_stats_card(
         draw.text((92, 755), "(виртуальные)", fill="#6B7280", font=font(26))
 
     draw.text((92, 930), "Цена входа", fill="#FFFFFF", font=font(30))
-    draw.text((520, 920), f"{entry:.6g}", fill="#FFFFFF", font=font(38, True))
+    draw.text((390, 920), f"{entry:.6g}", fill="#FFFFFF", font=font(34, True))
     draw.text((92, 1035), "Цена закрытия", fill="#FFFFFF", font=font(30))
-    draw.text((520, 1025), f"{exit_price:.6g}", fill="#FFFFFF", font=font(38, True))
+    draw.text((390, 1025), f"{exit_price:.6g}", fill="#FFFFFF", font=font(34, True))
     draw.text((92, height - 125), stamp_text, fill="#9CA3AF", font=font(24))
     buffer = io.BytesIO()
     image.save(buffer, format="PNG", dpi=(200, 200), optimize=True)
