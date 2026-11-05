@@ -1,5 +1,7 @@
 # ASTRA BOT — BingX USDT-M / Zeus
 
+<img width="100%" src="docs/assets/repo_cover.png" alt="ASTRA BOT — Zeus, paper, VST demo, COPY_ZEUS read-only; real locked">
+
 ![Bot](https://github.com/Gamadril34rus/astra_bot/actions/workflows/bot.yml/badge.svg)
 ![Zeus paper-clock](https://github.com/Gamadril34rus/astra_bot/actions/workflows/zeus-paper-clock.yml/badge.svg)
 ![Zeus live-clock](https://github.com/Gamadril34rus/astra_bot/actions/workflows/zeus-live-clock.yml/badge.svg)
@@ -129,13 +131,16 @@ EXIT-карточка занимает весь холст **1240×1640**. Фо�
 
 | Роль | Ответственность |
 |---|---|
-| **Исполнитель (Грок)** | Изучает задачу, работает в отдельной ветке, готовит минимальный diff, тесты и PR; сообщает файлы и SHA. |
-| **Арена** | Независимо проверяет технический diff и API-поведение, даёт вердикт по готовности. |
-| **Владелец** | Единолично разрешает merge, ON/ENV-переключения, изменения риска, запуск/остановку джоб и любые действия с реальным счётом. |
+| **Исполнитель (Грок)** | Изучает задачу, выполняет согласованные изменения в отдельной ветке, готовит минимальный diff, тесты и PR; сообщает файлы, SHA и результаты gates. |
+| **ИИ-аналитик (ChatGPT)** | Анализ архитектуры и журналов, аудит, документация и PR по поручению владельца; не runtime-бот, ключами/риском/ON/REAL не управляет, merge не решает. |
+| **Арена** | Независимо проверяет технический diff, API-поведение, тесты и соответствие заданным границам; даёт вердикт по готовности. |
+| **Внешняя автоматика (cron-job.org)** | Вызывает `zeus-live-clock.yml` примерно раз в 5 минут и `copy-zeus-archive.yml` каждые 30 минут на минутах 07/37. Это внешний dispatch-планировщик; GitHub schedule у этих workflow отсутствует. |
+| **Владелец** | Единолично разрешает merge, ON/ENV-переключения, изменения риска, управление cron-job.org и любые действия с реальным счётом; хранит Actions Secrets. |
 
 ## Документация
 
-- **[SETTINGS.md](SETTINGS.md)** — канон чисел: риск-лестница, RR, доли TP, лимиты и env.
+- **[SETTINGS.md](SETTINGS.md)** — канон чисел Zeus: риск-лестница, RR, выходы и фактические live env.
+- **[docs/CONFIGURATION_MAP.md](docs/CONFIGURATION_MAP.md)** — где живут общие настройки, paper Zeus, live overrides и Actions Secrets.
 - **[docs/PR_HISTORY.md](docs/PR_HISTORY.md)** — хроника всех PR репозитория.
 - **[docs/INDEX.md](docs/INDEX.md)** — карта технической документации.
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) · [DECISION_PIPELINE.md](docs/DECISION_PIPELINE.md) · [GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md) · [REAL_READINESS.md](docs/REAL_READINESS.md).
