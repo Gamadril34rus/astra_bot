@@ -29,70 +29,113 @@ def render_trade_chart(
     phase: str,
     exit_price: float | None = None,
 ) -> bytes:
-    """Render last ~60 bars of 4h and 1h OHLCV with trade levels."""
+    """Render a branded Gamadril chart card with unchanged market levels."""
+    from pathlib import Path
+
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    import numpy as np
     from matplotlib.patches import Rectangle
+    from PIL import Image, ImageEnhance, ImageOps
 
     series = (("4h", candles_4h[-60:]), ("1h", candles_1h[-60:]))
-    fig, axes = plt.subplots(2, 1, figsize=(12, 8), sharey=True)
-    fig.patch.set_facecolor("#111318")
+    fig, axes = plt.subplots(2, 1, figsize=(12, 8), dpi=130, sharey=True)
+    fig.patch.set_facecolor("#0B0D12")
+
+    # Owner-provided Gamadril artwork is the full-bleed canvas for both
+    # ENTRY and EXIT charts. A missing optional asset keeps the dark fallback.
+    artwork = Path(__file__).parent / "assets" / "gamadril" / "mascot_card_bg.jpg"
+    if artwork.is_file():
+        try:
+            width = int(fig.get_figwidth() * fig.dpi)
+            height = int(fig.get_figheight() * fig.dpi)
+            with Image.open(artwork) as source:
+                background = ImageOps.fit(
+                    source.convert("RGB"), (width, height),
+                    method=Image.Resampling.LANCZOS,
+                )
+            background = ImageEnhance.Brightness(background).enhance(0.38)
+            fig.figimage(np.asarray(background), xo=0, yo=0, alpha=0.96, zorder=-100)
+        except (OSError, ValueError, TypeError):
+            logger.warning("viz_error event=trade_chart_background_fallback")
+
     for ax, (label, candles) in zip(axes, series, strict=True):
-        ax.set_facecolor("#171a21")
+        ax.set_facecolor((0.035, 0.045, 0.065, 0.82))
         if not candles:
-            ax.text(0.5, 0.5, f"No {label} candles", transform=ax.transAxes,
-                    ha="center", va="center", color="white")
+            ax.text(
+                0.5, 0.5, f"No {label} candles", transform=ax.transAxes,
+                ha="center", va="center", color="white",
+            )
         for i, candle in enumerate(candles):
             o, h, low, c = (_value(candle, k) for k in ("open", "high", "low", "close"))
             if not all(v > 0 for v in (o, h, low, c)):
                 continue
             up = c >= o
-            body_color = "#26a69a" if up else "#ef5350"
-            ax.vlines(i, low, h, color=body_color, linewidth=1.0)
+            body_color = "#42D6A4" if up else "#FF657A"
+            ax.vlines(i, low, h, color=body_color, linewidth=1.0, alpha=0.95)
             bottom = min(o, c)
             height = max(abs(c - o), max(c * 0.00015, 1e-9))
-            ax.add_patch(Rectangle((i - 0.32, bottom), 0.64, height,
-                                   facecolor=body_color, edgecolor=body_color))
+            ax.add_patch(Rectangle(
+                (i - 0.32, bottom), 0.64, height,
+                facecolor=body_color, edgecolor=body_color,
+            ))
         n = max(len(candles), 1)
-        left, right = -1, n
         low_level, high_level = sorted((entry, stop))
         if target is not None:
             low_level = min(low_level, target)
             high_level = max(high_level, target)
         span = max(high_level - low_level, entry * 0.01)
         pad = span * 0.35
-        ax.set_xlim(left, right)
+        ax.set_xlim(-1, n)
         ax.set_ylim(low_level - pad, high_level + pad)
-        # Stop and profit zones are deliberately distinct for long/short.
-        ax.axhspan(min(entry, stop), max(entry, stop), color="#8b0000", alpha=0.22)
+
+        ax.axhspan(min(entry, stop), max(entry, stop), color="#FF536B", alpha=0.18)
         if target is not None:
-            ax.axhspan(min(entry, target), max(entry, target),
-                       color="#00e676", alpha=0.16)
-        ax.axhline(entry, color="#f5f5f5", linewidth=1.2, linestyle="--")
-        ax.text(1.005, entry, f" ENTRY {entry:g}", transform=ax.get_yaxis_transform(),
-                color="white", va="center", fontsize=8)
-        ax.axhline(stop, color="#b71c1c", linewidth=1.5)
-        ax.text(1.005, stop, f" STOP {stop:g}", transform=ax.get_yaxis_transform(),
-                color="#ff5252", va="center", fontsize=8)
+            ax.axhspan(min(entry, target), max(entry, target), color="#25D6A0", alpha=0.14)
+        ax.axhline(entry, color="#F5F5F5", linewidth=1.2, linestyle="--")
+        ax.text(
+            1.005, entry, f" ENTRY {entry:g}", transform=ax.get_yaxis_transform(),
+            color="white", va="center", fontsize=8, fontweight="bold",
+        )
+        ax.axhline(stop, color="#FF526B", linewidth=1.5)
+        ax.text(
+            1.005, stop, f" STOP {stop:g}", transform=ax.get_yaxis_transform(),
+            color="#FF8090", va="center", fontsize=8, fontweight="bold",
+        )
         if target is not None:
-            ax.axhline(target, color="#00e676", linewidth=1.5)
-            ax.text(1.005, target, f" TARGET {target:g}",
-                    transform=ax.get_yaxis_transform(), color="#69f0ae",
-                    va="center", fontsize=8)
+            ax.axhline(target, color="#37E2AD", linewidth=1.5)
+            ax.text(
+                1.005, target, f" TARGET {target:g}",
+                transform=ax.get_yaxis_transform(), color="#75F0C8",
+                va="center", fontsize=8, fontweight="bold",
+            )
         if exit_price is not None and exit_price > 0:
-            ax.axhline(exit_price, color="#ffd740", linewidth=1.2, linestyle=":")
-            ax.text(1.005, exit_price, f" EXIT {exit_price:g}",
-                    transform=ax.get_yaxis_transform(), color="#ffd740",
-                    va="center", fontsize=8)
-        ax.set_title(f"{label} • last {len(candles)} bars", color="white", loc="left")
-        ax.grid(alpha=0.12)
-        ax.tick_params(colors="#cfd8dc")
+            ax.axhline(exit_price, color="#FFD76A", linewidth=1.2, linestyle=":")
+            ax.text(
+                1.005, exit_price, f" EXIT {exit_price:g}",
+                transform=ax.get_yaxis_transform(), color="#FFD76A",
+                va="center", fontsize=8, fontweight="bold",
+            )
+        ax.set_title(
+            f"{label}  •  LAST {len(candles)} BARS",
+            color="#F4F4F5", loc="left", fontsize=10, fontweight="bold", pad=10,
+        )
+        ax.grid(color="#AEB6C2", alpha=0.16, linewidth=0.6)
+        ax.tick_params(colors="#D7DCE5", labelsize=8)
         for spine in ax.spines.values():
-            spine.set_color("#424750")
-    fig.suptitle(f"{symbol}  {side.upper()}  •  {phase}", color="white",
-                 fontsize=14, fontweight="bold")
-    fig.tight_layout(rect=(0, 0, 1, 0.96))
+            spine.set_color("#B99B5A")
+            spine.set_alpha(0.58)
+
+    fig.text(
+        0.5, 0.985, "ASTRA BOT  •  BY GAMADRIL",
+        ha="center", va="top", color="#E3C47C", fontsize=11, fontweight="bold",
+    )
+    fig.suptitle(
+        f"{symbol}  •  {side.upper()}  •  {phase.upper()}",
+        color="#FFFFFF", fontsize=17, fontweight="bold", y=0.94,
+    )
+    fig.tight_layout(rect=(0, 0, 1, 0.91), h_pad=1.8)
     buffer = io.BytesIO()
     fig.savefig(buffer, format="png", dpi=130, facecolor=fig.get_facecolor())
     plt.close(fig)
@@ -313,7 +356,7 @@ async def notify_exit_stats_card(
     qty: float, leverage: float, closed_at: float | None = None,
     virtual: bool = True,
 ) -> bool:
-    """Send a prebuilt Gamadril animation when present, otherwise the PNG card."""
+    """Send the owner full-bleed PNG card first; GIF is a delivery fallback."""
     try:
         import aiohttp
 
@@ -329,21 +372,43 @@ async def notify_exit_stats_card(
             "exit_price": exit_price, "pnl": pnl, "qty": qty,
             "leverage": leverage, "closed_at": closed_at, "virtual": virtual,
         }
-        animation = None
-        try:
-            from astra_bot.decision.gamadril_viz import render_gamadril_exit_animation
-            animation = await __import__("asyncio").to_thread(
-                render_gamadril_exit_animation, **args
-            )
-        except Exception as exc:
-            # The animation is optional. Keep the existing PNG path available.
-            logger.warning(
-                "viz_error event=gamadril_animation_fallback symbol=%s reason=%s",
-                symbol, type(exc).__name__,
-            )
-
+        asyncio = __import__("asyncio")
         async with aiohttp.ClientSession() as session:
-            if animation is not None:
+            # render_exit_stats_card() deliberately receives no art_path:
+            # its canonical PnL-sign resolver selects the owner's full-bleed
+            # card_bg_plus.png / card_bg_minus.png artwork.
+            try:
+                png = await asyncio.to_thread(render_exit_stats_card, **args)
+                form = aiohttp.FormData()
+                form.add_field("chat_id", chat_id)
+                form.add_field(
+                    "caption", f"{symbol} {side.upper()} • EXIT · ASTRA BOT by Gamadril"
+                )
+                form.add_field("photo", png, filename="astra_exit_card.png",
+                               content_type="image/png")
+                async with session.post(
+                    f"https://api.telegram.org/bot{token}/sendPhoto",
+                    data=form, timeout=aiohttp.ClientTimeout(total=25),
+                ) as response:
+                    payload = await response.json()
+                    if response.status < 400 and payload.get("ok"):
+                        return True
+                logger.warning(
+                    "viz_error event=exit_card_photo_rejected symbol=%s", symbol
+                )
+            except Exception as exc:
+                logger.warning(
+                    "viz_error event=exit_card_photo_fallback symbol=%s error=%s",
+                    symbol, type(exc).__name__,
+                )
+
+            # Keep the existing animated asset as a fallback only. It no
+            # longer hides the approved full-bleed static card on success.
+            try:
+                from astra_bot.decision.gamadril_viz import render_gamadril_exit_animation
+                animation = await asyncio.to_thread(
+                    render_gamadril_exit_animation, **args
+                )
                 form = aiohttp.FormData()
                 form.add_field("chat_id", chat_id)
                 form.add_field(
@@ -353,52 +418,22 @@ async def notify_exit_stats_card(
                     "animation", animation, filename="gamadril_exit.gif",
                     content_type="image/gif",
                 )
-                try:
-                    async with session.post(
-                        f"https://api.telegram.org/bot{token}/sendAnimation",
-                        data=form, timeout=aiohttp.ClientTimeout(total=25),
-                    ) as response:
-                        payload = await response.json()
-                        if response.status < 400 and payload.get("ok"):
-                            return True
-                    logger.warning(
-                        "viz_error event=gamadril_animation_send_fallback symbol=%s",
-                        symbol,
-                    )
-                except Exception as exc:
-                    logger.warning(
-                        "viz_error event=gamadril_animation_send_fallback symbol=%s error=%s",
-                        symbol, type(exc).__name__,
-                    )
-
-            # Render PNG only on fallback. Prefer Gamadril artwork explicitly,
-            # while leaving the established sign-based default resolver intact.
-            png_args = dict(args)
-            from pathlib import Path
-            gamadril_background = (
-                Path(__file__).parent / "assets" / "gamadril" / "mascot_card_bg.jpg"
-            )
-            if gamadril_background.is_file():
-                png_args["art_path"] = str(gamadril_background)
-            png = await __import__("asyncio").to_thread(
-                render_exit_stats_card, **png_args
-            )
-            form = aiohttp.FormData()
-            form.add_field("chat_id", chat_id)
-            form.add_field("caption", f"{symbol} {side.upper()} • EXIT")
-            form.add_field(
-                "photo", png, filename="exit_card.png", content_type="image/png"
-            )
-            async with session.post(
-                f"https://api.telegram.org/bot{token}/sendPhoto",
-                data=form, timeout=aiohttp.ClientTimeout(total=25),
-            ) as response:
-                if response.status >= 400:
-                    raise RuntimeError(f"telegram_http_{response.status}")
-                payload = await response.json()
-                if not payload.get("ok"):
-                    raise RuntimeError("telegram_send_photo_not_ok")
-        return True
+                async with session.post(
+                    f"https://api.telegram.org/bot{token}/sendAnimation",
+                    data=form, timeout=aiohttp.ClientTimeout(total=25),
+                ) as response:
+                    payload = await response.json()
+                    if response.status < 400 and payload.get("ok"):
+                        return True
+                logger.warning(
+                    "viz_error event=exit_card_animation_rejected symbol=%s", symbol
+                )
+            except Exception as exc:
+                logger.warning(
+                    "viz_error event=exit_card_animation_failed symbol=%s error=%s",
+                    symbol, type(exc).__name__,
+                )
+        return False
     except Exception as exc:
         logger.warning(
             "viz_error event=viz_error phase=EXIT_CARD symbol=%s error=%s",
