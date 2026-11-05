@@ -10,7 +10,7 @@ import os
 import shutil
 import sys
 import tempfile
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -27,6 +27,8 @@ from scripts.zeus_analytics import (  # noqa: E402
 )
 
 LABELS = {"paper": "PAPER", "VST": "DEMO / VST", "REAL": "LIVE / REAL", "UNKNOWN": "LIVE / UNKNOWN"}
+NO_TRADE_OBSERVATIONS = "models/zeus_no_trade_observations.jsonl"
+NO_TRADE_OUTCOMES = "models/zeus_no_trade_outcomes.jsonl"
 GOLD, GREEN, RED = "#d6b46a", "#23c982", "#ed5b62"
 
 
@@ -107,12 +109,146 @@ def _session_details(rows: list[dict[str, Any]], paper: bool) -> list[dict[str, 
     return out
 
 
+def _no_trade_summary(
+    observations: list[dict[str, Any]],
+    outcomes: list[dict[str, Any]],
+    *,
+    observations_available: bool,
+    outcomes_available: bool,
+) -> dict[str, Any]:
+    """Summarize persisted no-trade observations and their forward outcomes.
+
+    An observation is a per-symbol/bar evaluation record, not a count of bot
+    ticks or exchange scans. Outcomes are joined by the stable observation ID.
+    """
+    outcome_by_id = {
+        str(row.get("id")): row
+        for row in outcomes
+        if row.get("id") not in (None, "")
+    }
+    reasons: Counter[str] = Counter()
+    stages: Counter[str] = Counter()
+    regimes: Counter[str] = Counter()
+    symbols: Counter[str] = Counter()
+    candidate_strategies: Counter[str] = Counter()
+    candidate_directions: Counter[str] = Counter()
+    observations_with_outcome = 0
+    hypothetical_r: list[float] = []
+    horizon_values: dict[str, dict[str, list[float]]] = {
+        horizon: {"future_return": [], "max_up": [], "max_down": []}
+        for horizon in ("1", "3", "6", "12", "24")
+    }
+
+    for observation in observations:
+        reasons[str(observation.get("reason_code") or "UNKNOWN")] += 1
+        stages[str(observation.get("rejection_stage") or "UNATTRIBUTED")] += 1
+        regimes[str(observation.get("market_regime") or "UNKNOWN")] += 1
+        if observation.get("symbol"):
+            symbols[str(observation["symbol"])] += 1
+
+        candidate = observation.get("candidate")
+        if isinstance(candidate, dict):
+            candidate_strategies[str(candidate.get("strategy") or "UNKNOWN")] += 1
+            candidate_directions[str(candidate.get("direction") or "UNKNOWN")] += 1
+
+        outcome = outcome_by_id.get(str(observation.get("id") or ""))
+        if not isinstance(outcome, dict):
+            outcome = {}
+        result = observation.get("result")
+        result = result if isinstance(result, dict) else {}
+        horizons = outcome.get("horizons")
+        if not isinstance(horizons, dict):
+            horizons = result
+        has_outcome = False
+        for horizon in ("1", "3", "6", "12", "24"):
+            row = horizons.get(horizon) if isinstance(horizons, dict) else None
+            if not isinstance(row, dict):
+                continue
+            for metric in ("future_return", "max_up", "max_down"):
+                value = number(row.get(metric))
+                if value is not None:
+                    horizon_values[horizon][metric].append(value * 100.0)
+                    if metric == "future_return":
+                        has_outcome = True
+        if has_outcome:
+            observations_with_outcome += 1
+
+        hyp = outcome.get("hypothetic_r")
+        if isinstance(hyp, dict):
+            value = number(hyp.get("r"))
+            if value is not None:
+                hypothetical_r.append(value)
+
+    horizon_summary = {}
+    for horizon, values in horizon_values.items():
+        future = values["future_return"]
+        horizon_summary[horizon] = {
+            "samples": len(future),
+            "avg_future_return_pct": sum(future) / len(future) if future else None,
+            "avg_mfe_pct": (
+                sum(values["max_up"]) / len(values["max_up"])
+                if values["max_up"] else None
+            ),
+            "avg_mae_pct": (
+                sum(values["max_down"]) / len(values["max_down"])
+                if values["max_down"] else None
+            ),
+        }
+
+    r_count = len(hypothetical_r)
+    return {
+        "observations_available": observations_available,
+        "outcomes_available": outcomes_available,
+        "observations_count": len(observations) if observations_available else None,
+        "outcome_rows": len(outcomes) if outcomes_available else None,
+        "observations_with_outcome": (
+            observations_with_outcome
+            if observations_available or outcomes_available else None
+        ),
+        "outcome_coverage_pct": (
+            observations_with_outcome * 100.0 / len(observations)
+            if observations and (observations_available or outcomes_available) else None
+        ),
+        "candidate_count": sum(
+            1 for row in observations if isinstance(row.get("candidate"), dict)
+        ) if observations_available else None,
+        "reason_codes": dict(sorted(reasons.items())),
+        "rejection_stages": dict(sorted(stages.items())),
+        "market_regimes": dict(sorted(regimes.items())),
+        "symbols": dict(sorted(symbols.items())),
+        "candidate_strategies": dict(sorted(candidate_strategies.items())),
+        "candidate_directions": dict(sorted(candidate_directions.items())),
+        "horizons": horizon_summary,
+        "hypothetic_r": {
+            "samples": r_count,
+            "avg_r": sum(hypothetical_r) / r_count if r_count else None,
+            "positive_rate_pct": (
+                sum(value > 0 for value in hypothetical_r) * 100.0 / r_count
+                if r_count else None
+            ),
+        },
+        "note": (
+            "NO_TRADE observation = one persisted symbol/bar evaluation, not a tick or exchange scan. "
+            "Forward outcomes are joined by stable observation ID and use only persisted horizon data."
+        ),
+    }
+
+
 def build_payload(root: Path) -> dict[str, Any]:
     root = root.resolve()
     paper_raw, paper_bad = read_jsonl(root / PAPER)
     live_rows, live_bad = read_jsonl(root / LIVE_TRADES)
     entry_rows, entry_bad = read_jsonl(root / LIVE_ENTRIES)
     journal, journal_bad = read_jsonl(root / LIVE_JOURNAL)
+    no_trade_obs_path = root / NO_TRADE_OBSERVATIONS
+    no_trade_outcomes_path = root / NO_TRADE_OUTCOMES
+    no_trade_observations, no_trade_obs_bad = read_jsonl(no_trade_obs_path)
+    no_trade_outcomes, no_trade_outcomes_bad = read_jsonl(no_trade_outcomes_path)
+    no_trade = _no_trade_summary(
+        no_trade_observations, no_trade_outcomes,
+        observations_available=no_trade_obs_path.is_file(),
+        outcomes_available=no_trade_outcomes_path.is_file(),
+    )
     paper_rows, live_closed = paper_trades(paper_raw), exits(live_rows)
     entry_times = {
         str(r.get("signal_id")): stamp(r, "ts")
@@ -201,14 +337,21 @@ def build_payload(root: Path) -> dict[str, Any]:
     return {
         "title": "ASTRA BOT by Gamadril",
         "generated_at_msk": datetime.now(timezone.utc).astimezone(MSK).isoformat(timespec="seconds"),
-        "sources": [PAPER, LIVE_TRADES, LIVE_ENTRIES, LIVE_JOURNAL, ZONE_STATE],
+        "sources": [
+            PAPER, LIVE_TRADES, LIVE_ENTRIES, LIVE_JOURNAL, ZONE_STATE,
+            NO_TRADE_OBSERVATIONS, NO_TRADE_OUTCOMES,
+        ],
         "data_quality": {
             "paper_source_rows": len(paper_raw), "paper_trades": len(paper_rows),
             "live_rows": len(live_rows), "verified_live_exits": len(live_closed),
             "live_entry_events": sum(r.get("event") == "entry" for r in live_rows),
             "journal_rows": len(journal),
             "malformed_jsonl": {"paper": paper_bad, "live_trades": live_bad,
-                                "live_entries": entry_bad, "live_journal": journal_bad},
+                                "live_entries": entry_bad, "live_journal": journal_bad,
+                                "no_trade_observations": no_trade_obs_bad,
+                                "no_trade_outcomes": no_trade_outcomes_bad},
+            "no_trade_observation_rows": len(no_trade_observations) if no_trade_obs_path.is_file() else None,
+            "no_trade_outcome_rows": len(no_trade_outcomes) if no_trade_outcomes_path.is_file() else None,
             "environment_classification": {
                 mode: sum(contour(r) == mode for r in live_closed) for mode in ("VST", "REAL", "UNKNOWN")
             },
@@ -228,6 +371,7 @@ def build_payload(root: Path) -> dict[str, Any]:
             "snapshot_symbols": len(snapshot) if isinstance(snapshot, dict) else 0,
             "note": "Snapshot is current state, not historical approach count; zone observations are not trades.",
         },
+        "no_trade_analytics": no_trade,
         "signal_funnel": {
             "scan_attempts": None,
             "pending_candidates": len(pending) if journal else None,
@@ -248,7 +392,9 @@ def build_payload(root: Path) -> dict[str, Any]:
         "notes": [
             "PAPER, VST, REAL and UNKNOWN remain separate; missing row-level env stays UNKNOWN.",
             "Cumulative PnL is not an exchange account balance.",
-            "Per-symbol scans and exact workflow intervals are unavailable unless persisted by source systems.",
+            "NO_TRADE evaluations are counted from persisted zeus_no_trade_observations.jsonl rows; they are symbol/bar observations, not workflow ticks.",
+            "Forward no-trade quality uses zeus_no_trade_outcomes.jsonl joined by stable observation ID and only persisted horizons.",
+            "Exact workflow-run intervals remain unavailable unless a workflow-run source is persisted.",
             "No network calls; models/ and trading logic are never written.",
         ],
     }
