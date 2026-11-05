@@ -24,13 +24,17 @@ def _write_gif(path: Path) -> None:
     )
 
 
-def _fake_aiohttp(calls: list[str]):
+def _fake_aiohttp(calls: list[str], outcomes=None):
+    responses = list(outcomes or [])
+
     class FormData:
         def add_field(self, *args, **kwargs) -> None:
             pass
 
     class Response:
-        status = 200
+        def __init__(self, status: int, payload: dict):
+            self.status = status
+            self.payload = payload
 
         async def __aenter__(self):
             return self
@@ -39,7 +43,7 @@ def _fake_aiohttp(calls: list[str]):
             return False
 
         async def json(self):
-            return {"ok": True}
+            return self.payload
 
     class Session:
         async def __aenter__(self):
@@ -50,7 +54,8 @@ def _fake_aiohttp(calls: list[str]):
 
         def post(self, url, **kwargs):
             calls.append(url)
-            return Response()
+            status, payload = responses.pop(0) if responses else (200, {"ok": True})
+            return Response(status, payload)
 
     return SimpleNamespace(
         FormData=FormData,
@@ -96,51 +101,7 @@ def test_gamadril_exit_animation_missing_asset_is_a_clear_error(tmp_path: Path) 
         )
 
 
-def test_exit_notification_falls_back_to_png_when_animation_is_missing(monkeypatch) -> None:
-    calls: list[str] = []
-    monkeypatch.setitem(sys.modules, "aiohttp", _fake_aiohttp(calls))
-    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-token")
-    monkeypatch.setenv("TELEGRAM_CHAT_ID", "12345")
-    monkeypatch.setattr(trade_viz, "render_exit_stats_card", lambda **kwargs: b"png")
-
-    def missing_animation(**kwargs):
-        raise FileNotFoundError("fixture: no animation")
-
-    monkeypatch.setattr(gamadril_viz, "render_gamadril_exit_animation", missing_animation)
-    sent = asyncio.run(trade_viz.notify_exit_stats_card(**_notify_args()))
-    assert sent is True
-    assert len(calls) == 1
-    assert calls[0].endswith("/sendPhoto")
-
-
-def test_exit_notification_prefers_animation_when_available(monkeypatch) -> None:
-    calls: list[str] = []
-    monkeypatch.setitem(sys.modules, "aiohttp", _fake_aiohttp(calls))
-    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-token")
-    monkeypatch.setenv("TELEGRAM_CHAT_ID", "12345")
-
-    def unexpected_png(**kwargs):
-        raise AssertionError("PNG should be rendered only on animation fallback")
-
-    monkeypatch.setattr(trade_viz, "render_exit_stats_card", unexpected_png)
-    monkeypatch.setattr(
-        gamadril_viz, "render_gamadril_exit_animation", lambda **kwargs: b"gif"
-    )
-    sent = asyncio.run(trade_viz.notify_exit_stats_card(**_notify_args()))
-    assert sent is True
-    assert len(calls) == 1
-    assert calls[0].endswith("/sendAnimation")
-
-def test_exit_card_default_background_keeps_sign_based_legacy_assets(tmp_path: Path, monkeypatch) -> None:
-    assets = tmp_path / "assets"
-    assets.mkdir()
-    monkeypatch.setattr(trade_viz, "__file__", str(tmp_path / "trade_viz.py"))
-
-    assert trade_viz._default_exit_card_background(True) == assets / "card_bg_plus.png"
-    assert trade_viz._default_exit_card_background(False) == assets / "card_bg_minus.png"
-
-
-def test_exit_png_fallback_explicitly_uses_gamadril_card_art(monkeypatch) -> None:
+def test_exit_notification_prefers_full_bleed_png_even_when_animation_exists(monkeypatch) -> None:
     calls: list[str] = []
     captured: dict = {}
     monkeypatch.setitem(sys.modules, "aiohttp", _fake_aiohttp(calls))
@@ -151,15 +112,48 @@ def test_exit_png_fallback_explicitly_uses_gamadril_card_art(monkeypatch) -> Non
         captured.update(kwargs)
         return b"png"
 
-    def missing_animation(**kwargs):
-        raise FileNotFoundError("fixture: no animation")
+    def unexpected_animation(**kwargs):
+        raise AssertionError("animation must not hide the approved full-bleed PNG card")
 
     monkeypatch.setattr(trade_viz, "render_exit_stats_card", capture_png)
-    monkeypatch.setattr(gamadril_viz, "render_gamadril_exit_animation", missing_animation)
+    monkeypatch.setattr(
+        gamadril_viz, "render_gamadril_exit_animation", unexpected_animation
+    )
     sent = asyncio.run(trade_viz.notify_exit_stats_card(**_notify_args()))
 
-    expected = Path(trade_viz.__file__).parent / "assets" / "gamadril" / "mascot_card_bg.jpg"
-    assert expected.is_file()
     assert sent is True
-    assert captured["art_path"] == str(expected)
-    assert calls[0].endswith("/sendPhoto")
+    assert calls == ["https://api.telegram.org/bottest-token/sendPhoto"]
+    # No explicit art_path override: the renderer selects plus/minus art by realized PnL.
+    assert "art_path" not in captured
+
+
+def test_exit_notification_uses_animation_only_when_photo_delivery_fails(monkeypatch) -> None:
+    calls: list[str] = []
+    outcomes = [(400, {"ok": False}), (200, {"ok": True})]
+    monkeypatch.setitem(sys.modules, "aiohttp", _fake_aiohttp(calls, outcomes))
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "12345")
+    monkeypatch.setattr(trade_viz, "render_exit_stats_card", lambda **kwargs: b"png")
+    monkeypatch.setattr(
+        gamadril_viz, "render_gamadril_exit_animation", lambda **kwargs: b"gif"
+    )
+
+    sent = asyncio.run(trade_viz.notify_exit_stats_card(**_notify_args()))
+
+    assert sent is True
+    assert calls == [
+        "https://api.telegram.org/bottest-token/sendPhoto",
+        "https://api.telegram.org/bottest-token/sendAnimation",
+    ]
+
+
+
+def test_exit_card_default_background_keeps_sign_based_legacy_assets(tmp_path: Path, monkeypatch) -> None:
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    monkeypatch.setattr(trade_viz, "__file__", str(tmp_path / "trade_viz.py"))
+
+    assert trade_viz._default_exit_card_background(True) == assets / "card_bg_plus.png"
+    assert trade_viz._default_exit_card_background(False) == assets / "card_bg_minus.png"
+
+
