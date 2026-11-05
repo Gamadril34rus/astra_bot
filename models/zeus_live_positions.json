@@ -4,7 +4,7 @@
       "symbol": "ETH-USDT",
       "side": "long",
       "qty": 5.699,
-      "stop": "2301.534285714286",
+      "stop": "2305.0914285714284",
       "tp": "2524.6672525431547",
       "entry": "2427.20",
       "leverage": 6,
@@ -20,16 +20,17 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_high": "2429.92",
+      "peak_high": "2431.7",
       "be_earned": true,
       "migrate_stop_v1": true,
-      "current_regime": "RANGE"
+      "current_regime": "RANGE",
+      "peak_low": "2409.34"
     },
     "HYPE-USDT|short": {
       "symbol": "HYPE-USDT",
       "side": "short",
       "qty": 233.5906,
-      "stop": "87.06085714285713",
+      "stop": "86.80942857142857",
       "tp": "80.734652233035778",
       "entry": "83.515",
       "leverage": 6,
@@ -45,10 +46,11 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "82.130",
+      "peak_low": "81.972",
       "be_earned": true,
-      "current_regime": "RANGE"
+      "current_regime": "RANGE",
+      "peak_high": "84.007"
     }
   },
-  "ts": 1793879833.390167
+  "ts": 1793880450.3417356
 }
