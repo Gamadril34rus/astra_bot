@@ -35,8 +35,14 @@ build leaves the last published dashboard directory intact.
 - Session buckets use the project's raw_bucket() helper and MSK.
 - Volume-zone and funnel panels use only persisted source events. The
   zone_shadow_approach.json file is a current state snapshot, not history.
-- Per-symbol scan attempts and exact workflow-run intervals remain unavailable
-  unless those events are persisted by their source systems.
+- NO_TRADE funnel analysis reads models/zeus_no_trade_observations.jsonl and
+  models/zeus_no_trade_outcomes.jsonl. A row is a persisted symbol/bar
+  evaluation, not a workflow tick or an exchange scan attempt.
+- Outcome coverage is joined by stable observation ID. Horizon return, MFE,
+  MAE and hypothetical R summaries use only fields already persisted by the
+  source process; the dashboard does not recompute forward market outcomes.
+- Exact workflow-run intervals remain unavailable unless a workflow-run
+  ledger is persisted by the source system.
 - Missing data is shown as "нет данных", not as an invented zero.
 
 ## Checks
