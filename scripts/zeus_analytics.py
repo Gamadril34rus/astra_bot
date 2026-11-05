@@ -354,7 +354,10 @@ def report_json_rows(reports: Path, output: Path) -> list[tuple[str, dict[str, A
         else:
             raw = read_json(path)
             rows = raw if isinstance(raw, list) else [raw] if isinstance(raw, dict) else []
-        result.extend((path.as_posix(), row) for row in rows if isinstance(row, dict))
+        result.extend(
+            (path.relative_to(reports.parent).as_posix(), row)
+            for row in rows if isinstance(row, dict)
+        )
     return result
 
 
