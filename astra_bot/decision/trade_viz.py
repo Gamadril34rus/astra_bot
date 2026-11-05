@@ -313,36 +313,63 @@ async def notify_exit_stats_card(
     qty: float, leverage: float, closed_at: float | None = None,
     virtual: bool = True,
 ) -> bool:
-    """Send a rendered EXIT card; never performs exchange reads."""
+    """Send a prebuilt Gamadril animation when present, otherwise the PNG card."""
     try:
         import aiohttp
+
         token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
         chat_id = ((os.environ.get("TELEGRAM_ADMIN_ID") or "").strip()
                    or (os.environ.get("TELEGRAM_CHAT_ID") or "").strip())
         if not token or not chat_id:
             logger.warning("viz_error event=viz_error reason=telegram_config_missing")
             return False
-        png = await __import__("asyncio").to_thread(
-            render_exit_stats_card, symbol=symbol, side=side, entry=entry,
-            exit_price=exit_price, pnl=pnl, qty=qty, leverage=leverage,
-            closed_at=closed_at, virtual=virtual,
-        )
-        form = aiohttp.FormData()
-        form.add_field("chat_id", chat_id)
-        form.add_field("caption", f"{symbol} {side.upper()} • EXIT")
-        form.add_field("photo", png, filename="exit_card.png", content_type="image/png")
-        async with (
-            aiohttp.ClientSession() as session,
-            session.post(
+        args = {
+            "symbol": symbol, "side": side, "entry": entry,
+            "exit_price": exit_price, "pnl": pnl, "qty": qty,
+            "leverage": leverage, "closed_at": closed_at, "virtual": virtual,
+        }
+        png = await __import__("asyncio").to_thread(render_exit_stats_card, **args)
+        animation = None
+        try:
+            from astra_bot.decision.gamadril_viz import render_gamadril_exit_animation
+            animation = await __import__("asyncio").to_thread(render_gamadril_exit_animation, **args)
+        except (ImportError, OSError, ValueError, TypeError) as exc:
+            logger.warning("viz_error event=gamadril_animation_fallback reason=%s",
+                           type(exc).__name__)
+
+        async with aiohttp.ClientSession() as session:
+            if animation is not None:
+                form = aiohttp.FormData()
+                form.add_field("chat_id", chat_id)
+                form.add_field("caption", f"{symbol} {side.upper()} • EXIT · ASTRA BOT by Gamadril")
+                form.add_field("animation", animation, filename="gamadril_exit.gif",
+                               content_type="image/gif")
+                try:
+                    async with session.post(
+                        f"https://api.telegram.org/bot{token}/sendAnimation",
+                        data=form, timeout=aiohttp.ClientTimeout(total=25),
+                    ) as response:
+                        payload = await response.json()
+                        if response.status < 400 and payload.get("ok"):
+                            return True
+                    logger.warning("viz_error event=gamadril_animation_send_fallback symbol=%s", symbol)
+                except Exception as exc:
+                    logger.warning("viz_error event=gamadril_animation_send_fallback symbol=%s error=%s",
+                                   symbol, type(exc).__name__)
+
+            form = aiohttp.FormData()
+            form.add_field("chat_id", chat_id)
+            form.add_field("caption", f"{symbol} {side.upper()} • EXIT")
+            form.add_field("photo", png, filename="exit_card.png", content_type="image/png")
+            async with session.post(
                 f"https://api.telegram.org/bot{token}/sendPhoto",
                 data=form, timeout=aiohttp.ClientTimeout(total=25),
-            ) as response,
-        ):
-            if response.status >= 400:
-                raise RuntimeError(f"telegram_http_{response.status}")
-            payload = await response.json()
-            if not payload.get("ok"):
-                raise RuntimeError("telegram_send_photo_not_ok")
+            ) as response:
+                if response.status >= 400:
+                    raise RuntimeError(f"telegram_http_{response.status}")
+                payload = await response.json()
+                if not payload.get("ok"):
+                    raise RuntimeError("telegram_send_photo_not_ok")
         return True
     except Exception as exc:
         logger.warning("viz_error event=viz_error phase=EXIT_CARD symbol=%s error=%s",
