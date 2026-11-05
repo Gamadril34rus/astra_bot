@@ -216,7 +216,7 @@ async def collect_tick(state_dir: Path) -> dict[str, int]:
     if os.environ.get("COPYZEUS_ENV", "").strip().lower() != "real":
         raise RuntimeError("COPYZEUS_ENV must be exactly 'real'; VST archive runs are forbidden")
     archive = CopyZeusArchive(root=state_dir.parent.parent, env="real")
-    async with CopyZeusClient(env="real", retries=3) as client:
+    async with CopyZeusClient(env="real", retries=4) as client:
         counts = await archive.run_once(client=client, limit=50, max_pages=10)
     (state_dir / "last_tick.json").write_text(
         json.dumps({"last_tick_at": datetime.now(UTC).isoformat()}) + "\n",
