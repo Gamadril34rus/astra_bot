@@ -47,6 +47,12 @@ def _pnl_metrics(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return result
 
 
+def _strategy_label(value: Any) -> str:
+    raw = str(value or "unknown").strip()
+    canonical = strategy(raw)
+    return canonical if canonical != "other" else raw.lower().replace("_", "-")
+
+
 def _timeline(rows: list[dict[str, Any]], paper: bool) -> list[dict[str, Any]]:
     ordered = sorted(
         ((ts, number(r.get("pnl"))) for r in rows
@@ -82,6 +88,25 @@ def _sessions(rows: list[dict[str, Any]], paper: bool) -> list[dict[str, Any]]:
     return out
 
 
+def _session_details(rows: list[dict[str, Any]], paper: bool) -> list[dict[str, Any]]:
+    groups: dict[tuple[str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        ts = _time(row, paper, opening=True)
+        if ts is None:
+            continue
+        dt = datetime.fromtimestamp(ts, timezone.utc).astimezone(MSK)
+        side = str(row.get("direction") or row.get("side") or "unknown").lower()
+        groups[(raw_bucket(dt), "выходные" if dt.weekday() >= 5 else "будни",
+                str(row.get("symbol") or "unknown"), side)].append(row)
+    out = []
+    for (profile, day, symbol, side), items in sorted(groups.items()):
+        m = _pnl_metrics(items)
+        out.append({"profile": profile, "day_type": day, "symbol": symbol,
+                    "side": side, "trades": m["n"], "net_pnl": m["net_pnl"],
+                    "win_rate": m["winrate"]})
+    return out
+
+
 def build_payload(root: Path) -> dict[str, Any]:
     root = root.resolve()
     paper_raw, paper_bad = read_jsonl(root / PAPER)
@@ -101,9 +126,9 @@ def build_payload(root: Path) -> dict[str, Any]:
         k: defaultdict(list) for k in ("paper", "VST", "REAL", "UNKNOWN")
     }
     for row in paper_rows:
-        grouped["paper"][strategy(row.get("strategy"))].append(row)
+        grouped["paper"][_strategy_label(row.get("strategy"))].append(row)
     for row in live_closed:
-        grouped[contour(row)][strategy(row.get("strategy") or str(row.get("signal_id", "")).split("|")[0])].append(row)
+        grouped[contour(row)][_strategy_label(row.get("strategy") or str(row.get("signal_id", "")).split("|")[0])].append(row)
 
     strategy_rows = []
     for mode, by_strategy in grouped.items():
@@ -120,6 +145,12 @@ def build_payload(root: Path) -> dict[str, Any]:
         mode.upper(): _sessions(paper_rows if mode == "paper"
                                 else [r for r in live_closed if contour(r) == mode],
                                 paper=(mode == "paper"))
+        for mode in ("paper", "VST", "REAL", "UNKNOWN")
+    }
+    session_details = {
+        mode.upper(): _session_details(paper_rows if mode == "paper"
+                                       else [r for r in live_closed if contour(r) == mode],
+                                       paper=(mode == "paper"))
         for mode in ("paper", "VST", "REAL", "UNKNOWN")
     }
 
@@ -183,6 +214,7 @@ def build_payload(root: Path) -> dict[str, Any]:
         "strategy_metrics": strategy_rows,
         "timelines": timelines,
         "sessions": sessions,
+        "session_details": session_details,
         "volume_zone_shadow": {
             "available": bool(zones or zone_errors),
             "observations": len(zones) if zones or zone_errors else None,
@@ -288,6 +320,14 @@ def render_html(p: dict[str, Any]) -> str:
         for mode, rows in p["sessions"].items() for r in rows
     ]
     session_bars = _bars(session_items, "name", "pnl")
+    detail_items = [
+        {"name": f'{mode} · {r["symbol"]} · {r["profile"]} · {r["day_type"]} · {r["side"]}',
+         "pnl": r["net_pnl"]}
+        for mode, rows in p["session_details"].items() for r in rows
+    ]
+    detail_bars = _bars(detail_items, "name", "pnl")
+    skip_items = [{"name": key, "pnl": value} for key, value in funnel["skip_reasons"].items()]
+    skip_bars = _bars(skip_items, "name", "pnl")
     table_rows = []
     for r in p["strategy_metrics"]:
         vals = [r["mode"], r["strategy"], r["n"], _money(r["pf"]),
@@ -335,6 +375,10 @@ table{{border-collapse:collapse;width:100%;min-width:730px;font-size:12px}}th,td
 {_card("snapshot zones",str(zone["snapshot_zones"]),f'{zone["snapshot_symbols"]} symbols')}
 {_card("min distance",_money(zone["min_distance_pct"])+"%" if zone["min_distance_pct"] is not None else "нет данных","по записанным событиям")}
 </div><p class="note">{html.escape(zone["note"])}</p></div>
+</div>
+<div class="two">
+<div class="panel"><h2>Heatmap · symbol × session × side</h2>{detail_bars}<p class="note">Разрез по реально записанным symbol, профилю, типу дня и стороне позиции.</p></div>
+<div class="panel"><h2>Отбраковки сигналов</h2>{skip_bars}<p class="note">Только причины, реально записанные в arm_summary / arm_skip.</p></div>
 </div>
 <div class="two">
 <div class="panel"><h2>Воронка сигналов</h2>
