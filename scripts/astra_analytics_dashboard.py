@@ -182,10 +182,12 @@ def build_payload(root: Path) -> dict[str, Any]:
             if isinstance(nearest, dict) and (v := number(nearest.get("distance_pct"))) is not None:
                 distances.append(abs(v))
     snapshot = read_json(root / ZONE_STATE)
-    snapshot_zones = sum(
-        len(x.get("zones", {})) for x in snapshot.values()
-        if isinstance(x, dict) and isinstance(x.get("zones"), dict)
-    ) if isinstance(snapshot, dict) else 0
+    snapshot_per_symbol = {
+        str(symbol): len(item.get("zones", {}))
+        for symbol, item in (snapshot.items() if isinstance(snapshot, dict) else [])
+        if isinstance(item, dict) and isinstance(item.get("zones"), dict)
+    }
+    snapshot_zones = sum(snapshot_per_symbol.values())
 
     errors = [r for r in journal if str(r.get("event") or "").endswith("_error")
               or r.get("error") is not None or r.get("error_msg") is not None]
@@ -222,6 +224,7 @@ def build_payload(root: Path) -> dict[str, Any]:
             "in_zone_observations": sum(r.get("in_zone") is True for r in zones) if zones or zone_errors else None,
             "min_distance_pct": min(distances) if distances else None,
             "symbols": sorted(symbols), "snapshot_zones": snapshot_zones,
+            "snapshot_per_symbol": snapshot_per_symbol,
             "snapshot_symbols": len(snapshot) if isinstance(snapshot, dict) else 0,
             "note": "Snapshot is current state, not historical approach count; zone observations are not trades.",
         },
@@ -252,7 +255,13 @@ def build_payload(root: Path) -> dict[str, Any]:
 
 
 def _money(v: Any) -> str:
-    return "нет данных" if v is None or not math.isfinite(float(v)) else f"{float(v):,.2f}"
+    if v is None:
+        return "нет данных"
+    if math.isinf(float(v)):
+        return "∞" if float(v) > 0 else "−∞"
+    if not math.isfinite(float(v)):
+        return "нет данных"
+    return f"{float(v):,.2f}"
 
 
 def _line(points: list[dict[str, Any]], key: str, title: str) -> str:
@@ -326,13 +335,21 @@ def render_html(p: dict[str, Any]) -> str:
         for mode, rows in p["session_details"].items() for r in rows
     ]
     detail_bars = _bars(detail_items, "name", "pnl")
+    zone_items = [
+        {"name": symbol, "count": count}
+        for symbol, count in p["volume_zone_shadow"]["snapshot_per_symbol"].items()
+    ]
+    zone_bars = _bars(zone_items, "name", "count")
     skip_items = [{"name": key, "pnl": value} for key, value in funnel["skip_reasons"].items()]
     skip_bars = _bars(skip_items, "name", "pnl")
     table_rows = []
     for r in p["strategy_metrics"]:
-        vals = [r["mode"], r["strategy"], r["n"], _money(r["pf"]),
+        vals = [r["mode"], r["strategy"], r["n"], f'{r["wins"]}/{r["losses"]}',
+                _money(r["pf"]),
                 _money(r["winrate"] * 100 if r["winrate"] is not None else None),
-                _money(r["avg_r"]), _money(r["expectancy"]), _money(r["fees"]), _money(r["net_pnl"])]
+                _money(r["avg_r"]), _money(r["expectancy"]),
+                _money(r["gross_profit"]), _money(r["gross_loss"]),
+                _money(r["fees"]), _money(r["net_pnl"])]
         table_rows.append("<tr>" + "".join(f"<td>{html.escape(str(v))}</td>" for v in vals) + "</tr>")
     tags = " · ".join(f'{k}: {v}' for k, v in q["environment_classification"].items())
     return f"""<!doctype html><html lang="ru"><head><meta charset="utf-8">
@@ -364,6 +381,7 @@ table{{border-collapse:collapse;width:100%;min-width:730px;font-size:12px}}th,td
 </div>
 <div class="two">
 <div class="panel"><h2>Cumulative realized PnL · LIVE / UNKNOWN</h2>{_line(p["timelines"]["UNKNOWN"],"cumulative_pnl","LIVE UNKNOWN PnL")}<p class="note">Среда не подтверждена строковой меткой.</p></div>
+<div class="panel"><h2>Drawdown · LIVE / UNKNOWN</h2>{_line(p["timelines"]["UNKNOWN"],"drawdown","LIVE UNKNOWN drawdown")}<p class="note">Просадка рассчитана по накопленному закрытому PnL, не по балансу счёта.</p></div>
 <div class="panel"><h2>Результат по стратегиям</h2>{strategy_bars}</div>
 </div>
 <div class="two">
@@ -374,7 +392,7 @@ table{{border-collapse:collapse;width:100%;min-width:730px;font-size:12px}}th,td
 {_card("in-zone", "нет данных" if zone["in_zone_observations"] is None else str(zone["in_zone_observations"]),"наблюдения внутри зон")}
 {_card("snapshot zones",str(zone["snapshot_zones"]),f'{zone["snapshot_symbols"]} symbols')}
 {_card("min distance",_money(zone["min_distance_pct"])+"%" if zone["min_distance_pct"] is not None else "нет данных","по записанным событиям")}
-</div><p class="note">{html.escape(zone["note"])}</p></div>
+</div><h3>Текущее состояние по символам</h3>{zone_bars}<p class="note">{html.escape(zone["note"])}</p></div>
 </div>
 <div class="two">
 <div class="panel"><h2>Heatmap · symbol × session × side</h2>{detail_bars}<p class="note">Разрез по реально записанным symbol, профилю, типу дня и стороне позиции.</p></div>
@@ -393,8 +411,8 @@ table{{border-collapse:collapse;width:100%;min-width:730px;font-size:12px}}th,td
 {_card("BingX 100410",str(health["bingx_100410_occurrences"]),"совпадения в журналах")}</div>
 </div>
 <div class="panel"><h2>Статистика стратегий</h2><div class="scroll"><table><thead><tr>
-<th>Contour</th><th>Strategy</th><th>Trades</th><th>PF</th><th>Win rate</th><th>Avg R</th><th>Expectancy</th><th>Fees</th><th>Net PnL</th>
-</tr></thead><tbody>{"".join(table_rows) if table_rows else "<tr><td colspan='9'>нет данных за период</td></tr>"}</tbody></table></div>
+<th>Contour</th><th>Strategy</th><th>Trades</th><th>W/L</th><th>PF</th><th>Win rate</th><th>Avg R</th><th>Expectancy</th><th>Gross profit</th><th>Gross loss</th><th>Fees</th><th>Net PnL</th>
+</tr></thead><tbody>{"".join(table_rows) if table_rows else "<tr><td colspan='12'>нет данных за период</td></tr>"}</tbody></table></div>
 <p class="note">PF = gross positive PnL / absolute gross negative PnL. Комиссии показаны отдельно.</p></div>
 <div class="panel"><h2>Качество источников</h2>
 <p>Paper rows: {q["paper_source_rows"]} · Paper trades: {q["paper_trades"]} · Live rows: {q["live_rows"]} · Verified exits: {q["verified_live_exits"]} · Journal rows: {q["journal_rows"]}</p>
