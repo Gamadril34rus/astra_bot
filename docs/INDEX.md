@@ -46,7 +46,9 @@
 
 | Документ | Назначение |
 |---|---|
-| `GITHUB_ACTIONS.md` | Работа workflow в GitHub Actions |
+| `GITHUB_ACTIONS.md` | Историческая справка по прежней конфигурации Actions; актуальная схема — в `CONFIGURATION_MAP.md` |
+| `CONFIGURATION_MAP.md` | Карта общего конфига, paper Zeus, канона SETTINGS, live env и Actions Secrets |
+| `PR_HISTORY.md` | Хроника PR репозитория в обратном хронологическом порядке |
 | `LOCAL_SETUP.md` | Локальная установка и запуск (Python 3.12) |
 | `DIAGNOSTICS.md` | Диагностика типовых проблем |
 | `API_AUTH.md` | HTTP X-API-Key для /tick /status |
