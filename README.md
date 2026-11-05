@@ -1,6 +1,6 @@
 # ASTRA BOT — BingX USDT-M / Zeus
 
-<img width="100%" src="docs/assets/repo_cover.png" alt="ASTRA BOT — Zeus, paper, VST demo, COPY_ZEUS read-only; real locked">
+<img width="100%" height="360" style="object-fit:cover;object-position:center 35%;" src="docs/assets/repo_cover.png" alt="ASTRA BOT — Zeus, paper, VST demo, COPY_ZEUS read-only; real locked">
 
 ![Bot](https://github.com/Gamadril34rus/astra_bot/actions/workflows/bot.yml/badge.svg)
 ![Zeus paper-clock](https://github.com/Gamadril34rus/astra_bot/actions/workflows/zeus-paper-clock.yml/badge.svg)
