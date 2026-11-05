@@ -183,15 +183,11 @@ CARD_BG = "#0B0D12"
 
 
 def _default_exit_card_background(positive: bool):
-    """Prefer the Gamadril master card; retain the owner-provided PNG fallback."""
+    """Resolve the owner-provided full-bleed background by realized PnL sign."""
     from pathlib import Path
 
-    assets = Path(__file__).parent / "assets"
-    gamadril = assets / "gamadril" / "mascot_card_bg.jpg"
-    if gamadril.is_file():
-        return gamadril
     filename = "card_bg_plus.png" if positive else "card_bg_minus.png"
-    return assets / filename
+    return Path(__file__).parent / "assets" / filename
 
 
 def _apply_exit_card_scrim(background):
@@ -375,9 +371,17 @@ async def notify_exit_stats_card(
                         symbol, type(exc).__name__,
                     )
 
-            # Render the legacy PNG only when it is needed as a fallback.
+            # Render PNG only on fallback. Prefer Gamadril artwork explicitly,
+            # while leaving the established sign-based default resolver intact.
+            png_args = dict(args)
+            from pathlib import Path
+            gamadril_background = (
+                Path(__file__).parent / "assets" / "gamadril" / "mascot_card_bg.jpg"
+            )
+            if gamadril_background.is_file():
+                png_args["art_path"] = str(gamadril_background)
             png = await __import__("asyncio").to_thread(
-                render_exit_stats_card, **args
+                render_exit_stats_card, **png_args
             )
             form = aiohttp.FormData()
             form.add_field("chat_id", chat_id)
