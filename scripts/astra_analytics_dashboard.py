@@ -107,6 +107,129 @@ def _session_details(rows: list[dict[str, Any]], paper: bool) -> list[dict[str, 
     return out
 
 
+def _no_trade_analysis(root: Path) -> dict[str, Any]:
+    """Read persisted NO_TRADE observations and outcomes; never mutate models/."""
+    observations_path = root / "models" / "no_trade_observations.jsonl"
+    outcomes_path = root / "models" / "no_trade_outcomes.jsonl"
+    observations, malformed_observations = read_jsonl(observations_path)
+
+    outcome_by_id: dict[str, dict[str, Any]] = {}
+    malformed_outcomes = 0
+    outcomes_available = outcomes_path.is_file()
+    if outcomes_available:
+        outcome_rows, malformed_outcomes = read_jsonl(outcomes_path)
+        for item in outcome_rows:
+            oid = item.get("id")
+            if isinstance(oid, str) and oid:
+                outcome_by_id[oid] = {key: value for key, value in item.items() if key != "id"}
+    else:
+        # The project reader supports the legacy JSON representation only
+        # when the authoritative JSONL file is absent.
+        legacy = read_json(root / "models" / "no_trade_outcomes.json")
+        if isinstance(legacy, dict):
+            legacy_rows = legacy.get("outcomes", legacy)
+            if isinstance(legacy_rows, dict):
+                outcome_by_id = {
+                    str(oid): row for oid, row in legacy_rows.items()
+                    if oid and isinstance(row, dict)
+                }
+                outcomes_available = True
+
+    reasons: dict[str, int] = defaultdict(int)
+    stages: dict[str, int] = defaultdict(int)
+    regimes: dict[str, int] = defaultdict(int)
+    horizon_values: dict[str, dict[str, list[float]]] = {
+        horizon: {"future_return": [], "max_up": [], "max_down": []}
+        for horizon in ("1", "3", "6", "12", "24")
+    }
+    exit_kinds: dict[str, int] = defaultdict(int)
+    resolved = 0
+    hypothetical_values: list[float] = []
+    hypothetical_all = 0
+    hypothetical_incomplete = 0
+    positive_r = 0
+    non_positive_r = 0
+
+    for observation in observations:
+        reason = str(observation.get("reason_code") or "UNKNOWN")
+        stage = str(observation.get("rejection_stage") or "UNSPECIFIED")
+        regime = str(observation.get("market_regime") or "UNKNOWN")
+        reasons[reason] += 1
+        stages[stage] += 1
+        regimes[regime] += 1
+
+        oid = observation.get("id")
+        outcome = outcome_by_id.get(str(oid), {}) if oid else {}
+        horizons = observation.get("result")
+        if not isinstance(horizons, dict) or not horizons:
+            horizons = outcome.get("horizons")
+        if isinstance(horizons, dict) and horizons:
+            resolved += 1
+            for horizon, values in horizons.items():
+                target = horizon_values.get(str(horizon))
+                if target is None or not isinstance(values, dict):
+                    continue
+                for key in ("future_return", "max_up", "max_down"):
+                    value = number(values.get(key))
+                    if value is not None:
+                        target[key].append(value * 100.0)
+
+        hypothetical = observation.get("hypothetic_r")
+        if not isinstance(hypothetical, dict) or number(hypothetical.get("r")) is None:
+            hypothetical = outcome.get("hypothetic_r")
+        if isinstance(hypothetical, dict) and (r_value := number(hypothetical.get("r"))) is not None:
+            hypothetical_all += 1
+            exit_kind = str(hypothetical.get("exit_kind") or "unknown")
+            exit_kinds[exit_kind] += 1
+            if hypothetical.get("incomplete") is True:
+                hypothetical_incomplete += 1
+            else:
+                hypothetical_values.append(r_value)
+                if r_value > 0:
+                    positive_r += 1
+                else:
+                    non_positive_r += 1
+
+    horizon_metrics: dict[str, dict[str, Any]] = {}
+    for horizon, values in horizon_values.items():
+        returns = values["future_return"]
+        horizon_metrics[horizon] = {
+            "n": len(returns),
+            "avg_future_return_pct": round(sum(returns) / len(returns), 4) if returns else None,
+            "avg_max_up_pct": round(sum(values["max_up"]) / len(values["max_up"]), 4) if values["max_up"] else None,
+            "avg_max_down_pct": round(sum(values["max_down"]) / len(values["max_down"]), 4) if values["max_down"] else None,
+        }
+
+    return {
+        "available": observations_path.is_file(),
+        "outcomes_available": outcomes_available,
+        "observations": len(observations),
+        "with_outcome": resolved,
+        "pending_outcome": max(0, len(observations) - resolved),
+        "malformed_observations": malformed_observations,
+        "malformed_outcomes": malformed_outcomes if outcomes_available else None,
+        "reason_codes": dict(sorted(reasons.items(), key=lambda item: (-item[1], item[0]))),
+        "rejection_stages": dict(sorted(stages.items(), key=lambda item: (-item[1], item[0]))),
+        "market_regimes": dict(sorted(regimes.items(), key=lambda item: (-item[1], item[0]))),
+        "horizon_metrics": horizon_metrics,
+        "hypothetical_r": {
+            "available": hypothetical_all > 0,
+            "n": hypothetical_all,
+            "complete_n": len(hypothetical_values),
+            "incomplete_n": hypothetical_incomplete,
+            "avg_r": round(sum(hypothetical_values) / len(hypothetical_values), 4) if hypothetical_values else None,
+            "positive_r": positive_r,
+            "non_positive_r": non_positive_r,
+            "exit_kinds": dict(sorted(exit_kinds.items())),
+        },
+        "note": (
+            "NO_TRADE rows are rejected evaluations, not scans or executed trades. "
+            "Horizon returns are raw market returns. Hypothetical R is gross, "
+            "candidate-geometry telemetry without fees; incomplete horizons are excluded from avg R."
+        ),
+    }
+
+
 def build_payload(root: Path) -> dict[str, Any]:
     root = root.resolve()
     paper_raw, paper_bad = read_jsonl(root / PAPER)
@@ -197,18 +320,26 @@ def build_payload(root: Path) -> dict[str, Any]:
         (source, row) for source, rows in ((LIVE_TRADES, live_rows), (LIVE_ENTRIES, entry_rows), (LIVE_JOURNAL, journal))
         for row in rows if "100410" in json.dumps(row, ensure_ascii=False, default=str)
     ]
+    no_trade = _no_trade_analysis(root)
 
     return {
         "title": "ASTRA BOT by Gamadril",
         "generated_at_msk": datetime.now(timezone.utc).astimezone(MSK).isoformat(timespec="seconds"),
-        "sources": [PAPER, LIVE_TRADES, LIVE_ENTRIES, LIVE_JOURNAL, ZONE_STATE],
+        "sources": [
+            PAPER, LIVE_TRADES, LIVE_ENTRIES, LIVE_JOURNAL, ZONE_STATE,
+            "models/no_trade_observations.jsonl", "models/no_trade_outcomes.jsonl",
+        ],
         "data_quality": {
             "paper_source_rows": len(paper_raw), "paper_trades": len(paper_rows),
             "live_rows": len(live_rows), "verified_live_exits": len(live_closed),
             "live_entry_events": sum(r.get("event") == "entry" for r in live_rows),
             "journal_rows": len(journal),
+            "no_trade_observations": no_trade["observations"],
+            "no_trade_with_outcome": no_trade["with_outcome"],
             "malformed_jsonl": {"paper": paper_bad, "live_trades": live_bad,
-                                "live_entries": entry_bad, "live_journal": journal_bad},
+                                "live_entries": entry_bad, "live_journal": journal_bad,
+                                "no_trade_observations": no_trade["malformed_observations"],
+                                "no_trade_outcomes": no_trade["malformed_outcomes"]},
             "environment_classification": {
                 mode: sum(contour(r) == mode for r in live_closed) for mode in ("VST", "REAL", "UNKNOWN")
             },
@@ -228,6 +359,7 @@ def build_payload(root: Path) -> dict[str, Any]:
             "snapshot_symbols": len(snapshot) if isinstance(snapshot, dict) else 0,
             "note": "Snapshot is current state, not historical approach count; zone observations are not trades.",
         },
+        "no_trade_analysis": no_trade,
         "signal_funnel": {
             "scan_attempts": None,
             "pending_candidates": len(pending) if journal else None,
@@ -316,6 +448,7 @@ def _card(label: str, value: str, hint: str = "") -> str:
 
 def render_html(p: dict[str, Any]) -> str:
     q, zone, funnel, health = p["data_quality"], p["volume_zone_shadow"], p["signal_funnel"], p["system_health"]
+    no_trade = p["no_trade_analysis"]
     paper = [r for r in p["strategy_metrics"] if r["mode"] == "PAPER"]
     unknown = [r for r in p["strategy_metrics"] if r["mode"] == "LIVE / UNKNOWN"]
     paper_pnl = sum(r["net_pnl"] for r in paper)
@@ -342,6 +475,37 @@ def render_html(p: dict[str, Any]) -> str:
     zone_bars = _bars(zone_items, "name", "count")
     skip_items = [{"name": key, "pnl": value} for key, value in funnel["skip_reasons"].items()]
     skip_bars = _bars(skip_items, "name", "pnl")
+    no_trade_reason_bars = _bars(
+        [{"name": key, "count": value} for key, value in no_trade["reason_codes"].items()],
+        "name", "count",
+    )
+    no_trade_stage_bars = _bars(
+        [{"name": key, "count": value} for key, value in no_trade["rejection_stages"].items()],
+        "name", "count",
+    )
+    no_trade_regime_bars = _bars(
+        [{"name": key, "count": value} for key, value in no_trade["market_regimes"].items()],
+        "name", "count",
+    )
+    horizon_rows = []
+    for horizon, values in no_trade["horizon_metrics"].items():
+        cells = [
+            horizon, values["n"],
+            _money(values["avg_future_return_pct"]) + "%" if values["avg_future_return_pct"] is not None else "нет данных",
+            _money(values["avg_max_up_pct"]) + "%" if values["avg_max_up_pct"] is not None else "нет данных",
+            _money(values["avg_max_down_pct"]) + "%" if values["avg_max_down_pct"] is not None else "нет данных",
+        ]
+        horizon_rows.append("<tr>" + "".join(
+            f"<td>{html.escape(str(value))}</td>" for value in cells
+        ) + "</tr>")
+    hypothetical = no_trade["hypothetical_r"]
+    avg_hypothetical_r = (
+        f'{hypothetical["avg_r"]:+.2f}R'
+        if hypothetical["avg_r"] is not None else "нет данных"
+    )
+    no_trade_count = str(no_trade["observations"]) if no_trade["available"] else "нет данных"
+    no_trade_resolved = str(no_trade["with_outcome"]) if no_trade["available"] else "нет данных"
+    no_trade_pending = str(no_trade["pending_outcome"]) if no_trade["available"] else "нет данных"
     table_rows = []
     for r in p["strategy_metrics"]:
         vals = [r["mode"], r["strategy"], r["n"], f'{r["wins"]}/{r["losses"]}',
@@ -409,6 +573,22 @@ table{{border-collapse:collapse;width:100%;min-width:730px;font-size:12px}}th,td
 {_card("protect failures","нет данных" if health["protective_order_failures"] is None else str(health["protective_order_failures"]),"protective-order errors")}
 {_card("reconciliation","нет данных" if health["reconciliation_events"] is None else str(health["reconciliation_events"]),"qty / position / ghost")}
 {_card("BingX 100410",str(health["bingx_100410_occurrences"]),"совпадения в журналах")}</div>
+</div>
+<div class="panel"><h2>NO_TRADE · качество отказов</h2>
+<div class="grid" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+{_card("observations",no_trade_count,"реальные отклонённые оценки")}
+{_card("with outcome",no_trade_resolved,"есть будущие бары")}
+{_card("pending outcome",no_trade_pending,"ожидают горизонты")}
+{_card("hypothetical R",avg_hypothetical_r,"gross, без комиссий")}
+</div>
+<div class="two">
+<div><h3>Причины отказа</h3>{no_trade_reason_bars}</div>
+<div><h3>Стадия / режим</h3>{no_trade_stage_bars}{no_trade_regime_bars}</div>
+</div>
+<div class="scroll"><table><thead><tr><th>Горизонт, бары</th><th>N</th><th>Avg return</th><th>Avg MFE</th><th>Avg MAE</th></tr></thead>
+<tbody>{"".join(horizon_rows) if horizon_rows else "<tr><td colspan='5'>нет данных</td></tr>"}</tbody></table></div>
+<p class="note">{html.escape(no_trade["note"])} · Hypothetical R: {hypothetical["complete_n"]} complete, {hypothetical["incomplete_n"]} incomplete; R&gt;0: {hypothetical["positive_r"]}, R≤0: {hypothetical["non_positive_r"]}.</p>
+<p class="note">Malformed observations: {no_trade["malformed_observations"]} · malformed outcomes: {no_trade["malformed_outcomes"] if no_trade["malformed_outcomes"] is not None else "нет данных"}.</p>
 </div>
 <div class="panel"><h2>Статистика стратегий</h2><div class="scroll"><table><thead><tr>
 <th>Contour</th><th>Strategy</th><th>Trades</th><th>W/L</th><th>PF</th><th>Win rate</th><th>Avg R</th><th>Expectancy</th><th>Gross profit</th><th>Gross loss</th><th>Fees</th><th>Net PnL</th>
