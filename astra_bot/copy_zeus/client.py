@@ -23,7 +23,7 @@ ENDPOINTS = {
     "income": "/openApi/swap/v2/user/income",
 }
 RETRYABLE_CODES = {"100410"}
-RETRY_DELAYS = (2.0, 5.0, 15.0)
+RETRY_DELAYS = (5.0, 30.0, 60.0)
 
 
 class CopyZeusAPIError(RuntimeError):
@@ -62,7 +62,7 @@ class CopyZeusClient:
         api_secret: str | None = None,
         env: str | None = None,
         session: aiohttp.ClientSession | None = None,
-        retries: int = 3,
+        retries: int = 4,
         sleep=asyncio.sleep,
     ):
         self.api_key = api_key if api_key is not None else os.getenv("BINGX_API_KEY", "")
@@ -79,7 +79,7 @@ class CopyZeusClient:
         self._owns_session = session is None
         self._last_request = 0.0
         self._lock = asyncio.Lock()
-        self.retries = max(1, min(int(retries), 3))
+        self.retries = max(1, min(int(retries), 4))
         self._sleep = sleep
 
     async def __aenter__(self):

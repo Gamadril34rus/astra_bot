@@ -81,7 +81,7 @@ def test_positions_are_independent_observations(tmp_path):
     assert len(archive.archive_path.read_text().splitlines()) == 2
 
 
-def test_retryable_100410_uses_live_backoff_and_three_attempt_cap():
+def test_retryable_100410_uses_5_30_60_backoff_and_four_attempt_cap():
     class FakeResponse:
         status = 200
 
@@ -124,9 +124,9 @@ def test_retryable_100410_uses_live_backoff_and_three_attempt_cap():
 
             with pytest.raises(Exception, match=r"HTTP 200, code 100410"):
                 await client.get("/openApi/swap/v2/user/income")
-            assert session.calls == 3
-            assert pauses == [2.0, 5.0]
-            assert client.retries == 3
+            assert session.calls == 4
+            assert pauses == [5.0, 30.0, 60.0]
+            assert client.retries == 4
         finally:
             await client.close()
 
