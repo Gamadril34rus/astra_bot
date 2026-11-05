@@ -344,11 +344,13 @@ def report_json_rows(reports: Path, output: Path) -> list[tuple[str, dict[str, A
     result: list[tuple[str, dict[str, Any]]] = []
     if not reports.exists():
         return result
+    dashboard_output = reports / "astra_dashboard"
     for path in sorted(
         candidate for candidate in reports.rglob("*")
         if candidate.is_file()
         and candidate.suffix.lower() in {".json", ".jsonl"}
         and output not in candidate.parents
+        and dashboard_output not in candidate.parents
     ):
         if path.suffix.lower() == ".jsonl":
             rows, _ = read_jsonl(path)
