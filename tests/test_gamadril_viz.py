@@ -130,3 +130,18 @@ def test_exit_notification_prefers_animation_when_available(monkeypatch) -> None
     assert sent is True
     assert len(calls) == 1
     assert calls[0].endswith("/sendAnimation")
+
+def test_exit_card_prefers_gamadril_master_background_and_keeps_legacy_fallback(
+    tmp_path: Path, monkeypatch
+) -> None:
+    assets = tmp_path / "assets"
+    (assets / "gamadril").mkdir(parents=True)
+    legacy = assets / "card_bg_plus.png"
+    legacy.write_bytes(b"legacy")
+    monkeypatch.setattr(trade_viz, "__file__", str(tmp_path / "trade_viz.py"))
+
+    assert trade_viz._default_exit_card_background(True) == legacy
+
+    gamadril = assets / "gamadril" / "mascot_card_bg.jpg"
+    gamadril.write_bytes(b"gamadril")
+    assert trade_viz._default_exit_card_background(False) == gamadril
