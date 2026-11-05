@@ -1,11 +1,18 @@
 """Generate deterministic plus/minus EXIT card previews from canonical artwork."""
 from __future__ import annotations
 
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
-from astra_bot.decision.trade_viz import render_exit_stats_card
-
 ROOT = Path(__file__).resolve().parents[2]
+SPEC = spec_from_file_location(
+    "astra_trade_viz_preview", ROOT / "astra_bot" / "decision" / "trade_viz.py"
+)
+if SPEC is None or SPEC.loader is None:
+    raise RuntimeError("cannot load trade card renderer")
+TRADE_VIZ = module_from_spec(SPEC)
+SPEC.loader.exec_module(TRADE_VIZ)
+render_exit_stats_card = TRADE_VIZ.render_exit_stats_card
 OUT = ROOT / "docs" / "examples"
 ASSETS = ROOT / "astra_bot" / "decision" / "assets"
 
