@@ -22,5 +22,6 @@ and 1h candles and their existing entry/stop/target/exit levels.
 
 The GIF is not generated or recompressed on a five-minute loop. Existing
 `art_plus.png`, `art_minus.png`, `card_bg_plus.png` and
-`card_bg_minus.png` remain unchanged. The new visuals are additive and
-limited to EXIT presentation.
+`card_bg_minus.png` remain unchanged. These presentation-only changes apply
+to the existing ENTRY/EXIT Telegram image notifications; they do not alter
+the trading or execution path.
