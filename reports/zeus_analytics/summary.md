@@ -17,9 +17,9 @@ PF = сумма положительных pnl / абсолютная сумма
 | REAL | channel | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_live_trades.jsonl | нет данных |
 | REAL | wedge | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_live_trades.jsonl | нет данных |
 | REAL | multi-top | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_live_trades.jsonl | нет данных |
-| live / UNKNOWN | channel | 0.5147 | 23.91 | 0.0000 | -96.0245 | 4940.0863 | 2026-10-13 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 92 |
+| live / UNKNOWN | channel | 0.5147 | 23.91 | нет данных | -96.0245 | 4940.0863 | 2026-10-13 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 92 |
 | live / UNKNOWN | wedge | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_live_trades.jsonl | нет данных |
-| live / UNKNOWN | multi-top | 1.3029 | 35.29 | 0.0000 | 26.0940 | 584.1273 | 2026-10-31 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 17 (мало данных) |
+| live / UNKNOWN | multi-top | 1.3029 | 35.29 | нет данных | 26.0940 | 584.1273 | 2026-10-31 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 17 (мало данных) |
 
 VST и REAL не имеют явно маркированных закрытий в доступных live rows; значения не угадываются по настройке workflow.
 
@@ -225,91 +225,91 @@ VST и REAL не имеют явно маркированных закрытий
 
 | контур | профиль | день | n сделок | период | источник | n / статус |
 | - | - | - | - | - | - | - |
-| live / UNKNOWN | fat | будни | 61 | 2026-10-13 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 61 |
+| live / UNKNOWN | fat | будни | 61 | нет данных | models/zeus_live_trades.jsonl | 61 |
 | live / UNKNOWN | fat | выходные | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных |
-| live / UNKNOWN | normal | будни | 19 (мало данных) | 2026-10-15 — 2026-11-04 MSK | models/zeus_live_trades.jsonl | 19 (мало данных) |
-| live / UNKNOWN | normal | выходные | 7 (мало данных) | 2026-10-17 — 2026-10-31 MSK | models/zeus_live_trades.jsonl | 7 (мало данных) |
-| live / UNKNOWN | thin | будни | 7 (мало данных) | 2026-10-13 — 2026-11-03 MSK | models/zeus_live_trades.jsonl | 7 (мало данных) |
-| live / UNKNOWN | thin | выходные | 4 (мало данных) | 2026-10-31 — 2026-10-31 MSK | models/zeus_live_trades.jsonl | 4 (мало данных) |
-| live / UNKNOWN | off | будни | 11 (мало данных) | 2026-10-13 — 2026-11-04 MSK | models/zeus_live_trades.jsonl | 11 (мало данных) |
-| live / UNKNOWN | off | выходные | 7 (мало данных) | 2026-10-17 — 2026-11-01 MSK | models/zeus_live_trades.jsonl | 7 (мало данных) |
+| live / UNKNOWN | normal | будни | 19 (мало данных) | нет данных | models/zeus_live_trades.jsonl | 19 (мало данных) |
+| live / UNKNOWN | normal | выходные | 7 (мало данных) | нет данных | models/zeus_live_trades.jsonl | 7 (мало данных) |
+| live / UNKNOWN | thin | будни | 7 (мало данных) | нет данных | models/zeus_live_trades.jsonl | 7 (мало данных) |
+| live / UNKNOWN | thin | выходные | 4 (мало данных) | нет данных | models/zeus_live_trades.jsonl | 4 (мало данных) |
+| live / UNKNOWN | off | будни | 11 (мало данных) | нет данных | models/zeus_live_trades.jsonl | 11 (мало данных) |
+| live / UNKNOWN | off | выходные | 7 (мало данных) | нет данных | models/zeus_live_trades.jsonl | 7 (мало данных) |
 
 ### Live / UNKNOWN — символ × направление
 
 | контур | профиль | день | символ | направление | n сделок | период | источник | n / статус |
 | - | - | - | - | - | - | - | - | - |
-| live / UNKNOWN | fat | будни | AAVE-USDT | short | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | fat | будни | ADA-USDT | short | 4 (мало данных) | 2026-10-19 — 2026-10-29 MSK | models/zeus_live_trades.jsonl | 4 (мало данных) |
-| live / UNKNOWN | fat | будни | APT-USDT | short | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | fat | будни | ARB-USDT | short | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | fat | будни | ATOM-USDT | short | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | fat | будни | AVAX-USDT | short | 4 (мало данных) | 2026-10-27 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 4 (мало данных) |
-| live / UNKNOWN | fat | будни | BCH-USDT | long | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | fat | будни | BTC-USDT | short | 4 (мало данных) | 2026-10-29 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 4 (мало данных) |
-| live / UNKNOWN | fat | будни | DOGE-USDT | short | 3 (мало данных) | 2026-10-13 — 2026-10-27 MSK | models/zeus_live_trades.jsonl | 3 (мало данных) |
-| live / UNKNOWN | fat | будни | DOT-USDT | short | 3 (мало данных) | 2026-10-19 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 3 (мало данных) |
-| live / UNKNOWN | fat | будни | ETH-USDT | long | 2 (мало данных) | 2026-11-05 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
-| live / UNKNOWN | fat | будни | ETH-USDT | short | 7 (мало данных) | 2026-10-13 — 2026-11-03 MSK | models/zeus_live_trades.jsonl | 7 (мало данных) |
-| live / UNKNOWN | fat | будни | FIL-USDT | short | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | fat | будни | HYPE-USDT | long | 1 (мало данных) | 2026-11-02 — 2026-11-02 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | fat | будни | INJ-USDT | long | 1 (мало данных) | 2026-11-04 — 2026-11-04 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | fat | будни | INJ-USDT | short | 2 (мало данных) | 2026-11-03 — 2026-11-03 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
-| live / UNKNOWN | fat | будни | LINK-USDT | short | 2 (мало данных) | 2026-10-20 — 2026-10-27 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
-| live / UNKNOWN | fat | будни | LTC-USDT | short | 2 (мало данных) | 2026-10-20 — 2026-10-27 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
-| live / UNKNOWN | fat | будни | OP-USDT | long | 1 (мало данных) | 2026-10-13 — 2026-10-13 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | fat | будни | OP-USDT | short | 2 (мало данных) | 2026-10-20 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
-| live / UNKNOWN | fat | будни | PENDLE-USDT | short | 1 (мало данных) | 2026-10-29 — 2026-10-29 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | fat | будни | SOL-USDT | long | 3 (мало данных) | 2026-10-23 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 3 (мало данных) |
-| live / UNKNOWN | fat | будни | SOL-USDT | short | 5 (мало данных) | 2026-10-27 — 2026-11-03 MSK | models/zeus_live_trades.jsonl | 5 (мало данных) |
-| live / UNKNOWN | fat | будни | SUI-USDT | short | 2 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
-| live / UNKNOWN | fat | будни | TAO-USDT | short | 1 (мало данных) | 2026-10-29 — 2026-10-29 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | fat | будни | XRP-USDT | short | 5 (мало данных) | 2026-10-13 — 2026-10-27 MSK | models/zeus_live_trades.jsonl | 5 (мало данных) |
-| live / UNKNOWN | normal | будни | 1000PEPE-USDT | long | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | будни | AAVE-USDT | short | 1 (мало данных) | 2026-10-16 — 2026-10-16 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | будни | APT-USDT | short | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | будни | ARB-USDT | short | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | будни | AVAX-USDT | short | 1 (мало данных) | 2026-10-15 — 2026-10-15 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | будни | BNB-USDT | long | 1 (мало данных) | 2026-10-29 — 2026-10-29 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | будни | BTC-USDT | short | 1 (мало данных) | 2026-11-03 — 2026-11-03 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | будни | DOT-USDT | long | 1 (мало данных) | 2026-10-23 — 2026-10-23 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | будни | DOT-USDT | short | 1 (мало данных) | 2026-10-16 — 2026-10-16 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | будни | ETH-USDT | long | 2 (мало данных) | 2026-10-29 — 2026-11-04 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
-| live / UNKNOWN | normal | будни | ETH-USDT | short | 1 (мало данных) | 2026-10-19 — 2026-10-19 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | будни | HYPE-USDT | long | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | будни | HYPE-USDT | short | 2 (мало данных) | 2026-11-02 — 2026-11-02 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
-| live / UNKNOWN | normal | будни | LTC-USDT | short | 1 (мало данных) | 2026-10-16 — 2026-10-16 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | будни | NEAR-USDT | short | 1 (мало данных) | 2026-10-16 — 2026-10-16 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | будни | SOL-USDT | short | 1 (мало данных) | 2026-11-02 — 2026-11-02 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | будни | SUI-USDT | short | 1 (мало данных) | 2026-10-16 — 2026-10-16 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | выходные | ADA-USDT | short | 1 (мало данных) | 2026-10-24 — 2026-10-24 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | выходные | APT-USDT | long | 1 (мало данных) | 2026-10-17 — 2026-10-17 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | выходные | AVAX-USDT | short | 1 (мало данных) | 2026-10-18 — 2026-10-18 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | выходные | BTC-USDT | long | 1 (мало данных) | 2026-10-24 — 2026-10-24 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | выходные | INJ-USDT | long | 1 (мало данных) | 2026-10-18 — 2026-10-18 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | выходные | LTC-USDT | short | 1 (мало данных) | 2026-10-18 — 2026-10-18 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | normal | выходные | SOL-USDT | long | 1 (мало данных) | 2026-10-31 — 2026-10-31 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | off | будни | ADA-USDT | short | 1 (мало данных) | 2026-10-29 — 2026-10-29 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | off | будни | AVAX-USDT | short | 2 (мало данных) | 2026-10-13 — 2026-10-29 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
-| live / UNKNOWN | off | будни | BTC-USDT | short | 1 (мало данных) | 2026-11-04 — 2026-11-04 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | off | будни | ETH-USDT | short | 2 (мало данных) | 2026-10-30 — 2026-10-30 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
-| live / UNKNOWN | off | будни | PENDLE-USDT | short | 1 (мало данных) | 2026-10-29 — 2026-10-29 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | off | будни | SOL-USDT | short | 3 (мало данных) | 2026-10-30 — 2026-11-04 MSK | models/zeus_live_trades.jsonl | 3 (мало данных) |
-| live / UNKNOWN | off | будни | XRP-USDT | short | 1 (мало данных) | 2026-10-29 — 2026-10-29 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | off | выходные | AVAX-USDT | short | 1 (мало данных) | 2026-11-01 — 2026-11-01 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | off | выходные | DOT-USDT | short | 1 (мало данных) | 2026-10-17 — 2026-10-17 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | off | выходные | ETH-USDT | short | 1 (мало данных) | 2026-10-31 — 2026-10-31 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | off | выходные | HYPE-USDT | long | 2 (мало данных) | 2026-11-01 — 2026-11-01 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
-| live / UNKNOWN | off | выходные | LTC-USDT | short | 1 (мало данных) | 2026-10-31 — 2026-10-31 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | off | выходные | SOL-USDT | short | 1 (мало данных) | 2026-10-31 — 2026-10-31 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | thin | будни | AVAX-USDT | long | 1 (мало данных) | 2026-10-13 — 2026-10-13 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | thin | будни | BCH-USDT | short | 1 (мало данных) | 2026-10-14 — 2026-10-14 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | thin | будни | DOGE-USDT | short | 1 (мало данных) | 2026-10-13 — 2026-10-13 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | thin | будни | ETH-USDT | long | 1 (мало данных) | 2026-11-03 — 2026-11-03 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | thin | будни | ETH-USDT | short | 1 (мало данных) | 2026-10-13 — 2026-10-13 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | thin | будни | HYPE-USDT | long | 1 (мало данных) | 2026-11-02 — 2026-11-02 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | thin | будни | INJ-USDT | short | 1 (мало данных) | 2026-11-02 — 2026-11-02 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
-| live / UNKNOWN | thin | выходные | BTC-USDT | short | 2 (мало данных) | 2026-10-31 — 2026-10-31 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
-| live / UNKNOWN | thin | выходные | LTC-USDT | short | 2 (мало данных) | 2026-10-31 — 2026-10-31 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
+| live / UNKNOWN | fat | будни | AAVE-USDT | нет данных | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | fat | будни | ADA-USDT | нет данных | 4 (мало данных) | 2026-10-19 — 2026-10-29 MSK | models/zeus_live_trades.jsonl | 4 (мало данных) |
+| live / UNKNOWN | fat | будни | APT-USDT | нет данных | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | fat | будни | ARB-USDT | нет данных | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | fat | будни | ATOM-USDT | нет данных | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | fat | будни | AVAX-USDT | нет данных | 4 (мало данных) | 2026-10-27 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 4 (мало данных) |
+| live / UNKNOWN | fat | будни | BCH-USDT | нет данных | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | fat | будни | BTC-USDT | нет данных | 4 (мало данных) | 2026-10-29 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 4 (мало данных) |
+| live / UNKNOWN | fat | будни | DOGE-USDT | нет данных | 3 (мало данных) | 2026-10-13 — 2026-10-27 MSK | models/zeus_live_trades.jsonl | 3 (мало данных) |
+| live / UNKNOWN | fat | будни | DOT-USDT | нет данных | 3 (мало данных) | 2026-10-19 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 3 (мало данных) |
+| live / UNKNOWN | fat | будни | ETH-USDT | нет данных | 2 (мало данных) | 2026-11-05 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
+| live / UNKNOWN | fat | будни | ETH-USDT | нет данных | 7 (мало данных) | 2026-10-13 — 2026-11-03 MSK | models/zeus_live_trades.jsonl | 7 (мало данных) |
+| live / UNKNOWN | fat | будни | FIL-USDT | нет данных | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | fat | будни | HYPE-USDT | нет данных | 1 (мало данных) | 2026-11-02 — 2026-11-02 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | fat | будни | INJ-USDT | нет данных | 1 (мало данных) | 2026-11-04 — 2026-11-04 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | fat | будни | INJ-USDT | нет данных | 2 (мало данных) | 2026-11-03 — 2026-11-03 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
+| live / UNKNOWN | fat | будни | LINK-USDT | нет данных | 2 (мало данных) | 2026-10-20 — 2026-10-27 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
+| live / UNKNOWN | fat | будни | LTC-USDT | нет данных | 2 (мало данных) | 2026-10-20 — 2026-10-27 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
+| live / UNKNOWN | fat | будни | OP-USDT | нет данных | 1 (мало данных) | 2026-10-13 — 2026-10-13 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | fat | будни | OP-USDT | нет данных | 2 (мало данных) | 2026-10-20 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
+| live / UNKNOWN | fat | будни | PENDLE-USDT | нет данных | 1 (мало данных) | 2026-10-29 — 2026-10-29 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | fat | будни | SOL-USDT | нет данных | 3 (мало данных) | 2026-10-23 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 3 (мало данных) |
+| live / UNKNOWN | fat | будни | SOL-USDT | нет данных | 5 (мало данных) | 2026-10-27 — 2026-11-03 MSK | models/zeus_live_trades.jsonl | 5 (мало данных) |
+| live / UNKNOWN | fat | будни | SUI-USDT | нет данных | 2 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
+| live / UNKNOWN | fat | будни | TAO-USDT | нет данных | 1 (мало данных) | 2026-10-29 — 2026-10-29 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | fat | будни | XRP-USDT | нет данных | 5 (мало данных) | 2026-10-13 — 2026-10-27 MSK | models/zeus_live_trades.jsonl | 5 (мало данных) |
+| live / UNKNOWN | normal | будни | 1000PEPE-USDT | нет данных | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | будни | AAVE-USDT | нет данных | 1 (мало данных) | 2026-10-16 — 2026-10-16 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | будни | APT-USDT | нет данных | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | будни | ARB-USDT | нет данных | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | будни | AVAX-USDT | нет данных | 1 (мало данных) | 2026-10-15 — 2026-10-15 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | будни | BNB-USDT | нет данных | 1 (мало данных) | 2026-10-29 — 2026-10-29 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | будни | BTC-USDT | нет данных | 1 (мало данных) | 2026-11-03 — 2026-11-03 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | будни | DOT-USDT | нет данных | 1 (мало данных) | 2026-10-23 — 2026-10-23 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | будни | DOT-USDT | нет данных | 1 (мало данных) | 2026-10-16 — 2026-10-16 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | будни | ETH-USDT | нет данных | 2 (мало данных) | 2026-10-29 — 2026-11-04 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
+| live / UNKNOWN | normal | будни | ETH-USDT | нет данных | 1 (мало данных) | 2026-10-19 — 2026-10-19 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | будни | HYPE-USDT | нет данных | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | будни | HYPE-USDT | нет данных | 2 (мало данных) | 2026-11-02 — 2026-11-02 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
+| live / UNKNOWN | normal | будни | LTC-USDT | нет данных | 1 (мало данных) | 2026-10-16 — 2026-10-16 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | будни | NEAR-USDT | нет данных | 1 (мало данных) | 2026-10-16 — 2026-10-16 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | будни | SOL-USDT | нет данных | 1 (мало данных) | 2026-11-02 — 2026-11-02 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | будни | SUI-USDT | нет данных | 1 (мало данных) | 2026-10-16 — 2026-10-16 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | выходные | ADA-USDT | нет данных | 1 (мало данных) | 2026-10-24 — 2026-10-24 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | выходные | APT-USDT | нет данных | 1 (мало данных) | 2026-10-17 — 2026-10-17 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | выходные | AVAX-USDT | нет данных | 1 (мало данных) | 2026-10-18 — 2026-10-18 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | выходные | BTC-USDT | нет данных | 1 (мало данных) | 2026-10-24 — 2026-10-24 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | выходные | INJ-USDT | нет данных | 1 (мало данных) | 2026-10-18 — 2026-10-18 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | выходные | LTC-USDT | нет данных | 1 (мало данных) | 2026-10-18 — 2026-10-18 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | normal | выходные | SOL-USDT | нет данных | 1 (мало данных) | 2026-10-31 — 2026-10-31 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | off | будни | ADA-USDT | нет данных | 1 (мало данных) | 2026-10-29 — 2026-10-29 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | off | будни | AVAX-USDT | нет данных | 2 (мало данных) | 2026-10-13 — 2026-10-29 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
+| live / UNKNOWN | off | будни | BTC-USDT | нет данных | 1 (мало данных) | 2026-11-04 — 2026-11-04 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | off | будни | ETH-USDT | нет данных | 2 (мало данных) | 2026-10-30 — 2026-10-30 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
+| live / UNKNOWN | off | будни | PENDLE-USDT | нет данных | 1 (мало данных) | 2026-10-29 — 2026-10-29 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | off | будни | SOL-USDT | нет данных | 3 (мало данных) | 2026-10-30 — 2026-11-04 MSK | models/zeus_live_trades.jsonl | 3 (мало данных) |
+| live / UNKNOWN | off | будни | XRP-USDT | нет данных | 1 (мало данных) | 2026-10-29 — 2026-10-29 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | off | выходные | AVAX-USDT | нет данных | 1 (мало данных) | 2026-11-01 — 2026-11-01 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | off | выходные | DOT-USDT | нет данных | 1 (мало данных) | 2026-10-17 — 2026-10-17 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | off | выходные | ETH-USDT | нет данных | 1 (мало данных) | 2026-10-31 — 2026-10-31 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | off | выходные | HYPE-USDT | нет данных | 2 (мало данных) | 2026-11-01 — 2026-11-01 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
+| live / UNKNOWN | off | выходные | LTC-USDT | нет данных | 1 (мало данных) | 2026-10-31 — 2026-10-31 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | off | выходные | SOL-USDT | нет данных | 1 (мало данных) | 2026-10-31 — 2026-10-31 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | thin | будни | AVAX-USDT | нет данных | 1 (мало данных) | 2026-10-13 — 2026-10-13 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | thin | будни | BCH-USDT | нет данных | 1 (мало данных) | 2026-10-14 — 2026-10-14 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | thin | будни | DOGE-USDT | нет данных | 1 (мало данных) | 2026-10-13 — 2026-10-13 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | thin | будни | ETH-USDT | нет данных | 1 (мало данных) | 2026-11-03 — 2026-11-03 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | thin | будни | ETH-USDT | нет данных | 1 (мало данных) | 2026-10-13 — 2026-10-13 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | thin | будни | HYPE-USDT | нет данных | 1 (мало данных) | 2026-11-02 — 2026-11-02 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | thin | будни | INJ-USDT | нет данных | 1 (мало данных) | 2026-11-02 — 2026-11-02 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | thin | выходные | BTC-USDT | нет данных | 2 (мало данных) | 2026-10-31 — 2026-10-31 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
+| live / UNKNOWN | thin | выходные | LTC-USDT | нет данных | 2 (мало данных) | 2026-10-31 — 2026-10-31 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
 
 ### VST
 
