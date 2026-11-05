@@ -160,3 +160,18 @@ def test_empty_sources_are_explicit_and_generation_is_deterministic(
     assert (tmp_path / "reports" / "zeus_analytics" / "summary.md").is_file()
     assert not (tmp_path / "models" / "zeus_live_journal.jsonl").exists()
     assert list((tmp_path / "models").iterdir()) == []
+
+def test_report_json_rows_ignores_dashboard_output_directory(tmp_path: Path) -> None:
+    from scripts.zeus_analytics import report_json_rows
+
+    dashboard = tmp_path / "reports" / "astra_dashboard" / "dashboard.json"
+    dashboard.parent.mkdir(parents=True)
+    dashboard.write_text(
+        json.dumps({"event": "copy_zeus_archive", "ts": 1_790_000_000}),
+        encoding="utf-8",
+    )
+    rows = report_json_rows(
+        tmp_path / "reports",
+        tmp_path / "reports" / "zeus_analytics",
+    )
+    assert rows == []
