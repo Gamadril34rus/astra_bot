@@ -1,6 +1,10 @@
 name: Generate trade card examples
 
 on:
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - master
   push:
     branches:
       - fix/trade-card-art-slot
