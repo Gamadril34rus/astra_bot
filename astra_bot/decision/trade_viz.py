@@ -40,7 +40,7 @@ def render_trade_chart(
     from PIL import Image, ImageEnhance, ImageOps
 
     series = (("4h", candles_4h[-60:]), ("1h", candles_1h[-60:]))
-    fig, axes = plt.subplots(2, 1, figsize=(12, 8), sharey=True)
+    fig, axes = plt.subplots(2, 1, figsize=(12, 8), dpi=130, sharey=True)
     fig.patch.set_facecolor("#0B0D12")
 
     # Owner-provided Gamadril artwork is the full-bleed canvas for both
