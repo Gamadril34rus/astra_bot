@@ -110,5 +110,5 @@ TG: своды 09:00/21:00 МСК, ракеты входа/выхода с то�
 Пересобрать примеры из канон-артов можно из корня репозитория:
 
 ```bash
-PYTHONPATH=. python docs/examples/generate_trade_cards.py
+python docs/examples/generate_trade_cards.py
 ```
