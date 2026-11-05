@@ -1,4 +1,19 @@
-# Запуск на GitHub Actions — бесплатно, без карты и ПК
+# GitHub Actions — историческая справка по старому развёртыванию
+
+> **ИСТОРИЧЕСКИЙ ДОКУМЕНТ.** Описанные ниже workflow, частота запусков, имена job и расчёт минут относятся к более ранней версии ASTRA BOT. Не использовать этот текст для настройки текущего Zeus. Актуальные контуры, external cron-job.org, Actions Secrets и реальные workflow triggers описаны в [CONFIGURATION_MAP.md](CONFIGURATION_MAP.md) и [README.md](../README.md).
+
+## Текущий срез на 05.11.2026
+
+- `zeus-live-clock.yml` — только `workflow_dispatch`; внешний cron-job.org вызывает примерно раз в 5 минут.
+- `copy-zeus-archive.yml` — только `workflow_dispatch`; внешний cron-job.org вызывает каждые 30 минут на минутах 07/37.
+- `zeus-paper-clock.yml` — ручной `workflow_dispatch`; GitHub schedule в файле отсутствует.
+- `quality-gates.yml` — PR/push quality gates.
+
+Старые инструкции и таблицы ниже оставлены для истории, а не как актуальная инструкция.
+
+---
+
+## Архивная справка (не использовать для текущей настройки)
 
 Бот будет работать на серверах GitHub. Карта и адрес не нужны.
 Подходит для обучения и paper trading — реальные деньги не включать.
