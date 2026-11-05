@@ -131,17 +131,35 @@ def test_exit_notification_prefers_animation_when_available(monkeypatch) -> None
     assert len(calls) == 1
     assert calls[0].endswith("/sendAnimation")
 
-def test_exit_card_prefers_gamadril_master_background_and_keeps_legacy_fallback(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_exit_card_default_background_keeps_sign_based_legacy_assets(tmp_path: Path, monkeypatch) -> None:
     assets = tmp_path / "assets"
-    (assets / "gamadril").mkdir(parents=True)
-    legacy = assets / "card_bg_plus.png"
-    legacy.write_bytes(b"legacy")
+    assets.mkdir()
     monkeypatch.setattr(trade_viz, "__file__", str(tmp_path / "trade_viz.py"))
 
-    assert trade_viz._default_exit_card_background(True) == legacy
+    assert trade_viz._default_exit_card_background(True) == assets / "card_bg_plus.png"
+    assert trade_viz._default_exit_card_background(False) == assets / "card_bg_minus.png"
 
-    gamadril = assets / "gamadril" / "mascot_card_bg.jpg"
-    gamadril.write_bytes(b"gamadril")
-    assert trade_viz._default_exit_card_background(False) == gamadril
+
+def test_exit_png_fallback_explicitly_uses_gamadril_card_art(monkeypatch) -> None:
+    calls: list[str] = []
+    captured: dict = {}
+    monkeypatch.setitem(sys.modules, "aiohttp", _fake_aiohttp(calls))
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-token")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "12345")
+
+    def capture_png(**kwargs):
+        captured.update(kwargs)
+        return b"png"
+
+    def missing_animation(**kwargs):
+        raise FileNotFoundError("fixture: no animation")
+
+    monkeypatch.setattr(trade_viz, "render_exit_stats_card", capture_png)
+    monkeypatch.setattr(gamadril_viz, "render_gamadril_exit_animation", missing_animation)
+    sent = asyncio.run(trade_viz.notify_exit_stats_card(**_notify_args()))
+
+    expected = Path(trade_viz.__file__).parent / "assets" / "gamadril" / "mascot_card_bg.jpg"
+    assert expected.is_file()
+    assert sent is True
+    assert captured["art_path"] == str(expected)
+    assert calls[0].endswith("/sendPhoto")
