@@ -209,27 +209,54 @@ def render_exit_stats_card(
     panel = (48, 48, width - 48, height - 48)
     draw.rounded_rectangle(panel, radius=44, fill="#141820")
 
-    # Draw artwork first. Text is deliberately rendered afterwards.
+    # Fixed art slot: text stays in the left column (x <= 600).
+    # The blurred fill and contained foreground are derived from the same canonical art.
+    slot = (660, 480, 1160, 1320)
+    slot_width, slot_height = slot[2] - slot[0], slot[3] - slot[1]
     if art_path is None:
         art_path = Path(__file__).parent / "assets" / ("art_plus.png" if positive else "art_minus.png")
     try:
-        with Image.open(art_path) as source:
-            source = source.convert("RGBA")
-            w, h = source.size
-            crop = source.crop((int(0.58*w), int(0.01*h), w, int(0.71*h)))
-            if crop.width > 0 and crop.height > 0:
-                max_h = int(height * 0.70)
-                ratio = min(max_h / crop.height, (width * 0.60) / crop.width, 1.0)
-                size = (max(1, int(crop.width * ratio)), max(1, int(crop.height * ratio)))
-                crop = crop.resize(size, Image.Resampling.LANCZOS)
-                alpha = crop.getchannel("A")
-                rgb = Image.new("RGB", crop.size, "#000000")
-                rgb.paste(crop.convert("RGB"), mask=alpha)
-                rgb = ImageEnhance.Brightness(rgb).enhance(0.45)
-                x = width - 76 - rgb.width
-                y = height - 170 - rgb.height
-                image.paste(rgb, (x, y))
-                draw = ImageDraw.Draw(image)
+        from PIL import ImageFilter, ImageOps, ImageStat
+
+        with Image.open(art_path) as source_file:
+            source = source_file.convert("RGBA")
+            art_rgb = source.convert("RGB")
+            mean_rgb = ImageStat.Stat(art_rgb).mean
+            mean_luminance = (
+                0.2126 * mean_rgb[0] + 0.7152 * mean_rgb[1] + 0.0722 * mean_rgb[2]
+            )
+            if mean_luminance < 70:
+                brightness_factor = min(1.9, 78.0 / max(mean_luminance, 1.0))
+                source = ImageEnhance.Brightness(source).enhance(brightness_factor)
+                source = ImageEnhance.Contrast(source).enhance(1.06)
+
+            # Fill the slot with a softened, darkened version of the same artwork.
+            background = ImageOps.fit(
+                source.convert("RGB"), (slot_width, slot_height),
+                method=Image.Resampling.LANCZOS,
+            )
+            background = background.filter(ImageFilter.GaussianBlur(radius=18))
+            background = ImageEnhance.Brightness(background).enhance(0.75)
+            slot_image = background.convert("RGBA")
+
+            # Preserve the complete original composition in the foreground.
+            foreground = ImageOps.contain(
+                source, (slot_width - 28, slot_height - 28),
+                method=Image.Resampling.LANCZOS,
+            )
+            foreground_x = (slot_width - foreground.width) // 2
+            foreground_y = (slot_height - foreground.height) // 2
+            slot_image.alpha_composite(foreground, (foreground_x, foreground_y))
+
+            # Clip every layer to the rounded slot and keep a subtle one-pixel frame.
+            mask = Image.new("L", (slot_width, slot_height), 0)
+            ImageDraw.Draw(mask).rounded_rectangle(
+                (0, 0, slot_width - 1, slot_height - 1), radius=28, fill=255,
+            )
+            image.paste(slot_image.convert("RGB"), (slot[0], slot[1]), mask)
+            draw.rounded_rectangle(
+                slot, radius=28, outline="#2A3140", width=2,
+            )
     except (OSError, ValueError, TypeError):
         pass
 
