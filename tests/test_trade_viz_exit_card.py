@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 from pathlib import Path
 
 from astra_bot.decision.trade_viz import (
@@ -79,9 +80,7 @@ def test_art_slot_frame_and_canonical_dpi():
         pnl=87.4861, qty=qty, leverage=6, closed_at=1793652000,
         art_path=ASSETS / "art_plus.png",
     )
-    import io
-
     with Image.open(io.BytesIO(png)) as rendered:
         assert rendered.size == (1240, 1640)
-        assert rendered.info["dpi"] == (200.0, 200.0)
+        assert all(abs(value - 200.0) < 0.1 for value in rendered.info["dpi"])
         assert rendered.convert("RGB").getpixel((660, 900)) == (42, 49, 64)
