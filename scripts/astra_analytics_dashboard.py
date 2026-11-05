@@ -462,6 +462,7 @@ def _card(label: str, value: str, hint: str = "") -> str:
 
 def render_html(p: dict[str, Any]) -> str:
     q, zone, funnel, health = p["data_quality"], p["volume_zone_shadow"], p["signal_funnel"], p["system_health"]
+    no_trade = p["no_trade_analytics"]
     paper = [r for r in p["strategy_metrics"] if r["mode"] == "PAPER"]
     unknown = [r for r in p["strategy_metrics"] if r["mode"] == "LIVE / UNKNOWN"]
     paper_pnl = sum(r["net_pnl"] for r in paper)
@@ -488,6 +489,31 @@ def render_html(p: dict[str, Any]) -> str:
     zone_bars = _bars(zone_items, "name", "count")
     skip_items = [{"name": key, "pnl": value} for key, value in funnel["skip_reasons"].items()]
     skip_bars = _bars(skip_items, "name", "pnl")
+    no_trade_reason_bars = _bars(
+        [{"name": key, "count": value} for key, value in no_trade["reason_codes"].items()],
+        "name", "count",
+    )
+    no_trade_stage_bars = _bars(
+        [{"name": key, "count": value} for key, value in no_trade["rejection_stages"].items()],
+        "name", "count",
+    )
+    no_trade_regime_bars = _bars(
+        [{"name": key, "count": value} for key, value in no_trade["market_regimes"].items()],
+        "name", "count",
+    )
+    no_trade_symbol_bars = _bars(
+        [{"name": key, "count": value} for key, value in no_trade["symbols"].items()],
+        "name", "count",
+    )
+    no_trade_outcome_rows = []
+    for horizon, values in no_trade["horizons"].items():
+        cells = [
+            horizon, values["samples"], _money(values["avg_future_return_pct"]),
+            _money(values["avg_mfe_pct"]), _money(values["avg_mae_pct"]),
+        ]
+        no_trade_outcome_rows.append(
+            "<tr>" + "".join(f"<td>{html.escape(str(value))}</td>" for value in cells) + "</tr>"
+        )
     table_rows = []
     for r in p["strategy_metrics"]:
         vals = [r["mode"], r["strategy"], r["n"], f'{r["wins"]}/{r["losses"]}',
@@ -542,26 +568,40 @@ table{{border-collapse:collapse;width:100%;min-width:730px;font-size:12px}}th,td
 </div>
 <div class="two">
 <div class="panel"><h2>Heatmap · symbol × session × side</h2>{detail_bars}<p class="note">Разрез по реально записанным symbol, профилю, типу дня и стороне позиции.</p></div>
-<div class="panel"><h2>Отбраковки сигналов</h2>{skip_bars}<p class="note">Только причины, реально записанные в arm_summary / arm_skip.</p></div>
+<div class="panel"><h2>Отбраковки arm</h2>{skip_bars}<p class="note">Только причины, реально записанные в arm_summary / arm_skip.</p></div>
 </div>
 <div class="two">
 <div class="panel"><h2>Воронка сигналов</h2>
-{_card("SCAN attempts","нет данных","per-symbol scans не сохраняются")}
-{_card("pending_signal","нет данных" if funnel["pending_candidates"] is None else str(funnel["pending_candidates"]),"за период")}
-{_card("arm candidates","нет данных" if funnel["arm_candidate_total"] is None else str(funnel["arm_candidate_total"]),"сумма arm_summary")}
-{_card("entry / failed / exits",f'{funnel["entry_events"]} / {funnel["failed_entry_events"]} / {funnel["verified_exits"]}',"события журналов")}</div>
+{_card("NO_TRADE observations","нет данных" if no_trade["observations_count"] is None else str(no_trade["observations_count"]),"persisted symbol/bar evaluations — не тики")}
+{_card("Candidate records","нет данных" if no_trade["candidate_count"] is None else str(no_trade["candidate_count"]),"наблюдения с candidate object")}
+{_card("Forward outcome coverage",_money(no_trade["outcome_coverage_pct"])+"%" if no_trade["outcome_coverage_pct"] is not None else "нет данных",f'{no_trade["observations_with_outcome"] if no_trade["observations_with_outcome"] is not None else "—"} / {no_trade["observations_count"] if no_trade["observations_count"] is not None else "—"} observations")}
+{_card("Entry / failed / exits",f'{funnel["entry_events"]} / {funnel["failed_entry_events"]} / {funnel["verified_exits"]}',"события торговых журналов")}</div>
 <div class="panel"><h2>Техническое здоровье</h2>
 {_card("journal errors","нет данных" if health["journal_errors"] is None else str(health["journal_errors"]),"error events")}
 {_card("protect failures","нет данных" if health["protective_order_failures"] is None else str(health["protective_order_failures"]),"protective-order errors")}
 {_card("reconciliation","нет данных" if health["reconciliation_events"] is None else str(health["reconciliation_events"]),"qty / position / ghost")}
 {_card("BingX 100410",str(health["bingx_100410_occurrences"]),"совпадения в журналах")}</div>
 </div>
+<div class="two">
+<div class="panel"><h2>NO_TRADE · reason codes</h2>{no_trade_reason_bars}<p class="note">Подсчёт reason_code из zeus_no_trade_observations.jsonl; это оценки symbol/bar, а не ордера.</p></div>
+<div class="panel"><h2>NO_TRADE · rejection stages</h2>{no_trade_stage_bars}<h3>Market regimes</h3>{no_trade_regime_bars}</div>
+</div>
+<div class="two">
+<div class="panel"><h2>NO_TRADE · symbols</h2>{no_trade_symbol_bars}<p class="note">Число записанных наблюдений по символам.</p></div>
+<div class="panel"><h2>Hypothetical rejected-candidate R</h2>
+{_card("R samples",str(no_trade["hypothetic_r"]["samples"]),"из no_trade_outcomes.hypothetic_r")}
+{_card("Average hypothetical R",_money(no_trade["hypothetic_r"]["avg_r"]),"не реализованный PnL")}
+{_card("Positive R rate",_money(no_trade["hypothetic_r"]["positive_rate_pct"])+"%" if no_trade["hypothetic_r"]["positive_rate_pct"] is not None else "нет данных","гипотетические исходы")}</div>
+</div>
+<div class="panel"><h2>NO_TRADE · forward outcome quality</h2><div class="scroll"><table><thead><tr><th>Horizon (bars)</th><th>Samples</th><th>Avg future return %</th><th>Avg MFE %</th><th>Avg MAE %</th></tr></thead><tbody>{"".join(no_trade_outcome_rows) if no_trade_outcome_rows else "<tr><td colspan='5'>нет данных за период</td></tr>"}</tbody></table></div>
+<p class="note">Forward returns, MFE и MAE рассчитаны исходной системой из будущих свечей и прочитаны из outcomes; значения не пересчитываются панелью.</p></div>
 <div class="panel"><h2>Статистика стратегий</h2><div class="scroll"><table><thead><tr>
 <th>Contour</th><th>Strategy</th><th>Trades</th><th>W/L</th><th>PF</th><th>Win rate</th><th>Avg R</th><th>Expectancy</th><th>Gross profit</th><th>Gross loss</th><th>Fees</th><th>Net PnL</th>
 </tr></thead><tbody>{"".join(table_rows) if table_rows else "<tr><td colspan='12'>нет данных за период</td></tr>"}</tbody></table></div>
 <p class="note">PF = gross positive PnL / absolute gross negative PnL. Комиссии показаны отдельно.</p></div>
 <div class="panel"><h2>Качество источников</h2>
 <p>Paper rows: {q["paper_source_rows"]} · Paper trades: {q["paper_trades"]} · Live rows: {q["live_rows"]} · Verified exits: {q["verified_live_exits"]} · Journal rows: {q["journal_rows"]}</p>
+<p>NO_TRADE observations: {no_trade["observations_count"] if no_trade["observations_count"] is not None else "нет данных"} · Outcome rows: {no_trade["outcome_rows"] if no_trade["outcome_rows"] is not None else "нет данных"} · Malformed observations/outcomes: {q["malformed_jsonl"]["no_trade_observations"]} / {q["malformed_jsonl"]["no_trade_outcomes"]}</p>
 <p class="note">Источники: {html.escape(", ".join(p["sources"]))}. Пропуски остаются «нет данных», не заменяются выдуманными нулями.</p></div>
 <footer class="note">Read-only ASTRA BOT analytics · no trading, risk, keys or live-loop modifications.</footer>
 </main></body></html>"""
