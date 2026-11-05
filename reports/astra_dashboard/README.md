@@ -35,6 +35,18 @@ build leaves the last published dashboard directory intact.
 - Session buckets use the project's raw_bucket() helper and MSK.
 - Volume-zone and funnel panels use only persisted source events. The
   zone_shadow_approach.json file is a current state snapshot, not history.
+- NO_TRADE observations are read from `models/no_trade_observations.jsonl`;
+  matched outcomes are read from `models/no_trade_outcomes.jsonl` by stable
+  observation ID. The legacy `no_trade_outcomes.json` is read only when the
+  JSONL outcome file is absent.
+- NO_TRADE panels show reason code, rejection stage, market regime, available
+  1/3/6/12/24-bar raw future-return/MFE/MAE summaries, and hypothetical R
+  where candidate entry/stop geometry was persisted. Incomplete hypothetical
+  windows are excluded from average R.
+- Hypothetical R is gross candidate-geometry telemetry without fees; it is
+  not an executed-trade result. Raw horizon return is market direction, not
+  direction-adjusted strategy PnL. NO_TRADE rows are not counted as scans or
+  executed trades.
 - Per-symbol scan attempts and exact workflow-run intervals remain unavailable
   unless those events are persisted by their source systems.
 - Missing data is shown as "нет данных", not as an invented zero.
