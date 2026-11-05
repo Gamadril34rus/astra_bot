@@ -514,11 +514,30 @@ def build_report(root: Path) -> str:
         if str(row.get("event") or "").endswith("_error")
         or row.get("error") is not None or row.get("error_msg") is not None
     ]
-    reconciliation = [
+    journal_reconciliation = [
         row for row in journal
         if any(key in str(row.get("event") or "").lower()
                for key in ("reconcil", "ghost", "missing"))
-    ] + [row for row in entry_rows if row.get("event") == "entry_pending_verify"]
+    ]
+    live_reconciliation = [
+        row for row in live_rows
+        if row.get("event") in {"qty_reconcile", "position_reconcile", "ghost_position"}
+    ]
+    pending_verify_rows = [
+        row for row in entry_rows if row.get("event") == "entry_pending_verify"
+    ] + [
+        row for row in live_rows
+        if row.get("event") == "exit" and row.get("pending_verify") is True
+    ]
+    reconciliation = journal_reconciliation + live_reconciliation + pending_verify_rows
+    protective_failures = [
+        row for row in live_rows
+        if row.get("event") in {"restore_tp_failed", "protect_place_failed"}
+    ]
+    entry_failures = [
+        row for row in entry_rows
+        if str(row.get("event") or "").startswith(("entry_failed", "entry_rejected"))
+    ]
     report_records = report_json_rows(root / "reports", output)
     rate_rows = [
         (source, row) for source, row in (
@@ -549,11 +568,19 @@ def build_report(root: Path) -> str:
         ["journal errors", len(errors) if journal else jmissing,
          period(stamp(row, "ts") for row in errors), LIVE_JOURNAL,
          "live (env не записан)", "не обязательно сделки"],
+        ["restore_tp_failed / protect_place_failed",
+         len(protective_failures) if live_rows else "нет данных за период",
+         period(stamp(row, "ts") for row in protective_failures), LIVE_TRADES,
+         "live (env не записан)", "protective-order diagnostics; не сделки"],
+        ["entry_failed / entry_rejected",
+         len(entry_failures) if entry_rows else "нет данных за период",
+         period(stamp(row, "ts") for row in entry_failures), LIVE_ENTRIES,
+         "live (env не записан)", "n failed entry records"],
         ["reconciliation / ghost / pending_verify events",
-         len(reconciliation) if journal or entry_rows else "нет данных за период",
+         len(reconciliation) if journal or live_rows or entry_rows else "нет данных за период",
          period(stamp(row, "ts") for row in reconciliation),
-         f"{LIVE_JOURNAL}; {LIVE_ENTRIES}", "live (env не записан)",
-         "не обязательно сделки"],
+         f"{LIVE_JOURNAL}; {LIVE_TRADES}; {LIVE_ENTRIES}", "live (env не записан)",
+         "qty_reconcile + pending_verify; не обязательно сделки"],
         ["100410 occurrences in readable structured rows", len(rate_rows),
          period(stamp(row, "ts", "timestamp") for _, row in rate_rows),
          "; ".join(sorted({source for source, _ in rate_rows})) or "нет источника",
