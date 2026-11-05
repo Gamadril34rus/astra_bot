@@ -1840,3 +1840,6 @@
 {"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2118303479952400384", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793878041.7247775}
 {"event": "order_cancel", "symbol": "ETH-USDT", "order_id": "2118252748595617792", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793880440.9500697}
 {"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2118304157009534976", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1793880449.8999949}
+{"event": "protect_place", "ts": 1793881267.5642009, "symbol": "BTC-USDT", "kind": "stop", "stop_price": "81051.279", "qty": "0.62398057", "close_position": true, "order_id": "2118317686110380032"}
+{"event": "protect_place", "ts": 1793881268.3327053, "symbol": "BTC-USDT", "kind": "tp", "stop_price": "79624.38155", "qty": "0.18719417", "reduce_only": false, "order_id": "2118317689331605504"}
+{"event": "entry", "signal_id": "zeus_multi_top_breakdown|BTC-USDT|short|1793880000000", "symbol": "BTC-USDT", "side": "short", "plan_entry": "80130.7", "fill_price": "80112.2", "slip_pct": 0.023087281154413976, "slip_r": 0.02009604824789616, "qty": "0.62398057", "stop": "81051.279", "tp": "79624.38155", "tp_frac": 0.3, "leverage": 6, "ts": 1793881268.333803}
