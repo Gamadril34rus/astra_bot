@@ -1,0 +1,64 @@
+name: ASTRA analytics dashboard
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: astra-analytics-dashboard
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          ref: master
+          fetch-depth: 1
+
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install project dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Test analytics
+        run: |
+          python -m pytest tests/test_zeus_analytics.py tests/test_astra_analytics_dashboard.py -q
+
+      - name: Build deterministic analytics report
+        run: python scripts/zeus_analytics.py
+
+      - name: Build responsive ASTRA dashboard
+        run: python scripts/astra_analytics_dashboard.py
+
+      - name: Open or refresh a report-only pull request
+        uses: peter-evans/create-pull-request@v8.1.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: master
+          branch: automation/astra-analytics-dashboard
+          delete-branch: true
+          commit-message: "chore(analytics): refresh ASTRA dashboard"
+          title: "chore(analytics): refresh ASTRA dashboard"
+          body: |
+            Automated daily refresh of read-only analytics outputs.
+
+            This PR changes only reports/zeus_analytics/summary.md and
+            reports/astra_dashboard/. It does not modify models/, trading
+            code, risk settings, API secrets or live/paper workflows.
+            Please review the input-data quality before merging.
+          add-paths: |
+            reports/zeus_analytics/summary.md
+            reports/astra_dashboard/

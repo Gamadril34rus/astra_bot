@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import statistics
 import sys
 from collections import defaultdict
@@ -343,11 +344,13 @@ def report_json_rows(reports: Path, output: Path) -> list[tuple[str, dict[str, A
     result: list[tuple[str, dict[str, Any]]] = []
     if not reports.exists():
         return result
+    dashboard_output = reports / "astra_dashboard"
     for path in sorted(
         candidate for candidate in reports.rglob("*")
         if candidate.is_file()
         and candidate.suffix.lower() in {".json", ".jsonl"}
         and output not in candidate.parents
+        and dashboard_output not in candidate.parents
     ):
         if path.suffix.lower() == ".jsonl":
             rows, _ = read_jsonl(path)
@@ -622,7 +625,10 @@ def build_report(root: Path) -> str:
 def generate(root: Path) -> Path:
     destination = root.resolve() / "reports" / "zeus_analytics" / "summary.md"
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(build_report(root), encoding="utf-8")
+    content = build_report(root)
+    temporary = destination.with_suffix(".md.tmp")
+    temporary.write_text(content, encoding="utf-8")
+    os.replace(temporary, destination)
     return destination
 
 
