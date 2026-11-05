@@ -31,7 +31,7 @@ def test_separates_contours_and_coalesces_paper_legs(tmp_path: Path) -> None:
         "PAPER", "DEMO / VST", "LIVE / REAL", "LIVE / UNKNOWN"
     }
     assert data["data_quality"]["paper_trades"] == 1
-    assert data["timelines"]["paper"][0]["equity_pnl"] == 3
+    assert data["timelines"]["paper"][0]["cumulative_pnl"] == 3
     assert data["data_quality"]["environment_classification"] == {
         "VST": 1, "REAL": 1, "UNKNOWN": 1
     }
@@ -41,9 +41,9 @@ def test_missing_sources_remain_missing_not_zero(tmp_path: Path) -> None:
     (tmp_path / "models").mkdir()
     data = build_payload(tmp_path)
     assert data["volume_zone_shadow"]["available"] is False
-    assert data["signal_funnel"]["pending_signal_candidates"] is None
+    assert data["signal_funnel"]["pending_candidates"] is None
     assert data["signal_funnel"]["scan_attempts"] is None
-    assert data["system_health"]["journal_error_events"] is None
+    assert data["system_health"]["journal_errors"] is None
 
 
 def test_generates_html_and_machine_readable_json(tmp_path: Path) -> None:
