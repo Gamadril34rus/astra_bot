@@ -183,11 +183,15 @@ CARD_BG = "#0B0D12"
 
 
 def _default_exit_card_background(positive: bool):
-    """Resolve the owner-provided full-bleed background by realized PnL sign."""
+    """Prefer the Gamadril master card; retain the owner-provided PNG fallback."""
     from pathlib import Path
 
+    assets = Path(__file__).parent / "assets"
+    gamadril = assets / "gamadril" / "mascot_card_bg.jpg"
+    if gamadril.is_file():
+        return gamadril
     filename = "card_bg_plus.png" if positive else "card_bg_minus.png"
-    return Path(__file__).parent / "assets" / filename
+    return assets / filename
 
 
 def _apply_exit_card_scrim(background):
