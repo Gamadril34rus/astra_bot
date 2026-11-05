@@ -179,22 +179,70 @@ def leveraged_roi_pct(*, entry: float, pnl: float, qty: float, leverage: float) 
     return pnl / (entry * qty) * 100.0 * leverage
 
 
+CARD_BG = "#0B0D12"
+
+
+def _default_exit_card_background(positive: bool):
+    """Resolve the owner-provided full-bleed background by realized PnL sign."""
+    from pathlib import Path
+
+    filename = "card_bg_plus.png" if positive else "card_bg_minus.png"
+    return Path(__file__).parent / "assets" / filename
+
+
+def _apply_exit_card_scrim(background):
+    """Apply a black readability scrim: 70 global, 175 left, 150 bottom."""
+    from PIL import Image, ImageChops
+
+    width, height = background.size
+    global_mask = Image.new("L", (width, height), 70)
+
+    left_line = Image.new("L", (width, 1))
+    left_fade_start = int(width * 0.45)
+    left_fade_end = int(width * 0.78)
+    left_line.putdata([
+        round(
+            70 + 105 * (
+                1.0 - min(
+                    1.0,
+                    max(0.0, (x - left_fade_start) / (left_fade_end - left_fade_start)),
+                )
+            ) ** 2
+        )
+        for x in range(width)
+    ])
+    left_mask = left_line.resize((width, height), Image.Resampling.BILINEAR)
+
+    bottom_line = Image.new("L", (1, height))
+    band_start = height - 440
+    bottom_line.putdata([
+        round(70 + 80 * max(0.0, (y - band_start) / (height - band_start)) ** 2)
+        for y in range(height)
+    ])
+    bottom_mask = bottom_line.resize((width, height), Image.Resampling.BILINEAR)
+
+    scrim_mask = ImageChops.lighter(
+        ImageChops.lighter(global_mask, left_mask), bottom_mask
+    )
+    scrim = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    scrim.putalpha(scrim_mask)
+    return Image.alpha_composite(background.convert("RGBA"), scrim).convert("RGB")
+
+
 def render_exit_stats_card(
     *, symbol: str, side: str, entry: float, exit_price: float, pnl: float,
     qty: float, leverage: float, closed_at: float | None = None,
     virtual: bool = True, art_path: str | os.PathLike[str] | None = None,
 ) -> bytes:
     """Render a Pillow PNG exit card; optional artwork never blocks fallback rendering."""
-    from pathlib import Path
-
-    from PIL import Image, ImageDraw, ImageEnhance, ImageFont
+    from PIL import Image, ImageDraw, ImageFont, ImageOps
 
     roi = leveraged_roi_pct(entry=entry, pnl=pnl, qty=qty, leverage=leverage)
     positive = pnl >= 0
     is_long = str(side).lower() == "long"
     side_label = "Long" if is_long else "Short"
     side_color = "#00C853" if is_long else "#B71C1C"
-    result_color = "#00E676" if positive else "#FF5252"
+    result_color = "#00C853" if positive else "#B71C1C"
     symbol_label = str(symbol).replace("-", "").replace("/", "")
     if not symbol_label.endswith("USDT"):
         symbol_label += "USDT"
@@ -204,34 +252,24 @@ def render_exit_stats_card(
     stamp_text = stamp.strftime("%d.%m.%Y  %H:%M:%S МСК")
 
     width, height = 1240, 1640
-    image = Image.new("RGB", (width, height), "#0B0D12")
+    image = Image.new("RGB", (width, height), CARD_BG)
     draw = ImageDraw.Draw(image)
     panel = (48, 48, width - 48, height - 48)
-    draw.rounded_rectangle(panel, radius=44, fill="#141820")
 
-    # Draw artwork first. Text is deliberately rendered afterwards.
+    # Full-bleed owner artwork is selected by realized PnL sign, not position side.
     if art_path is None:
-        art_path = Path(__file__).parent / "assets" / ("art_plus.png" if positive else "art_minus.png")
+        art_path = _default_exit_card_background(positive)
     try:
         with Image.open(art_path) as source:
-            source = source.convert("RGBA")
-            w, h = source.size
-            crop = source.crop((int(0.58*w), int(0.01*h), w, int(0.71*h)))
-            if crop.width > 0 and crop.height > 0:
-                max_h = int(height * 0.70)
-                ratio = min(max_h / crop.height, (width * 0.60) / crop.width, 1.0)
-                size = (max(1, int(crop.width * ratio)), max(1, int(crop.height * ratio)))
-                crop = crop.resize(size, Image.Resampling.LANCZOS)
-                alpha = crop.getchannel("A")
-                rgb = Image.new("RGB", crop.size, "#000000")
-                rgb.paste(crop.convert("RGB"), mask=alpha)
-                rgb = ImageEnhance.Brightness(rgb).enhance(0.45)
-                x = width - 76 - rgb.width
-                y = height - 170 - rgb.height
-                image.paste(rgb, (x, y))
-                draw = ImageDraw.Draw(image)
+            background = ImageOps.fit(
+                source.convert("RGB"), (width, height),
+                method=Image.Resampling.LANCZOS,
+            )
+        image = _apply_exit_card_scrim(background)
+        draw = ImageDraw.Draw(image)
     except (OSError, ValueError, TypeError):
-        pass
+        # Missing artwork must retain the standard dark-card fallback.
+        draw.rounded_rectangle(panel, radius=44, fill="#141820")
 
     def font(size: int, bold: bool = False):
         candidates = (
