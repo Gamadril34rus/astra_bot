@@ -622,7 +622,10 @@ def build_report(root: Path) -> str:
 def generate(root: Path) -> Path:
     destination = root.resolve() / "reports" / "zeus_analytics" / "summary.md"
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(build_report(root), encoding="utf-8")
+    content = build_report(root)
+    temporary = destination.with_suffix(".md.tmp")
+    temporary.write_text(content, encoding="utf-8")
+    os.replace(temporary, destination)
     return destination
 
 
