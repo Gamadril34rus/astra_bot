@@ -23,6 +23,7 @@ ENDPOINTS = {
     "income": "/openApi/swap/v2/user/income",
 }
 RETRYABLE_CODES = {"100410"}
+RETRY_DELAYS = (2.0, 5.0, 15.0)
 
 
 class CopyZeusAPIError(RuntimeError):
@@ -121,7 +122,7 @@ class CopyZeusClient:
                 code = str(payload.get("code", "0"))
                 if status == 429 or code in RETRYABLE_CODES:
                     if attempt + 1 < self.retries:
-                        await self._sleep(2 ** attempt)
+                        await self._sleep(RETRY_DELAYS[attempt])
                         continue
                     raise CopyZeusAPIError(f"retryable BingX response (HTTP {status}, code {code})", code)
                 if status >= 400:
@@ -132,7 +133,7 @@ class CopyZeusClient:
             except (aiohttp.ClientError, TimeoutError) as exc:
                 if attempt + 1 >= self.retries:
                     raise CopyZeusAPIError(f"BingX network request failed: {type(exc).__name__}") from exc
-                await self._sleep(2 ** attempt)
+                await self._sleep(RETRY_DELAYS[attempt])
         raise CopyZeusAPIError("BingX request exhausted retries")
 
     async def positions(self, limit: int = 5):

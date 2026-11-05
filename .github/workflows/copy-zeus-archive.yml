@@ -2,8 +2,6 @@ name: COPY_ZEUS real archive
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "*/15 * * * *"
 
 permissions:
   contents: read

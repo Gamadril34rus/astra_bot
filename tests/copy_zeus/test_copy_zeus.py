@@ -79,3 +79,55 @@ def test_positions_are_independent_observations(tmp_path):
     assert archive.append("positions", [snapshot], "2026-11-04T10:00:00Z") == 1
     assert archive.append("positions", [snapshot], "2026-11-04T10:01:00Z") == 1
     assert len(archive.archive_path.read_text().splitlines()) == 2
+
+
+def test_retryable_100410_uses_live_backoff_and_three_attempt_cap():
+    class FakeResponse:
+        status = 200
+
+        async def json(self):
+            return {"code": 100410, "msg": "rate limit"}
+
+    class FakeRequest:
+        async def __aenter__(self):
+            return FakeResponse()
+
+        async def __aexit__(self, *_):
+            return None
+
+    class FakeSession:
+        def __init__(self):
+            self.calls = 0
+
+        def get(self, *_args, **_kwargs):
+            self.calls += 1
+            return FakeRequest()
+
+    async def scenario():
+        session = FakeSession()
+        pauses = []
+
+        async def fake_sleep(seconds):
+            pauses.append(seconds)
+
+        client = CopyZeusClient(
+            api_key="key", api_secret="secret", env="real",
+            session=session, retries=99, sleep=fake_sleep,
+        )
+
+        async def no_pace():
+            return None
+
+        client._pace = no_pace
+        try:
+            import pytest
+
+            with pytest.raises(Exception, match=r"HTTP 200, code 100410"):
+                await client.get("/openApi/swap/v2/user/income")
+            assert session.calls == 3
+            assert pauses == [2.0, 5.0]
+            assert client.retries == 3
+        finally:
+            await client.close()
+
+    asyncio.run(scenario())
