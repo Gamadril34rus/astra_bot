@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import io
 
-from PIL import Image
-
 from astra_bot.decision.trade_viz import render_trade_chart
+from PIL import Image
 
 
 def _candles(n: int, step: float, start: float = 100.0) -> list[dict[str, float]]:
