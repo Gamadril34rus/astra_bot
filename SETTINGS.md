@@ -37,8 +37,8 @@
 | ZEUS_PF_INCLUDE_PARTIAL | `live_risk.py` | 1 (учитывать partial_fill с pnl) | 1 |
 | ZEUS_STOP_PULL_PCT | `live_exit_engine.py` | 0 (выключен) | 0 |
 | ZEUS_RETEST_V1 | `zeus-live-clock.yml` | Shadow-режим задаётся кодовым/runner default | `shadow` |
-| ZEUS_MIN_STOP_PCT | `zeus-live-clock.yml` | В workflow override; отдельный code default не указан в этом источнике | 0.01 |
-| ZEUS_DEAD_FLAT_EXIT | `zeus-live-clock.yml` | Настраивается отдельной env-переменной | 1; age=12h, MFE=0.15R |
+| ZEUS_MIN_STOP_PCT | `live_arm_wiring.py` | 0.01 | 0.01 |
+| ZEUS_DEAD_FLAT_EXIT | `zeus_live_clock.py` | 1 (включён); age=12h, MFE=0.15R | 1; age=12h, MFE=0.15R |
 
 ### Как читать сессионные значения
 
