@@ -41,7 +41,10 @@
       "opened_at_ms": 1794065954080,
       "plan_qty": "545.91184323",
       "qty_ratio": 1.0,
-      "tp1": "88.5581568999999945"
+      "tp1": "88.5581568999999945",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true
     },
     "BTC-USDT|short": {
       "symbol": "BTC-USDT",
@@ -59,8 +62,29 @@
       "opened_at_ms": 1794065962449,
       "plan_qty": "0.49096743",
       "qty_ratio": 1.0,
-      "tp1": "74834.4113846598565"
+      "tp1": "74834.4113846598565",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true
+    },
+    "INJ-USDT|long": {
+      "symbol": "INJ-USDT",
+      "side": "long",
+      "qty": "6170.55411575",
+      "stop": "8.02197",
+      "tp": "8.1475665",
+      "entry": "8.106",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|INJ-USDT|long|1794052800000",
+      "ts": 1794066446.7694132,
+      "be_moved": false,
+      "initial_stop": "8.02197",
+      "opened_at_ms": 1794066446769,
+      "plan_qty": "6170.55411575",
+      "qty_ratio": 1.0,
+      "tp1": "8.1475665"
     }
   },
-  "ts": 1794065962.4497063
+  "ts": 1794066446.7694314
 }
