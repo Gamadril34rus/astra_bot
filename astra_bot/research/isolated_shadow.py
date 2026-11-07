@@ -1240,6 +1240,80 @@ class ShadowReplay:
             results[name] = rows
         return results
 
+    def apply_bar_event(
+        self,
+        *,
+        event_id: str,
+        bar: ReplayBar,
+        quotes: list[ExecutionQuote],
+    ) -> dict[str, Any]:
+        if event_id in self.seen_event_ids:
+            return {"duplicate": True, "event_id": event_id}
+        self.seen_event_ids.add(event_id)
+        intents = self.process_bar(bar)
+        executions = self.execute_pending_exits(quotes)
+        return {
+            "event_id": event_id,
+            "exit_intents": [asdict(intent) for intent in intents],
+            "executions": executions,
+        }
+
+    def apply_funding_event(
+        self,
+        *,
+        event_id: str,
+        variant: str,
+        position_id: str,
+        cash_amount: float | None,
+        ts_ms: int,
+    ) -> dict[str, Any]:
+        if event_id in self.seen_event_ids:
+            return {"duplicate": True, "event_id": event_id}
+        if variant not in self.portfolios:
+            raise ValueError(f"unknown variant {variant}")
+        result = self.portfolios[variant].apply_funding_event(
+            position_id,
+            event_id=event_id,
+            cash_amount=cash_amount,
+            ts_ms=ts_ms,
+        )
+        if result.get("applied") or result.get("unknown"):
+            self.seen_event_ids.add(event_id)
+        return result
+
+    def apply_funding_coverage(
+        self,
+        *,
+        variant: str,
+        position_id: str,
+        through_ms: int,
+        cumulative_cash_amount: float,
+        source_verified: bool,
+    ) -> dict[str, Any]:
+        if variant not in self.portfolios:
+            raise ValueError(f"unknown variant {variant}")
+        return self.portfolios[variant].set_funding_coverage(
+            position_id,
+            through_ms=through_ms,
+            cumulative_cash_amount=cumulative_cash_amount,
+            source_verified=source_verified,
+        )
+
+    def mark_to_market_event(
+        self,
+        *,
+        event_id: str,
+        marks: dict[str, float],
+        timestamp_ms: int,
+    ) -> dict[str, Any]:
+        if event_id in self.seen_event_ids:
+            return {"duplicate": True, "event_id": event_id}
+        self.seen_event_ids.add(event_id)
+        return {
+            name: portfolio.mark_to_market(marks, timestamp_ms=timestamp_ms)
+            for name, portfolio in self.portfolios.items()
+        }
+
     def apply_exit(
         self,
         *,
