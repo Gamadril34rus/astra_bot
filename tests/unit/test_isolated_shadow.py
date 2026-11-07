@@ -1273,7 +1273,7 @@ def test_quote_without_id_and_exit_before_entry_cannot_create_fills():
         [ExecutionQuote("", 1_001, 1_001, 99.0, 101.0, 10.0, 10.0)],
         strictly_after_ms=1_000,
     ) is None
-    portfolio, row, position = opened()
+    portfolio, _row, position = opened()
     before_entry = portfolio.close(
         position.position_id,
         event_id="impossible-early-exit",
