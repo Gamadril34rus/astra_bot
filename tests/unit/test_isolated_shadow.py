@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from astra_bot.research.isolated_shadow import (
     ExecutionQuote,
+    PORTFOLIO_NAMES,
     ReplayBar,
     ShadowReplay,
     Signal,
@@ -181,7 +182,12 @@ def test_zone_states_are_distinct_and_only_near_is_blocked():
     ]
     for result, state in zip(cases, expected, strict=True):
         assert result.state == state
-        assert variant_decision("C", signal(), result).accepted_by_variant
+        decision = variant_decision("C", signal(), result)
+        if state == ZoneState.UNKNOWN:
+            assert not decision.accepted_by_variant
+            assert decision.reason == "UNKNOWN_C_ZONE_DATA"
+        else:
+            assert decision.accepted_by_variant
 
 
 def test_stale_and_future_snapshots_are_unknown():
@@ -240,7 +246,7 @@ def test_one_baseline_signal_fans_out_without_b_fallback():
     replay = ShadowReplay(
         portfolios={
             name: VirtualPortfolio(name, initial_capital=1_000.0)
-            for name in "ABC"
+            for name in PORTFOLIO_NAMES
         }
     )
     result = replay.apply_signal(
@@ -254,13 +260,75 @@ def test_one_baseline_signal_fans_out_without_b_fallback():
     assert result["variant_results"]["A"]["reason"] == "OPENED"
     assert result["variant_results"]["C"]["reason"] == "OPENED"
     assert result["variant_results"]["B"]["reason"] == "B_CHANNEL_SHORT_ONLY"
+    assert result["variant_results"]["2_OF_3"]["reason"] == "OPENED"
+    assert result["variant_results"]["3_OF_3"]["reason"] == "CONSENSUS_3_OF_3_REJECT"
     assert all(
         row["signal_id"] == "channel-long"
         for row in result["variant_results"].values()
     )
+    assert result["zone_state"] == ZoneState.EMPTY_ZONES.value
     assert not replay.portfolios["B"].positions
+    assert not replay.portfolios["3_OF_3"].positions
     assert len(replay.portfolios["A"].positions) == 1
+    assert len(replay.portfolios["B"].attempts) == 1
     assert len(replay.portfolios["C"].positions) == 1
+    assert len(replay.portfolios["2_OF_3"].positions) == 1
+    assert len(replay.portfolios["3_OF_3"].attempts) == 1
+
+
+def test_consensus_majority_can_open_when_unanimous_is_unknown():
+    replay = ShadowReplay(
+        portfolios={
+            name: VirtualPortfolio(name, initial_capital=1_000.0)
+            for name in PORTFOLIO_NAMES
+        }
+    )
+    source = signal(strategy="zeus_multi_top_breakdown", side="long")
+    unknown_zone = zone(zones=None)
+    assert unknown_zone.state == ZoneState.UNKNOWN
+
+    result = replay.apply_signal(
+        event_id="majority-with-unknown",
+        signal=source,
+        zone=unknown_zone,
+        execution_price=100.0,
+        execution_quantity=100.0,
+        execution_timestamp_ms=1_100,
+    )
+
+    assert result["source_variant_decisions"]["A"]["accepted"]
+    assert result["source_variant_decisions"]["B"]["accepted"]
+    assert result["source_variant_decisions"]["C"]["reason"] == "UNKNOWN_C_ZONE_DATA"
+    assert result["consensus_decisions"]["2_OF_3"]["accepted"]
+    assert result["consensus_decisions"]["3_OF_3"]["reason"] == "UNKNOWN_CONSENSUS_3_OF_3"
+    assert len(replay.portfolios["2_OF_3"].positions) == 1
+    assert not replay.portfolios["3_OF_3"].positions
+    assert all(len(portfolio.attempts) == 1 for portfolio in replay.portfolios.values())
+
+
+def test_consensus_majority_is_unknown_when_one_vote_cannot_be_resolved():
+    replay = ShadowReplay()
+    source = signal(side="long", strategy="zeus_channel_boundary")
+    unknown_zone = zone(zones=None)
+
+    result = replay.apply_signal(
+        event_id="majority-unknown-tie",
+        signal=source,
+        zone=unknown_zone,
+        execution_price=100.0,
+        execution_quantity=100.0,
+        execution_timestamp_ms=1_100,
+    )
+
+    # A accepts, B rejects channel LONG, C is UNKNOWN: neither two votes pass
+    # nor two votes definitively reject.
+    assert result["source_variant_decisions"]["A"]["accepted"]
+    assert not result["source_variant_decisions"]["B"]["accepted"]
+    assert result["source_variant_decisions"]["C"]["reason"] == "UNKNOWN_C_ZONE_DATA"
+    assert result["consensus_decisions"]["2_OF_3"]["reason"] == "UNKNOWN_CONSENSUS_2_OF_3"
+    assert result["consensus_decisions"]["3_OF_3"]["reason"] == "CONSENSUS_3_OF_3_REJECT"
+    assert not replay.portfolios["2_OF_3"].positions
+    assert not replay.portfolios["3_OF_3"].positions
 
 
 def test_multi_fallback_order_is_four_hour_then_one_hour_only_if_needed():
@@ -328,7 +396,7 @@ def test_open_close_and_max_open_are_independent_per_portfolio():
     replay = ShadowReplay(
         portfolios={
             name: VirtualPortfolio(name, initial_capital=1_000.0, max_open=1)
-            for name in "ABC"
+            for name in PORTFOLIO_NAMES
         }
     )
     empty = zone(zones=[])
@@ -768,7 +836,7 @@ def test_replay_state_round_trip_preserves_portfolios_and_idempotency():
         execution_timestamp_ms=1_100,
     )
     assert duplicate["duplicate"]
-    for name in "ABC":
+    for name in PORTFOLIO_NAMES:
         assert len(restored.portfolios[name].positions) == 1
         assert restored.portfolios[name].equity_cash == pytest.approx(
             replay.portfolios[name].equity_cash
@@ -1167,7 +1235,10 @@ def test_stale_closed_bar_is_explicit_unknown_and_cannot_trigger_exit():
     assert result["status"] == "UNKNOWN_BAR_DATA"
     assert result["reason"] == "bar_stale"
     assert not result["exit_intents"]
-    assert all(len(replay.portfolios[name].positions) == 1 for name in "ABC")
+    assert all(
+        len(replay.portfolios[name].positions) == 1
+        for name in PORTFOLIO_NAMES
+    )
 
 
 
