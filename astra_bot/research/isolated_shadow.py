@@ -1,11 +1,11 @@
 """Isolated ZEUS research replay primitives; no live wiring or exchange client imports."""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta, timezone, UTC
-from enum import StrEnum
 import hashlib
 import math
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime, timedelta, timezone
+from enum import StrEnum
 from typing import Any
 
 
