@@ -535,8 +535,14 @@ class VirtualPortfolio:
             or not math.isfinite(level["fraction"])
             or level["fraction"] <= 0
             or level["fraction"] > 1
+            or (
+                signal.side == "long" and level["price"] <= execution_price
+            )
+            or (
+                signal.side == "short" and level["price"] >= execution_price
+            )
             for level in levels
-        ):
+        ) or sum(level["fraction"] for level in levels) > 1.0 + 1e-12:
             row.update(accepted_by_variant=False, reason="INVALID_TP_SCHEDULE")
             self.attempts.append(row)
             return row
@@ -778,7 +784,7 @@ class VirtualPortfolio:
         if self.halted:
             return
         sample = [closed.net_pnl for closed in completed][-self.halt_pf_window:]
-        if len(sample) >= self.halt_pf_min_n:
+        if not self.risk_data_unknown and len(sample) >= self.halt_pf_min_n:
             winners = sum(value for value in sample if value > 0)
             losers = -sum(value for value in sample if value < 0)
             pf = winners / losers if losers > 0 else (
@@ -808,7 +814,13 @@ class VirtualPortfolio:
             return []
         intents = []
         for position in list(self.positions.values()):
-            if position.symbol != bar.symbol or bar.close_time_ms <= position.opened_at_ms:
+            if (
+                position.symbol != bar.symbol
+                or bar.close_time_ms <= position.opened_at_ms
+                or bar.open_time_ms < position.opened_at_ms
+            ):
+                # A bar that straddles the entry timestamp contains pre-entry
+                # extremes. It cannot be used without a finer-grained tape.
                 continue
             if position.pending_exit is not None:
                 continue
@@ -1084,7 +1096,11 @@ class VirtualPortfolio:
                     * position.remaining_qty
                     * (1 if position.side == "long" else -1)
                 )
-                net = position.realized_gross + gross - position.fees + position.funding
+                estimated_exit_fee = mark * position.remaining_qty * self.fee_taker
+                net = (
+                    position.realized_gross + gross - position.fees
+                    - estimated_exit_fee + position.funding
+                )
                 if position.initial_risk_cash > 0:
                     open_r.append(net / position.initial_risk_cash)
 
@@ -1112,6 +1128,9 @@ class VirtualPortfolio:
             "last_mark_equity": self.last_mark_equity,
             "last_mark_timestamp_ms": self.last_mark_timestamp_ms,
             "max_drawdown_pct_marked": self.max_drawdown_pct,
+            "drawdown_status": (
+                "UNKNOWN" if incomplete_closed or open_mark_unknown else "KNOWN"
+            ),
             "virtual_halted": self.halted,
             "virtual_halt_reason": self.halt_reason,
             "heat_active": self.heat_active,
