@@ -1006,6 +1006,27 @@ def test_same_funding_source_event_is_applied_once_to_each_variant():
 
 
 
+
+def test_funding_event_inside_reconciled_coverage_is_not_double_counted():
+    portfolio, _row, position = opened()
+    covered = portfolio.set_funding_coverage(
+        position.position_id,
+        through_ms=2_000,
+        cumulative_cash_amount=-0.75,
+        source_verified=True,
+    )
+    assert covered["covered"]
+    duplicate = portfolio.apply_funding_event(
+        position.position_id,
+        event_id="funding-row-already-covered",
+        cash_amount=-0.75,
+        ts_ms=1_800,
+    )
+    assert duplicate["duplicate"]
+    assert position.funding == pytest.approx(-0.75)
+    assert portfolio.equity_cash == pytest.approx(1_000.0 - position.entry_fee - 0.75)
+
+
 def test_corrected_funding_event_can_resolve_prior_unknown_with_same_id():
     replay = ShadowReplay()
     source = signal(side="short")
