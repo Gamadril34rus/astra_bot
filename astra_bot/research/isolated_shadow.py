@@ -851,19 +851,8 @@ class VirtualPortfolio:
                 )
 
     def process_bar(self, bar: ReplayBar) -> list[ExitIntent]:
-        """Create exit intents from a closed OHLC bar; never fabricate an execution fill."""
-        if (
-            not bar.closed
-            or bar.received_at_ms < bar.close_time_ms
-            or bar.close_time_ms <= bar.open_time_ms
-            or not all(
-                math.isfinite(value)
-                and value > 0
-                for value in (bar.open, bar.high, bar.low, bar.close)
-            )
-            or bar.high < max(bar.open, bar.close, bar.low)
-            or bar.low > min(bar.open, bar.close, bar.high)
-        ):
+        """Create exit intents from a fresh, closed OHLC bar; never fabricate a fill."""
+        if bar_data_unknown_reason(bar) is not None:
             return []
         intents = []
         for position in list(self.positions.values()):
