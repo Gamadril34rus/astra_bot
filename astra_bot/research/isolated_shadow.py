@@ -1146,7 +1146,7 @@ class VirtualPortfolio:
                 continue
             if (
                 position.funding_coverage_through_ms is None
-                or position.funding_coverage_through_ms < timestamp_ms
+                or position.funding_coverage_through_ms != timestamp_ms
             ):
                 unknown.append(f"{position.symbol}:funding")
             gross = (
@@ -1205,7 +1205,7 @@ class VirtualPortfolio:
                         continue
                     if (
                         position.funding_coverage_through_ms is None
-                        or position.funding_coverage_through_ms < mark_timestamp_ms
+                        or position.funding_coverage_through_ms != mark_timestamp_ms
                     ):
                         open_mark_unknown.append(f"{position.symbol}:funding")
                         continue
