@@ -24,7 +24,43 @@
       "current_regime": "WEAK_BEAR_TREND",
       "be_earned": true,
       "peak_high": "79.735"
+    },
+    "SOL-USDT|short": {
+      "symbol": "SOL-USDT",
+      "side": "short",
+      "qty": "545.91184323",
+      "stop": "90.90244200000001",
+      "tp": "88.5581568999999945",
+      "entry": "89.398",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_multi_top_breakdown|SOL-USDT|short|1794063600000",
+      "ts": 1794065954.0809002,
+      "be_moved": false,
+      "initial_stop": "90.90244200000001",
+      "opened_at_ms": 1794065954080,
+      "plan_qty": "545.91184323",
+      "qty_ratio": 1.0,
+      "tp1": "88.5581568999999945"
+    },
+    "BTC-USDT|short": {
+      "symbol": "BTC-USDT",
+      "side": "short",
+      "qty": "0.49096743",
+      "stop": "77440.35202789117",
+      "tp": "74834.4113846598565",
+      "entry": "75759.0",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|BTC-USDT|short|1794052800000",
+      "ts": 1794065962.4496891,
+      "be_moved": false,
+      "initial_stop": "77440.35202789117",
+      "opened_at_ms": 1794065962449,
+      "plan_qty": "0.49096743",
+      "qty_ratio": 1.0,
+      "tp1": "74834.4113846598565"
     }
   },
-  "ts": 1794065391.561617
+  "ts": 1794065962.4497063
 }
