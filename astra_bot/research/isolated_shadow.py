@@ -364,7 +364,7 @@ class VirtualPortfolio:
 
     def _expire_heat(self, timestamp_ms: int):
         current_day = datetime.fromtimestamp(
-            timestamp_ms / 1000, tz=timezone.utc
+            timestamp_ms / 1000, tz=UTC
         ).date().isoformat()
         if self.heat_active and self.heat_day_utc and current_day > self.heat_day_utc:
             self.heat_active = False
@@ -676,6 +676,12 @@ class VirtualPortfolio:
         position.funding_complete = True
         position.funding_coverage_through_ms = through_ms
         self.equity_cash += delta
+        self.risk_data_unknown = any(
+            not closed.funding_complete for closed in self.closed
+        ) or any(
+            not open_position.funding_complete
+            for open_position in self.positions.values()
+        )
         if is_closed:
             self._after_close(position, through_ms)
         return {"covered": True, "funding_total": cumulative_cash_amount}
@@ -949,11 +955,33 @@ class VirtualPortfolio:
         )
         if quote is None or not quote.quote_id:
             return {"unknown": True, "reason": "UNKNOWN_EXIT_EXECUTION_PRICE"}
+        if (
+            quote.timestamp_ms - int(pending["triggered_at_ms"]) > 2_700_000
+        ):
+            return {"unknown": True, "reason": "EXIT_EXECUTION_WINDOW_EXPIRED"}
         price, displayed_quantity = executable_side(
             quote, position_side=position.side, action="exit"
         )
-        if price is None or displayed_quantity is None:
+        if price is None:
+            return {"unknown": True, "reason": "UNKNOWN_EXIT_EXECUTION_PRICE"}
+        if displayed_quantity is None:
             return {"unknown": True, "reason": "UNKNOWN_EXIT_LIQUIDITY"}
+        tp_index_for_limit = pending.get("tp_level_index")
+        if tp_index_for_limit is not None:
+            target_price = float(
+                position.tp_levels[int(tp_index_for_limit)]["price"]
+            )
+            marketable = (
+                price >= target_price if position.side == "long"
+                else price <= target_price
+            )
+            if not marketable:
+                pending["after_ms"] = quote.timestamp_ms
+                return {
+                    "unknown": True,
+                    "reason": "TP_LIMIT_NOT_MARKETABLE_YET",
+                    "next_after_ms": quote.timestamp_ms,
+                }
         requested_before = float(pending["quantity_remaining"])
         quantity = min(requested_before, displayed_quantity)
         if quantity <= 0:
