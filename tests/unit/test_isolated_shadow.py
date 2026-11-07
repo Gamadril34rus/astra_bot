@@ -1087,6 +1087,34 @@ def test_stale_closed_bar_is_explicit_unknown_and_cannot_trigger_exit():
 
 
 
+
+def test_drawdown_unknown_until_observed_equity_or_mark():
+    portfolio = VirtualPortfolio("A")
+    assert portfolio.metrics()["drawdown_status"] == "UNKNOWN"
+    source = signal(side="short")
+    result = portfolio.attempt(
+        source,
+        variant_decision("A", source, zone(zones=[])),
+        execution_price=100.0,
+        execution_quantity=100.0,
+        execution_timestamp_ms=1_100,
+    )
+    position_id = result["position_id"]
+    portfolio.set_funding_coverage(
+        position_id,
+        through_ms=2_000,
+        cumulative_cash_amount=0.0,
+        source_verified=True,
+    )
+    marked = portfolio.mark_to_market(
+        {"BTC-USDT": 101.0},
+        timestamp_ms=2_000,
+    )
+    assert marked["known"]
+    assert portfolio.metrics()["drawdown_status"] == "KNOWN"
+    assert portfolio.metrics()["drawdown_observations"] == 1
+
+
 def test_static_isolation_guards_and_offline_container_profile():
     from pathlib import Path
 
