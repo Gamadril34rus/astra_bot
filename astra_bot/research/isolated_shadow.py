@@ -306,6 +306,7 @@ class VirtualPosition:
     exit_reason: str | None = None
     closed_at_ms: int | None = None
     funding_complete: bool = False
+    funding_data_unknown: bool = False
     funding_coverage_through_ms: int | None = None
     tp_levels: list[dict[str, float]] = field(default_factory=list)
     tp_filled_qty: list[float] = field(default_factory=list)
@@ -622,6 +623,7 @@ class VirtualPortfolio:
         self._seen_events.add(event_id)
         if cash_amount is None or not math.isfinite(cash_amount):
             position.funding_complete = False
+            position.funding_data_unknown = True
             self.risk_data_unknown = True
             return {"unknown": True, "reason": "funding_amount_missing"}
         position.funding += cash_amount
@@ -674,12 +676,14 @@ class VirtualPortfolio:
         delta = cumulative_cash_amount - position.funding
         position.funding = cumulative_cash_amount
         position.funding_complete = True
+        position.funding_data_unknown = False
         position.funding_coverage_through_ms = through_ms
         self.equity_cash += delta
         self.risk_data_unknown = any(
-            not closed.funding_complete for closed in self.closed
+            not closed.funding_complete or closed.funding_data_unknown
+            for closed in self.closed
         ) or any(
-            not open_position.funding_complete
+            open_position.funding_data_unknown
             for open_position in self.positions.values()
         )
         if is_closed:
@@ -758,7 +762,11 @@ class VirtualPortfolio:
 
     def _after_close(self, position: VirtualPosition, ts_ms: int):
         self.risk_data_unknown = any(
-            not closed.funding_complete for closed in self.closed
+            not closed.funding_complete or closed.funding_data_unknown
+            for closed in self.closed
+        ) or any(
+            open_position.funding_data_unknown
+            for open_position in self.positions.values()
         )
         completed = [
             closed for closed in self.closed if closed.funding_complete
@@ -1369,10 +1377,11 @@ class ShadowReplay:
         cash_amount: float | None,
         ts_ms: int,
     ) -> dict[str, Any]:
-        if event_id in self.seen_event_ids:
-            return {"duplicate": True, "event_id": event_id}
         if variant not in self.portfolios:
             raise ValueError(f"unknown variant {variant}")
+        namespaced_event_id = f"funding:{variant}:{event_id}"
+        if namespaced_event_id in self.seen_event_ids:
+            return {"duplicate": True, "event_id": event_id}
         result = self.portfolios[variant].apply_funding_event(
             position_id,
             event_id=event_id,
@@ -1380,12 +1389,13 @@ class ShadowReplay:
             ts_ms=ts_ms,
         )
         if result.get("applied") or result.get("unknown"):
-            self.seen_event_ids.add(event_id)
+            self.seen_event_ids.add(namespaced_event_id)
         return result
 
     def apply_funding_coverage(
         self,
         *,
+        event_id: str,
         variant: str,
         position_id: str,
         through_ms: int,
@@ -1394,12 +1404,18 @@ class ShadowReplay:
     ) -> dict[str, Any]:
         if variant not in self.portfolios:
             raise ValueError(f"unknown variant {variant}")
-        return self.portfolios[variant].set_funding_coverage(
+        namespaced_event_id = f"funding_coverage:{variant}:{event_id}"
+        if namespaced_event_id in self.seen_event_ids:
+            return {"duplicate": True, "event_id": event_id}
+        result = self.portfolios[variant].set_funding_coverage(
             position_id,
             through_ms=through_ms,
             cumulative_cash_amount=cumulative_cash_amount,
             source_verified=source_verified,
         )
+        if result.get("covered"):
+            self.seen_event_ids.add(namespaced_event_id)
+        return result
 
     def mark_to_market_event(
         self,
@@ -1429,7 +1445,8 @@ class ShadowReplay:
     ) -> dict[str, Any]:
         if variant not in self.portfolios:
             raise ValueError(f"unknown variant {variant}")
-        if event_id in self.seen_event_ids:
+        namespaced_event_id = f"exit:{variant}:{event_id}"
+        if namespaced_event_id in self.seen_event_ids:
             return {"duplicate": True, "event_id": event_id}
         result = self.portfolios[variant].close(
             position_id,
@@ -1440,7 +1457,7 @@ class ShadowReplay:
             reason=reason,
         )
         if not result.get("unknown"):
-            self.seen_event_ids.add(event_id)
+            self.seen_event_ids.add(namespaced_event_id)
         return result
 
     def export_state(self) -> dict[str, Any]:
