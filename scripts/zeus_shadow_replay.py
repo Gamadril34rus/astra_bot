@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import argparse
-import math
 import json
+import math
 from pathlib import Path
 import sys
 from typing import Any
@@ -22,7 +22,6 @@ from astra_bot.research.isolated_shadow import (
 )
 
 
-
 def json_safe(value):
     """Convert non-finite analytics (e.g. PF with no losses) to explicit strings."""
     if isinstance(value, float) and not math.isfinite(value):
@@ -34,6 +33,7 @@ def json_safe(value):
     if isinstance(value, (list, tuple)):
         return [json_safe(item) for item in value]
     return value
+
 
 def external_path(raw: str, label: str) -> Path:
     path = Path(raw).expanduser().resolve()
