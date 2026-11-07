@@ -14,8 +14,6 @@ from astra_bot.research.isolated_shadow import (
     session_profile,
     variant_decision,
 )
-
-
 MSK = timezone(timedelta(hours=3))
 
 
