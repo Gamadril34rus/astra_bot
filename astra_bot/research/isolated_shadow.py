@@ -328,6 +328,7 @@ class VirtualPosition:
     closed_at_ms: int | None = None
     funding_complete: bool = False
     funding_data_unknown: bool = False
+    funding_unknown_event_ids: list[str] = field(default_factory=list)
     funding_coverage_through_ms: int | None = None
     tp_levels: list[dict[str, float]] = field(default_factory=list)
     tp_filled_qty: list[float] = field(default_factory=list)
@@ -658,12 +659,17 @@ class VirtualPortfolio:
             ))
         ):
             return {"unknown": True, "reason": "funding_event_outside_position_lifecycle"}
-        self._seen_events.add(event_id)
         if cash_amount is None or not math.isfinite(cash_amount):
             position.funding_complete = False
+            if event_id not in position.funding_unknown_event_ids:
+                position.funding_unknown_event_ids.append(event_id)
             position.funding_data_unknown = True
             self.risk_data_unknown = True
             return {"unknown": True, "reason": "funding_amount_missing"}
+        self._seen_events.add(event_id)
+        if event_id in position.funding_unknown_event_ids:
+            position.funding_unknown_event_ids.remove(event_id)
+        position.funding_data_unknown = bool(position.funding_unknown_event_ids)
         position.funding += cash_amount
         self.equity_cash += cash_amount
         self.fills.append(
@@ -717,6 +723,7 @@ class VirtualPortfolio:
         position.funding = cumulative_cash_amount
         position.funding_complete = True
         position.funding_data_unknown = False
+        position.funding_unknown_event_ids.clear()
         position.funding_coverage_through_ms = through_ms
         self.equity_cash += delta
         self.risk_data_unknown = any(
@@ -1446,7 +1453,7 @@ class ShadowReplay:
             cash_amount=cash_amount,
             ts_ms=ts_ms,
         )
-        if result.get("applied") or result.get("unknown"):
+        if result.get("applied"):
             self.seen_event_ids.add(namespaced_event_id)
         return result
 
