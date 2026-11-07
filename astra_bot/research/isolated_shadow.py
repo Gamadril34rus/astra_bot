@@ -1246,6 +1246,27 @@ class VirtualPortfolio:
                 if position.initial_risk_cash > 0:
                     open_r.append(net / position.initial_risk_cash)
 
+        latest_fill_timestamp_ms = max(
+            (
+                int(fill["ts_ms"])
+                for fill in self.fills
+                if fill.get("ts_ms") is not None
+            ),
+            default=None,
+        )
+        drawdown_mark_current = (
+            self.last_mark_equity is not None
+            and self.last_mark_timestamp_ms is not None
+            and (
+                latest_fill_timestamp_ms is None
+                or latest_fill_timestamp_ms <= self.last_mark_timestamp_ms
+            )
+            and all(
+                position.funding_coverage_through_ms == self.last_mark_timestamp_ms
+                for position in self.positions.values()
+            )
+        )
+
         return {
             "variant": self.name,
             "attempts": len(self.attempts),
@@ -1272,7 +1293,9 @@ class VirtualPortfolio:
             "max_drawdown_pct_marked": self.max_drawdown_pct,
             "drawdown_status": (
                 "UNKNOWN"
-                if incomplete_closed or open_mark_unknown or self.drawdown_observations == 0
+                if incomplete_closed
+                or self.drawdown_observations == 0
+                or not drawdown_mark_current
                 else "KNOWN"
             ),
             "drawdown_observations": self.drawdown_observations,
