@@ -683,6 +683,13 @@ class VirtualPortfolio:
                 "ts_ms": ts_ms,
             }
         )
+        self.risk_data_unknown = any(
+            not closed.funding_complete or closed.funding_data_unknown
+            for closed in self.closed
+        ) or any(
+            open_position.funding_data_unknown
+            for open_position in self.positions.values()
+        )
         if is_closed:
             self._after_close(position, ts_ms)
         return {"applied": True, "funding": cash_amount}
