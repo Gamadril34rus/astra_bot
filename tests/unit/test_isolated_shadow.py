@@ -1128,6 +1128,27 @@ def test_unknown_funding_on_open_position_survives_other_position_close():
     assert first_position_id in portfolio.positions
 
 
+
+def test_exit_quote_must_arrive_after_bar_was_observed():
+    source = signal(side="long")
+    portfolio, _row, position = opened(
+        source=source,
+        price=100.0,
+        timestamp=1_100,
+    )
+    intents = portfolio.process_bar(bar(received=3_020, low=97.0))
+    assert intents
+    assert intents[0].triggered_at_ms == 3_020
+    result = portfolio.execute_pending_exit(
+        position.position_id,
+        [
+            quote("before-bar-received", 3_010, bid=97.0),
+            quote("after-bar-received", 3_021, bid=97.0),
+        ],
+    )
+    assert result["quote_id"] == "after-bar-received"
+
+
 def test_stale_closed_bar_is_explicit_unknown_and_cannot_trigger_exit():
     replay = ShadowReplay()
     source = signal(side="short")
