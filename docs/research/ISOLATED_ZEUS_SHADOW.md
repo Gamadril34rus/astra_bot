@@ -8,7 +8,7 @@ This is a research-only implementation on a dedicated branch. It is not merged, 
 - **B:** BTC/ETH/SOL/HYPE only; accept channel SHORT, reject channel LONG, accept multi-top/bottom fallback either side.
 - **C:** same baseline stream as A; reject only when the nearest opposing zone **boundary** is within 1.00%, inclusive.
 
-live_arm_feed.scan_symbol and paper_channel_config() were inspected at the PR base. Despite the historical function name, paper_channel_config() is the active channel configuration passed by _channel_strategy() to the live arm feed. It is not scripts/zeus_research_wrap.py:channel_capital_config() and not the separate wedge experiment. The capture freezes these settings: enabled, lookback 48, width 0.01–0.12, parallel clone / tolerance 0.25, min RR 2.0, breakout hold and retest, hold 2–5 bars, min stop 1%, HTF bias, TP parameters 1.5/2.0 and fractions 0.4/0.6. The channel evaluator receives the current 4h candle series including its forming last bar, as the live feed does.
+The source was checked against current master: live_arm_feed.py blob b57d27cf7e5581d6305fcaeb66719c04f14680a4. scan_symbol() calls _channel_strategy() / paper_channel_config(), evaluates the 4h series including its forming last bar, and only if channel is silent tries 4h multi-top/bottom, then fetches 1h and tries that fallback. The capture now follows that conditional fetch order (one 4h GET per symbol; one additional 1h GET only if both channel and 4h multi are silent). This is the observed live arm-feed signal precedence, not proof that the current bot session has ZEUS_ARM enabled or that a pending signal is executable. It is not scripts/zeus_research_wrap.py:channel_capital_config() and not the separate wedge experiment. The capture freezes these settings: enabled, lookback 48, width 0.01–0.12, parallel clone / tolerance 0.25, min RR 2.0, breakout hold and retest, hold 2–5 bars, min stop 1%, HTF bias, TP parameters 1.5/2.0 and fractions 0.4/0.6. The channel evaluator receives the current 4h candle series including its forming last bar, as the live feed does.
 
 ## One-event fan-out — non-negotiable
 
@@ -68,10 +68,10 @@ Each A/B/C portfolio independently applies the following counterfactual gates be
 | Gate | Virtual rule | Live source / parity |
 |---|---|---|
 | MAX_OPEN | 5 open positions | Matches live_arm.py |
-| Session | MSK weekday/weekend fat/normal/thin/off schedule; off blocks new entries | Hours and BE/TP1 presets copied from live_session.py; env force/lock overrides not modeled |
+| Session | MSK weekday/weekend fat/normal/thin/off schedule; off blocks new entries in this replay | Schedule/presets copied from live_session.py. **Runtime parity is unknown:** live_session.session_enabled() defaults OFF unless ZEUS_SESSION_PROFILE is set; the inspected bot.yml does not set it. Force/lock/env overrides are not modeled. Replay currently applies the schedule as a pre-registered research gate, not as proof of the live runtime setting. Capture an approved non-secret env/config snapshot before comparing absolute baseline results. |
 | Cooldown | 20 minutes per strategy/symbol/side | Matches live_arm.py constant |
 | Same-side cap | Block when 4 positions already have same side | Matches hard cluster max 4; not a model of every exchange-side UPNL detail |
-| Same symbol | One open position per symbol | Matches live arm conflict guard intent |
+| Same symbol | One open position per symbol | Models the open-position conflict. Live also blocks on unreconciled persisted plans even when no open position is visible; that plan-reconciliation state is not present in this public tape and remains unmodeled. |
 | INJ reserve | Block INJ when pre-entry open count > 3 at MAX_OPEN=5 / reserve=2 | Matches inj_slot_blocks |
 | Risk ladder | confidence >= .88: 3%; >= .80: 2%; >= .70: 1.5%; otherwise 1% | Matches conf_risk_pct / live_arm.py defaults |
 | Heat | After 3 complete consecutive losing positions, halve next risk tier until UTC day roll or a complete win | Threshold/day behavior from zeus_heat.py; live caller applies tier ×0.5 |
@@ -80,7 +80,7 @@ Each A/B/C portfolio independently applies the following counterfactual gates be
 | Leverage / notional | 6x notional cap; 50,000 USDT per-position value default | 6x is the documented workflow forced leverage; 50K is live_arm_wiring.max_position_value_usdt() default. Runtime env override is unknown and is not imported |
 | Instrument quantity filters | Not yet modeled | Live resolves step size and quantizes quantity; minimum quantity/notional, precision and exchange-specific rules remain a blocker |
 
-The virtual cash model is not the live broker's wallet/margin ledger. It does not reproduce maintenance margin, liquidation, margin mode, funding settlement collateral, cross-position correlation exposure, or every error/reconciliation gate. Daily/weekly accounting does not emulate live null-PnL imputation and manual reset/epoch files. These must not be described as exact live parity.
+The session gate is currently enabled in the virtual portfolios by default to test the registered MSK schedule; because the inspected bot workflow does not set ZEUS_SESSION_PROFILE and the arm itself is separately gated by ZEUS_ARM, this must be reconciled with the actual runtime env before interpreting A as a live-parity control. The virtual cash model is not the live broker's wallet/margin ledger. It does not reproduce maintenance margin, liquidation, margin mode, funding settlement collateral, cross-position correlation exposure, or every error/reconciliation gate. Daily/weekly accounting does not emulate live null-PnL imputation and manual reset/epoch files. These must not be described as exact live parity.
 
 ## Offline replay and filesystem/network boundary
 
@@ -95,14 +95,14 @@ deploy/shadow/compose.offline.yml defines an offline container profile:
 
 scripts/verify_shadow_runtime.py checks the effective running process, mounts, capabilities, NoNewPrivs, non-loopback interfaces/default route, and proves repo writes fail while /data writes succeed. **This runtime verifier has not been executed in a real Docker container in the current development environment** (Docker CLI/runtime is unavailable here). Therefore evidence so far is code/configuration-level, not a runtime attestation. It cannot prove a hostile/compromised host or Docker daemon, nor prevent an administrator from overriding the profile. The actual host must run the verifier and retain its output before an experiment.
 
-The separate zeus_shadow_capture.py remains a manual one-shot public candle capture script, not part of the offline profile. It makes 10 public candle GETs per invocation and has not been run. It does not capture execution quotes or funding events and cannot by itself supply a valid replay tape. The global BingX request budget shared with the working bot and archive is not proven; no capture network profile, scheduler, workflow or cron is connected.
+The separate zeus_shadow_capture.py remains a manual one-shot public candle capture script, not part of the offline profile. It makes 5–10 public candle GETs per invocation depending on how often channel and 4h multi-top are silent; it has not been run. It does not capture execution quotes or funding events and cannot by itself supply a valid replay tape. The global BingX request budget shared with the working bot and archive is not proven; no capture network profile, scheduler, workflow or cron is connected.
 
 ## Remaining blockers before any experiment
 
 1. A reviewed public quote-tape source with timestamp/receive-time synchronisation, displayed sizes and a proven request budget shared with all BingX traffic.
 2. Verified funding-rate/settlement history and reconciled per-position funding coverage.
 3. Full live exit-engine replay, including stop adjustments, runner handling, forced exits and exchange protective-order behavior, or an explicit owner-approved simplification protocol.
-4. Instrument filters, margin/liquidation, actual live risk equity and exact reset/epoch/partial-PF semantics.
+4. Approved evidence of runtime ZEUS_ARM / ZEUS_SESSION_PROFILE / session overrides and persisted-plan reconciliation state; instrument filters, margin/liquidation, actual live risk equity and exact reset/epoch/partial-PF semantics.
 5. Successful current CI, plus runtime execution of the isolation verifier on the intended host and retained attestation.
 6. Separate explicit owner permission to begin the 30-calendar-day experiment. Minimum 50 fully closed positions per variant; otherwise report insufficient sample and do not extend automatically.
 
