@@ -1,5 +1,6 @@
-import pytest
 from datetime import datetime, timedelta, timezone
+
+import pytest
 
 from astra_bot.research.isolated_shadow import (
     ExecutionQuote,
