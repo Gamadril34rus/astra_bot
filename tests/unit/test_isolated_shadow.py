@@ -30,6 +30,9 @@ def signal(
     confidence=0.75,
     metadata=None,
     decision_at_ms=1_000,
+    market_received_at_ms=1_000,
+    formed_at_ms=900,
+    source_closed_bar_ms=900,
 ):
     stop = stop_reference if stop_reference is not None else (
         102.0 if side == "short" else 98.0
@@ -42,10 +45,10 @@ def signal(
         symbol=symbol,
         side=side,
         strategy=strategy,
-        formed_at_ms=900,
-        market_received_at_ms=1_000,
-        zone_received_at_ms=1_000,
-        source_closed_bar_ms=900,
+        formed_at_ms=formed_at_ms,
+        market_received_at_ms=market_received_at_ms,
+        zone_received_at_ms=market_received_at_ms,
+        source_closed_bar_ms=source_closed_bar_ms,
         decision_at_ms=decision_at_ms,
         predecision_price=100.0,
         price_source="synthetic",
