@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from enum import StrEnum
 import hashlib
 import math
@@ -232,7 +232,7 @@ def executable_side(
 
 def session_profile(timestamp_ms: int) -> dict[str, Any]:
     """Exact hour/day buckets from live_session.py (MSK); not an env override."""
-    dt = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc).astimezone(MSK)
+    dt = datetime.fromtimestamp(timestamp_ms / 1000, tz=UTC).astimezone(MSK)
     hour = dt.hour
     weekend = dt.weekday() >= 5
     if weekend:
@@ -1192,7 +1192,7 @@ class VirtualPortfolio:
         }
 
     @classmethod
-    def import_state(cls, state: dict[str, Any]) -> "VirtualPortfolio":
+    def import_state(cls, state: dict[str, Any]) -> VirtualPortfolio:
         portfolio = cls(name=state["name"], **state["config"])
         portfolio.equity_cash = float(state["equity_cash"])
         portfolio.peak_equity = float(state["peak_equity"])
@@ -1426,7 +1426,7 @@ class ShadowReplay:
         }
 
     @classmethod
-    def import_state(cls, state: dict[str, Any]) -> "ShadowReplay":
+    def import_state(cls, state: dict[str, Any]) -> ShadowReplay:
         if state.get("schema_version") != 2:
             raise ValueError("unsupported replay state schema")
         portfolios = {
