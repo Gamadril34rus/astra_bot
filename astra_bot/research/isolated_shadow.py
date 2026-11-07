@@ -659,6 +659,16 @@ class VirtualPortfolio:
             ))
         ):
             return {"unknown": True, "reason": "funding_event_outside_position_lifecycle"}
+        if (
+            position.funding_coverage_through_ms is not None
+            and ts_ms <= position.funding_coverage_through_ms
+        ):
+            self._seen_events.add(event_id)
+            return {
+                "duplicate": True,
+                "reason": "included_in_reconciled_funding_coverage",
+                "event_id": event_id,
+            }
         if cash_amount is None or not math.isfinite(cash_amount):
             position.funding_complete = False
             if event_id not in position.funding_unknown_event_ids:
@@ -667,6 +677,11 @@ class VirtualPortfolio:
             self.risk_data_unknown = True
             return {"unknown": True, "reason": "funding_amount_missing"}
         self._seen_events.add(event_id)
+        if (
+            position.funding_coverage_through_ms is not None
+            and ts_ms > position.funding_coverage_through_ms
+        ):
+            position.funding_complete = False
         if event_id in position.funding_unknown_event_ids:
             position.funding_unknown_event_ids.remove(event_id)
         position.funding_data_unknown = bool(position.funding_unknown_event_ids)
