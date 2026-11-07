@@ -223,15 +223,10 @@ def executable_side(
     )
     price = quote.ask if use_ask else quote.bid
     quantity = quote.ask_size if use_ask else quote.bid_size
-    if (
-        price is None
-        or quantity is None
-        or not math.isfinite(price)
-        or not math.isfinite(quantity)
-        or price <= 0
-        or quantity <= 0
-    ):
+    if price is None or not math.isfinite(price) or price <= 0:
         return None, None
+    if quantity is None or not math.isfinite(quantity) or quantity <= 0:
+        return float(price), None
     return float(price), float(quantity)
 
 
@@ -896,7 +891,8 @@ class VirtualPortfolio:
         )
         if price is None or displayed_quantity is None:
             return {"unknown": True, "reason": "UNKNOWN_EXIT_LIQUIDITY"}
-        quantity = min(float(pending["quantity_remaining"]), displayed_quantity)
+        requested_before = float(pending["quantity_remaining"])
+        quantity = min(requested_before, displayed_quantity)
         if quantity <= 0:
             return {"unknown": True, "reason": "UNKNOWN_EXIT_LIQUIDITY"}
         event_id = f"{pending['intent_id']}:{quote.quote_id}"
@@ -925,7 +921,7 @@ class VirtualPortfolio:
                 current.pending_exit = None
         return {
             "filled_quantity": quantity,
-            "partial": quantity + 1e-12 < float(pending["quantity_remaining"]),
+            "partial": quantity + 1e-12 < requested_before,
             "quote_id": quote.quote_id,
             "fill": result,
         }
