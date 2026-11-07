@@ -4,7 +4,7 @@
 
 This is a research-only implementation on a dedicated branch. It is not merged, not scheduled, and has not collected public market data.
 
-- **A:** live live_arm_feed.scan_symbol channel strategy and fallback precedence.
+- **A:** live `live_arm_feed.scan_symbol` channel strategy and fallback precedence.
 - **B:** BTC/ETH/SOL/HYPE only; accept channel SHORT, reject channel LONG, accept multi-top/bottom fallback either side.
 - **C:** same baseline stream as A; reject only when the nearest opposing zone **boundary** is within 1.00%, inclusive.
 
