@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
+import math
 import json
 from pathlib import Path
 import sys
@@ -21,6 +21,19 @@ from astra_bot.research.isolated_shadow import (
     classify_zone,
 )
 
+
+
+def json_safe(value):
+    """Convert non-finite analytics (e.g. PF with no losses) to explicit strings."""
+    if isinstance(value, float) and not math.isfinite(value):
+        if math.isnan(value):
+            return "UNKNOWN"
+        return "INF" if value > 0 else "-INF"
+    if isinstance(value, dict):
+        return {str(key): json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_safe(item) for item in value]
+    return value
 
 def external_path(raw: str, label: str) -> Path:
     path = Path(raw).expanduser().resolve()
@@ -42,7 +55,7 @@ def save_replay(path: Path, replay: ShadowReplay) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
     with temporary.open("w", encoding="utf-8") as handle:
         json.dump(
-            replay.export_state(),
+            json_safe(replay.export_state()),
             handle,
             ensure_ascii=False,
             separators=(",", ":"),
@@ -101,14 +114,16 @@ def handle_event(replay: ShadowReplay, event: dict[str, Any]) -> dict[str, Any]:
     if kind == "funding_coverage":
         if event_id in replay.seen_event_ids:
             return {"duplicate": True, "event_id": event_id}
-        replay.seen_event_ids.add(event_id)
-        return replay.apply_funding_coverage(
+        result = replay.apply_funding_coverage(
             variant=str(event["variant"]),
             position_id=str(event["position_id"]),
             through_ms=int(event["through_ms"]),
             cumulative_cash_amount=float(event["cumulative_cash_amount"]),
             source_verified=bool(event.get("source_verified", False)),
         )
+        if result.get("covered"):
+            replay.seen_event_ids.add(event_id)
+        return result
 
     if kind == "mark":
         return replay.mark_to_market_event(
@@ -149,11 +164,11 @@ def main() -> None:
             if not result.get("duplicate"):
                 output.write(
                     json.dumps(
-                        {
+                        json_safe({
                             "line": line_number,
                             "event_id": event.get("event_id"),
                             "result": result,
-                        },
+                        }),
                         ensure_ascii=False,
                         separators=(",", ":"),
                         allow_nan=False,
@@ -166,7 +181,7 @@ def main() -> None:
 
     print(
         json.dumps(
-            {
+            json_safe({
                 "processed_non_duplicate_events": count,
                 "portfolios": {
                     name: portfolio.metrics()
@@ -174,7 +189,7 @@ def main() -> None:
                 },
                 "state": str(state_path),
                 "output": str(output_path),
-            },
+            }),
             ensure_ascii=False,
             allow_nan=False,
         )
