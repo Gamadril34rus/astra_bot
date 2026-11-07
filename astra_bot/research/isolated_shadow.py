@@ -373,10 +373,10 @@ class VirtualPortfolio:
     def _utc_period_start(self, timestamp_ms: int, *, weekly: bool) -> int:
         dt = datetime.fromtimestamp(timestamp_ms / 1000, tz=UTC)
         if weekly:
-            start = datetime(dt.year, dt.month, dt.day, tzinfo=timezone.utc)
+            start = datetime(dt.year, dt.month, dt.day, tzinfo=UTC)
             start -= timedelta(days=start.weekday())
         else:
-            start = datetime(dt.year, dt.month, dt.day, tzinfo=timezone.utc)
+            start = datetime(dt.year, dt.month, dt.day, tzinfo=UTC)
         return int(start.timestamp() * 1000)
 
     def _cash_flow_since(self, timestamp_ms: int) -> float:
@@ -769,7 +769,7 @@ class VirtualPortfolio:
         for closed in completed:
             closed_ms = closed.closed_at_ms or ts_ms
             day = datetime.fromtimestamp(
-                closed_ms / 1000, tz=timezone.utc
+                closed_ms / 1000, tz=UTC
             ).date().isoformat()
             if heat_active and heat_day and day > heat_day:
                 heat_active = False
