@@ -9,6 +9,8 @@ from enum import StrEnum
 from typing import Any
 
 MSK = timezone(timedelta(hours=3))
+VARIANT_NAMES = ("A", "B", "C")
+PORTFOLIO_NAMES = (*VARIANT_NAMES, "2_OF_3", "3_OF_3")
 
 
 class ZoneState(StrEnum):
@@ -185,9 +187,35 @@ def variant_decision(
         if signal.strategy == "zeus_channel_boundary" and signal.side != "short":
             return VariantDecision(variant, False, "B_CHANNEL_SHORT_ONLY", zone)
         return VariantDecision(variant, True, "B_RULES_PASS", zone)
-    if variant == "C" and zone.state == ZoneState.OUTSIDE_NEAR:
-        return VariantDecision(variant, False, "C_OPPOSING_ZONE_WITHIN_1PCT", zone)
+    if variant == "C":
+        if zone.state == ZoneState.UNKNOWN:
+            return VariantDecision(variant, False, "UNKNOWN_C_ZONE_DATA", zone)
+        if zone.state == ZoneState.OUTSIDE_NEAR:
+            return VariantDecision(variant, False, "C_OPPOSING_ZONE_WITHIN_1PCT", zone)
     return VariantDecision(variant, True, "BASE_RULES_PASS", zone)
+
+
+def consensus_decision(
+    scenario: str,
+    decisions: dict[str, VariantDecision],
+) -> VariantDecision:
+    """Combine A/B/C votes without treating UNKNOWN as either a pass or a veto."""
+    thresholds = {"2_OF_3": 2, "3_OF_3": 3}
+    if scenario not in thresholds:
+        raise ValueError(f"unknown consensus scenario {scenario}")
+    accepted = sum(row.accepted_by_variant for row in decisions.values())
+    unknown = sum(row.reason.startswith("UNKNOWN") for row in decisions.values())
+    rejected = len(decisions) - accepted - unknown
+    zone = next(iter(decisions.values())).zone
+    required = thresholds[scenario]
+
+    if accepted >= required:
+        return VariantDecision(scenario, True, f"CONSENSUS_{scenario}_PASS", zone)
+    if accepted + unknown >= required:
+        return VariantDecision(scenario, False, f"UNKNOWN_CONSENSUS_{scenario}", zone)
+    if rejected:
+        return VariantDecision(scenario, False, f"CONSENSUS_{scenario}_REJECT", zone)
+    return VariantDecision(scenario, False, f"UNKNOWN_CONSENSUS_{scenario}", zone)
 
 
 def bar_data_unknown_reason(
@@ -1393,10 +1421,12 @@ class VirtualPortfolio:
 
 @dataclass
 class ShadowReplay:
-    """Shared source-event fan-out into independent A/B/C counterfactuals."""
+    """One-event fan-out into independent A/B/C and consensus counterfactuals."""
 
     portfolios: dict[str, VirtualPortfolio] = field(
-        default_factory=lambda: {name: VirtualPortfolio(name) for name in "ABC"}
+        default_factory=lambda: {
+            name: VirtualPortfolio(name) for name in PORTFOLIO_NAMES
+        }
     )
     seen_event_ids: set[str] = field(default_factory=set)
 
@@ -1413,10 +1443,10 @@ class ShadowReplay:
         if event_id in self.seen_event_ids:
             return {"duplicate": True, "event_id": event_id}
         self.seen_event_ids.add(event_id)
-        results = {}
+        source_decisions = {}
         signal_unknown = signal_data_unknown_reason(signal)
-        for name in ("A", "B", "C"):
-            decision = (
+        for name in VARIANT_NAMES:
+            source_decisions[name] = (
                 VariantDecision(
                     name,
                     False,
@@ -1426,6 +1456,15 @@ class ShadowReplay:
                 if signal_unknown is not None
                 else variant_decision(name, signal, zone)
             )
+
+        decisions = {
+            **source_decisions,
+            "2_OF_3": consensus_decision("2_OF_3", source_decisions),
+            "3_OF_3": consensus_decision("3_OF_3", source_decisions),
+        }
+        results = {}
+        for name in PORTFOLIO_NAMES:
+            decision = decisions[name]
             results[name] = self.portfolios[name].attempt(
                 signal,
                 decision,
@@ -1437,6 +1476,21 @@ class ShadowReplay:
         return {
             "event_id": event_id,
             "signal_id": signal.signal_id,
+            "zone_state": zone.state.value,
+            "source_variant_decisions": {
+                name: {
+                    "accepted": decision.accepted_by_variant,
+                    "reason": decision.reason,
+                }
+                for name, decision in source_decisions.items()
+            },
+            "consensus_decisions": {
+                name: {
+                    "accepted": decisions[name].accepted_by_variant,
+                    "reason": decisions[name].reason,
+                }
+                for name in ("2_OF_3", "3_OF_3")
+            },
             "variant_results": results,
         }
 
@@ -1616,7 +1670,7 @@ class ShadowReplay:
 
     def export_state(self) -> dict[str, Any]:
         return {
-            "schema_version": 2,
+            "schema_version": 3,
             "seen_event_ids": sorted(self.seen_event_ids),
             "portfolios": {
                 name: portfolio.export_state()
@@ -1626,12 +1680,12 @@ class ShadowReplay:
 
     @classmethod
     def import_state(cls, state: dict[str, Any]) -> ShadowReplay:
-        if state.get("schema_version") != 2:
+        if state.get("schema_version") != 3:
             raise ValueError("unsupported replay state schema")
         portfolios = {
             name: VirtualPortfolio.import_state(row)
             for name, row in state["portfolios"].items()
         }
-        if set(portfolios) != {"A", "B", "C"}:
-            raise ValueError("replay state must contain A, B and C")
+        if set(portfolios) != set(PORTFOLIO_NAMES):
+            raise ValueError("replay state must contain A, B, C, 2_OF_3 and 3_OF_3")
         return cls(portfolios, set(state.get("seen_event_ids", [])))
