@@ -304,6 +304,7 @@ class VirtualPosition:
     funding: float = 0.0
     status: str = "OPEN"
     exit_reason: str | None = None
+    closed_at_ms: int | None = None
     funding_complete: bool = False
     funding_coverage_through_ms: int | None = None
     tp_levels: list[dict[str, float]] = field(default_factory=list)
@@ -515,10 +516,20 @@ class VirtualPortfolio:
                 {"price": float(level["price"]), "fraction": float(level["fraction"])}
                 for level in raw_levels
             ]
-        elif signal.target_reference is not None:
-            levels = [{"price": float(signal.target_reference), "fraction": 1.0}]
         else:
-            levels = []
+            # The live arm sends a session-profile TP1 at 30%; the remaining
+            # runner is managed by the separate live exit-engine (not fully
+            # reconstructed by this bracket-only OHLC replay).
+            profile = (
+                session_profile(execution_timestamp_ms)
+                if self.session_gate_enabled
+                else {"tp1_rr": 0.6}
+            )
+            tp1 = execution_price + (
+                risk_distance * float(profile["tp1_rr"])
+                * (1 if signal.side == "long" else -1)
+            )
+            levels = [{"price": tp1, "fraction": 0.30}]
         if any(
             not math.isfinite(level["price"])
             or not math.isfinite(level["fraction"])
@@ -632,12 +643,26 @@ class VirtualPortfolio:
     ) -> dict[str, Any]:
         """Declare full lifecycle funding coverage only after source reconciliation."""
         position = self.positions.get(position_id)
+        is_closed = False
         if position is None:
-            return {"unknown": True, "reason": "position_not_open"}
+            position = next(
+                (item for item in self.closed if item.position_id == position_id),
+                None,
+            )
+            is_closed = position is not None
+        if position is None:
+            return {"unknown": True, "reason": "position_not_found"}
         if (
             not source_verified
             or not math.isfinite(cumulative_cash_amount)
             or through_ms < position.opened_at_ms
+            or (
+                is_closed
+                and (
+                    position.closed_at_ms is None
+                    or through_ms < position.closed_at_ms
+                )
+            )
         ):
             return {"unknown": True, "reason": "funding_coverage_unverified"}
         delta = cumulative_cash_amount - position.funding
@@ -645,9 +670,8 @@ class VirtualPortfolio:
         position.funding_complete = True
         position.funding_coverage_through_ms = through_ms
         self.equity_cash += delta
-        self.risk_data_unknown = any(
-            not closed.funding_complete for closed in self.closed
-        )
+        if is_closed:
+            self._after_close(position, through_ms)
         return {"covered": True, "funding_total": cumulative_cash_amount}
 
     def close(
@@ -704,6 +728,7 @@ class VirtualPortfolio:
             position.remaining_qty = 0
             position.status = "CLOSED"
             position.exit_reason = reason
+            position.closed_at_ms = ts_ms
             if (
                 position.funding_coverage_through_ms is None
                 or position.funding_coverage_through_ms < ts_ms
@@ -720,31 +745,45 @@ class VirtualPortfolio:
         }
 
     def _after_close(self, position: VirtualPosition, ts_ms: int):
-        if not position.funding_complete:
-            self.risk_data_unknown = True
-            return
-        pnl = position.net_pnl
-        if pnl < 0:
-            self.consecutive_losses += 1
-            if self.consecutive_losses >= self.heat_loss_threshold:
-                self.heat_active = True
-                self.heat_day_utc = datetime.fromtimestamp(
-                    ts_ms / 1000, tz=timezone.utc
-                ).date().isoformat()
-        elif pnl > 0:
-            self.consecutive_losses = 0
-            self.heat_active = False
-            self.heat_day_utc = None
+        self.risk_data_unknown = any(
+            not closed.funding_complete for closed in self.closed
+        )
+        completed = [
+            closed for closed in self.closed if closed.funding_complete
+        ]
+        streak = 0
+        heat_active = False
+        heat_day = None
+        for closed in completed:
+            closed_ms = closed.closed_at_ms or ts_ms
+            day = datetime.fromtimestamp(
+                closed_ms / 1000, tz=timezone.utc
+            ).date().isoformat()
+            if heat_active and heat_day and day > heat_day:
+                heat_active = False
+                heat_day = None
+            if closed.net_pnl < 0:
+                streak += 1
+                if streak >= self.heat_loss_threshold and not heat_active:
+                    heat_active = True
+                    heat_day = day
+            elif closed.net_pnl > 0:
+                streak = 0
+                heat_active = False
+                heat_day = None
+        self.consecutive_losses = streak
+        self.heat_active = heat_active
+        self.heat_day_utc = heat_day
 
-        sample = [
-            closed.net_pnl
-            for closed in self.closed
-            if closed.funding_complete
-        ][-self.halt_pf_window:]
+        if self.halted:
+            return
+        sample = [closed.net_pnl for closed in completed][-self.halt_pf_window:]
         if len(sample) >= self.halt_pf_min_n:
             winners = sum(value for value in sample if value > 0)
             losers = -sum(value for value in sample if value < 0)
-            pf = winners / losers if losers > 0 else (math.inf if winners > 0 else None)
+            pf = winners / losers if losers > 0 else (
+                math.inf if winners > 0 else None
+            )
             if pf is not None and pf < self.halt_pf_threshold:
                 self.halted = True
                 self.halt_reason = (
@@ -814,7 +853,19 @@ class VirtualPortfolio:
             if stop_hit:
                 reason = "STOP_GAP"
                 reference = bar.open
-            elif stop_touch and (tp_touch or tp_gap):
+            elif tp_gap:
+                # Opening beyond a resting TP establishes the first touch at
+                # the open; do not mislabel a later same-bar reversal as ambiguous.
+                reason = "TAKE_PROFIT_GAP"
+                reference = tp_price
+                selected_tp_index = tp_index
+                level = position.tp_levels[tp_index]
+                level_remaining = (
+                    position.quantity * level["fraction"]
+                    - position.tp_filled_qty[tp_index]
+                )
+                requested = min(position.remaining_qty, level_remaining)
+            elif stop_touch and tp_touch:
                 reason = "STOP_FIRST_AMBIGUOUS_BAR"
                 reference = position.stop_price
             elif stop_touch:
@@ -986,7 +1037,9 @@ class VirtualPortfolio:
         ]
 
         marked_values = list(closed_values)
-        open_mark_unknown = []
+        open_mark_unknown = (
+            ["closed_position_funding_unknown"] if incomplete_closed else []
+        )
         if self.positions:
             if marks is None or mark_timestamp_ms is None:
                 open_mark_unknown.append("open_positions_not_marked")
@@ -1031,7 +1084,7 @@ class VirtualPortfolio:
                     * position.remaining_qty
                     * (1 if position.side == "long" else -1)
                 )
-                net = position.realized_gross + gross - position.fees
+                net = position.realized_gross + gross - position.fees + position.funding
                 if position.initial_risk_cash > 0:
                     open_r.append(net / position.initial_risk_cash)
 
@@ -1042,7 +1095,9 @@ class VirtualPortfolio:
             "closed_positions": len(self.closed),
             "open_positions": len(self.positions),
             "net_closed_pnl_complete_only": sum(closed_values),
-            "closed_pf_complete_positions_only": closed_pf,
+            "closed_pf_complete_positions_only": (
+                closed_pf if incomplete_closed == 0 else None
+            ),
             "closed_pf_sample_complete": incomplete_closed == 0,
             "incomplete_funding_closed_positions": incomplete_closed,
             "mean_closed_R_complete_only": (
