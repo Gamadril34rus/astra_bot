@@ -181,15 +181,13 @@ async def capture_symbol(session, symbol):
     raw4, recv4, date4 = await get_public(
         session, KLINES, {"symbol": symbol, "interval": "4h", "limit": 120}
     )
-    raw1, recv1, date1 = await get_public(
-        session, KLINES, {"symbol": symbol, "interval": "1h", "limit": 120}
-    )
     bars4 = parse_candles(raw4, symbol, "4h")
-    bars1 = parse_candles(raw1, symbol, "1h")
-    if len(bars4) < 48 or len(bars1) < 30:
-        raise RuntimeError("insufficient_history")
-
-    decision_at = int(time.time() * 1000)
+    if len(bars4) < 48:
+        raise RuntimeError("insufficient_4h_history")
+    bars1 = []
+    recv1 = None
+    date1 = None
+    request_count = 1
     # live_arm_feed.scan_symbol evaluates the current (possibly forming) 4h bar.
     price = float(bars4[-1].close)
     zones = build_volume_zones(bars4, price=price)
@@ -209,11 +207,21 @@ async def capture_symbol(session, symbol):
             multi_signal, symbol, "4h", bars4[-1].open_time
         )
         if multi_4h is None:
-            h1, l1, cl1 = series_from_candles(bars1)
-            multi_signal = detect_breakdown_from_ohlc(h1, l1, cl1)
-            multi_1h = candidate_from_breakdown(
-                multi_signal, symbol, "1h", bars1[-1].open_time
+            raw1, recv1, date1 = await get_public(
+                session, KLINES, {"symbol": symbol, "interval": "1h", "limit": 120}
             )
+            request_count += 1
+            bars1 = parse_candles(raw1, symbol, "1h")
+            if len(bars1) >= 30:
+                h1, l1, cl1 = series_from_candles(bars1)
+                multi_signal = detect_breakdown_from_ohlc(h1, l1, cl1)
+                multi_1h = candidate_from_breakdown(
+                    multi_signal, symbol, "1h", bars1[-1].open_time
+                )
+
+    # Decision time is recorded only after every source needed for this candidate
+    # has arrived. A conditional 1h fallback must not appear future-dated.
+    decision_at = int(time.time() * 1000)
 
     # This one source event is fanned out to all variants. Variant B may reject it;
     # it is forbidden to re-run a detector or substitute another candidate.
@@ -221,7 +229,7 @@ async def capture_symbol(session, symbol):
     annotated = None
     decisions = {}
     if baseline is not None:
-        market_received = max(recv4, recv1)
+        market_received = max(recv4, recv1) if recv1 is not None else recv4
         shadow_signal = ShadowSignal(
             signal_id=baseline["signal_id"],
             symbol=symbol,
@@ -261,7 +269,7 @@ async def capture_symbol(session, symbol):
 
     return {
         "symbol": symbol,
-        "market_received_at_ms": max(recv4, recv1),
+        "market_received_at_ms": max(recv4, recv1) if recv1 is not None else recv4,
         "zone_received_at_ms": recv4,
         "decision_at_ms": decision_at,
         "predecision_price": price,
@@ -276,8 +284,8 @@ async def capture_symbol(session, symbol):
         "variant_signals": {
             variant: annotated for variant in ("A", "B", "C")
         } if annotated is not None else {"A": None, "B": None, "C": None},
-        "request_count": 2,
-        "server_date_headers": [date4, date1],
+        "request_count": request_count,
+        "server_date_headers": [date for date in (date4, date1) if date is not None],
     }
 
 
