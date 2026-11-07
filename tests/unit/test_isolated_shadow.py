@@ -1093,6 +1093,7 @@ def test_static_isolation_guards_and_offline_container_profile():
     root = Path(__file__).resolve().parents[2]
     capture = (root / "scripts/zeus_shadow_capture.py").read_text()
     compose = (root / "deploy/shadow/compose.offline.yml").read_text()
+    launcher = (root / "deploy/shadow/run-offline.sh").read_text()
     assert ".post(" not in capture
     assert ".delete(" not in capture
     assert "live_arm_wiring" not in capture
@@ -1103,3 +1104,8 @@ def test_static_isolation_guards_and_offline_container_profile():
     assert "read_only: true" in compose
     assert "no-new-privileges:true" in compose
     assert ":ro" in compose
+    assert "network_mode: none" in compose
+    assert "realpath -m" in launcher
+    assert "Refusing shadow data directory inside the repository" in launcher
+    assert "Refusing hard-linked shadow data file" in launcher
+    assert "run --rm --pull never" in launcher
