@@ -371,7 +371,7 @@ class VirtualPortfolio:
             self.heat_day_utc = None
 
     def _utc_period_start(self, timestamp_ms: int, *, weekly: bool) -> int:
-        dt = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
+        dt = datetime.fromtimestamp(timestamp_ms / 1000, tz=UTC)
         if weekly:
             start = datetime(dt.year, dt.month, dt.day, tzinfo=timezone.utc)
             start -= timedelta(days=start.weekday())
