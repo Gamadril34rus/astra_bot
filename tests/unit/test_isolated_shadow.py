@@ -217,6 +217,57 @@ def test_portfolios_have_independent_capital_and_max_open():
     assert replay.portfolios["B"].equity_cash != replay.portfolios["A"].equity_cash
 
 
+
+def test_portfolio_wide_gross_exposure_cap_is_not_per_position():
+    portfolio = VirtualPortfolio(
+        "A",
+        initial_capital=1_000.0,
+        risk_fraction=1.0,
+        max_open=5,
+        max_exposure_fraction=0.30,
+        max_leverage=6.0,
+    )
+    empty = zone(zones=[])
+    first_signal = signal(side="short", stop_reference=50.0)
+    first = portfolio.attempt(
+        first_signal,
+        variant_decision("A", first_signal, empty),
+        execution_price=100.0,
+    )
+    assert first["reason"] == "OPENED"
+    first_exposure = sum(
+        position.remaining_qty * position.entry_price
+        for position in portfolio.positions.values()
+    )
+    assert first_exposure == pytest.approx(300.0)
+
+    second_signal = signal(
+        side="short",
+        symbol="ETH-USDT",
+        signal_id="second-exposure",
+        stop_reference=50.0,
+    )
+    second = portfolio.attempt(
+        second_signal,
+        variant_decision("A", second_signal, empty),
+        execution_price=100.0,
+    )
+    assert second["reason"] == "ZERO_SIZE"
+    assert len(portfolio.positions) == 1
+
+
+def test_directionally_invalid_stop_is_rejected():
+    portfolio = VirtualPortfolio("A", initial_capital=1_000.0)
+    empty = zone(zones=[])
+    bad_long = signal(side="long", stop_reference=101.0)
+    result = portfolio.attempt(
+        bad_long,
+        variant_decision("A", bad_long, empty),
+        execution_price=100.0,
+    )
+    assert result["reason"] == "INVALID_INITIAL_RISK"
+    assert not portfolio.fills
+
 def test_repeated_signal_id_has_distinct_attempts_and_positions():
     portfolio = VirtualPortfolio("A", initial_capital=1_000.0)
     empty = zone(zones=[])
