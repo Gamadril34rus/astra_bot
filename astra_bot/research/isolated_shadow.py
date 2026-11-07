@@ -124,6 +124,15 @@ def classify_zone(
     return ZoneDecision(state, boundary, distance, "boundary_distance")
 
 
+def select_baseline_signal(
+    channel: dict[str, Any] | None,
+    multi_4h: dict[str, Any] | None,
+    multi_1h: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Single shared source event: channel first, then 4h and 1h multi fallback."""
+    return channel or multi_4h or multi_1h
+
+
 def variant_decision(
     variant: str, signal: Signal, zone: ZoneDecision
 ) -> VariantDecision:
