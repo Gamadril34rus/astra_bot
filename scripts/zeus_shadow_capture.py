@@ -166,8 +166,8 @@ def select_baseline_signal(channel, multi_4h, multi_1h):
 
 async def capture_symbol(session, symbol):
     from astra_bot.decision.zone_shadow import build_volume_zones
+    from astra_bot.research.isolated_shadow import Signal as ShadowSignal
     from astra_bot.research.isolated_shadow import (
-        Signal as ShadowSignal,
         classify_zone,
         variant_decision,
     )
