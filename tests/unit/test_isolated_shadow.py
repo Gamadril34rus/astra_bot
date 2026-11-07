@@ -1005,6 +1005,41 @@ def test_same_funding_source_event_is_applied_once_to_each_variant():
     )
 
 
+
+def test_corrected_funding_event_can_resolve_prior_unknown_with_same_id():
+    replay = ShadowReplay()
+    source = signal(side="short")
+    replay.apply_signal(
+        event_id="funding-correction-entry",
+        signal=source,
+        zone=zone(zones=[]),
+        execution_price=100.0,
+        execution_quantity=100.0,
+        execution_timestamp_ms=1_100,
+    )
+    position_id = next(iter(replay.portfolios["A"].positions))
+    missing = replay.apply_funding_event(
+        event_id="funding-row-corrected-later",
+        variant="A",
+        position_id=position_id,
+        cash_amount=None,
+        ts_ms=1_500,
+    )
+    assert missing["unknown"]
+    assert replay.portfolios["A"].risk_data_unknown
+
+    corrected = replay.apply_funding_event(
+        event_id="funding-row-corrected-later",
+        variant="A",
+        position_id=position_id,
+        cash_amount=-0.10,
+        ts_ms=1_500,
+    )
+    assert corrected["applied"]
+    assert not replay.portfolios["A"].risk_data_unknown
+    assert replay.portfolios["A"].positions[position_id].funding == pytest.approx(-0.10)
+
+
 def test_unknown_funding_on_open_position_survives_other_position_close():
     portfolio = VirtualPortfolio(
         "A",
