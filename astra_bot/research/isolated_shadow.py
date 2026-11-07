@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, UTC
 from enum import StrEnum
 import hashlib
 import math
