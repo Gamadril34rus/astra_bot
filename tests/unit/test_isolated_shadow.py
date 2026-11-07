@@ -1174,6 +1174,23 @@ def test_stale_closed_bar_is_explicit_unknown_and_cannot_trigger_exit():
 
 
 
+
+def test_future_funding_coverage_cannot_be_used_for_earlier_mark():
+    portfolio, _row, position = opened()
+    portfolio.set_funding_coverage(
+        position.position_id,
+        through_ms=3_000,
+        cumulative_cash_amount=-0.50,
+        source_verified=True,
+    )
+    mark = portfolio.mark_to_market(
+        {"BTC-USDT": 99.0},
+        timestamp_ms=2_000,
+    )
+    assert not mark["known"]
+    assert "BTC-USDT:funding" in mark["unknown"]
+
+
 def test_drawdown_unknown_until_observed_equity_or_mark():
     portfolio = VirtualPortfolio("A")
     assert portfolio.metrics()["drawdown_status"] == "UNKNOWN"
