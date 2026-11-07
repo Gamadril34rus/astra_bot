@@ -925,7 +925,7 @@ def test_daily_and_weekly_realized_loss_limits_are_virtual_and_independent():
     portfolio.close(
         position.position_id,
         event_id="day-week-loss",
-        price=90.0,
+        price=110.0,
         quantity=position.remaining_qty,
         ts_ms=2_000,
         reason="synthetic_loss",
