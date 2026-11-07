@@ -1,0 +1,33 @@
+services:
+  shadow-replay:
+    image: python:3.11-slim
+    user: "65532:65532"
+    init: true
+    working_dir: /workspace
+    network_mode: none
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 512m
+    cpus: 1.0
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+    environment:
+      PYTHONPATH: /workspace
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - ../..:/workspace:ro
+      - ${ASTRA_SHADOW_DATA:?Set ASTRA_SHADOW_DATA to an external writable directory}:/data:rw
+    entrypoint:
+      - python
+      - /workspace/scripts/zeus_shadow_replay.py
+    command:
+      - --events
+      - /data/events.jsonl
+      - --state
+      - /data/replay-state.json
+      - --output
+      - /data/replay-results.jsonl
