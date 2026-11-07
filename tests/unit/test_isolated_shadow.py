@@ -659,9 +659,7 @@ def test_fees_funding_coverage_and_net_r_are_explicit():
     assert completed.funding == pytest.approx(-2.0)
     assert completed.initial_risk_cash > 0
     metrics = portfolio.metrics()
-    assert metrics["closed_R_values"] if "closed_R_values" in metrics else (
-        metrics["mean_closed_R_complete_only"] is not None
-    )
+    assert metrics["closed_R_values"]
     assert metrics["closed_pf_sample_complete"]
 
 
@@ -813,6 +811,140 @@ def test_partial_exit_restart_state_does_not_duplicate_fills():
     )
     assert repeated["duplicate"]
     assert len(restored.fills) == before + 1
+
+
+
+def test_take_profit_limit_does_not_fill_when_next_bid_reverses_below_target():
+    schedule = {"take_profit_levels": [{"price": 102.0, "fraction": 1.0}]}
+    source = signal(side="long", metadata=schedule)
+    portfolio, _, position = opened(source=source)
+    portfolio.process_bar(bar(high=103.0, low=99.0, close=102.5))
+    no_fill = portfolio.execute_pending_exit(
+        position.position_id,
+        [quote("reversed-after-tp", 3_001, bid=101.5)],
+    )
+    assert no_fill["reason"] == "TP_LIMIT_NOT_MARKETABLE_YET"
+    assert position.position_id in portfolio.positions
+    assert not [fill for fill in portfolio.fills if fill["type"] == "EXIT"]
+
+    fill = portfolio.execute_pending_exit(
+        position.position_id,
+        [quote("marketable-tp", 3_002, bid=102.2)],
+    )
+    assert fill["filled_quantity"] == pytest.approx(position.quantity)
+    assert position.position_id not in portfolio.positions
+
+
+def test_take_profit_gap_is_first_touch_even_if_bar_later_reverses():
+    schedule = {"take_profit_levels": [{"price": 102.0, "fraction": 1.0}]}
+    source = signal(side="long", metadata=schedule)
+    portfolio, _, position = opened(source=source)
+    intents = portfolio.process_bar(
+        bar(open_price=103.0, high=104.0, low=97.0, close=99.0)
+    )
+    assert len(intents) == 1
+    assert intents[0].reason == "TAKE_PROFIT_GAP"
+    assert intents[0].reference_price == 102.0
+    result = portfolio.execute_pending_exit(
+        position.position_id,
+        [quote("after-gap-reversal", 3_001, bid=101.0)],
+    )
+    assert result["reason"] == "TP_LIMIT_NOT_MARKETABLE_YET"
+
+
+def test_bar_straddling_entry_is_not_used_for_stop_or_tp_lookahead():
+    portfolio, _, position = opened(source=signal(side="long"))
+    intents = portfolio.process_bar(
+        bar(opened=1_000, closed=3_000, low=90.0, high=120.0)
+    )
+    assert intents == []
+    assert position.pending_exit is None
+
+
+def test_funding_unknown_can_be_reconciled_after_position_close():
+    portfolio, _, position = opened()
+    portfolio.apply_funding_event(
+        position.position_id,
+        event_id="funding-missing",
+        cash_amount=None,
+        ts_ms=1_500,
+    )
+    portfolio.close(
+        position.position_id,
+        event_id="close-before-reconciliation",
+        price=105.0,
+        quantity=position.remaining_qty,
+        ts_ms=2_000,
+        reason="closed",
+    )
+    assert portfolio.risk_data_unknown
+    coverage = portfolio.set_funding_coverage(
+        position.position_id,
+        through_ms=2_000,
+        cumulative_cash_amount=-1.25,
+        source_verified=True,
+    )
+    assert coverage["covered"]
+    assert portfolio.closed[0].funding_complete
+    assert not portfolio.risk_data_unknown
+    assert portfolio.metrics()["closed_pf_sample_complete"]
+
+
+def test_daily_and_weekly_realized_loss_limits_are_virtual_and_independent():
+    portfolio = VirtualPortfolio(
+        "A",
+        initial_capital=1_000.0,
+        cooldown_ms=0,
+        same_side_cluster_max=10,
+        day_loss_limit=0.04,
+        week_loss_limit=0.06,
+        heat_loss_threshold=99,
+        halt_pf_min_n=99,
+    )
+    source = signal(
+        side="short",
+        stop_reference=101.0,
+        target_reference=98.0,
+        symbol="LOSS-USDT",
+    )
+    row = portfolio.attempt(
+        source,
+        variant_decision("A", source, zone(zones=[])),
+        execution_price=100.0,
+        execution_quantity=100.0,
+        execution_timestamp_ms=1_100,
+    )
+    position = portfolio.positions[row["position_id"]]
+    portfolio.set_funding_coverage(
+        position.position_id,
+        through_ms=2_000,
+        cumulative_cash_amount=0.0,
+        source_verified=True,
+    )
+    portfolio.close(
+        position.position_id,
+        event_id="day-week-loss",
+        price=90.0,
+        quantity=position.remaining_qty,
+        ts_ms=2_000,
+        reason="synthetic_loss",
+    )
+    next_signal = signal(
+        side="short",
+        symbol="OTHER-USDT",
+        signal_id="after-loss",
+    )
+    blocked = portfolio.attempt(
+        next_signal,
+        variant_decision("A", next_signal, zone(zones=[])),
+        execution_price=100.0,
+        execution_quantity=100.0,
+        execution_timestamp_ms=3_000,
+    )
+    assert blocked["reason"] in {
+        "VIRTUAL_DAY_LOSS_LIMIT",
+        "VIRTUAL_WEEK_LOSS_LIMIT",
+    }
 
 
 def test_static_isolation_guards_and_offline_container_profile():
