@@ -1171,6 +1171,74 @@ def test_drawdown_unknown_until_observed_equity_or_mark():
     assert portfolio.metrics()["drawdown_observations"] == 1
 
 
+
+def test_malformed_zone_payload_is_unknown_not_empty_zones():
+    result = zone(
+        zones=[{"lower": 99.0, "upper": None}],
+    )
+    assert result.state == ZoneState.UNKNOWN
+    assert result.reason == "invalid_zone_payload"
+
+
+def test_stale_or_future_source_signal_is_unknown_for_all_variants():
+    replay = ShadowReplay()
+    stale = signal(
+        side="short",
+        market_received_at_ms=1_000,
+        decision_at_ms=32_001,
+    )
+    result = replay.apply_signal(
+        event_id="stale-source",
+        signal=stale,
+        zone=zone(zones=[]),
+        execution_price=100.0,
+        execution_quantity=100.0,
+        execution_timestamp_ms=32_002,
+    )
+    assert all(
+        row["reason"] == "UNKNOWN_SIGNAL_DATA:stale_market_snapshot"
+        for row in result["variant_results"].values()
+    )
+    assert all(not portfolio.positions for portfolio in replay.portfolios.values())
+
+    future_bar = signal(
+        side="short",
+        source_closed_bar_ms=2_000,
+        decision_at_ms=1_000,
+    )
+    replay2 = ShadowReplay()
+    result2 = replay2.apply_signal(
+        event_id="future-source-bar",
+        signal=future_bar,
+        zone=zone(zones=[]),
+        execution_price=100.0,
+        execution_quantity=100.0,
+        execution_timestamp_ms=1_100,
+    )
+    assert all(
+        row["reason"] == "UNKNOWN_SIGNAL_DATA:invalid_or_future_source_bar"
+        for row in result2["variant_results"].values()
+    )
+
+
+def test_quote_without_id_and_exit_before_entry_cannot_create_fills():
+    assert next_available_quote(
+        [ExecutionQuote("", 1_001, 1_001, 99.0, 101.0, 10.0, 10.0)],
+        strictly_after_ms=1_000,
+    ) is None
+    portfolio, row, position = opened()
+    before_entry = portfolio.close(
+        position.position_id,
+        event_id="impossible-early-exit",
+        price=95.0,
+        quantity=position.remaining_qty,
+        ts_ms=position.opened_at_ms - 1,
+        reason="invalid",
+    )
+    assert before_entry["unknown"]
+    assert position.position_id in portfolio.positions
+
+
 def test_static_isolation_guards_and_offline_container_profile():
     from pathlib import Path
 
