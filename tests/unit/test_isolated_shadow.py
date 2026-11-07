@@ -49,3 +49,14 @@ def test_capture_static_no_trading_or_working_paths():
  root=Path(__file__).resolve().parents[2];src=(root/"scripts/zeus_shadow_capture.py").read_text()
  assert ".post(" not in src and ".delete(" not in src and "live_arm_wiring" not in src
  assert "PENDING_PATH" not in src and "zeus_live_journal" not in src and "BINGX_API_SECRET" in src
+
+def test_A_and_C_share_baseline_stream_and_B_can_fall_back_after_long_channel():
+ z=zone(zones=[])
+ channel_long=sig(side="long")
+ multi_short=sig(side="short",strategy="zeus_multi_top_breakdown",sid="multi")
+ # A/C retain the live baseline channel signal; B skips the LONG channel and
+ # evaluates the unchanged multi-top fallback from the same market snapshot.
+ assert variant_decision("A",channel_long,z).accepted_by_variant
+ assert variant_decision("C",channel_long,z).accepted_by_variant
+ assert not variant_decision("B",channel_long,z).accepted_by_variant
+ assert variant_decision("B",multi_short,z).accepted_by_variant
