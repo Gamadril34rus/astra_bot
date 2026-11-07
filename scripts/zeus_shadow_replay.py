@@ -112,17 +112,14 @@ def handle_event(replay: ShadowReplay, event: dict[str, Any]) -> dict[str, Any]:
         )
 
     if kind == "funding_coverage":
-        if event_id in replay.seen_event_ids:
-            return {"duplicate": True, "event_id": event_id}
         result = replay.apply_funding_coverage(
+            event_id=event_id,
             variant=str(event["variant"]),
             position_id=str(event["position_id"]),
             through_ms=int(event["through_ms"]),
             cumulative_cash_amount=float(event["cumulative_cash_amount"]),
             source_verified=bool(event.get("source_verified", False)),
         )
-        if result.get("covered"):
-            replay.seen_event_ids.add(event_id)
         return result
 
     if kind == "mark":
