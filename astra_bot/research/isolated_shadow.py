@@ -715,7 +715,9 @@ class VirtualPortfolio:
         self.equity_cash += cash_amount
         self.fills.append(
             {
-                "fill_id": hashlib.sha256(event_id.encode()).hexdigest()[:32],
+                "fill_id": hashlib.sha256(
+                    f"{self.name}|{position_id}|{event_id}".encode()
+                ).hexdigest()[:32],
                 "event_id": event_id,
                 "position_id": position_id,
                 "type": "FUNDING",
@@ -824,7 +826,9 @@ class VirtualPortfolio:
         position.fees += fee
         position.remaining_qty -= exit_quantity
         self.equity_cash += gross - fee
-        fill_id = hashlib.sha256(event_id.encode()).hexdigest()[:32]
+        fill_id = hashlib.sha256(
+            f"{self.name}|{position_id}|{event_id}".encode()
+        ).hexdigest()[:32]
         self.fills.append(
             {
                 "fill_id": fill_id,
