@@ -6,7 +6,7 @@ REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd -P)"
 : "${ASTRA_SHADOW_DATA:?Set ASTRA_SHADOW_DATA to a dedicated external directory}"
 
 MODE="replay"
-if [[ "${{1:-}}" == "--verify" ]]; then
+if [[ "${1:-}" == "--verify" ]]; then
   MODE="verify"
   shift
 fi
