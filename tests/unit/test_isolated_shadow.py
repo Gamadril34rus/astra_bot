@@ -1312,8 +1312,15 @@ def test_stale_or_future_source_signal_is_unknown_for_all_variants():
         execution_timestamp_ms=32_002,
     )
     assert all(
-        row["reason"] == "UNKNOWN_SIGNAL_DATA:stale_market_snapshot"
-        for row in result["variant_results"].values()
+        result["variant_results"][name]["reason"]
+        == "UNKNOWN_SIGNAL_DATA:stale_market_snapshot"
+        for name in ("A", "B", "C")
+    )
+    assert all(
+        result["consensus_decisions"][name]["reason"].startswith(
+            "UNKNOWN_CONSENSUS"
+        )
+        for name in ("2_OF_3", "3_OF_3")
     )
     assert all(not portfolio.positions for portfolio in replay.portfolios.values())
 
@@ -1332,9 +1339,17 @@ def test_stale_or_future_source_signal_is_unknown_for_all_variants():
         execution_timestamp_ms=1_100,
     )
     assert all(
-        row["reason"] == "UNKNOWN_SIGNAL_DATA:invalid_or_future_source_bar"
-        for row in result2["variant_results"].values()
+        result2["variant_results"][name]["reason"]
+        == "UNKNOWN_SIGNAL_DATA:invalid_or_future_source_bar"
+        for name in ("A", "B", "C")
     )
+    assert all(
+        result2["consensus_decisions"][name]["reason"].startswith(
+            "UNKNOWN_CONSENSUS"
+        )
+        for name in ("2_OF_3", "3_OF_3")
+    )
+    assert all(not portfolio.positions for portfolio in replay2.portfolios.values())
 
 
 def test_quote_without_id_and_exit_before_entry_cannot_create_fills():
