@@ -132,14 +132,19 @@ def classify_zone(
         return ZoneDecision(ZoneState.UNKNOWN, reason="zones_unavailable")
 
     valid: list[tuple[float, float]] = []
+    invalid_zone = False
     for zone in zones:
         try:
             lower = float(zone["lower"])
             upper = float(zone["upper"])
             if math.isfinite(lower) and math.isfinite(upper) and 0 < lower <= upper:
                 valid.append((lower, upper))
+            else:
+                invalid_zone = True
         except (KeyError, TypeError, ValueError):
-            continue
+            invalid_zone = True
+    if invalid_zone:
+        return ZoneDecision(ZoneState.UNKNOWN, reason="invalid_zone_payload")
     if not valid:
         return ZoneDecision(ZoneState.EMPTY_ZONES, reason="no_valid_zones")
     if any(lower <= price <= upper for lower, upper in valid):
@@ -207,6 +212,23 @@ def bar_data_unknown_reason(
     return None
 
 
+def signal_data_unknown_reason(
+    signal: Signal, *, max_age_ms: int = 30_000
+) -> str | None:
+    if signal.decision_at_ms < 0 or signal.formed_at_ms > signal.decision_at_ms:
+        return "invalid_or_future_signal_timestamp"
+    if (
+        signal.source_closed_bar_ms is None
+        or signal.source_closed_bar_ms > signal.decision_at_ms
+    ):
+        return "invalid_or_future_source_bar"
+    if signal.market_received_at_ms > signal.decision_at_ms:
+        return "market_snapshot_received_after_decision"
+    if signal.decision_at_ms - signal.market_received_at_ms > max_age_ms:
+        return "stale_market_snapshot"
+    return None
+
+
 def next_available_quote(
     quotes: list[ExecutionQuote],
     *,
@@ -224,7 +246,11 @@ def next_available_quote(
     if not candidates:
         return None
     quote = candidates[0]
-    if quote.received_at_ms < quote.timestamp_ms:
+    if (
+        not quote.quote_id
+        or quote.received_at_ms is None
+        or quote.received_at_ms < quote.timestamp_ms
+    ):
         return None
     if quote.received_at_ms - quote.timestamp_ms > max_delivery_lag_ms:
         return None
@@ -773,7 +799,12 @@ class VirtualPortfolio:
         if event_id in self._seen_events:
             return {"duplicate": True, "event_id": event_id}
         position = self.positions.get(position_id)
-        if position is None or quantity <= 0 or quantity > position.remaining_qty + 1e-12:
+        if (
+            position is None
+            or quantity <= 0
+            or quantity > position.remaining_qty + 1e-12
+            or ts_ms < position.opened_at_ms
+        ):
             return {"unknown": True, "event_id": event_id}
         if not math.isfinite(price) or price <= 0:
             return {"unknown": True, "event_id": event_id}
@@ -1357,8 +1388,18 @@ class ShadowReplay:
             return {"duplicate": True, "event_id": event_id}
         self.seen_event_ids.add(event_id)
         results = {}
+        signal_unknown = signal_data_unknown_reason(signal)
         for name in ("A", "B", "C"):
-            decision = variant_decision(name, signal, zone)
+            decision = (
+                VariantDecision(
+                    name,
+                    False,
+                    f"UNKNOWN_SIGNAL_DATA:{signal_unknown}",
+                    zone,
+                )
+                if signal_unknown is not None
+                else variant_decision(name, signal, zone)
+            )
             results[name] = self.portfolios[name].attempt(
                 signal,
                 decision,
