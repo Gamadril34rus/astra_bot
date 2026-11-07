@@ -61,6 +61,21 @@ The replay currently models the static initial stop, session-profile TP1, and 48
 - Closed-position PF uses complete lifecycle net PnL once per position, not partial fills as separate trades. Mark-to-market PF includes complete closed positions plus open positions at explicit marks and estimated taker exit fee; it is UNKNOWN if any open mark or funding coverage is missing.
 - Marked drawdown uses explicit synchronized mark events and peak marked equity. If marks/funding are not current, drawdown status is UNKNOWN rather than carried forward as a current result.
 
+## Variant A is not a live replica
+
+A is the closest *signal-source comparator* in this research harness, not a byte-for-byte or accounting-equivalent copy of the live bot. The current evidence is insufficient to claim full live parity.
+
+| Area | Virtual A in this PR | Live behavior / unresolved difference |
+|---|---|---|
+| Signal source | Uses the observed live arm-feed channel settings and channel → 4h multi → 1h multi precedence. | This copies the inspected source path, not the effective runtime decision state. ZEUS_ARM, session-profile overrides, persisted plans and exact environment settings have not been attested. |
+| PF and trade count | PF is calculated per fully closed virtual position. A position with partial exits is aggregated and contributes once after its lifecycle is complete. | The live HALT/accounting path can count separate `partial_fill` rows and can skip scratched exits. The sample unit and population therefore differ. A's PF and trade count cannot be compared directly with live PF/count without a fill-to-position reconciliation and a matched metric definition. |
+| Capital and equity | Each virtual portfolio has its own synthetic cash ledger, initialized to 100,000 USDT by default. Fees, modeled funding and explicitly supplied marks update that virtual ledger. | This is not the live BingX wallet, available balance, margin equity or collateral ledger. Maintenance margin, cross/isolated margin effects, liquidation, exchange wallet transfers and actual account-level funding settlement are not reproduced. Virtual returns/drawdown are not live account returns/drawdown. |
+| Exit engine | The replay supports a static initial stop, session-profile TP1, explicit test TP schedules, and a 48-hour max-hold trigger. TP1 defaults to 30%; the 70% runner is not modeled as the full live runner. | Live exit behavior also includes structural stop tightening, break-even, ATR trailing, MAE_CUT, regime/VOL_EXPANSION exits, ratchet/percentage stop-pull policy, stop amendments and exchange protective-order lifecycle. These can materially change exit timing, fills and PnL. |
+| Execution | Uses supplied next-observable BBO quote and displayed top-level size; OHLC bars trigger intents but do not themselves create fills. | Best bid/ask is not full depth. Actual latency, queue priority, market impact, exchange matching, protective-order trigger behavior and exchange-confirmed partial fills remain unmodeled. |
+| Risk gates | Applies independent virtual gates using registered/default values. | Several live values depend on runtime environment, wallet and persisted state. They have not been fully captured/reconciled against a non-secret runtime snapshot. |
+
+**Interpretation rule:** A can test the frozen signal-source hypothesis and the behavior of this virtual accounting model. It cannot be labelled “live parity”, a live backtest, or a replica of live profitability. Until the differences above are resolved, report its PF, drawdown and returns as *virtual counterfactual metrics only*.
+
 ## Virtual live-entry gates and their parity limits
 
 Each A/B/C portfolio independently applies the following counterfactual gates before new entries:
@@ -96,6 +111,46 @@ deploy/shadow/compose.offline.yml defines an offline container profile:
 scripts/verify_shadow_runtime.py checks the effective running process, mounts, capabilities, NoNewPrivs, non-loopback interfaces/default route, and proves repo writes fail while /data writes succeed. **This runtime verifier has not been executed in a real Docker container in the current development environment** (Docker CLI/runtime is unavailable here). Therefore evidence so far is code/configuration-level, not a runtime attestation. It cannot prove a hostile/compromised host or Docker daemon, nor prevent an administrator from overriding the profile. The actual host must run the verifier and retain its output before an experiment.
 
 The separate zeus_shadow_capture.py remains a manual one-shot public candle capture script, not part of the offline profile. It makes 5–10 public candle GETs per invocation depending on how often channel and 4h multi-top are silent; it has not been run. It does not capture execution quotes or funding events and cannot by itself supply a valid replay tape. The global BingX request budget shared with the working bot and archive is not proven; no capture network profile, scheduler, workflow or cron is connected.
+
+## First A/B/C data plan — proposed only, no collection performed
+
+No public market data has been collected by this PR. The one-shot capture script is not a replay dataset: it currently obtains candle snapshots only and does not obtain historical BBO quotes, displayed size, funding events or mark-price history. Do not run it as a substitute for the dataset below.
+
+### Required tape
+
+The initial comparison should use the five research symbols BTC-USDT, ETH-USDT, SOL-USDT, HYPE-USDT and INJ-USDT and a 30-calendar-day evaluation window, preceded by at least 8 days of warm-up for the 48 × 4h channel lookback. That implies a target of at least 38 calendar days of aligned history, plus any extra lead-in required by the actual signal implementation. The protocol's minimum of 50 fully closed positions per variant remains a sample-size gate; if the window does not produce that sample, report insufficient evidence rather than silently extending it.
+
+| Dataset | Minimum fields | Why it is needed |
+|---|---|---|
+| Trades/price candles | 1m OHLCV for the full 38+ days; native 1h/4h candles as cross-checks; open/close timestamps, base volume, quote volume, trade count and taker volume where available. | Rebuild signal context and closed-bar stop/TP triggers. 1m bars still cannot reproduce sub-minute signal evaluation or the order of intrabar touches. |
+| BBO quote tape | Every best-bid/best-ask update from signal decision through entry and exit; exchange timestamp, local first-receive timestamp, sequence/update ID, bid, ask, bid size and ask size. | Determine the first observable executable side and whether displayed size covers the simulated quantity. Missing or stale quotes mean UNKNOWN, not an assumed fill. |
+| Depth (preferred) | Initial L2 snapshot plus sequenced bid/ask deltas, price and size at each level, with exchange and receive timestamps. | Measure depth beyond the top level, size impact and whether an apparent BBO fill is plausible. BBO alone does not establish full-size execution. |
+| Funding | Historical funding rate per contract and settlement timestamp, funding interval, plus mark price and position quantity/notional at settlement. | Calculate modeled funding cash flow for each virtual position. A rate alone is not an actual account funding cash amount; sign, size and settlement alignment must be reconstructed and labelled modeled. |
+| Mark prices | Historical mark-price candles or timestamped mark ticks, preferably 1m and at each funding settlement. | Mark-to-market equity, unrealized PnL, drawdown and funding notional. Last-trade/spot close is not a substitute for the contract mark price. |
+| Contract and cost metadata | Tick size, quantity step, min quantity/notional, contract multiplier, fee tier, funding interval, symbol status and effective dates. | Avoid fills that the venue would reject and model costs/rules for the correct historical contract version. |
+
+### Sources and what is actually established
+
+1. **BingX public API (first choice for venue-matched history).** The documented USDT-M endpoints include `/openApi/swap/v3/quote/klines` (up to 1,440 candles per request), `/openApi/swap/v1/market/markPriceKlines` (up to 1,440), and `/openApi/swap/v2/quote/fundingRate` (up to 1,000 records). The API documentation lists historical query parameters but does not state a guaranteed earliest available timestamp or retention floor. That period must be confirmed per symbol/interval from documented responses before the study. `/openApi/swap/v2/quote/bookTicker` returns the *current* best bid/ask and quantities; the documented endpoint is not a historical BBO archive. Current depth snapshots and historical trade prints are not substitutes for a timestamped historical bid/ask tape.
+2. **Binance public data archive (free fallback for price-path work only).** Its public USD-M Futures archive lists klines, aggregate trades and trades. It is useful for independent signal/price-path checks, but it is another venue. The listed archive types do not establish a historical BingX BBO/depth tape, nor do they by themselves provide the BingX mark/funding and execution record needed for this A/B/C fill model.
+3. **Tardis and CoinAPI (commercial discovery candidates, not approved purchases).** Their published catalogues describe historical quotes and order-book data, along with trades/candles; CoinAPI also describes derivative market metrics. Public price pages show indicative plans/rates, but availability of the exact BingX USDT-M contracts and every requested data type has not been verified for these five symbols. Obtain a written coverage sample, earliest timestamp, update granularity, timestamp semantics and exact quote before considering either vendor. No purchase is authorized.
+
+### Cost and availability gate
+
+BingX documents market-data request limits (the cited kline, mark-price and funding endpoints are individually rate-limited) but publishes no BBO backfill endpoint or guaranteed history floor in the reviewed API references. Request counts for paging 38 days of 1m data can be estimated only after checking each endpoint's actual returned range and symbol availability; do not infer that an old date is retrievable merely because startTime/endTime parameters exist.
+
+For commercial data, published Tardis derivatives tiers are materially more expensive than a free public-candle check (the public catalogue lists monthly plans beginning in the hundreds of USD); CoinAPI Flat Files prices quote/BBO and order-book downloads by data volume, with tiered per-GiB charges. These are indicative public rates, not a quote for ASTRA's exact BingX symbols. Before any payment, verify the contract identifiers, requested date range, quote/depth fields, funding and mark series, file sizes and total cost. This PR does not create accounts, keys, trials, purchases or vendor requests.
+
+### Minimum useful analysis without a complete quote tape
+
+A limited *signal-quality / filter study* can be done from synchronized candles and the already captured signal/zone state, without pretending it is an execution backtest:
+
+- Apply one-event fan-out and report, per symbol and day, baseline signal count, B accept/reject reasons, C zone-veto reasons and each UNKNOWN category.
+- From the first fully closed 1m bar after the signal decision, measure price-path MFE/MAE over a predeclared horizon, and classify whether only target, only stop, both or neither were touched. Same-bar stop/target ambiguity stays UNKNOWN; candle extremes are not fills.
+- Keep entry execution, exit execution, funding cash, realized PnL, PF, wallet equity and drawdown as UNKNOWN wherever the required quote/size, funding or mark coverage is absent. Do not publish those as zero or infer fills from candle closes.
+- Report coverage separately: percentage of signals with valid candles, BBO/size, funding and marks. Do not compare variants on different data coverage without explicitly showing the difference.
+
+This reduced analysis can tell whether B and C remove signals and whether their remaining setups have different subsequent candle paths. It cannot establish which variant is more profitable, whether displayed liquidity would fill the order, or whether A matches the live bot. A proper profitability comparison requires the reconciled quote/depth, funding, mark and live-parity inputs above.
 
 ## Remaining blockers before any experiment
 
