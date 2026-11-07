@@ -1028,8 +1028,8 @@ class VirtualPortfolio:
                 "intent_id": intent_id,
                 "reason": reason,
                 "reference_price": reference,
-                "triggered_at_ms": bar.close_time_ms,
-                "after_ms": bar.close_time_ms,
+                "triggered_at_ms": bar.received_at_ms,
+                "after_ms": bar.received_at_ms,
                 "quantity_remaining": requested,
                 "tp_level_index": selected_tp_index,
             }
@@ -1041,7 +1041,7 @@ class VirtualPortfolio:
                     intent_id,
                     reason,
                     reference,
-                    bar.close_time_ms,
+                    bar.received_at_ms,
                     requested,
                     selected_tp_index,
                 )
