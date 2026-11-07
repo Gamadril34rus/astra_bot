@@ -18,7 +18,13 @@ One baseline generator selects at most one event per symbol:
 3. otherwise 1h multi-top/bottom;
 4. otherwise no event.
 
-A, B and C receive that exact same event. A variant can accept/reject it, but cannot change it. If channel LONG exists while a multi-top signal could also exist, the baseline is channel LONG and B records B_CHANNEL_SHORT_ONLY; B cannot run its own detector or substitute multi-top. A synthetic test covers this collision. The capture does not run fallback detectors after a channel signal, matching the actual live control flow.
+A, B and C receive that exact same event. Each produces one vote; neither it nor either consensus scenario may generate a replacement signal. Two additional independent virtual portfolios consume those same three decisions:
+
+- **2_OF_3:** opens only when at least two variants have an affirmative decision. If fewer than two are affirmative but UNKNOWN votes could still make two, the outcome is UNKNOWN and no position is opened. Otherwise it is rejected.
+- **3_OF_3:** opens only when all three variants affirm. A known rejection rejects the scenario; absent a known rejection, any UNKNOWN vote makes the outcome UNKNOWN and no position is opened.
+- Each of the five scenarios has separate virtual cash, positions, gates, fees, funding ledger, fills and metrics. A source event can open at most one position in each scenario, never three duplicate orders inside one scenario. This is a counterfactual portfolio comparison, not an exchange order fan-out.
+
+If channel LONG exists while a multi-top signal could also exist, the baseline is channel LONG and B records B_CHANNEL_SHORT_ONLY; B cannot run its own detector or substitute multi-top. The capture does not run fallback detectors after a channel signal, matching the actual live control flow. Synthetic tests cover the no-fallback collision, independent consensus portfolios, and UNKNOWN vote behavior.
 
 ## Zone veto
 
@@ -27,6 +33,7 @@ A, B and C receive that exact same event. A variant can accept/reject it, but ca
 - distance_pct = 100 * abs(boundary - price) / price.
 - <= 1.00% is OUTSIDE_NEAR; C blocks only that state.
 - IN_ZONE, EMPTY_ZONES, NO_OPPOSING_ZONE, OUTSIDE_FAR, UNKNOWN remain distinct.
+- A and B do not veto merely because the zone state is IN_ZONE, EMPTY_ZONES or NO_OPPOSING_ZONE. C only vetoes OUTSIDE_NEAR; when zone state is UNKNOWN, C returns UNKNOWN_C_ZONE_DATA and does not open a position. UNKNOWN is not treated as an empty zone or as an affirmative C vote.
 - Missing, future-dated or older-than-30-second snapshots are UNKNOWN. Zone centre and shadow min-distance are not used.
 
 ## Entry execution model
@@ -78,7 +85,7 @@ A is the closest *signal-source comparator* in this research harness, not a byte
 
 ## Virtual live-entry gates and their parity limits
 
-Each A/B/C portfolio independently applies the following counterfactual gates before new entries:
+Each of the five portfolios (A, B, C, 2_OF_3 and 3_OF_3) independently applies the following counterfactual gates before new entries. All start from separate virtual capital of 100,000 USDT by default; no portfolio shares cash or positions with another. The consensus portfolios receive the exact same source signal and use the pre-registered vote rules above.
 
 | Gate | Virtual rule | Live source / parity |
 |---|---|---|
@@ -99,7 +106,7 @@ The session gate is currently enabled in the virtual portfolios by default to te
 
 ## Offline replay and filesystem/network boundary
 
-scripts/zeus_shadow_replay.py replays an externally supplied JSONL event tape. Event types are signal, closed bar, funding, funding coverage and mark. It writes checkpoint state and output only to caller-specified paths outside the repository; event IDs and portfolio states survive restarts. It has no HTTP client, exchange client or public-data capture path.
+scripts/zeus_shadow_replay.py replays an externally supplied JSONL event tape. The replay state schema is version 3 and stores five independent portfolios (A/B/C/2_OF_3/3_OF_3); old A/B/C-only schema v2 checkpoints are rejected rather than silently fabricating consensus history. Event types are signal, closed bar, funding, funding coverage and mark. It writes checkpoint state and output only to caller-specified paths outside the repository; event IDs and portfolio states survive restarts. It has no HTTP client, exchange client or public-data capture path.
 
 deploy/shadow/compose.offline.yml defines an offline container profile:
 - network_mode: none — no external network interface/default route;
