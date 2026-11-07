@@ -65,26 +65,36 @@ async def capture_symbol(session,symbol):
     zone_bar=bars4[-2].open_time
     strat=ZeusChannelBoundaryStrategy(channel_config())
     sig=await strat.evaluate(symbol,bars4) # live scan_symbol uses forming 4h candle close
-    signals=[]
+    channel_candidate=None
     if sig is not None:
         side=str(getattr(getattr(sig,"direction",None),"value",getattr(sig,"direction",""))).lower()
-        signals.append({"signal_id":f"zeus_channel_boundary|{symbol}|{side}|{bars4[-1].open_time}",
+        channel_candidate={"signal_id":f"zeus_channel_boundary|{symbol}|{side}|{bars4[-1].open_time}",
             "symbol":symbol,"side":side,"strategy":"zeus_channel_boundary",
             "entry_reference":float(sig.entry_price),"stop_reference":float(sig.stop_loss),
             "target_reference":float(sig.take_profit) if sig.take_profit is not None else None,
-            "confidence":float(sig.confidence),"timeframe":"4h","formed_at_ms":bars4[-1].open_time})
-    else:
-        for tf,bars in (("4h",bars4),("1h",bars1)):
-            hi,lo,cl=series_from_candles(bars); br=detect_breakdown_from_ohlc(hi,lo,cl)
-            if br is not None:
-                signals.append({"signal_id":f"zeus_multi_top_breakdown|{symbol}|{br.side}|{bars[-1].open_time}",
-                    "symbol":symbol,"side":br.side,"strategy":"zeus_multi_top_breakdown",
-                    "entry_reference":br.entry,"stop_reference":br.stop,"target_reference":br.take_profit,
-                    "confidence":br.confidence,"timeframe":tf,"formed_at_ms":bars[-1].open_time})
-                break
+            "confidence":float(sig.confidence),"timeframe":"4h","formed_at_ms":bars4[-1].open_time}
+    multi_candidate=None
+    for tf,bars in (("4h",bars4),("1h",bars1)):
+        hi,lo,cl=series_from_candles(bars); br=detect_breakdown_from_ohlc(hi,lo,cl)
+        if br is not None:
+            multi_candidate={"signal_id":f"zeus_multi_top_breakdown|{symbol}|{br.side}|{bars[-1].open_time}",
+                "symbol":symbol,"side":br.side,"strategy":"zeus_multi_top_breakdown",
+                "entry_reference":br.entry,"stop_reference":br.stop,"target_reference":br.take_profit,
+                "confidence":br.confidence,"timeframe":tf,"formed_at_ms":bars[-1].open_time}
+            break
+    # Preserve all raw detector candidates first. Each strategy variant then
+    # applies its own live-path precedence before portfolio constraints.
+    candidates=[x for x in (channel_candidate,multi_candidate) if x is not None]
+    selected={
+        "A":[channel_candidate or multi_candidate] if (channel_candidate or multi_candidate) else [],
+        "B":[(channel_candidate if channel_candidate and channel_candidate["side"]=="short" else multi_candidate)]
+            if (channel_candidate and channel_candidate["side"]=="short") or multi_candidate else [],
+        "C":[channel_candidate or multi_candidate] if (channel_candidate or multi_candidate) else [],
+    }
+    selected={k:[x for x in v if x is not None] for k,v in selected.items()}
     from astra_bot.research.isolated_shadow import Signal as ShadowSignal, classify_zone, variant_decision
     annotated=[]
-    for raw_sig in signals:
+    for raw_sig in candidates:
         shadow_sig=ShadowSignal(signal_id=raw_sig["signal_id"],symbol=symbol,side=raw_sig["side"],
             strategy=raw_sig["strategy"],formed_at_ms=raw_sig["formed_at_ms"],
             market_received_at_ms=max(recv4,recv1),zone_received_at_ms=recv4,
@@ -101,12 +111,13 @@ async def capture_symbol(session,symbol):
                      "zone_state":zd.state.value,"boundary":zd.boundary,
                      "distance_pct":zd.distance_pct} for v in ("A","B","C")}
         annotated.append({**raw_sig,"variants":variants})
-    signals=annotated
+    by_id={x["signal_id"]:x for x in annotated}
+    selected={k:[by_id[x["signal_id"]] for x in v] for k,v in selected.items()}
     return {"symbol":symbol,"market_received_at_ms":max(recv4,recv1),
         "zone_received_at_ms":recv4,"decision_at_ms":now,"predecision_price":price,
         "price_source":"BingX public 4h forming-candle close (same price input as live scan)",
         "source_closed_bar_ms":zone_bar,"zone_source":"closed 4h candles via build_volume_zones",
-        "zones":zones,"signals":signals,"request_count":2,"server_date_headers":[date4,date1]}
+        "zones":zones,"candidate_signals":annotated,"variant_signals":selected,"request_count":2,"server_date_headers":[date4,date1]}
 
 async def run(args):
     if os.environ.get("BINGX_API_KEY") or os.environ.get("BINGX_API_SECRET"):
