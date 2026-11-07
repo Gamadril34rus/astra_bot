@@ -33,7 +33,7 @@ def signal(
         price_source="synthetic",
         entry_reference=100.0,
         stop_reference=98.0,
-        target_reference=104.0,
+        target_reference=96.0 if side == "short" else 104.0,
     )
 
 
