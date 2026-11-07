@@ -379,6 +379,7 @@ class VirtualPortfolio:
     risk_data_unknown: bool = False
     last_mark_timestamp_ms: int | None = None
     last_mark_equity: float | None = None
+    drawdown_observations: int = 0
 
     def __post_init__(self):
         self.equity_cash = float(self.initial_capital)
@@ -799,7 +800,19 @@ class VirtualPortfolio:
             "remaining_qty": position.remaining_qty if position_id in self.positions else 0.0,
         }
 
+    def _record_cash_equity_if_flat(self):
+        # Cash equity is a complete portfolio valuation only when no position
+        # remains open. With open exposure, require an explicit synchronized mark.
+        if self.positions:
+            return
+        self.drawdown_observations += 1
+        self.peak_equity = max(self.peak_equity, self.equity_cash)
+        if self.peak_equity > 0:
+            drawdown = (self.peak_equity - self.equity_cash) / self.peak_equity * 100
+            self.max_drawdown_pct = max(self.max_drawdown_pct, drawdown)
+
     def _after_close(self, position: VirtualPosition, ts_ms: int):
+        self._record_cash_equity_if_flat()
         self.risk_data_unknown = any(
             not closed.funding_complete or closed.funding_data_unknown
             for closed in self.closed
@@ -1090,6 +1103,7 @@ class VirtualPortfolio:
             self.max_drawdown_pct = max(self.max_drawdown_pct, drawdown)
         self.last_mark_timestamp_ms = timestamp_ms
         self.last_mark_equity = equity
+        self.drawdown_observations += 1
         return {"known": True, "equity": equity, "drawdown_pct": self.max_drawdown_pct}
 
     def metrics(
@@ -1193,8 +1207,11 @@ class VirtualPortfolio:
             "last_mark_timestamp_ms": self.last_mark_timestamp_ms,
             "max_drawdown_pct_marked": self.max_drawdown_pct,
             "drawdown_status": (
-                "UNKNOWN" if incomplete_closed or open_mark_unknown else "KNOWN"
+                "UNKNOWN"
+                if incomplete_closed or open_mark_unknown or self.drawdown_observations == 0
+                else "KNOWN"
             ),
+            "drawdown_observations": self.drawdown_observations,
             "virtual_halted": self.halted,
             "virtual_halt_reason": self.halt_reason,
             "heat_active": self.heat_active,
@@ -1253,6 +1270,7 @@ class VirtualPortfolio:
             "risk_data_unknown": self.risk_data_unknown,
             "last_mark_timestamp_ms": self.last_mark_timestamp_ms,
             "last_mark_equity": self.last_mark_equity,
+            "drawdown_observations": self.drawdown_observations,
         }
 
     @classmethod
@@ -1283,6 +1301,7 @@ class VirtualPortfolio:
         portfolio.risk_data_unknown = bool(state.get("risk_data_unknown", False))
         portfolio.last_mark_timestamp_ms = state.get("last_mark_timestamp_ms")
         portfolio.last_mark_equity = state.get("last_mark_equity")
+        portfolio.drawdown_observations = int(state.get("drawdown_observations", 0))
         return portfolio
 
 
