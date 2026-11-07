@@ -5,6 +5,12 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." && pwd -P)"
 : "${ASTRA_SHADOW_DATA:?Set ASTRA_SHADOW_DATA to a dedicated external directory}"
 
+MODE="replay"
+if [[ "${{1:-}}" == "--verify" ]]; then
+  MODE="verify"
+  shift
+fi
+
 DATA_DIR="$(realpath -m -- "${ASTRA_SHADOW_DATA}")"
 case "${DATA_DIR}" in
   "${REPO_ROOT}"|"${REPO_ROOT}/"*)
@@ -22,7 +28,7 @@ case "${DATA_DIR}" in
     ;;
 esac
 
-if [[ ! -f "${DATA_DIR}/events.jsonl" ]]; then
+if [[ "${MODE}" == "replay" && ! -f "${DATA_DIR}/events.jsonl" ]]; then
   echo "Missing external event tape: ${DATA_DIR}/events.jsonl" >&2
   exit 2
 fi
@@ -48,6 +54,10 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 export ASTRA_SHADOW_DATA="${DATA_DIR}"
-exec docker compose \
-  --file "${REPO_ROOT}/deploy/shadow/compose.offline.yml" \
-  run --rm --pull never shadow-replay "$@"
+COMPOSE=(docker compose --file "${REPO_ROOT}/deploy/shadow/compose.offline.yml")
+if [[ "${MODE}" == "verify" ]]; then
+  exec "${COMPOSE[@]}" run --rm --pull never --entrypoint python shadow-replay \
+    /workspace/scripts/verify_shadow_runtime.py "$@"
+fi
+
+exec "${COMPOSE[@]}" run --rm --pull never shadow-replay "$@"
