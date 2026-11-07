@@ -565,7 +565,7 @@ def test_heat_halves_risk_tier_and_virtual_halt_blocks_entries():
 
 
 def test_stop_touch_creates_intent_but_does_not_invent_fill():
-    portfolio, row, position = opened()
+    portfolio, row, position = opened(source=signal(side="long"))
     intents = portfolio.process_bar(bar())
     assert len(intents) == 1
     assert intents[0].reason == "STOP"
@@ -576,7 +576,7 @@ def test_stop_touch_creates_intent_but_does_not_invent_fill():
 
 
 def test_stop_gap_uses_adverse_bar_open_as_trigger_reference_then_next_quote():
-    portfolio, _, position = opened()
+    portfolio, _, position = opened(source=signal(side="long"))
     intents = portfolio.process_bar(
         bar(open_price=95.0, high=99.0, low=94.0, close=97.0)
     )
@@ -591,7 +591,7 @@ def test_stop_gap_uses_adverse_bar_open_as_trigger_reference_then_next_quote():
 
 
 def test_simultaneous_stop_and_tp_touch_is_resolved_stop_first():
-    portfolio, _, position = opened()
+    portfolio, _, position = opened(source=signal(side="long"))
     intents = portfolio.process_bar(
         bar(high=105.0, low=97.0, close=101.0)
     )
@@ -696,16 +696,26 @@ def test_mark_to_market_includes_open_position_and_tracks_drawdown():
     good = portfolio.mark_to_market({"BTC-USDT": 110.0}, timestamp_ms=2_000)
     assert good["known"]
     assert good["equity"] > portfolio.initial_capital
+    portfolio.set_funding_coverage(
+        position.position_id,
+        through_ms=2_500,
+        cumulative_cash_amount=0.0,
+        source_verified=True,
+    )
     bad = portfolio.mark_to_market({"BTC-USDT": 90.0}, timestamp_ms=2_500)
-    # Funding coverage expires at 2,000; no zero-funding assumption at 2,500.
-    assert not bad["known"]
-    assert bad["equity"] is None
+    assert bad["known"]
+    assert bad["equity"] < good["equity"]
     metrics = portfolio.metrics(
         {"BTC-USDT": 90.0},
         mark_timestamp_ms=2_500,
     )
-    assert metrics["mark_to_market_status"] == "UNKNOWN"
+    assert metrics["mark_to_market_status"] == "KNOWN"
     assert metrics["max_drawdown_pct_marked"] > 0
+    stale = portfolio.metrics(
+        {"BTC-USDT": 90.0},
+        mark_timestamp_ms=2_600,
+    )
+    assert stale["mark_to_market_status"] == "UNKNOWN"
 
 
 def test_repeated_signal_id_uses_distinct_attempt_and_position_ids():
