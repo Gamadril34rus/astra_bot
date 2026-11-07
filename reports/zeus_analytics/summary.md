@@ -1,38 +1,39 @@
 # ZEUS analytics
 
-Отчёт собран из текущего снимка структурированных файлов репозитория. Генератор scripts/zeus_analytics.py строит этот файл локально; исходные models/ и старые reports/ не меняются.
-Paper и live не объединяются. В live-файлах нет явного env/environment, поэтому все live exits остаются в UNKNOWN и не считаются VST.
-PF = сумма положительных pnl / абсолютная сумма отрицательных pnl. Fees показываются отдельно. Expectancy = средний pnl на сделку. Частичные paper legs объединены по id; R и fees суммируются по legs.
+Read-only отчёт из репозиторных JSON/JSONL. Генератор не меняет models/ или исходные reports/.
+Paper, явно маркированный VST, явно маркированный REAL и live UNKNOWN разделены. UNKNOWN не считается VST.
+PF = gross positive pnl / abs(gross negative pnl). Fees показаны отдельно, второй раз из pnl не вычитаются.
+Paper partial-close rows объединены по id; PnL, fees и R суммируются по legs в рамках одной сделки.
 
 ## 1. Стратегии
 
-| контур | стратегия | PF | winrate, % | средний R | expectancy, USDT | fees, USDT | период | источник | n сделок |
-| - | - | - | - | - | - | - | - | - | - |
-| paper | channel | 4.4473 | 55.79 | 0.8370 | 1.6606 | 74.6517 | 2026-09-21 — 2026-10-30 MSK | models/zeus_paper_trades.jsonl | 380 |
-| paper | wedge | 0.8161 | 40.74 | -0.0008 | -0.1481 | 10.0234 | 2026-09-22 — 2026-10-06 MSK | models/zeus_paper_trades.jsonl | 54 |
-| paper | multi-top | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_paper_trades.jsonl | нет данных |
-| VST | channel | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_live_trades.jsonl | нет данных |
-| VST | wedge | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_live_trades.jsonl | нет данных |
-| VST | multi-top | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_live_trades.jsonl | нет данных |
-| REAL | channel | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_live_trades.jsonl | нет данных |
-| REAL | wedge | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_live_trades.jsonl | нет данных |
-| REAL | multi-top | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_live_trades.jsonl | нет данных |
-| live / UNKNOWN | channel | 0.5147 | 23.91 | нет данных | -96.0245 | 4940.0863 | 2026-10-13 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 92 |
-| live / UNKNOWN | wedge | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_live_trades.jsonl | нет данных |
-| live / UNKNOWN | multi-top | 1.3029 | 35.29 | нет данных | 26.0940 | 584.1273 | 2026-10-31 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 17 (мало данных) |
+| контур | стратегия | PF | winrate, % | средний R | expectancy, USDT/сделка | fees, USDT | период MSK | источник | n сделок |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| paper | channel | 4.45 | 55.79 | 0.837 | 1.6606 | 74.6517 | 2026-09-21 — 2026-10-30 MSK | models/zeus_paper_trades.jsonl | 380 |
+| paper | wedge | 0.82 | 40.74 | -0.001 | -0.1481 | 10.0234 | 2026-09-22 — 2026-10-06 MSK | models/zeus_paper_trades.jsonl | 54 |
+| paper | multi-top | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_paper_trades.jsonl | 0 (нет данных) |
+| VST | channel | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_live_trades.jsonl | 0 (нет данных) |
+| VST | wedge | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_live_trades.jsonl | 0 (нет данных) |
+| VST | multi-top | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_live_trades.jsonl | 0 (нет данных) |
+| REAL | channel | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_live_trades.jsonl | 0 (нет данных) |
+| REAL | wedge | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_live_trades.jsonl | 0 (нет данных) |
+| REAL | multi-top | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_live_trades.jsonl | 0 (нет данных) |
+| live / UNKNOWN | channel | 0.53 | 23.23 | — | -93.9610 | 5266.4392 | 2026-10-13 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 99 |
+| live / UNKNOWN | wedge | нет данных | нет данных | нет данных | нет данных | нет данных | нет данных | models/zeus_live_trades.jsonl | 0 (нет данных) |
+| live / UNKNOWN | multi-top | 1.30 | 35.29 | — | 26.0940 | 584.1273 | 2026-10-30 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 17 (мало данных) |
 
-VST и REAL не имеют явно маркированных закрытий в доступных live rows; значения не угадываются по настройке workflow.
+Live environment определяется только по явному env/environment/contour/is_vst/is_real в строке. Отсутствие маркировки не восполняется значением workflow по умолчанию.
 
-## 2. Сессии
+## 2. Профили сессий
 
-Сессия берётся по времени открытия сделки, по той же таблице raw_bucket() из live_session.py, часовой пояс MSK. Детализация: профиль × будни/выходные × символ × направление.
+Час открытия сделки в MSK; profile вычисляет та же raw_bucket() из live_session.py. Разбивка: fat/normal/thin/off × будни/выходные × symbol × direction.
 
-### Paper — сводка
+### paper — summary
 
-| контур | профиль | день | n сделок | период | источник | n / статус |
-| - | - | - | - | - | - | - |
+| контур | профиль | день | n сделок | период MSK | источник | n / статус |
+| --- | --- | --- | --- | --- | --- | --- |
 | paper | fat | будни | 105 | 2026-09-21 — 2026-10-26 MSK | models/zeus_paper_trades.jsonl | 105 |
-| paper | fat | выходные | нет данных за период | нет данных | models/zeus_paper_trades.jsonl | нет данных |
+| paper | fat | выходные | нет данных за период | нет данных | models/zeus_paper_trades.jsonl | нет данных за период |
 | paper | normal | будни | 107 | 2026-09-21 — 2026-10-29 MSK | models/zeus_paper_trades.jsonl | 107 |
 | paper | normal | выходные | 31 | 2026-10-03 — 2026-10-24 MSK | models/zeus_paper_trades.jsonl | 31 |
 | paper | thin | будни | 43 | 2026-09-21 — 2026-10-30 MSK | models/zeus_paper_trades.jsonl | 43 |
@@ -40,10 +41,10 @@ VST и REAL не имеют явно маркированных закрытий
 | paper | off | будни | 22 | 2026-10-02 — 2026-10-26 MSK | models/zeus_paper_trades.jsonl | 22 |
 | paper | off | выходные | 94 | 2026-09-26 — 2026-10-24 MSK | models/zeus_paper_trades.jsonl | 94 |
 
-### Paper — символ × направление
+### paper — symbol × direction
 
-| контур | профиль | день | символ | направление | n сделок | период | источник | n / статус |
-| - | - | - | - | - | - | - | - | - |
+| контур | профиль | день | символ | направление | n сделок | период MSK | источник | n / статус |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | paper | fat | будни | 1000PEPE-USDT | long | 2 (мало данных) | 2026-10-05 — 2026-10-05 MSK | models/zeus_paper_trades.jsonl | 2 (мало данных) |
 | paper | fat | будни | 1000PEPE-USDT | short | 1 (мало данных) | 2026-09-30 — 2026-09-30 MSK | models/zeus_paper_trades.jsonl | 1 (мало данных) |
 | paper | fat | будни | AAVE-USDT | long | 2 (мало данных) | 2026-09-21 — 2026-10-05 MSK | models/zeus_paper_trades.jsonl | 2 (мало данных) |
@@ -221,23 +222,61 @@ VST и REAL не имеют явно маркированных закрытий
 | paper | thin | выходные | WLD-USDT | long | 6 (мало данных) | 2026-10-03 — 2026-10-03 MSK | models/zeus_paper_trades.jsonl | 6 (мало данных) |
 | paper | thin | выходные | XRP-USDT | short | 1 (мало данных) | 2026-09-27 — 2026-09-27 MSK | models/zeus_paper_trades.jsonl | 1 (мало данных) |
 
-### Live / UNKNOWN — сводка (не VST)
+### VST — summary
 
-| контур | профиль | день | n сделок | период | источник | n / статус |
-| - | - | - | - | - | - | - |
-| live / UNKNOWN | fat | будни | 61 | нет данных | models/zeus_live_trades.jsonl | 61 |
-| live / UNKNOWN | fat | выходные | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных |
-| live / UNKNOWN | normal | будни | 19 (мало данных) | нет данных | models/zeus_live_trades.jsonl | 19 (мало данных) |
-| live / UNKNOWN | normal | выходные | 7 (мало данных) | нет данных | models/zeus_live_trades.jsonl | 7 (мало данных) |
-| live / UNKNOWN | thin | будни | 7 (мало данных) | нет данных | models/zeus_live_trades.jsonl | 7 (мало данных) |
-| live / UNKNOWN | thin | выходные | 4 (мало данных) | нет данных | models/zeus_live_trades.jsonl | 4 (мало данных) |
-| live / UNKNOWN | off | будни | 11 (мало данных) | нет данных | models/zeus_live_trades.jsonl | 11 (мало данных) |
-| live / UNKNOWN | off | выходные | 7 (мало данных) | нет данных | models/zeus_live_trades.jsonl | 7 (мало данных) |
+| контур | профиль | день | n сделок | период MSK | источник | n / статус |
+| --- | --- | --- | --- | --- | --- | --- |
+| VST | fat | будни | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных за период |
+| VST | fat | выходные | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных за период |
+| VST | normal | будни | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных за период |
+| VST | normal | выходные | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных за период |
+| VST | thin | будни | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных за период |
+| VST | thin | выходные | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных за период |
+| VST | off | будни | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных за период |
+| VST | off | выходные | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных за период |
 
-### Live / UNKNOWN — символ × направление
+### VST — symbol × direction
 
-| контур | профиль | день | символ | направление | n сделок | период | источник | n / статус |
-| - | - | - | - | - | - | - | - | - |
+| контур | профиль | день | символ | направление | n сделок | период MSK | источник | n / статус |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| нет данных за период | — | — | — | — | — | — | — | — |
+
+### REAL — summary
+
+| контур | профиль | день | n сделок | период MSK | источник | n / статус |
+| --- | --- | --- | --- | --- | --- | --- |
+| REAL | fat | будни | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных за период |
+| REAL | fat | выходные | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных за период |
+| REAL | normal | будни | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных за период |
+| REAL | normal | выходные | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных за период |
+| REAL | thin | будни | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных за период |
+| REAL | thin | выходные | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных за период |
+| REAL | off | будни | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных за период |
+| REAL | off | выходные | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных за период |
+
+### REAL — symbol × direction
+
+| контур | профиль | день | символ | направление | n сделок | период MSK | источник | n / статус |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| нет данных за период | — | — | — | — | — | — | — | — |
+
+### live / UNKNOWN — summary
+
+| контур | профиль | день | n сделок | период MSK | источник | n / статус |
+| --- | --- | --- | --- | --- | --- | --- |
+| live / UNKNOWN | fat | будни | 73 | 2026-10-13 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 73 |
+| live / UNKNOWN | fat | выходные | нет данных за период | нет данных | models/zeus_live_trades.jsonl | нет данных за период |
+| live / UNKNOWN | normal | будни | 28 | 2026-10-13 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 28 |
+| live / UNKNOWN | normal | выходные | 2 (мало данных) | 2026-10-24 — 2026-10-31 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
+| live / UNKNOWN | thin | будни | 5 (мало данных) | 2026-10-13 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 5 (мало данных) |
+| live / UNKNOWN | thin | выходные | 5 (мало данных) | 2026-10-31 — 2026-11-01 MSK | models/zeus_live_trades.jsonl | 5 (мало данных) |
+| live / UNKNOWN | off | будни | 7 (мало данных) | 2026-10-13 — 2026-10-30 MSK | models/zeus_live_trades.jsonl | 7 (мало данных) |
+| live / UNKNOWN | off | выходные | 3 (мало данных) | 2026-10-31 — 2026-10-31 MSK | models/zeus_live_trades.jsonl | 3 (мало данных) |
+
+### live / UNKNOWN — symbol × direction
+
+| контур | профиль | день | символ | направление | n сделок | период MSK | источник | n / статус |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | live / UNKNOWN | fat | будни | 1000PEPE-USDT | long | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
 | live / UNKNOWN | fat | будни | AAVE-USDT | short | 2 (мало данных) | 2026-10-16 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
 | live / UNKNOWN | fat | будни | ADA-USDT | short | 3 (мало данных) | 2026-10-20 — 2026-10-29 MSK | models/zeus_live_trades.jsonl | 3 (мало данных) |
@@ -248,14 +287,15 @@ VST и REAL не имеют явно маркированных закрытий
 | live / UNKNOWN | fat | будни | AVAX-USDT | short | 4 (мало данных) | 2026-10-22 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 4 (мало данных) |
 | live / UNKNOWN | fat | будни | BCH-USDT | long | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
 | live / UNKNOWN | fat | будни | BCH-USDT | short | 1 (мало данных) | 2026-10-13 — 2026-10-13 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | fat | будни | BTC-USDT | long | 2 (мало данных) | 2026-11-05 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
 | live / UNKNOWN | fat | будни | BTC-USDT | short | 2 (мало данных) | 2026-10-29 — 2026-10-29 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
 | live / UNKNOWN | fat | будни | DOGE-USDT | short | 2 (мало данных) | 2026-10-20 — 2026-10-27 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
 | live / UNKNOWN | fat | будни | DOT-USDT | short | 2 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
-| live / UNKNOWN | fat | будни | ETH-USDT | long | 3 (мало данных) | 2026-11-02 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 3 (мало данных) |
+| live / UNKNOWN | fat | будни | ETH-USDT | long | 4 (мало данных) | 2026-11-02 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 4 (мало данных) |
 | live / UNKNOWN | fat | будни | ETH-USDT | short | 6 (мало данных) | 2026-10-13 — 2026-11-03 MSK | models/zeus_live_trades.jsonl | 6 (мало данных) |
 | live / UNKNOWN | fat | будни | FIL-USDT | short | 1 (мало данных) | 2026-10-28 — 2026-10-28 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
 | live / UNKNOWN | fat | будни | HYPE-USDT | long | 2 (мало данных) | 2026-10-28 — 2026-11-02 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
-| live / UNKNOWN | fat | будни | HYPE-USDT | short | 2 (мало данных) | 2026-11-02 — 2026-11-02 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
+| live / UNKNOWN | fat | будни | HYPE-USDT | short | 5 (мало данных) | 2026-11-02 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 5 (мало данных) |
 | live / UNKNOWN | fat | будни | INJ-USDT | long | 1 (мало данных) | 2026-10-16 — 2026-10-16 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
 | live / UNKNOWN | fat | будни | INJ-USDT | short | 2 (мало данных) | 2026-11-03 — 2026-11-03 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
 | live / UNKNOWN | fat | будни | LINK-USDT | short | 1 (мало данных) | 2026-10-20 — 2026-10-20 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
@@ -297,69 +337,93 @@ VST и REAL не имеют явно маркированных закрытий
 | live / UNKNOWN | off | выходные | BTC-USDT | short | 2 (мало данных) | 2026-10-31 — 2026-10-31 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
 | live / UNKNOWN | thin | будни | AVAX-USDT | long | 1 (мало данных) | 2026-10-13 — 2026-10-13 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
 | live / UNKNOWN | thin | будни | DOGE-USDT | short | 1 (мало данных) | 2026-10-13 — 2026-10-13 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
+| live / UNKNOWN | thin | будни | ETH-USDT | long | 1 (мало данных) | 2026-11-05 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
 | live / UNKNOWN | thin | будни | ETH-USDT | short | 1 (мало данных) | 2026-10-13 — 2026-10-13 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
 | live / UNKNOWN | thin | будни | HYPE-USDT | long | 1 (мало данных) | 2026-11-02 — 2026-11-02 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
 | live / UNKNOWN | thin | выходные | HYPE-USDT | long | 2 (мало данных) | 2026-11-01 — 2026-11-01 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
 | live / UNKNOWN | thin | выходные | INJ-USDT | short | 1 (мало данных) | 2026-11-01 — 2026-11-01 MSK | models/zeus_live_trades.jsonl | 1 (мало данных) |
 | live / UNKNOWN | thin | выходные | LTC-USDT | short | 2 (мало данных) | 2026-10-31 — 2026-10-31 MSK | models/zeus_live_trades.jsonl | 2 (мало данных) |
 
-### VST
-
-нет данных за период: ни одна доступная live exit row не содержит явного признака VST.
-
 ## 3. Volume-zone shadow
 
-| метрика | значение | период | источник | контур | связь / n сделок |
-| - | - | - | - | - | - |
-| approach observations | нет данных за период | нет данных | models/zeus_live_journal.jsonl | live (env не записан) | zone journal пуст |
-| zone_shadow ticks | нет данных за период | нет данных | models/zeus_live_journal.jsonl | live (env не записан) | zone journal пуст |
-| in-zone observations | нет данных за период | нет данных | models/zeus_live_journal.jsonl | live (env не записан) | zone journal пуст |
-| minimum observed distance, % | нет данных за период | нет данных | models/zeus_live_journal.jsonl | live (env не записан) | zone journal пуст |
-| zone summaries | нет данных за период | нет данных | models/zeus_live_journal.jsonl | live (env не записан) | zone journal пуст |
-| zone errors | нет данных за период | нет данных | models/zeus_live_journal.jsonl | live (env не записан) | zone journal пуст |
-| current approach-state snapshot (не исторический счётчик) | 9 зон; минимум 0.1159% | 2026-11-05 — 2026-11-05 MSK | models/zone_shadow_approach.json | live (env не записан) | snapshot без trade_id; не сделки |
+| метрика | значение | период MSK | источник | контур | связь / n сделок |
+| --- | --- | --- | --- | --- | --- |
+| approach observations | 4120 | 2026-11-02 — 2026-11-07 MSK | models/zeus_live_journal.jsonl | live (env не записан) | наблюдения, не сделки; trade_id отсутствует |
+| zone_shadow ticks | 4305 | 2026-11-02 — 2026-11-07 MSK | models/zeus_live_journal.jsonl | live (env не записан) | наблюдения, не сделки; trade_id отсутствует |
+| in-zone observations | 865 | 2026-11-02 — 2026-11-07 MSK | models/zeus_live_journal.jsonl | live (env не записан) | наблюдения, не сделки; trade_id отсутствует |
+| minimum observed distance, % | 0.0002 | 2026-11-02 — 2026-11-07 MSK | models/zeus_live_journal.jsonl | live (env не записан) | наблюдения, не сделки; trade_id отсутствует |
+| zone summaries | 140 | 2026-11-03 — 2026-11-07 MSK | models/zeus_live_journal.jsonl | live (env не записан) | наблюдения, не сделки; trade_id отсутствует |
+| zone errors | 0 | нет данных | models/zeus_live_journal.jsonl | live (env не записан) | наблюдения, не сделки; trade_id отсутствует |
+| current snapshot (not historical count) | 8 zones; min distance 0.1395 | 2026-11-07 — 2026-11-07 MSK | models/zone_shadow_approach.json | live (env не записан) | snapshot, не сделки; без trade_id |
 
-models/zeus_live_journal.jsonl пуст. Поэтому исторические подходы к зонам, in-zone наблюдения и tick events не могут быть посчитаны. zone_shadow_approach.json — только текущий snapshot: он не доказывает число подходов за историю и не имеет trade_id.
+
+Approach/in-zone — число наблюдений, не число сделок. Zone rows не содержат trade_id и environment.
 
 ## 4. Воронка сигналов
 
-| этап | значение | период | источник | контур | связь / n сделок |
-| - | - | - | - | - | - |
-| scan attempts | нет данных за период | нет данных | models/zeus_live_journal.jsonl | live (env не записан) | per-symbol scan events не пишутся |
-| pending_signal candidates | нет данных за период | нет данных | models/zeus_live_journal.jsonl | live (env не записан) | journal пуст |
-| arm_summary candidate count | нет данных за период | нет данных | models/zeus_live_journal.jsonl | live (env не записан) | journal пуст |
-| successful entry records | 114 | 2026-10-13 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | live (env не записан) | n entry events |
+| этап | значение | период MSK | источник | контур | связь / n сделок |
+| --- | --- | --- | --- | --- | --- |
+| scan attempts | нет данных за период | нет данных | models/zeus_live_journal.jsonl | live (env не записан) | по символам не журналируются |
+| pending_signal candidates | 22410 | 2026-10-14 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | не trade-level |
+| arm_summary candidate count | 21209 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | summed from arm_summary |
+| successful entry records | 119 | 2026-10-13 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | live (env не записан) | n entry events |
 | failed/rejected entry records | 14 | 2026-10-12 — 2026-10-19 MSK | models/zeus_live_entries.jsonl | live (env не записан) | n failure rows |
-| verified exit results | 116 | 2026-10-13 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | live (env не записан) | n exits with pnl |
+| verified exit results | 123 | 2026-10-13 — 2026-11-06 MSK | models/zeus_live_trades.jsonl | live (env не записан) | n exits with pnl |
 
-Отбраковки по причинам: нет данных за период, потому что arm_skip / arm_summary events должны находиться в zeus_live_journal.jsonl, а этот журнал сейчас пуст.
+### Отбраковки по причинам
+
+| причина | n | период MSK | источник | контур | связь / n сделок |
+| --- | --- | --- | --- | --- | --- |
+| conf | 8 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| cooldown | 0 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| entries_per_tick_limit | 0 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| equity_unknown | 0 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| filters | 0 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| htf_gate | 0 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| margin | 0 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| margin_M2 | 0 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| margin_M3 | 0 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| margin_M4 | 0 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| max_open | 1246 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| other | 3782 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| plan_unreconciled | 2 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| position_value_too_large | 113 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| retest_not_triggered | 0 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| same_side_guard | 35 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| side_cluster_full | 115 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| sized_qty_zero | 4 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| symbol_conflict | 834 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+| vol_cooldown | 0 | 2026-10-15 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | arm_summary aggregated skips |
+
+Candidate/skip funnel starts at persisted pending_signal and arm_summary events. Per-symbol raw scan attempts are not logged.
 
 ## 5. Здоровье live и COPY_ZEUS
 
-| показатель | значение | период | источник | контур | связь / n сделок |
-| - | - | - | - | - | - |
-| live tick batches | нет данных за период | нет данных | models/zeus_live_journal.jsonl | live (env не записан) | journal пуст; это не ноль тиков |
-| live tick interval | нет данных за период | нет данных | models/zeus_live_journal.jsonl | live (env не записан) | нет per-tick timestamps |
-| restore_tp_failed | 1160 | 2026-10-16 — 2026-10-23 MSK | models/zeus_live_trades.jsonl | live (env не записан) | protective-order diagnostics |
-| protect_place_failed | 3 | 2026-10-22 — 2026-10-22 MSK | models/zeus_live_trades.jsonl | live (env не записан) | protective-order diagnostics |
-| entry_failed / entry_rejected | 14 | 2026-10-12 — 2026-10-19 MSK | models/zeus_live_entries.jsonl | live (env не записан) | failed entry records |
-| qty_reconcile | 24 | 2026-10-24 — 2026-11-05 MSK | models/zeus_live_trades.jsonl | live (env не записан) | reconciliation events |
-| pending_verify | 3 | 2026-10-12 — 2026-10-28 MSK | models/zeus_live_trades.jsonl; models/zeus_live_entries.jsonl | live (env не записан) | unresolved verification |
-| 100410 occurrences in structured rows | 0 | нет данных: matches отсутствуют | models/zeus_live_trades.jsonl; models/zeus_live_entries.jsonl; models/zeus_live_journal.jsonl | UNKNOWN | 0 occurrences in inspected rows |
-| COPY_ZEUS archive ticks | нет данных за период | нет данных | reports/**/*.json[l] | COPY_ZEUS / REAL read-only | no structured archive report |
-| COPY_ZEUS 100410 errors | нет данных за период | нет данных | reports/**/*.json[l] | COPY_ZEUS / REAL read-only | no structured archive report |
+| показатель | значение | период MSK | источник | контур | связь / n сделок |
+| --- | --- | --- | --- | --- | --- |
+| observed live tick batches (inferred; group gap ≤120s) | 3060 | 2026-10-15 — 2026-11-07 MSK | models/zeus_live_journal.jsonl | live (env не записан) | не trade-level |
+| tick interval min / median / max, min | 2.10 / 5.14 / 3109.46 | 2026-10-15 — 2026-11-07 MSK | models/zeus_live_journal.jsonl | live (env не записан) | не trade-level |
+| journal errors | 123 | 2026-10-19 — 2026-11-05 MSK | models/zeus_live_journal.jsonl | live (env не записан) | не обязательно сделки |
+| restore_tp_failed / protect_place_failed | 1163 | 2026-10-16 — 2026-10-23 MSK | models/zeus_live_trades.jsonl | live (env не записан) | protective-order diagnostics; не сделки |
+| entry_failed / entry_rejected | 14 | 2026-10-12 — 2026-10-19 MSK | models/zeus_live_entries.jsonl | live (env не записан) | n failed entry records |
+| reconciliation / ghost / pending_verify events | 52 | 2026-10-12 — 2026-11-05 MSK | models/zeus_live_journal.jsonl; models/zeus_live_trades.jsonl; models/zeus_live_entries.jsonl | live (env не записан) | qty_reconcile + pending_verify; не обязательно сделки |
+| 100410 occurrences in readable structured rows | 5 | 2026-10-27 — 2026-10-27 MSK | models/zeus_live_journal.jsonl | контур по источнику/метке; иначе UNKNOWN | не обязательно сделки |
+| COPY_ZEUS archive ticks | нет данных за период | нет данных | reports/ structured files | COPY_ZEUS / REAL read-only | не сделки |
+| COPY_ZEUS errors / 100410 | нет данных за период | нет данных | reports/ structured files | COPY_ZEUS / REAL read-only | не сделки |
 
-Интервалы между live ticks нельзя вывести из trade events: они не являются журналом каждого workflow run. Archive ticks нельзя вывести из зашифрованного Actions artifact без отдельного структурированного report JSON/JSONL.
+нет данных за период по COPY_ZEUS: encrypted Actions artifacts и console logs не входят в доступные models/reports JSON/JSONL.
 
 ## Ограничения выборки
 
-- Paper: 434 уникальных id из 457 строк/legs; период 2026-09-21 — 2026-10-30 MSK; source models/zeus_paper_trades.jsonl.
-- Live: 116 закрытых exits с pnl; период 2026-10-13 — 2026-11-05 MSK; env=UNKNOWN для всех 116; source models/zeus_live_trades.jsonl.
-- Live entry events: 114; failed/rejected rows: 14; pending_verify: 3.
-- Zone snapshot: 5 symbols, 9 zones, minimum stored distance 0.1159%; source models/zone_shadow_approach.json.
-- Отсутствие journal events означает «нет данных», а не ноль тиков или сигналов.
-- COPY_ZEUS: зашифрованные artifacts и workflow console logs не являются входами этого read-only генератора.
+- Paper: 434 unique ids from 457 rows/legs; source models/zeus_paper_trades.jsonl; это paper, не VST.
+- Live exits: 123 rows with pnl and without pending_verify. VST=0, REAL=0, UNKNOWN=123; source models/zeus_live_trades.jsonl.
+- Pending verify exits excluded from metrics: 2.
+- Environment metadata отсутствует в части live rows; такие записи не классифицируются как VST.
+- Zone events are observation-level and have no trade_id. Current approach-state JSON is shown only as a snapshot.
+- Tick batches are inferred from journal timestamps and are not exact GitHub Actions run counts.
+- COPY_ZEUS encrypted artifact is not read/decrypted by this script. Only structured reports JSON/JSONL can contribute archive telemetry.
+- Malformed lines skipped: paper=0, live_trades=0, live_entries=0, live_journal=0.
 
-## Воспроизводимость
+## Reproducibility
 
-Скрипт не использует сеть, API, Secrets, текущее время или workflows. Один и тот же снимок входных файлов даёт одинаковый summary.md. Все значения выше привязаны к указанным файлам и периоду; при следующем ручном запуске отчёт пересобирается.
+Same inputs produce identical summary.md. No network, API, Secrets, current clock, workflow, trading code or state writes.
