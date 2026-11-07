@@ -1,67 +1,113 @@
-# Isolated ZEUS shadow — protocol v2 (not enabled)
+# Isolated ZEUS shadow — replay protocol v3 (not enabled)
 
-## Owner-authorized scope
+## Scope and frozen source stream
 
-- **A — baseline:** the actual `live_arm_feed.scan_symbol` path: evaluate the 4h `paper_channel_config()` channel strategy first; only if it returns no signal, evaluate multi-top/bottom on 4h; only if that is also silent, fetch/evaluate 1h multi-top/bottom.
-- **B — Grok candidate:** receives the exact same single selected baseline event as A and C. BTC/ETH/SOL/HYPE only; reject a channel LONG; accept channel SHORT and either direction from the multi-top/bottom fallback. B does not re-run detectors or promote another candidate after rejecting a channel LONG.
-- **C — baseline plus opposing-zone veto:** receives the same baseline event as A; blocks only OUTSIDE_NEAR (distance <= 1.00%).
+This is a research-only implementation on a dedicated branch. It is not merged, not scheduled, and has not collected public market data.
 
-The capture freezes the actual `live_arm_feed.paper_channel_config()` values from the base revision. This function name is historical; it is the active channel configuration used by `scan_symbol`. It is not `scripts/zeus_research_wrap.py:channel_capital_config()`, and it is not the separate paper wedge/channel experiment. The capture preserves the live feed's forming 4h candle close as the channel strategy's price input.
+- **A:** live live_arm_feed.scan_symbol channel strategy and fallback precedence.
+- **B:** BTC/ETH/SOL/HYPE only; accept channel SHORT, reject channel LONG, accept multi-top/bottom fallback either side.
+- **C:** same baseline stream as A; reject only when the nearest opposing zone **boundary** is within 1.00%, inclusive.
 
-## One-event fan-out (critical invariant)
+live_arm_feed.scan_symbol and paper_channel_config() were inspected at the PR base. Despite the historical function name, paper_channel_config() is the active channel configuration passed by _channel_strategy() to the live arm feed. It is not scripts/zeus_research_wrap.py:channel_capital_config() and not the separate wedge experiment. The capture freezes these settings: enabled, lookback 48, width 0.01–0.12, parallel clone / tolerance 0.25, min RR 2.0, breakout hold and retest, hold 2–5 bars, min stop 1%, HTF bias, TP parameters 1.5/2.0 and fractions 0.4/0.6. The channel evaluator receives the current 4h candle series including its forming last bar, as the live feed does.
 
-For each symbol snapshot, exactly one baseline generator selects at most one event:
+## One-event fan-out — non-negotiable
 
-1. channel signal, if present;
-2. otherwise 4h multi-top/bottom signal, if present;
-3. otherwise 1h multi-top/bottom signal, if present;
+One baseline generator selects at most one event per symbol:
+1. channel signal if present;
+2. otherwise 4h multi-top/bottom;
+3. otherwise 1h multi-top/bottom;
 4. otherwise no event.
 
-That selected event is copied unchanged to A, B and C. Variant filtering occurs only after selection. In particular, if the selected event is channel LONG and a multi-top/bottom candidate could also have been detected, B records `B_CHANNEL_SHORT_ONLY` and skips the event. It must not take the competing multi-top candidate. A synthetic test asserts this exact collision case.
+A, B and C receive that exact same event. A variant can accept/reject it, but cannot change it. If channel LONG exists while a multi-top signal could also exist, the baseline is channel LONG and B records B_CHANNEL_SHORT_ONLY; B cannot run its own detector or substitute multi-top. A synthetic test covers this collision. The capture does not run fallback detectors after a channel signal, matching the actual live control flow.
 
-The capture output retains detector fallback candidates as diagnostic fields only when fallback evaluation was reached. A channel event prevents multi-top detector evaluation, matching the actual live control flow.
+## Zone veto
 
-## Isolation boundary
+- LONG: lower boundary of the nearest zone wholly above predecision price.
+- SHORT: upper boundary of the nearest zone wholly below predecision price.
+- distance_pct = 100 * abs(boundary - price) / price.
+- <= 1.00% is OUTSIDE_NEAR; C blocks only that state.
+- IN_ZONE, EMPTY_ZONES, NO_OPPOSING_ZONE, OUTSIDE_FAR, UNKNOWN remain distinct.
+- Missing, future-dated or older-than-30-second snapshots are UNKNOWN. Zone centre and shadow min-distance are not used.
 
-The pure accounting/classification module `astra_bot/research/isolated_shadow.py` imports no broker, exchange adapter, live wiring, order API, working queue, or project state path. `scripts/zeus_shadow_capture.py` is an explicit one-shot CLI. It imports only the Candle model, pure channel/multi-top detectors and pure volume-zone builder. It uses aiohttp direct GET calls to public BingX swap quote endpoints:
-- `/openApi/swap/v3/quote/klines`
-- No private endpoint or authenticated client is instantiated.
-- No key/secret is accepted; the CLI refuses to run if `BINGX_API_KEY` or `BINGX_API_SECRET` exists in its environment.
-- No loop, scheduler, workflow, cron, broker, POST, DELETE, or working-queue access exists.
-- Output path is mandatory and rejected if inside this checkout. Use an external path.
+## Entry execution model
 
-This is a software-level isolation contract, not an OS sandbox. Before a deployment, use a dedicated unprivileged OS user/container, read-only repository mount, write access only to the external data directory, outbound allowlist limited to public quote endpoints, and network policy denying authenticated/private exchange endpoints. No workflow or cron is connected in this PR.
+The replay never fills at the signal reference price. It chooses the first quote whose exchange timestamp is strictly later than signal decision time. It refuses the first quote if timestamp/receive-time consistency is invalid or delivery lag exceeds 30 seconds; it does not skip a bad first quote to cherry-pick a later one. The current maximum wait for an entry quote is 45 minutes; no eligible quote yields UNKNOWN and no fill.
 
-## Signal source and causality
+For a market-style entry it uses the executable side of the quote: ask for LONG, bid for SHORT. It requires displayed size on that side. Requested size is capped by the quote's displayed top-of-book quantity; a smaller amount becomes an explicit partial entry. Missing price or size is UNKNOWN, never zero. The quote timestamp, receive timestamp, quote ID, price, quantity and fee are retained in the event/fill ledger.
 
-The live channel path evaluates the last 4h candle (which may be forming). The multi fallback also evaluates the 4h series first and fetches 1h only when 4h has no candidate. The capture records receive timestamps immediately after each HTTP response and records the 4h forming-candle close used as the predecision price. The zone builder treats the final candle as forming and excludes it; source closed-bar timestamp is the open timestamp of candle[-2].
+This is an observable-quote replay model, not a guarantee that the full displayed quantity would be filled by BingX at that exact price. It uses only best bid/ask and displayed top-level quantity; it does not replay full order-book depth, market impact, order latency after observation, matching priority or exchange-specific market-order slippage.
 
-The capture fetches both timeframes in its one-shot snapshot (two public GETs per symbol), so its transport schedule is not identical to the live feed's conditional 1h fetch. The detector precedence and candle inputs are preserved, but receive-time simultaneity is not. HTTP Date header parsing / server-clock skew is not yet a strict consistency gate. Any snapshot not provably fresh at decision time must be UNKNOWN; a synchronized public market-data adapter is still required before a valid run.
+## Stop/TP and exit execution model
 
-## Zone semantics
+A fully closed OHLC bar may create an exit intent; an OHLC touch itself is **not** an execution fill. The exit is filled only from the first later executable-side quote with available displayed quantity.
 
-For LONG, choose the lower boundary of the nearest zone wholly above price. For SHORT, choose the upper boundary of the nearest zone wholly below price. Distance = 100 * abs(boundary - predecision_price) / predecision_price. Exactly 1.00% is OUTSIDE_NEAR. IN_ZONE, EMPTY_ZONES, NO_OPPOSING_ZONE and UNKNOWN remain distinct and are not blocked by C. No centre distance or accumulated minimum distance is used.
+- Stop gap: if a bar opens beyond the stop, the bar open is recorded as adverse trigger reference. The actual exit price is still the later executable quote, not the bar open.
+- Intrabar stop touch: an intent is created at stop reference; next-quote execution determines the fill.
+- Stop and TP both touched in the same OHLC bar: stop-first conservative resolution. The bar cannot reveal touch order, so this is a registered adverse assumption, not discovered market truth.
+- TP gap: a gap through a resting TP limit establishes the TP as the first trigger. The later quote must still be marketable against the limit (LONG exit bid >= TP; SHORT exit ask <= TP); otherwise no fill is recorded and the pending TP waits for a later quote.
+- Partial exits use independent fill IDs linked to one position. Filled quantity is accumulated per TP level; retries are idempotent by event ID. Multiple partial fills aggregate into one closed position for trade-level R/PF.
 
-## Event replay and portfolio status
+The default virtual arm TP1 follows the live session profile and represents 30% of initial quantity. The remaining 70% runner is not modeled with the full live exit plan yet. Synthetic fixtures can provide explicit TP levels to test schedule mechanics. A bar spanning the entry timestamp is skipped completely to avoid using pre-entry extremes.
 
-`ShadowReplay` now fans one immutable signal event into three independent `VirtualPortfolio` instances. Each portfolio owns its capital, positions, attempts, fills, closed positions, exposure limits and MAX_OPEN. A B rejection is recorded as a rejected attempt; it does not change the signal event or create a replacement signal. The replay accepts explicit entry execution prices and explicit exit/funding events only; missing entry execution price records `UNKNOWN_EXECUTION_PRICE` and creates no fill. State export/import preserves open/closed positions, fills, attempts and seen event IDs for restart/idempotency tests.
+The replay currently models the static initial stop, session-profile TP1, and 48-hour max-hold trigger. It does **not** yet reproduce the full live exit engine: D1 structural tightening, BE, ATR trailing, MAE_CUT, regime exit, VOL_EXPANSION, ratchet/pct stop-pull policy, stop modifications and actual exchange trigger-order lifecycle. Those omissions can materially change exits and PnL.
 
-The accounting primitive uses provisional defaults: initial capital 100,000; risk fraction 1%; MAX_OPEN 5; gross exposure cap 30%; max notional 6x; taker fee 0.05% per side; slippage 5 bps per side. These are simulation defaults, not a verified full live configuration. 5 bps slippage is uncalibrated. R remains UNKNOWN. PF is computed from closed-position net PnL with a per-position contributor list; partial exits aggregate into one closed position and are not counted as separate trades.
+## Costs, funding and unknowns
 
-**This is not yet a complete market-candle replay or execution simulator.** The capture does not automatically turn subsequent candles into next-available fills/exits, and the event replay does not infer execution from OHLC. It does not model stop/TP collision resolution, gaps, partial-fill rules, candle-by-candle stop management, funding-rate schedule ingestion, daily/weekly loss gates, session arm windows, cooldown, side-cluster caps, INJ slot reserve, heat governor, confidence/leverage ladder, instrument filters, or the full live exit-engine. It therefore cannot produce valid strategy performance/PF/R conclusions from captured candles. It is an explicit event-accounting harness awaiting a separately specified and validated execution-event generator.
+- Configured fee: 0.05% taker on entry and every exit fill. This matches the documented default BingX perpetual taker rate in the repository's adapter/cost model, but is still a configured model; maker fills, fee tiers, discounts, fee asset conversion and exact realized exchange commission are not sourced from a fill tape here.
+- No artificial 5 bps slippage is added on top of bid/ask. Quote spread is reflected by using bid or ask. Market impact beyond displayed best-level size is unknown.
+- Funding is supplied only as explicit signed cash events or a source-verified cumulative funding reconciliation covering the whole position lifecycle. Missing rate/amount/coverage leaves the position incomplete; incomplete closed positions are excluded from completed-position PF/R, make PF completeness false and mark-to-market UNKNOWN. There is no auto fetch of funding-rate history in this PR.
+- Funding reconciliation is not proof by itself: before a run, source records, settlement windows and BingX position identifiers must be reconciled and reviewed.
+- Net R per position = net realized PnL / original cash risk at entry. Partial exits do not change the initial denominator.
+- Closed-position PF uses complete lifecycle net PnL once per position, not partial fills as separate trades. Mark-to-market PF includes complete closed positions plus open positions at explicit marks and estimated taker exit fee; it is UNKNOWN if any open mark or funding coverage is missing.
+- Marked drawdown uses explicit synchronized mark events and peak marked equity. If marks/funding are not current, drawdown status is UNKNOWN rather than carried forward as a current result.
 
-The live canon in SETTINGS.md includes additional live limits and gates. Exact parity for all of those remains unimplemented and must not be inferred from the current provisional portfolio defaults. The generic project risk values in config/settings.yaml are not substitutes for Zeus live values.
+## Virtual live-entry gates and their parity limits
 
-## Fees, slippage, funding
+Each A/B/C portfolio independently applies the following counterfactual gates before new entries:
 
-The provisional engine assumes taker fees on entry and exit. 5 bps slippage each side is an explicit uncalibrated research assumption. Funding can be supplied as explicit cash events on exit but is not accrued from exchange funding-rate history. Historical funding rates and settlement timestamps must be ingested before any valid net-PnL comparison. Ambiguous stop/TP hits and gaps must be handled pessimistically or marked UNKNOWN, never selected for favorable PnL.
+| Gate | Virtual rule | Live source / parity |
+|---|---|---|
+| MAX_OPEN | 5 open positions | Matches live_arm.py |
+| Session | MSK weekday/weekend fat/normal/thin/off schedule; off blocks new entries | Hours and BE/TP1 presets copied from live_session.py; env force/lock overrides not modeled |
+| Cooldown | 20 minutes per strategy/symbol/side | Matches live_arm.py constant |
+| Same-side cap | Block when 4 positions already have same side | Matches hard cluster max 4; not a model of every exchange-side UPNL detail |
+| Same symbol | One open position per symbol | Matches live arm conflict guard intent |
+| INJ reserve | Block INJ when pre-entry open count > 3 at MAX_OPEN=5 / reserve=2 | Matches inj_slot_blocks |
+| Risk ladder | confidence >= .88: 3%; >= .80: 2%; >= .70: 1.5%; otherwise 1% | Matches conf_risk_pct / live_arm.py defaults |
+| Heat | After 3 complete consecutive losing positions, halve next risk tier until UTC day roll or a complete win | Threshold/day behavior from zeus_heat.py; live caller applies tier ×0.5 |
+| Daily / weekly loss | 4% / 6% of virtual cash equity using modeled cash flows | Thresholds match live_risk.py; treatment of null/missing PnL, resets and live-wallet equity differ |
+| Virtual HALT | n >= 5 complete closed positions, PF < 1 over last 20 complete positions | Threshold/window match; live uses kill epoch/window and can count partial_fill rows separately and skip scratched exits. Virtual position-level accounting is intentionally different |
+| Leverage / notional | 6x notional cap; 50,000 USDT per-position value default | 6x is the documented workflow forced leverage; 50K is live_arm_wiring.max_position_value_usdt() default. Runtime env override is unknown and is not imported |
+| Instrument quantity filters | Not yet modeled | Live resolves step size and quantizes quantity; minimum quantity/notional, precision and exchange-specific rules remain a blocker |
 
-## Request budget and future protocol
+The virtual cash model is not the live broker's wallet/margin ledger. It does not reproduce maintenance margin, liquidation, margin mode, funding settlement collateral, cross-position correlation exposure, or every error/reconciliation gate. Daily/weekly accounting does not emulate live null-PnL imputation and manual reset/epoch files. These must not be described as exact live parity.
 
-Current one-shot capture budget is 10 public GET calls per invocation (2 per symbol), no retries and no daemon. This is not a global exchange quota guarantee: repeated manual invocations could exceed an account/IP-wide limit. Before any future run, separately establish BingX limits and other bot/archive traffic, add a shared global token bucket and egress restriction, and obtain owner approval. No public market data has been captured by PR preparation.
+## Offline replay and filesystem/network boundary
 
-The intended experiment is 30 calendar days, at least 50 closed positions in every variant; otherwise report insufficient data and do not extend automatically. Historical replay is not independent OOS. Freeze code, config, costs, timing, and execution rules before the start. No mid-run tuning.
+scripts/zeus_shadow_replay.py replays an externally supplied JSONL event tape. Event types are signal, closed bar, funding, funding coverage and mark. It writes checkpoint state and output only to caller-specified paths outside the repository; event IDs and portfolio states survive restarts. It has no HTTP client, exchange client or public-data capture path.
+
+deploy/shadow/compose.offline.yml defines an offline container profile:
+- network_mode: none — no external network interface/default route;
+- repository mounted read-only at /workspace;
+- root filesystem read-only; only caller-supplied external data directory mounted writable at /data;
+- UID/GID 65532, all capabilities dropped, no-new-privileges, PID/memory/CPU limits and small noexec/nosuid/nodev /tmp;
+- no secret, Docker socket, host PID/network or trading-key mounts.
+
+scripts/verify_shadow_runtime.py checks the effective running process, mounts, capabilities, NoNewPrivs, non-loopback interfaces/default route, and proves repo writes fail while /data writes succeed. **This runtime verifier has not been executed in a real Docker container in the current development environment** (Docker CLI/runtime is unavailable here). Therefore evidence so far is code/configuration-level, not a runtime attestation. It cannot prove a hostile/compromised host or Docker daemon, nor prevent an administrator from overriding the profile. The actual host must run the verifier and retain its output before an experiment.
+
+The separate zeus_shadow_capture.py remains a manual one-shot public candle capture script, not part of the offline profile. It makes 10 public candle GETs per invocation and has not been run. It does not capture execution quotes or funding events and cannot by itself supply a valid replay tape. The global BingX request budget shared with the working bot and archive is not proven; no capture network profile, scheduler, workflow or cron is connected.
+
+## Remaining blockers before any experiment
+
+1. A reviewed public quote-tape source with timestamp/receive-time synchronisation, displayed sizes and a proven request budget shared with all BingX traffic.
+2. Verified funding-rate/settlement history and reconciled per-position funding coverage.
+3. Full live exit-engine replay, including stop adjustments, runner handling, forced exits and exchange protective-order behavior, or an explicit owner-approved simplification protocol.
+4. Instrument filters, margin/liquidation, actual live risk equity and exact reset/epoch/partial-PF semantics.
+5. Successful current CI, plus runtime execution of the isolation verifier on the intended host and retained attestation.
+6. Separate explicit owner permission to begin the 30-calendar-day experiment. Minimum 50 fully closed positions per variant; otherwise report insufficient sample and do not extend automatically.
+
+No public candle collection, replay experiment, live order, or merge has been performed by this PR work. The intended 30-day / 50 closed-position rule is only a future protocol, not a start date or guarantee.
 
 ## Tests
 
-Synthetic tests cover LONG/SHORT boundary direction, exactly 1%, >1%, distinct zone states, stale/future snapshots, B universe/direction rules, the simultaneous channel-LONG plus multi-top collision, shared A/B/C event identity, 4h-before-1h fallback, independent portfolio capital/MAX_OPEN, repeated signal IDs, partial-close idempotency, PF contributors, state export/import and refusal to fabricate fills without an execution price. Static checks assert no POST/DELETE, no live wiring and no working state paths. These tests validate software primitives only; they do not establish full runtime isolation, exchange request-budget safety or execution fidelity.
+Synthetic tests cover one-event A/B/C fan-out and B's no-fallback rule; boundary direction and 1% threshold; zone freshness/UNKNOWN; quote selection after signal; bid/ask side and missing size; session/cooldown/MAX_OPEN/side/INJ/heat/day-week/virtual-HALT gates; stop gaps, simultaneous stop/TP touch, TP limit marketability and partial fills; missing/reconciled funding; fees, initial-risk R, closed/open PF and marked drawdown; restart/idempotency; no fabricated fills; and static sandbox configuration. They prove these synthetic software rules only — not exchange fills, global request quota or actual host isolation.
