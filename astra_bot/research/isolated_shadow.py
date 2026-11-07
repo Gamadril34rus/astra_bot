@@ -256,17 +256,37 @@ class VirtualPortfolio:
         slip = self.slippage_bps / 10_000
         fill_price = price * (1 + slip if signal.side == "long" else 1 - slip)
         risk_distance = abs(fill_price - signal.stop_reference)
-        if risk_distance <= 0:
+        invalid_stop = (
+            signal.side == "long" and signal.stop_reference >= fill_price
+        ) or (
+            signal.side == "short" and signal.stop_reference <= fill_price
+        )
+        invalid_target = (
+            signal.target_reference is not None
+            and (
+                (signal.side == "long" and signal.target_reference <= fill_price)
+                or (signal.side == "short" and signal.target_reference >= fill_price)
+            )
+        )
+        if risk_distance <= 0 or invalid_stop or invalid_target:
             row.update(accepted_by_variant=False, reason="INVALID_INITIAL_RISK")
             self.attempts.append(row)
             return row
         equity = self.equity()
         risk_cash = equity * self.risk_fraction
         quantity = risk_cash / risk_distance
+        gross_exposure = sum(
+            position.remaining_qty * position.entry_price
+            for position in self.positions.values()
+        )
+        exposure_room = max(
+            0.0, equity * self.max_exposure_fraction - gross_exposure
+        )
+        leverage_room = max(0.0, equity * self.max_leverage - gross_exposure)
         quantity = min(
             quantity,
-            equity * self.max_exposure_fraction / fill_price,
-            equity * self.max_leverage / fill_price,
+            exposure_room / fill_price,
+            leverage_room / fill_price,
         )
         if quantity <= 0:
             row.update(accepted_by_variant=False, reason="ZERO_SIZE")
