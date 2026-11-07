@@ -89,8 +89,8 @@ def parse_candles(raw, symbol, timeframe):
 
 
 def channel_config():
-    # Exact frozen copy of live_arm_feed.paper_channel_config() at base SHA e2cd5d1.
-    # This is the active live arm-feed channel config, not research_wrap.channel_capital_config().
+    # Frozen copy of live_arm_feed.paper_channel_config() from source blob b57d27cf.
+    # It is the active arm-feed channel config, not research_wrap.channel_capital_config().
     from astra_bot.strategies.zeus_channel_boundary import ZeusChannelBoundaryConfig
 
     return ZeusChannelBoundaryConfig(
