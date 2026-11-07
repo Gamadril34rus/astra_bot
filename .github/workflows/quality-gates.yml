@@ -54,13 +54,13 @@ jobs:
             echo "Нет базовой ревизии — ruff пропущен"
             exit 0
           fi
-          CHANGED=$(git diff --name-only "${BASE}" -- \
-            'astra_bot/**/*.py' 'tests/**/*.py' 'scripts/**/*.py' || true)
-          if [ -z "${CHANGED}" ]; then
+          # Unanchored *.py includes root-level scripts and nested Python files.
+          mapfile -d '' -t CHANGED < <(git diff --name-only -z "${BASE}" -- '*.py' || true)
+          if [ "${#CHANGED[@]}" -eq 0 ]; then
             echo "Python-файлы не изменились — ruff пропущен"
           else
-            echo "${CHANGED}"
-            echo "${CHANGED}" | xargs -d '\n' python -m ruff check
+            printf '%s\n' "${CHANGED[@]}"
+            python -m ruff check --config pyproject.toml "${CHANGED[@]}"
           fi
 
       - name: Import smoke (стеки импортируются)
