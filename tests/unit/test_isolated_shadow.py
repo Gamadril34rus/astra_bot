@@ -1,6 +1,5 @@
-from datetime import datetime
-
 import pytest
+from datetime import datetime, timedelta, timezone
 
 from astra_bot.research.isolated_shadow import (
     ExecutionQuote,
@@ -17,7 +16,7 @@ from astra_bot.research.isolated_shadow import (
 )
 
 
-MSK = __import__("datetime").timezone(__import__("datetime").timedelta(hours=3))
+MSK = timezone(timedelta(hours=3))
 
 
 def signal(
@@ -384,7 +383,7 @@ def test_session_gate_blocks_new_entries_but_does_not_touch_open_positions():
 
 
 def test_cooldown_blocks_same_strategy_symbol_side_after_close():
-    portfolio, row, position = opened()
+    portfolio, _row, position = opened()
     portfolio.set_funding_coverage(
         position.position_id,
         through_ms=2_000,
@@ -565,7 +564,7 @@ def test_heat_halves_risk_tier_and_virtual_halt_blocks_entries():
 
 
 def test_stop_touch_creates_intent_but_does_not_invent_fill():
-    portfolio, row, position = opened(source=signal(side="long"))
+    portfolio, _row, position = opened(source=signal(side="long"))
     intents = portfolio.process_bar(bar())
     assert len(intents) == 1
     assert intents[0].reason == "STOP"
@@ -607,7 +606,7 @@ def test_take_profit_partial_execution_resumes_without_double_count():
         ]
     }
     source = signal(side="long", metadata=schedule)
-    portfolio, row, position = opened(source=source)
+    portfolio, _row, position = opened(source=source)
     intents = portfolio.process_bar(
         bar(high=103.0, low=99.0, close=102.5)
     )
