@@ -5,8 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 import math
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,9 +48,7 @@ def external_path(raw: str, label: str) -> Path:
 def save_replay(path: Path, replay: ShadowReplay) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
-    if temporary.is_symlink():
-        temporary.unlink()
-    elif temporary.exists():
+    if temporary.is_symlink() or temporary.exists():
         temporary.unlink()
     with temporary.open("x", encoding="utf-8") as handle:
         json.dump(
@@ -168,9 +166,7 @@ def main() -> None:
     # A crash between replacements is recoverable by replaying the same tape.
     save_replay(state_path, replay)
     output_tmp = output_path.with_suffix(output_path.suffix + ".tmp")
-    if output_tmp.is_symlink():
-        output_tmp.unlink()
-    elif output_tmp.exists():
+    if output_tmp.is_symlink() or output_tmp.exists():
         output_tmp.unlink()
     with output_tmp.open("x", encoding="utf-8") as output:
         for row in result_rows:
