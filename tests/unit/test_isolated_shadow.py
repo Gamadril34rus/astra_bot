@@ -378,7 +378,7 @@ def test_session_gate_blocks_new_entries_but_does_not_touch_open_positions():
         variant_decision("A", source, zone(zones=[])),
         execution_price=100.0,
         execution_quantity=100.0,
-        execution_timestamp_ms=off_time,
+        execution_timestamp_ms=off_time + 1,
     )
     assert result["reason"] == "SESSION_OFF"
     assert not portfolio.positions
@@ -728,19 +728,19 @@ def test_repeated_signal_id_uses_distinct_attempt_and_position_ids():
     portfolio.close(
         position.position_id,
         event_id="first-exit",
-        price=105.0,
+        price=95.0,
         quantity=position.remaining_qty,
         ts_ms=2_000,
         reason="test",
     )
     # The cooldown is a separate live constraint; advance beyond it.
-    second_signal = signal(side="short")
+    second_signal = signal(side="short", decision_at_ms=1_300_000)
     second = portfolio.attempt(
         second_signal,
         variant_decision("A", second_signal, zone(zones=[])),
         execution_price=100.0,
         execution_quantity=100.0,
-        execution_timestamp_ms=1_300_000,
+        execution_timestamp_ms=1_300_100,
     )
     assert first["attempt_id"] != second["attempt_id"]
     assert first["position_id"] != second["position_id"]
@@ -1065,7 +1065,7 @@ def test_unknown_funding_on_open_position_survives_other_position_close():
 
 def test_stale_closed_bar_is_explicit_unknown_and_cannot_trigger_exit():
     replay = ShadowReplay()
-    source = signal(side="long")
+    source = signal(side="short")
     replay.apply_signal(
         event_id="bar-unknown-entry",
         signal=source,
