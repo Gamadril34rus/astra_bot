@@ -2,8 +2,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 from astra_bot.research.isolated_shadow import (
-    ExecutionQuote,
     PORTFOLIO_NAMES,
+    ExecutionQuote,
     ReplayBar,
     ShadowReplay,
     Signal,
