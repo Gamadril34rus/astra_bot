@@ -36,24 +36,23 @@ def json_safe(value):
 
 
 def external_path(raw: str, label: str) -> Path:
-    path = Path(raw).expanduser().resolve()
+    raw_path = Path(raw).expanduser()
+    if raw_path.is_symlink():
+        raise ValueError(f"{label} must not be a symlink")
+    path = raw_path.resolve()
     if path == ROOT or ROOT in path.parents:
         raise ValueError(f"{label} must be outside repository checkout")
     return path
 
 
-def load_replay(path: Path) -> ShadowReplay:
-    if not path.exists():
-        return ShadowReplay()
-    with path.open("r", encoding="utf-8") as handle:
-        payload = json.load(handle)
-    return ShadowReplay.import_state(payload)
-
-
 def save_replay(path: Path, replay: ShadowReplay) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
-    with temporary.open("w", encoding="utf-8") as handle:
+    if temporary.is_symlink():
+        temporary.unlink()
+    elif temporary.exists():
+        temporary.unlink()
+    with temporary.open("x", encoding="utf-8") as handle:
         json.dump(
             json_safe(replay.export_state()),
             handle,
@@ -147,46 +146,60 @@ def main() -> None:
     if len({events_path, state_path, output_path}) != 3:
         raise ValueError("events, state and output paths must be distinct")
 
-    replay = load_replay(state_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    count = 0
-    with events_path.open("r", encoding="utf-8") as source, output_path.open(
-        "a", encoding="utf-8"
-    ) as output:
+    replay = ShadowReplay()
+    result_rows = []
+    with events_path.open("r", encoding="utf-8") as source:
         for line_number, line in enumerate(source, start=1):
             if not line.strip():
                 continue
             event = json.loads(line)
             result = handle_event(replay, event)
             if not result.get("duplicate"):
-                output.write(
-                    json.dumps(
-                        json_safe({
-                            "line": line_number,
-                            "event_id": event.get("event_id"),
-                            "result": result,
-                        }),
-                        ensure_ascii=False,
-                        separators=(",", ":"),
-                        allow_nan=False,
-                    )
-                    + "\n"
+                result_rows.append(
+                    {
+                        "line": line_number,
+                        "event_id": event.get("event_id"),
+                        "result": result,
+                    }
                 )
-                output.flush()
-                count += 1
-            save_replay(state_path, replay)
+
+    # The event tape is the source of truth. Rebuild state and output from the
+    # complete tape on every invocation, then replace checkpoints atomically.
+    # A crash between replacements is recoverable by replaying the same tape.
+    save_replay(state_path, replay)
+    output_tmp = output_path.with_suffix(output_path.suffix + ".tmp")
+    if output_tmp.is_symlink():
+        output_tmp.unlink()
+    elif output_tmp.exists():
+        output_tmp.unlink()
+    with output_tmp.open("x", encoding="utf-8") as output:
+        for row in result_rows:
+            output.write(
+                json.dumps(
+                    json_safe(row),
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                )
+                + "\n"
+            )
+        output.flush()
+    output_tmp.replace(output_path)
 
     print(
         json.dumps(
-            json_safe({
-                "processed_non_duplicate_events": count,
-                "portfolios": {
-                    name: portfolio.metrics()
-                    for name, portfolio in replay.portfolios.items()
-                },
-                "state": str(state_path),
-                "output": str(output_path),
-            }),
+            json_safe(
+                {
+                    "processed_non_duplicate_events": len(result_rows),
+                    "portfolios": {
+                        name: portfolio.metrics()
+                        for name, portfolio in replay.portfolios.items()
+                    },
+                    "state": str(state_path),
+                    "output": str(output_path),
+                    "restart_mode": "full_event_tape_replay",
+                }
+            ),
             ensure_ascii=False,
             allow_nan=False,
         )
