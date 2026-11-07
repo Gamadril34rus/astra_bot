@@ -1006,6 +1006,12 @@ def test_same_funding_source_event_is_applied_once_to_each_variant():
         == pytest.approx(-0.25)
         for variant in "ABC"
     )
+    funding_fill_ids = [
+        next(fill["fill_id"] for fill in replay.portfolios[variant].fills
+             if fill["type"] == "FUNDING")
+        for variant in "ABC"
+    ]
+    assert len(set(funding_fill_ids)) == 3
 
 
 
