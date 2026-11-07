@@ -170,6 +170,7 @@ async def capture_symbol(session, symbol):
         Signal as ShadowSignal,
         classify_zone,
         variant_decision,
+        select_baseline_signal,
     )
     from astra_bot.strategies.zeus_channel_boundary import ZeusChannelBoundaryStrategy
     from astra_bot.strategies.zeus_multi_top_breakdown import (
