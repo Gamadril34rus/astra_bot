@@ -29,6 +29,7 @@ def signal(
     target_reference=None,
     confidence=0.75,
     metadata=None,
+    decision_at_ms=1_000,
 ):
     stop = stop_reference if stop_reference is not None else (
         102.0 if side == "short" else 98.0
@@ -45,7 +46,7 @@ def signal(
         market_received_at_ms=1_000,
         zone_received_at_ms=1_000,
         source_closed_bar_ms=900,
-        decision_at_ms=1_000,
+        decision_at_ms=decision_at_ms,
         predecision_price=100.0,
         price_source="synthetic",
         entry_reference=100.0,
@@ -371,7 +372,7 @@ def test_session_profiles_match_weekday_weekend_and_off_buckets():
 def test_session_gate_blocks_new_entries_but_does_not_touch_open_positions():
     off_time = int(datetime(2026, 11, 7, 7, tzinfo=MSK).timestamp() * 1000)
     portfolio = VirtualPortfolio("A")
-    source = signal(side="short")
+    source = signal(side="short", decision_at_ms=off_time)
     result = portfolio.attempt(
         source,
         variant_decision("A", source, zone(zones=[])),
@@ -946,6 +947,144 @@ def test_daily_and_weekly_realized_loss_limits_are_virtual_and_independent():
         "VIRTUAL_DAY_LOSS_LIMIT",
         "VIRTUAL_WEEK_LOSS_LIMIT",
     }
+
+
+
+def test_same_funding_source_event_is_applied_once_to_each_variant():
+    replay = ShadowReplay()
+    source = signal(side="short")
+    replay.apply_signal(
+        event_id="funding-fanout-entry",
+        signal=source,
+        zone=zone(zones=[]),
+        execution_price=100.0,
+        execution_quantity=100.0,
+        execution_timestamp_ms=1_100,
+    )
+    for variant in "ABC":
+        position = next(iter(replay.portfolios[variant].positions.values()))
+        applied = replay.apply_funding_event(
+            event_id="bingx-funding-row-001",
+            variant=variant,
+            position_id=position.position_id,
+            cash_amount=-0.25,
+            ts_ms=1_500,
+        )
+        assert applied["applied"]
+        coverage = replay.apply_funding_coverage(
+            event_id="funding-history-reconciled-001",
+            variant=variant,
+            position_id=position.position_id,
+            through_ms=1_600,
+            cumulative_cash_amount=-0.25,
+            source_verified=True,
+        )
+        assert coverage["covered"]
+
+    duplicate = replay.apply_funding_event(
+        event_id="bingx-funding-row-001",
+        variant="A",
+        position_id=next(iter(replay.portfolios["A"].positions)),
+        cash_amount=-0.25,
+        ts_ms=1_500,
+    )
+    assert duplicate["duplicate"]
+    duplicate_coverage = replay.apply_funding_coverage(
+        event_id="funding-history-reconciled-001",
+        variant="A",
+        position_id=next(iter(replay.portfolios["A"].positions)),
+        through_ms=1_600,
+        cumulative_cash_amount=-0.25,
+        source_verified=True,
+    )
+    assert duplicate_coverage["duplicate"]
+    assert all(
+        next(iter(replay.portfolios[variant].positions.values())).funding
+        == pytest.approx(-0.25)
+        for variant in "ABC"
+    )
+
+
+def test_unknown_funding_on_open_position_survives_other_position_close():
+    portfolio = VirtualPortfolio(
+        "A",
+        initial_capital=10_000.0,
+        cooldown_ms=0,
+        same_side_cluster_max=10,
+    )
+    first_signal = signal(side="short", symbol="BTC-USDT", signal_id="first")
+    first = portfolio.attempt(
+        first_signal,
+        variant_decision("A", first_signal, zone(zones=[])),
+        execution_price=100.0,
+        execution_quantity=1_000.0,
+        execution_timestamp_ms=1_100,
+    )
+    second_signal = signal(side="short", symbol="ETH-USDT", signal_id="second")
+    second = portfolio.attempt(
+        second_signal,
+        variant_decision("A", second_signal, zone(zones=[])),
+        execution_price=100.0,
+        execution_quantity=1_000.0,
+        execution_timestamp_ms=1_200,
+    )
+    first_position_id = first["position_id"]
+    second_position_id = second["position_id"]
+    portfolio.apply_funding_event(
+        first_position_id,
+        event_id="missing-on-first",
+        cash_amount=None,
+        ts_ms=1_500,
+    )
+    portfolio.set_funding_coverage(
+        second_position_id,
+        through_ms=2_000,
+        cumulative_cash_amount=0.0,
+        source_verified=True,
+    )
+    portfolio.close(
+        second_position_id,
+        event_id="close-second-only",
+        price=95.0,
+        quantity=portfolio.positions[second_position_id].remaining_qty,
+        ts_ms=2_000,
+        reason="profitable_close",
+    )
+    assert portfolio.risk_data_unknown
+    next_signal = signal(side="short", symbol="SOL-USDT", signal_id="third")
+    blocked = portfolio.attempt(
+        next_signal,
+        variant_decision("A", next_signal, zone(zones=[])),
+        execution_price=100.0,
+        execution_quantity=1_000.0,
+        execution_timestamp_ms=3_000,
+    )
+    assert blocked["reason"] == "UNKNOWN_RISK_DATA"
+    assert first_position_id in portfolio.positions
+
+
+def test_stale_closed_bar_is_explicit_unknown_and_cannot_trigger_exit():
+    replay = ShadowReplay()
+    source = signal(side="long")
+    replay.apply_signal(
+        event_id="bar-unknown-entry",
+        signal=source,
+        zone=zone(zones=[]),
+        execution_price=100.0,
+        execution_quantity=100.0,
+        execution_timestamp_ms=1_100,
+    )
+    stale = bar(received=33_001)
+    result = replay.apply_bar_event(
+        event_id="late-candle-event",
+        bar=stale,
+        quotes=[quote("later-quote", 3_001)],
+    )
+    assert result["status"] == "UNKNOWN_BAR_DATA"
+    assert result["reason"] == "bar_stale"
+    assert not result["exit_intents"]
+    assert all(len(replay.portfolios[name].positions) == 1 for name in "ABC")
+
 
 
 def test_static_isolation_guards_and_offline_container_profile():
