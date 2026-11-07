@@ -618,8 +618,22 @@ class VirtualPortfolio:
         if event_id in self._seen_events:
             return {"duplicate": True, "event_id": event_id}
         position = self.positions.get(position_id)
+        is_closed = False
         if position is None:
-            return {"unknown": True, "reason": "position_not_open"}
+            position = next(
+                (item for item in self.closed if item.position_id == position_id),
+                None,
+            )
+            is_closed = position is not None
+        if position is None:
+            return {"unknown": True, "reason": "position_not_found"}
+        if (
+            ts_ms < position.opened_at_ms
+            or (is_closed and (
+                position.closed_at_ms is None or ts_ms > position.closed_at_ms
+            ))
+        ):
+            return {"unknown": True, "reason": "funding_event_outside_position_lifecycle"}
         self._seen_events.add(event_id)
         if cash_amount is None or not math.isfinite(cash_amount):
             position.funding_complete = False
@@ -639,6 +653,8 @@ class VirtualPortfolio:
                 "ts_ms": ts_ms,
             }
         )
+        if is_closed:
+            self._after_close(position, ts_ms)
         return {"applied": True, "funding": cash_amount}
 
     def set_funding_coverage(
