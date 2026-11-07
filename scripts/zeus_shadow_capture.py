@@ -82,6 +82,26 @@ async def capture_symbol(session,symbol):
                     "entry_reference":br.entry,"stop_reference":br.stop,"target_reference":br.take_profit,
                     "confidence":br.confidence,"timeframe":tf,"formed_at_ms":bars[-1].open_time})
                 break
+    from astra_bot.research.isolated_shadow import Signal as ShadowSignal, classify_zone, variant_decision
+    annotated=[]
+    for raw_sig in signals:
+        shadow_sig=ShadowSignal(signal_id=raw_sig["signal_id"],symbol=symbol,side=raw_sig["side"],
+            strategy=raw_sig["strategy"],formed_at_ms=raw_sig["formed_at_ms"],
+            market_received_at_ms=max(recv4,recv1),zone_received_at_ms=recv4,
+            source_closed_bar_ms=zone_bar,decision_at_ms=now,predecision_price=price,
+            price_source="BingX public 4h forming-candle close",
+            entry_reference=raw_sig["entry_reference"],stop_reference=raw_sig["stop_reference"],
+            target_reference=raw_sig["target_reference"],confidence=raw_sig["confidence"],
+            timeframe=raw_sig["timeframe"])
+        zd=classify_zone(side=shadow_sig.side,price=price,zones=zones,
+            market_received_at_ms=shadow_sig.market_received_at_ms,
+            zone_received_at_ms=shadow_sig.zone_received_at_ms,decision_at_ms=now)
+        variants={v:{"accepted":variant_decision(v,shadow_sig,zd).accepted_by_variant,
+                     "reason":variant_decision(v,shadow_sig,zd).reason,
+                     "zone_state":zd.state.value,"boundary":zd.boundary,
+                     "distance_pct":zd.distance_pct} for v in ("A","B","C")}
+        annotated.append({**raw_sig,"variants":variants})
+    signals=annotated
     return {"symbol":symbol,"market_received_at_ms":max(recv4,recv1),
         "zone_received_at_ms":recv4,"decision_at_ms":now,"predecision_price":price,
         "price_source":"BingX public 4h forming-candle close (same price input as live scan)",
