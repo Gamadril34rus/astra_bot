@@ -186,6 +186,27 @@ def variant_decision(
     return VariantDecision(variant, True, "BASE_RULES_PASS", zone)
 
 
+def bar_data_unknown_reason(
+    bar: ReplayBar, *, max_delivery_lag_ms: int = 30_000
+) -> str | None:
+    if not bar.closed:
+        return "bar_not_closed"
+    if bar.received_at_ms < bar.close_time_ms:
+        return "bar_receive_before_close"
+    if bar.received_at_ms - bar.close_time_ms > max_delivery_lag_ms:
+        return "bar_stale"
+    if bar.close_time_ms <= bar.open_time_ms:
+        return "invalid_bar_timestamps"
+    values = (bar.open, bar.high, bar.low, bar.close)
+    if not all(math.isfinite(value) and value > 0 for value in values):
+        return "invalid_ohlc_values"
+    if bar.high < max(bar.open, bar.close, bar.low):
+        return "invalid_bar_high"
+    if bar.low > min(bar.open, bar.close, bar.high):
+        return "invalid_bar_low"
+    return None
+
+
 def next_available_quote(
     quotes: list[ExecutionQuote],
     *,
@@ -471,7 +492,9 @@ class VirtualPortfolio:
             self.attempts.append(row)
             return row
 
-        gate_reason, risk_fraction = self._risk_gate(signal, execution_timestamp_ms)
+        # Live arm gates evaluate the signal event time; execution time is only
+        # used for the resulting fill/position timestamps and cooldown clock.
+        gate_reason, risk_fraction = self._risk_gate(signal, signal.decision_at_ms)
         if gate_reason:
             row.update(accepted_by_variant=False, reason=gate_reason)
             self.attempts.append(row)
@@ -1376,10 +1399,21 @@ class ShadowReplay:
         if event_id in self.seen_event_ids:
             return {"duplicate": True, "event_id": event_id}
         self.seen_event_ids.add(event_id)
+        invalid_reason = bar_data_unknown_reason(bar)
+        if invalid_reason is not None:
+            return {
+                "event_id": event_id,
+                "status": "UNKNOWN_BAR_DATA",
+                "reason": invalid_reason,
+                "exit_intents": [],
+                "executions": {},
+            }
         intents = self.process_bar(bar)
         executions = self.execute_pending_exits(quotes)
         return {
             "event_id": event_id,
+            "status": "PROCESSED",
+            "reason": None,
             "exit_intents": [asdict(intent) for intent in intents],
             "executions": executions,
         }
