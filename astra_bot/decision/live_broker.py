@@ -1216,7 +1216,8 @@ class LiveBroker:
                         "STOP сохранён, позиция не закрыта; требуется сверка."
                     )
                     logger.warning(
-                        "restore_missing_stops: %s has exchange STOP but no local plan; preserving orders",
+                        "restore_missing_stops: %s has exchange STOP but no local plan; "
+                        "preserving orders",
                         sym,
                     )
                     try:
@@ -1238,7 +1239,8 @@ class LiveBroker:
                     orphan_state_changed = True
                 else:
                     logger.info(
-                        "restore_missing_stops: %s remains protected by exchange STOP; local plan absent",
+                        "restore_missing_stops: %s remains protected by exchange STOP; "
+                        "local plan absent",
                         sym,
                     )
                 continue
