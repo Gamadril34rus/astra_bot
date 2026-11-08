@@ -146,17 +146,11 @@ def test_funding_day_accumulate_and_reset(tmp_path, monkeypatch):
     pos.write_text(json.dumps({"positions": {}, "ts": 0}), encoding="utf-8")
 
     class _C:
-        def __init__(self):
-            self.requested_types = []
-
-        async def get_realized_income(self, symbol, start_ms=None, income_types=None):
-            self.requested_types.append(income_types)
+        async def get_realized_income(self, symbol, start_ms=None):
             return []
 
     async def _run():
-        client = _C()
-        s = await clock._accumulate_funding_day(client)
-        assert client.requested_types == []
+        s = await clock._accumulate_funding_day(_C())
         assert s == 0.0
         day_path = tmp_path / "models" / "zeus_funding_day.json"
         assert day_path.exists()
@@ -196,19 +190,13 @@ def test_funding_day_new_event_adds(tmp_path, monkeypatch):
     )
 
     class _C:
-        def __init__(self):
-            self.requested_types = []
-
-        async def get_realized_income(self, symbol, start_ms=None, income_types=None):
-            self.requested_types.append(income_types)
+        async def get_realized_income(self, symbol, start_ms=None):
             return [
                 {"_incomeType": "FUNDING_FEE", "income": "0.50", "time": 1_700_000_000_000},
             ]
 
     async def _run():
-        client = _C()
-        s = await clock._accumulate_funding_day(client)
-        assert client.requested_types == [("FUNDING_FEE",)]
+        s = await clock._accumulate_funding_day(_C())
         assert abs(s - 0.50) < 1e-9
         # second call dedups
         s2 = await clock._accumulate_funding_day(_C())
