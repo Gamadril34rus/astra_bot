@@ -164,6 +164,8 @@ def retry(
 def is_exchange_endpoint_cooldown_error(exc: BaseException) -> bool:
     """True for BingX 100410 endpoint-disabled cooldowns; retrying only extends the lockout."""
     message = str(exc).lower()
+    if str(getattr(exc, "code", "")) == "100410":
+        return True
     return ("100410" in message and "bingx" in message) or (
         "endpoint trigger frequency limit" in message and "disabled period" in message
     )
