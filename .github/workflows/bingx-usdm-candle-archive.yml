@@ -43,10 +43,18 @@ jobs:
           pip install -r requirements.txt
       - name: Download closed USDT-M candles
         env:
-          ARCHIVE_MODE: ${{ inputs.mode || 'daily' }}
+          ARCHIVE_MODE: ${{ inputs.mode || '' }}
           ARCHIVE_TIMEFRAMES: ${{ inputs.timeframes || '' }}
         run: |
           set -euo pipefail
+          if [[ -z "$ARCHIVE_MODE" ]]; then
+            if [[ -f data/bingx_usdm/manifest.json ]]; then
+              ARCHIVE_MODE=daily
+            else
+              echo "No candle manifest yet; first scheduled run performs initial history backfill"
+              ARCHIVE_MODE=initial
+            fi
+          fi
           args=(--mode "$ARCHIVE_MODE")
           if [[ -n "$ARCHIVE_TIMEFRAMES" ]]; then
             args+=(--timeframes "$ARCHIVE_TIMEFRAMES")
