@@ -30,6 +30,7 @@ class MockClient:
         self._orders = list(orders or [])
         self.placed: list[dict] = []
         self.closed: list[str] = []
+        self.cancelled_all: list[str] = []
 
     async def get_balance_usdt(self):
         return self._balance
@@ -59,6 +60,7 @@ class MockClient:
         return True
 
     async def cancel_all_orders(self, symbol):
+        self.cancelled_all.append(symbol)
         n = len([o for o in self._orders if o.symbol == symbol])
         self._orders = [o for o in self._orders if o.symbol != symbol]
         return n
@@ -176,3 +178,58 @@ def test_restore_after_reconcile_order():
     i_rec = src.index("await broker.reconcile()")
     i_res = src.index("await broker.restore_missing_stops(")
     assert i_rec < i_res
+
+
+
+def test_restore_no_plan_with_exchange_stop_preserves_position(tmp_path, monkeypatch):
+    async def _():
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "models").mkdir(parents=True, exist_ok=True)
+        path = tmp_path / "models" / "pos.json"
+        save_positions({}, path)
+        pos = SimpleNamespace(
+            symbol="BTC-USDT", quantity=Decimal("0.01"), side="long"
+        )
+        stop = SimpleNamespace(
+            symbol="BTC-USDT",
+            order_type="stop_market",
+            side="sell",
+            status="new",
+            stop_price=Decimal("90"),
+        )
+        c = MockClient(positions=[pos], orders=[stop])
+        b = LiveBroker(c)
+        r = await b.restore_missing_stops(positions_path=path)
+        assert r["orphan_protected"] == ["BTC-USDT"]
+        assert not r["closed_naked"]
+        assert not c.closed
+        assert not c.cancelled_all
+        assert any(o is stop for o in c._orders)
+
+    asyncio.run(_())
+
+
+def test_restore_opposite_side_stop_does_not_protect_position(tmp_path, monkeypatch):
+    async def _():
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "models").mkdir(parents=True, exist_ok=True)
+        path = tmp_path / "models" / "pos.json"
+        save_positions({}, path)
+        pos = SimpleNamespace(
+            symbol="BTC-USDT", quantity=Decimal("0.01"), side="long"
+        )
+        short_stop = SimpleNamespace(
+            symbol="BTC-USDT",
+            order_type="stop_market",
+            side="buy",
+            status="new",
+            stop_price=Decimal("110"),
+        )
+        c = MockClient(positions=[pos], orders=[short_stop])
+        b = LiveBroker(c)
+        r = await b.restore_missing_stops(positions_path=path)
+        assert not r["orphan_protected"]
+        assert r["closed_naked"] == ["BTC-USDT"]
+        assert c.closed == ["BTC-USDT"]
+
+    asyncio.run(_())
