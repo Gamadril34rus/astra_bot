@@ -49,7 +49,25 @@
       "be_earned": true,
       "migrate_stop_v1": true,
       "current_regime": "WEAK_BEAR_TREND"
+    },
+    "SOL-USDT|long": {
+      "symbol": "SOL-USDT",
+      "side": "long",
+      "qty": "358.49422551",
+      "stop": "88.4727",
+      "tp": "90.230865",
+      "entry": "89.614",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_multi_top_breakdown|SOL-USDT|long|1794146400000",
+      "ts": 1794149547.7586107,
+      "be_moved": false,
+      "initial_stop": "88.4727",
+      "opened_at_ms": 1794149547758,
+      "plan_qty": "358.49422551",
+      "qty_ratio": 1.0,
+      "tp1": "90.230865"
     }
   },
-  "ts": 1794149207.4273686
+  "ts": 1794149547.7586298
 }
