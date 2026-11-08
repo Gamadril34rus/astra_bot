@@ -50,7 +50,8 @@
 - `ZEUS_LIVE_TRAIL_POLICY=atr`.
 - `ZEUS_LIVE_FORCE_LEVERAGE=6`, `ZEUS_LIVE_MAX_LEVERAGE=10`.
 - `ZEUS_KILL_PF_WINDOW=20`.
-- `ZEUS_PF_SKIP_SCRATCHED=1`, `ZEUS_PF_INCLUDE_PARTIAL=1`.
+- `ZEUS_PF_SKIP_SCRATCHED=1`.
+- VST-only: `ZEUS_VST=1`, `ZEUS_MAINNET=0`, `ZEUS_VST_DISABLE_PERFORMANCE_HALT=1`; override отключает только автоматические day/week/PF HALT при подтверждённом VST endpoint.
 
 Live workflow запускается через `workflow_dispatch`. Внешний cron-job.org вызывает его примерно раз в 5 минут. GitHub schedule в live workflow отсутствует.
 
