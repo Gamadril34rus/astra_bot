@@ -96,8 +96,18 @@ def _dedupe_exit_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         previous_index, previous_row = previous
         current_ts = _row_ts(row)
         previous_ts = _row_ts(previous_row)
+        # Use the newest accounting snapshot, but anchor the trade to its first
+        # observed close time so a later reconciliation cannot move PnL into a
+        # different UTC day/week.
+        first_ts = min(current_ts, previous_ts)
         if (current_ts, index) >= (previous_ts, previous_index):
-            latest[identity] = (index, row)
+            selected_row = dict(row)
+            selected_row["ts"] = first_ts
+            latest[identity] = (index, selected_row)
+        elif current_ts < previous_ts:
+            selected_row = dict(previous_row)
+            selected_row["ts"] = first_ts
+            latest[identity] = (previous_index, selected_row)
     selected = unkeyed + list(latest.values())
     selected.sort(key=lambda item: (_row_ts(item[1]), item[0]))
     return [row for _, row in selected]
