@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from decimal import Decimal
 from typing import Any
@@ -14,6 +15,7 @@ from typing import Any
 from astra_bot.adapters.base import Order, Position
 from astra_bot.adapters.bingx.client import BINGX_SWAP_V2_PREFIX, BingXClient
 from astra_bot.adapters.bingx.live_env import _redact, resolve_base_url
+from astra_bot.utils.retry import is_exchange_endpoint_cooldown_error
 
 logger = logging.getLogger(__name__)
 
@@ -248,6 +250,18 @@ def alert_foreign_balance_equity(foreign: list[str]) -> None:
         logger.warning("A-014 TG alert failed: %s", type(exc).__name__)
 
 
+def _income_cooldown_until(exc: BaseException, *, now: float | None = None) -> float:
+    """Parse BingX's 'unblocked after' epoch; fall back conservatively to 15 minutes."""
+    current = float(time.time() if now is None else now)
+    match = re.search(r"unblocked\\s+after\\s+(\\d+)", str(exc), re.IGNORECASE)
+    if match:
+        raw = int(match.group(1))
+        until = raw / 1000.0 if raw > 10**12 else float(raw)
+        if until > current:
+            return until
+    return current + 15 * 60
+
+
 class LiveBingXClient(BingXClient):
     """BingX client with live trade methods. Base URL VST unless ZEUS_MAINNET=1."""
 
@@ -258,6 +272,7 @@ class LiveBingXClient(BingXClient):
         cfg.setdefault("api_key", os.environ.get("BINGX_API_KEY", ""))
         cfg.setdefault("api_secret", os.environ.get("BINGX_API_SECRET", ""))
         super().__init__(cfg)
+        self._income_cooldown_until = 0.0
         self._is_vst = "vst" in (self.base_url or "").lower()
         # Internal process-local proof consumed by live_risk; never supplied by Secrets.
         os.environ["ZEUS_VST_ENDPOINT_CONFIRMED"] = "1" if self._is_vst else "0"
@@ -563,20 +578,36 @@ class LiveBingXClient(BingXClient):
             logger.warning("get_all_fills fillHistory %s: %s", symbol, type(exc).__name__)
         return []
 
+    @property
+    def income_endpoint_cooldown_active(self) -> bool:
+        return time.time() < float(getattr(self, "_income_cooldown_until", 0.0))
+
     async def get_realized_income(
         self,
         symbol: str,
         *,
         start_ms: int | None = None,
         end_ms: int | None = None,
+        income_types: tuple[str, ...] | None = None,
     ) -> list[dict[str, Any]]:
-        """REALIZED_PNL + TRADING_FEE from user/income (fallback for exit $)."""
+        """Read selected income types; stop immediately on BingX 100410 cooldown."""
         import time as _time
+
+        if self.income_endpoint_cooldown_active:
+            return []
         now = int(_time.time() * 1000)
         end_ms = int(end_ms) if end_ms is not None else now
         start_ms = int(start_ms) if start_ms is not None else end_ms - 7 * 24 * 3600 * 1000
+        selected = tuple(
+            str(value).strip().upper()
+            for value in (income_types or ("REALIZED_PNL", "TRADING_FEE", "FUNDING_FEE"))
+        )
+        allowed = {"REALIZED_PNL", "TRADING_FEE", "FUNDING_FEE"}
+        unknown = sorted(set(selected) - allowed)
+        if unknown:
+            raise ValueError(f"unsupported BingX income types: {unknown}")
         rows: list[dict[str, Any]] = []
-        for income_type in ("REALIZED_PNL", "TRADING_FEE", "FUNDING_FEE"):
+        for income_type in selected:
             params: dict[str, Any] = {
                 "symbol": symbol,
                 "incomeType": income_type,
@@ -601,6 +632,14 @@ class LiveBingXClient(BingXClient):
                             x["_incomeType"] = income_type
                             rows.append(x)
             except Exception as exc:
+                if is_exchange_endpoint_cooldown_error(exc):
+                    self._income_cooldown_until = _income_cooldown_until(exc)
+                    logger.warning(
+                        "get_realized_income %s: BingX endpoint cooldown until %.0f; skip remaining income types",
+                        symbol,
+                        self._income_cooldown_until,
+                    )
+                    break
                 logger.warning(
                     "get_realized_income %s %s: %s",
                     symbol, income_type, type(exc).__name__,
