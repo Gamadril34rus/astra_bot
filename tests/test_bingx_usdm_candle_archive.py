@@ -55,3 +55,14 @@ def test_coverage_counts_missing_intervals() -> None:
     assert coverage["bar_count"] == 3
     assert coverage["gap_count"] == 1
     assert coverage["gap_samples"][0]["missing_bars"] == 1
+
+
+
+def test_merge_tolerates_optional_trade_count_shape_difference() -> None:
+    existing_row = _row(60_000)
+    incoming_row = _row(60_000)
+    existing_row["trades_count"] = "0"
+    incoming_row["trades_count"] = "42"
+    assert _merge_rows({60_000: existing_row}, {60_000: incoming_row}) == {
+        60_000: existing_row
+    }
