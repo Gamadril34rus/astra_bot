@@ -1,67 +1,6 @@
 {
-  "positions": [
-    {
-      "id": "b9ba8107-cca0-4e69-b688-1b44d5f62465",
-      "symbol": "INJ-USDT",
-      "direction": "long",
-      "entry_price": "7.844",
-      "quantity": "33.40652800",
-      "stop_loss": "7.725467999999999",
-      "take_profits": [
-        "7.962532000000001",
-        "8.0810640000000020"
-      ],
-      "tp_filled": [
-        false,
-        false
-      ],
-      "tp_fractions": [
-        0.3,
-        0.7
-      ],
-      "initial_quantity": "33.40652800",
-      "trailing_activated": false,
-      "trailing_distance": null,
-      "highest_price": null,
-      "lowest_price": null,
-      "strategy": "zeus_channel_boundary_4h",
-      "opened_at": 1794175007328,
-      "entry_bar_ts": 1794174900000,
-      "notes": {
-        "signal_bar_close": 7.883,
-        "effective_entry": 7.851844,
-        "initial_stop": 7.725467999999999,
-        "initial_take": 8.081064000000001,
-        "stop_pct": 0.01609507269884641,
-        "confidence": 0.7299999999999999,
-        "ml_probability": null,
-        "prior_r": 0.9914713326359085,
-        "costs_r": 0.1863924479331504,
-        "equity_before": 2623.028462905219,
-        "risk_budget": 26.23028462905219,
-        "binding_constraint": "heat_cap",
-        "score": 40.0,
-        "edge_pct": 123.7736,
-        "ev_r": 1.2377361985836481,
-        "ev_confidence": 0.2,
-        "rr": 1.9999999999999916,
-        "leverage": 3
-      },
-      "fill_price": "7.851844",
-      "entry_fee_per_unit": "0.0039259220",
-      "risk_distance": "0.118532000000001",
-      "regime": "WEAK_BEAR_TREND",
-      "timeframe": "4h",
-      "regime_axes": "T:WEAK/V:LOW/L:STRESSED",
-      "bars_held": 0,
-      "leverage": "3",
-      "margin_used": "87.34693521066666666666666667",
-      "plan_variant": "STATIC_TP",
-      "plan_take": "8.0810640000000020",
-      "plan_last_bar_ts": 0
-    }
-  ],
-  "realized_pnl": "623.0284629052191098016539316",
+  "positions": [],
+  "realized_pnl": "624.6101009027594420683205983",
   "initial_capital": "2000.0",
   "cooldowns": {},
   "last_extremes_bar": {
@@ -69,7 +8,7 @@
     "ARB-USDT": 1793214000000,
     "AVAX-USDT": 1792509600000,
     "OP-USDT": 1792510500000,
-    "INJ-USDT": 1791843600000,
+    "INJ-USDT": 1794175200000,
     "SOL-USDT": 1791735900000,
     "TIA-USDT": 1791483600000,
     "TAO-USDT": 1792514100000,
