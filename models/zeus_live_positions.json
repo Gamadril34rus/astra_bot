@@ -1,4 +1,41 @@
 {
-  "positions": {},
-  "ts": 1794110817.6699963
+  "positions": {
+    "HYPE-USDT|short": {
+      "symbol": "HYPE-USDT",
+      "side": "short",
+      "qty": "148.32982863",
+      "stop": "79.89447",
+      "tp": "75.8743885",
+      "entry": "77.131",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_multi_top_breakdown|HYPE-USDT|short|1794110400000",
+      "ts": 1794121354.1007726,
+      "be_moved": false,
+      "initial_stop": "79.89447",
+      "opened_at_ms": 1794121354100,
+      "plan_qty": "148.32982863",
+      "qty_ratio": 1.0,
+      "tp1": "75.8743885"
+    },
+    "INJ-USDT|long": {
+      "symbol": "INJ-USDT",
+      "side": "long",
+      "qty": "4517.965058784748928689155038",
+      "stop": "8.01999",
+      "tp": "8.1374545",
+      "entry": "8.111",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|INJ-USDT|long|1794110400000",
+      "ts": 1794121369.5791306,
+      "be_moved": false,
+      "initial_stop": "8.01999",
+      "opened_at_ms": 1794121369579,
+      "plan_qty": "5075.66967041",
+      "qty_ratio": 1.0,
+      "tp1": "8.1374545"
+    }
+  },
+  "ts": 1794121369.579145
 }
