@@ -2078,3 +2078,9 @@
 {"event": "protect_place", "ts": 1794178769.4275823, "symbol": "INJ-USDT", "kind": "stop", "stop_price": "7.86654", "qty": "6292.47420085", "close_position": true, "order_id": "2119565499385339904"}
 {"event": "protect_place", "ts": 1794178769.8371994, "symbol": "INJ-USDT", "kind": "tp", "stop_price": "7.9817570", "qty": "1887.74226025", "reduce_only": false, "order_id": "2119565501096615936"}
 {"event": "entry", "signal_id": "zeus_channel_boundary|INJ-USDT|long|1794168000000", "symbol": "INJ-USDT", "side": "long", "plan_entry": "7.946", "fill_price": "7.949", "slip_pct": 0.03775484520513609, "slip_r": 0.03775484520513466, "qty": "6292.47420085", "stop": "7.86654", "tp": "7.9817570", "tp_frac": 0.3, "leverage": 6, "ts": 1794178769.8382099}
+{"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2119566494500741120", "type": "TP", "reason": "restore_naked_close", "path": "restore_missing_stops.cancel_all", "ts": 1794179103.7900145}
+{"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2119566490440654848", "type": "STOP", "reason": "restore_naked_close", "path": "restore_missing_stops.cancel_all", "ts": 1794179103.79012}
+{"event": "order_cancel", "symbol": "ETH-USDT", "order_id": "2119566524519374848", "type": "TP", "reason": "restore_naked_close", "path": "restore_missing_stops.cancel_all", "ts": 1794179105.0492039}
+{"event": "order_cancel", "symbol": "ETH-USDT", "order_id": "2119566522464165888", "type": "STOP", "reason": "restore_naked_close", "path": "restore_missing_stops.cancel_all", "ts": 1794179105.0492697}
+{"event": "order_cancel", "symbol": "INJ-USDT", "order_id": "2119566548951195648", "type": "TP", "reason": "restore_naked_close", "path": "restore_missing_stops.cancel_all", "ts": 1794179106.3173108}
+{"event": "order_cancel", "symbol": "INJ-USDT", "order_id": "2119566546925346816", "type": "STOP", "reason": "restore_naked_close", "path": "restore_missing_stops.cancel_all", "ts": 1794179106.31738}
