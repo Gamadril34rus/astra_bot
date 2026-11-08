@@ -65,3 +65,25 @@ def test_merge_tolerates_optional_trade_count_shape_difference() -> None:
     assert _merge_rows({60_000: existing_row}, {60_000: incoming_row}) == {
         60_000: existing_row
     }
+
+
+
+def test_daily_timeframes_follow_manifest(tmp_path: Path) -> None:
+    import json
+
+    from scripts.archive_bingx_usdm_candles import _resolve_timeframes
+
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({"timeframes": ["1m", "5m"]}), encoding="utf-8")
+    assert _resolve_timeframes(None, "daily", manifest) == ("1m", "5m")
+
+
+def test_initial_timeframes_default_to_active_zeus_set(tmp_path: Path) -> None:
+    from scripts.archive_bingx_usdm_candles import (
+        DEFAULT_TIMEFRAMES,
+        _resolve_timeframes,
+    )
+
+    assert _resolve_timeframes(None, "initial", tmp_path / "missing.json") == (
+        DEFAULT_TIMEFRAMES
+    )
