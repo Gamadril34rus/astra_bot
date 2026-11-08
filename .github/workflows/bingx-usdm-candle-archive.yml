@@ -11,6 +11,11 @@ on:
           - initial
         default: daily
         required: true
+      timeframes:
+        description: "Comma-separated BingX intervals; 1m is available but not in the default strategy set"
+        type: string
+        default: "5m,15m,1h,4h,1d"
+        required: true
   schedule:
     - cron: "17 2 * * *"
 
@@ -39,9 +44,10 @@ jobs:
       - name: Download closed USDT-M candles
         env:
           ARCHIVE_MODE: ${{ inputs.mode || 'daily' }}
+          ARCHIVE_TIMEFRAMES: ${{ inputs.timeframes || '5m,15m,1h,4h,1d' }}
         run: |
           set -euo pipefail
-          python scripts/archive_bingx_usdm_candles.py --mode "$ARCHIVE_MODE"
+          python scripts/archive_bingx_usdm_candles.py --mode "$ARCHIVE_MODE" --timeframes "$ARCHIVE_TIMEFRAMES"
       - name: Commit append-only archive
         run: |
           set -euo pipefail
