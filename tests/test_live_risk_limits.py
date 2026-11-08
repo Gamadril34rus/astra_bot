@@ -156,3 +156,17 @@ def test_vst_override_skips_day_week_and_pf_performance_checks(
     assert check_day_week_limits(Decimal("100"), path=p) is None
     assert check_pf_kill(path=p, state_path=state) is None
     assert not state.exists()
+
+
+
+def test_exit_dedupe_uses_latest_pnl_but_first_close_timestamp(tmp_path: Path) -> None:
+    from astra_bot.decision.live_risk import _dedupe_exit_rows
+
+    rows = [
+        {"event": "exit", "trade_id": "trade-1", "pnl": -10.0, "ts": 100.0},
+        {"event": "exit", "trade_id": "trade-1", "pnl": -15.0, "ts": 200.0},
+    ]
+    result = _dedupe_exit_rows(rows)
+    assert len(result) == 1
+    assert result[0]["pnl"] == -15.0
+    assert result[0]["ts"] == 100.0
