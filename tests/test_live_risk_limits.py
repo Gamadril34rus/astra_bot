@@ -106,8 +106,25 @@ def test_vst_performance_halt_override_is_endpoint_scoped(monkeypatch) -> None:
     monkeypatch.setenv("ZEUS_VST", "1")
     monkeypatch.setenv("ZEUS_MAINNET", "0")
     monkeypatch.setenv("ZEUS_VST_DISABLE_PERFORMANCE_HALT", "1")
-    assert should_disable_vst_performance_halt(is_vst=True)
-    assert not should_disable_vst_performance_halt(is_vst=False)
+    monkeypatch.setenv("ZEUS_VST_ENDPOINT_CONFIRMED", "1")
+    assert should_disable_vst_performance_halt()
 
+    monkeypatch.setenv("ZEUS_VST_ENDPOINT_CONFIRMED", "0")
+    assert not should_disable_vst_performance_halt()
+
+    monkeypatch.setenv("ZEUS_VST_ENDPOINT_CONFIRMED", "1")
     monkeypatch.setenv("ZEUS_MAINNET", "1")
-    assert not should_disable_vst_performance_halt(is_vst=True)
+    assert not should_disable_vst_performance_halt()
+
+
+
+def test_vst_override_ignores_persisted_performance_halt(monkeypatch, tmp_path: Path) -> None:
+    from astra_bot.decision.live_risk import load_kill_halted
+
+    monkeypatch.setenv("ZEUS_VST", "1")
+    monkeypatch.setenv("ZEUS_MAINNET", "0")
+    monkeypatch.setenv("ZEUS_VST_DISABLE_PERFORMANCE_HALT", "1")
+    monkeypatch.setenv("ZEUS_VST_ENDPOINT_CONFIRMED", "1")
+    state = tmp_path / "kill.json"
+    state.write_text('{"halted": true, "reason": "PF=0.9"}', encoding="utf-8")
+    assert load_kill_halted(state) is None
