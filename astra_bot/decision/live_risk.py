@@ -76,6 +76,12 @@ def _read_exit_rows(path: Path = TRADES_PATH, *, require_pnl: bool = True) -> li
 
 def _dedupe_exit_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Keep the latest finalized row per trade; preserve rows without a stable ID."""
+    def _row_ts(row: dict[str, Any]) -> float:
+        try:
+            return float(row.get("ts") or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
     latest: dict[str, tuple[int, dict[str, Any]]] = {}
     unkeyed: list[tuple[int, dict[str, Any]]] = []
     for index, row in enumerate(rows):
@@ -88,18 +94,12 @@ def _dedupe_exit_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             latest[identity] = (index, row)
             continue
         previous_index, previous_row = previous
-        try:
-            current_ts = float(row.get("ts") or 0)
-        except (TypeError, ValueError):
-            current_ts = 0.0
-        try:
-            previous_ts = float(previous_row.get("ts") or 0)
-        except (TypeError, ValueError):
-            previous_ts = 0.0
+        current_ts = _row_ts(row)
+        previous_ts = _row_ts(previous_row)
         if (current_ts, index) >= (previous_ts, previous_index):
             latest[identity] = (index, row)
     selected = unkeyed + list(latest.values())
-    selected.sort(key=lambda item: (float(item[1].get("ts") or 0), item[0]))
+    selected.sort(key=lambda item: (_row_ts(item[1]), item[0]))
     return [row for _, row in selected]
 
 
@@ -298,6 +298,7 @@ def write_week_loss_reset(ts: float | None = None, path: Path | None = None) -> 
         encoding="utf-8",
     )
     return t
+
 
 def should_disable_vst_performance_halt(*, is_vst: bool) -> bool:
     """Allow the approved VST experiment to bypass only automatic PnL halts.
