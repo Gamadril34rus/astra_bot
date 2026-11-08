@@ -1,0 +1,89 @@
+name: BingX USDT-M candle archive
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "initial = full available history; daily = append new closed candles"
+        type: choice
+        options:
+          - daily
+          - initial
+        default: daily
+        required: true
+      timeframes:
+        description: "Optional comma-separated BingX intervals; blank uses the existing manifest or active Zeus defaults"
+        type: string
+        default: ""
+        required: false
+  schedule:
+    - cron: "17 2 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bingx-usdm-candle-archive
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: master
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Download closed USDT-M candles
+        env:
+          ARCHIVE_MODE: ${{ inputs.mode || '' }}
+          ARCHIVE_TIMEFRAMES: ${{ inputs.timeframes || '' }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$ARCHIVE_MODE" ]]; then
+            if [[ -f data/bingx_usdm/manifest.json ]]; then
+              ARCHIVE_MODE=daily
+            else
+              echo "No candle manifest yet; first scheduled run performs initial history backfill"
+              ARCHIVE_MODE=initial
+            fi
+          fi
+          args=(--mode "$ARCHIVE_MODE")
+          if [[ -n "$ARCHIVE_TIMEFRAMES" ]]; then
+            args+=(--timeframes "$ARCHIVE_TIMEFRAMES")
+          fi
+          python scripts/archive_bingx_usdm_candles.py "${args[@]}"
+      - name: Commit append-only archive
+        run: |
+          set -euo pipefail
+          git config user.name "astra-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add data/bingx_usdm/
+          if git diff --cached --quiet; then
+            echo "No candle archive changes"
+            exit 0
+          fi
+          git commit -m "data: update BingX USDT-M candle archive"
+          for attempt in 1 2 3; do
+            git fetch origin master
+            git rebase origin/master
+            if git push origin HEAD:master; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Could not publish candle archive after three attempts" >&2
+          exit 1
+      - name: Upload coverage manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: bingx-usdm-candle-coverage
+          path: data/bingx_usdm/manifest.json
+          retention-days: 90
