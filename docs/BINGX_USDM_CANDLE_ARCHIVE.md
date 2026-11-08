@@ -28,8 +28,9 @@ Workflow: .github/workflows/bingx-usdm-candle-archive.yml
 1. After this PR is merged, run workflow_dispatch with mode=initial once. This is
    the full historical backfill; it is not run automatically by the PR.
 2. The daily schedule appends bars newer than the last archived timestamp using
-   the default 5m/15m/1h/4h/1d set. A manual dispatch can supply another comma-
-   separated timeframe list, including 1m if explicitly required.
+   the timeframe set recorded in manifest.json. On the first run, the default is
+   5m/15m/1h/4h/1d; a manual initial dispatch can explicitly add 1m. Later daily
+   runs inherit that chosen set unless an operator explicitly overrides it.
 3. If the manifest reports gaps or a data conflict, investigate and run a
    controlled initial/backfill repair separately. Daily mode does not rewrite
    old bars or hide missing intervals.
