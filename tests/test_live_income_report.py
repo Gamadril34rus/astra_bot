@@ -146,7 +146,7 @@ def test_funding_day_accumulate_and_reset(tmp_path, monkeypatch):
     pos.write_text(json.dumps({"positions": {}, "ts": 0}), encoding="utf-8")
 
     class _C:
-        async def get_realized_income(self, symbol, start_ms=None):
+        async def get_realized_income(self, symbol, start_ms=None, income_types=None):
             return []
 
     async def _run():
