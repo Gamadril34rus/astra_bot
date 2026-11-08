@@ -40,6 +40,38 @@ def unique_client_order_id(symbol: str, role: str) -> str:
     return f"arm-{ms}-{_ORDER_SEQ}-{base}-{role}"
 
 
+def _order_matches_position_side(order: Any, position_side: str) -> bool:
+    """Protective order side must reduce the matching hedge-side position."""
+    expected = "sell" if str(position_side or "long").lower() == "long" else "buy"
+    order_side = str(getattr(order, "side", "") or "").lower()
+    # Missing side metadata is unknown, not proof that the order protects another side.
+    return not order_side or order_side == expected
+
+
+def _has_matching_protective_order(
+    orders: list[Any], position_side: str, *, kind: str
+) -> bool:
+    """Check active STOP or TP orders for this position side, not just its symbol."""
+    for order in orders or []:
+        order_type = str(getattr(order, "order_type", "") or "").lower()
+        if kind == "stop":
+            if "stop" not in order_type or "take_profit" in order_type:
+                continue
+        elif kind == "take_profit":
+            if "take_profit" not in order_type:
+                continue
+        else:
+            raise ValueError(f"unsupported protective order kind: {kind}")
+        status = str(
+            getattr(order, "status_raw", None) or getattr(order, "status", None) or ""
+        ).upper()
+        if status and status not in {"NEW", "PENDING", "PARTIALLY_FILLED", "ACKNOWLEDGED"}:
+            continue
+        if _order_matches_position_side(order, position_side):
+            return True
+    return False
+
+
 def _price_near(a: Decimal, b: Decimal, pct: float = 0.0005) -> bool:
     """True if |a-b|/ref <= pct (default 0.05%)."""
     if a is None or b is None:
@@ -1133,7 +1165,8 @@ class LiveBroker:
         """After reconcile: positions without stop get plan stop or market close.
 
         (a) plan in zeus_live_positions.json → re-place STOP_MARKET (+TP) via move_stop
-        (b) no plan → market reduceOnly close + warning (naked position forbidden)
+        (b) no plan + no matching exchange stop → market reduceOnly close;
+        (c) no plan + matching live exchange stop → preserve it and alert owner.
         """
         from pathlib import Path as _Path
 
@@ -1148,23 +1181,66 @@ class LiveBroker:
 
         restored: list[str] = []
         closed: list[str] = []
+        orphan_protected: list[str] = []
+        orphan_state_path = Path("models/zeus_orphan_protected_warn.json")
+        try:
+            orphan_state = json.loads(
+                orphan_state_path.read_text(encoding="utf-8")
+            ) if orphan_state_path.exists() else {}
+        except Exception:
+            orphan_state = {}
+        if not isinstance(orphan_state, dict):
+            orphan_state = {}
+        orphan_state_changed = False
         for p in positions:
             sym = getattr(p, "symbol", "")
             qty = getattr(p, "quantity", None) or Decimal("0")
             if qty <= 0:
                 continue
             orders = by_sym.get(sym, [])
-            has_stop = any(
-                "stop" in str(getattr(o, "order_type", "")).lower()
-                and "take_profit" not in str(getattr(o, "order_type", "")).lower()
-                for o in orders
-            )
+            side = str(getattr(p, "side", "long") or "long").lower()
+            has_stop = _has_matching_protective_order(orders, side, kind="stop")
             plan = get_plan(sym, path)
-            has_tp = any(
-                "take_profit" in str(getattr(o, "order_type", "")).lower()
-                for o in orders
-            )
-            # stop without our plan → unsupervised close below
+            has_tp = _has_matching_protective_order(orders, side, kind="take_profit")
+            # A live exchange stop is still real protection even when our local
+            # plan was lost. Never cancel it and market-close an externally
+            # managed/manual position merely because local metadata is absent.
+            if has_stop and (not plan or not plan.get("stop")):
+                orphan_protected.append(sym)
+                now = time.time()
+                last_warn = float(orphan_state.get(sym) or 0.0)
+                if now - last_warn >= 3600:
+                    warning = (
+                        f"⚠️ {sym}: биржевой STOP найден, локального плана нет. "
+                        "STOP сохранён, позиция не закрыта; требуется сверка."
+                    )
+                    logger.warning(
+                        "restore_missing_stops: %s has exchange STOP but no local plan; preserving orders",
+                        sym,
+                    )
+                    try:
+                        append_live_trade({
+                            "event": "orphan_protected_position",
+                            "symbol": sym,
+                            "side": side,
+                            "qty": str(qty),
+                            "ts": now,
+                        })
+                    except Exception:
+                        pass
+                    try:
+                        if send_tg is not None:
+                            await send_tg(warning)
+                    except Exception:
+                        pass
+                    orphan_state[sym] = now
+                    orphan_state_changed = True
+                else:
+                    logger.info(
+                        "restore_missing_stops: %s remains protected by exchange STOP; local plan absent",
+                        sym,
+                    )
+                continue
             if has_stop and plan and plan.get("stop"):
                 # Follow-up #4: stop alive but TP missing → place TP only
                 # After be_moved (TP1 already filled) never re-place the partial TP.
@@ -1336,7 +1412,19 @@ class LiveBroker:
                         "restore_missing_stops: close %s failed: %s",
                         sym, type(exc).__name__,
                     )
-        return {"restored": restored, "closed_naked": closed}
+        if orphan_state_changed:
+            try:
+                orphan_state_path.parent.mkdir(parents=True, exist_ok=True)
+                orphan_state_path.write_text(
+                    json.dumps(orphan_state, ensure_ascii=False), encoding="utf-8"
+                )
+            except Exception:
+                pass
+        return {
+            "restored": restored,
+            "closed_naked": closed,
+            "orphan_protected": orphan_protected,
+        }
 
 
     async def ensure_protection(
@@ -1442,10 +1530,9 @@ class LiveBroker:
             if not sym or qty <= 0:
                 continue
             orders = by_sym.get(sym, [])
-            has_stop = any(
-                "stop" in str(getattr(o, "order_type", "")).lower()
-                and "take_profit" not in str(getattr(o, "order_type", "")).lower()
-                for o in orders
+            position_side = str(getattr(p, "side", "long") or "long").lower()
+            has_stop = _has_matching_protective_order(
+                orders, position_side, kind="stop"
             )
             if has_stop:
                 bare.pop(sym, None)
