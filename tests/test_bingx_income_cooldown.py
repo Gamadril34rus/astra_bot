@@ -17,8 +17,8 @@ def test_retry_async_does_not_retry_bingx_100410():
         nonlocal calls
         calls += 1
         raise ExchangeError(
-            "BingX API error: code=100410: endpoint trigger frequency limit "
-            "is in the disabled period"
+            "BingX API error: rate limited",
+            code=100410,
         )
 
     try:
@@ -38,8 +38,9 @@ def test_get_realized_income_sets_cooldown_and_skips_remaining_types(monkeypatch
     async def fake_request(method, endpoint, params=None, signed=False):
         calls.append(params["incomeType"])
         raise ExchangeError(
-            "BingX API error: code=100410: endpoint trigger frequency limit "
-            "is in the disabled period and will be unblocked after 4102444800000"
+            "BingX API error: endpoint trigger frequency limit is in the disabled "
+            "period and will be unblocked after 4102444800000",
+            code=100410,
         )
 
     monkeypatch.setattr(client, "_request", fake_request)
