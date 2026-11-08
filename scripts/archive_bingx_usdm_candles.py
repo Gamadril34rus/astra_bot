@@ -289,6 +289,21 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     return manifest
 
 
+
+
+def _resolve_timeframes(
+    requested: str | None,
+    mode: str,
+    manifest_path: Path = MANIFEST_PATH,
+) -> tuple[str, ...]:
+    if requested:
+        return tuple(item.strip() for item in requested.split(",") if item.strip())
+    if mode == "daily" and manifest_path.exists():
+        previous = json.loads(manifest_path.read_text(encoding="utf-8"))
+        return tuple(previous.get("timeframes") or DEFAULT_TIMEFRAMES)
+    return DEFAULT_TIMEFRAMES
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=("initial", "daily"), default="daily")
@@ -301,15 +316,9 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     args.symbols = tuple(item.strip().upper() for item in args.symbols.split(",") if item.strip())
-    if args.timeframes:
-        args.timeframes = tuple(
-            item.strip() for item in args.timeframes.split(",") if item.strip()
-        )
-    elif args.mode == "daily" and MANIFEST_PATH.exists():
-        previous = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-        args.timeframes = tuple(previous.get("timeframes") or DEFAULT_TIMEFRAMES)
-    else:
-        args.timeframes = DEFAULT_TIMEFRAMES
+    args.timeframes = _resolve_timeframes(
+        args.timeframes, args.mode, MANIFEST_PATH
+    )
     unknown = sorted(set(args.timeframes) - set(TIMEFRAME_MS))
     if unknown:
         raise SystemExit(f"unsupported archive timeframes: {', '.join(unknown)}")
