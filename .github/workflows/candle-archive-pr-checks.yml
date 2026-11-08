@@ -1,0 +1,38 @@
+name: Candle archive PR checks
+
+on:
+  push:
+    branches:
+      - feat/bingx-usdm-candle-archive
+  pull_request:
+    paths:
+      - "scripts/archive_bingx_usdm_candles.py"
+      - "tests/test_bingx_usdm_candle_archive.py"
+      - ".github/workflows/bingx-usdm-candle-archive.yml"
+      - ".github/workflows/candle-archive-pr-checks.yml"
+      - "pyproject.toml"
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Ruff with repository configuration
+        run: |
+          python -m ruff check --config pyproject.toml \
+            scripts/archive_bingx_usdm_candles.py \
+            tests/test_bingx_usdm_candle_archive.py
+      - name: Candle archive unit tests
+        run: |
+          python -m pytest tests/test_bingx_usdm_candle_archive.py -q
