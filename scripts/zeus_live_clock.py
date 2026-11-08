@@ -2297,7 +2297,9 @@ async def _accumulate_funding_day(client) -> float:
         if not sym or not hasattr(client, "get_realized_income"):
             continue
         try:
-            rows = await client.get_realized_income(sym, start_ms=start_ms)
+            rows = await client.get_realized_income(
+                sym, start_ms=start_ms, income_types=("FUNDING_FEE",)
+            )
         except Exception as exc:
             logger.warning("funding_day poll %s: %s", sym, type(exc).__name__)
             continue
