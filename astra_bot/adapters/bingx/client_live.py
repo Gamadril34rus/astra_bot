@@ -257,7 +257,9 @@ def _income_cooldown_until(exc: BaseException, *, now: float | None = None) -> f
     if match:
         raw = int(match.group(1))
         until = raw / 1000.0 if raw > 10**12 else float(raw)
-        if until > current:
+        # Reject implausible units/far-future values instead of persisting a
+        # multi-century cooldown after a malformed exchange message.
+        if current < until <= current + 7 * 24 * 3600:
             return until
     return current + 15 * 60
 
