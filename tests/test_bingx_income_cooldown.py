@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 
-from astra_bot.adapters.bingx.client_live import LiveBingXClient
+from astra_bot.adapters.bingx.client_live import LiveBingXClient, _income_cooldown_until
 from astra_bot.core.exceptions import ExchangeError
 from astra_bot.decision.live_income_report import fetch_income_with_retries, process_income_fill_tape
 from astra_bot.utils.retry import retry_async
@@ -109,3 +109,26 @@ def test_income_fill_tape_requests_only_realized_pnl(tmp_path):
     )
     assert result["scanned"] == 0
     assert result["written"] == 0
+
+
+
+def test_income_cooldown_parses_millisecond_epoch():
+    until = _income_cooldown_until(
+        ExchangeError(
+            "BingX endpoint disabled; unblocked after 1700000600000",
+            code=100410,
+        ),
+        now=1_700_000_000.0,
+    )
+    assert until == 1_700_000_600.0
+
+
+def test_income_cooldown_rejects_implausible_timestamp():
+    until = _income_cooldown_until(
+        ExchangeError(
+            "BingX endpoint disabled; unblocked after 4102444800000",
+            code=100410,
+        ),
+        now=1_700_000_000.0,
+    )
+    assert until == 1_700_000_900.0
