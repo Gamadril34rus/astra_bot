@@ -14,8 +14,8 @@
 | INJ_SLOT_RESERVE | `live_arm.py` | 2 свободных слота для major | 2 |
 | Cooldown входа | `live_arm.py` | 20 минут на strategy / symbol / side | 20 минут |
 | FRESH_MAX_SEC | `live_arm_wiring.py` | 2700 секунд (45 минут) | 2700 секунд |
-| Дневной / недельный убыток | `live_risk.py` | 4% / 6% от реального equity | 4% / 6% |
-| Kill PF threshold | `live_risk.py` | HALT при n ≥ 5 и PF < 1 | n ≥ 5 и PF < 1 |
+| Дневной / недельный убыток | `live_risk.py` | 4% / 6% от equity | VST experiment: автоматический day/week HALT отключён; ручная блокировка и защита позиций остаются |
+| Kill PF threshold | `live_risk.py` | HALT при n ≥ 5 и PF < 1 | VST experiment: PF auto-HALT отключён; аудит считает уникальные финальные выходы |
 | ZEUS_KILL_PF_WINDOW | `live_risk.py` + live workflow | 0 / пусто = cumulative | 20 последних подходящих exits после reset/epoch |
 | MAX_LEVERAGE | `LiveBrokerConfig` | 10 | `ZEUS_LIVE_MAX_LEVERAGE=10` |
 | Default leverage | `LiveBrokerConfig`, candidate | 5 до расчёта / override | Входы принудительно используют `ZEUS_LIVE_FORCE_LEVERAGE=6` |
@@ -34,7 +34,7 @@
 | Session profile | `live_session.py` | `ZEUS_SESSION_PROFILE=0` (выключен) | `ZEUS_SESSION_PROFILE=1` |
 | Session BE / TP1 (static) | `live_session.py` | BE 0.5R / TP1 0.6R, если профиль выключен | В workflow заданы 0.5 / 0.6, но при профиле = 1 профиль сессии их переопределяет |
 | ZEUS_PF_SKIP_SCRATCHED | `live_risk.py` | 1 (игнорировать scratched exits) | 1 |
-| ZEUS_PF_INCLUDE_PARTIAL | `live_risk.py` | 1 (учитывать partial_fill с pnl) | 1 |
+| PF accounting | `live_risk.py` | Один финальный exit на trade_id; partial_fill отдельно не учитывается | Один финальный exit на trade_id; повторные exit обновляются последней записью |
 | ZEUS_STOP_PULL_PCT | `live_exit_engine.py` | 0 (выключен) | 0 |
 | ZEUS_RETEST_V1 | `zeus-live-clock.yml` | Shadow-режим задаётся кодовым/runner default | `shadow` |
 | ZEUS_MIN_STOP_PCT | `live_arm_wiring.py` | 0.01 | 0.01 |
@@ -61,7 +61,7 @@
 |---|---|---|
 | `ENVIRONMENT` | YAML | `live` |
 | `ZEUS_LIVE` | GitHub Actions Secret | Проверяется guard; без значения `1` live-адаптер не запускается |
-| `ZEUS_VST`, `ZEUS_MAINNET` | GitHub Actions Secrets | Выбор окружения по guard в коде; значения секретов не видны в YAML |
+| `ZEUS_VST`, `ZEUS_MAINNET` | YAML | Жёстко VST-only: `1` / `0`; mainnet не берётся из Secrets |
 | `ZEUS_ARM` | GitHub Actions Secret | Разрешение новых arm-входов |
 | `BINGX_API_KEY`, `BINGX_API_SECRET` | GitHub Actions Secrets | Передаются в процесс; не печатать и не сохранять в git |
 | `TELEGRAM_LIVE_BOT_TOKEN`, `TELEGRAM_ADMIN_ID`, `TELEGRAM_CHAT_ID` | GitHub Actions Secrets | Telegram-команды и уведомления |
@@ -71,19 +71,26 @@
 | `ZEUS_KILL_PF_WINDOW` | YAML | `20` |
 | `ZEUS_LIVE_EXIT_ENGINE`, `ZEUS_LIVE_TRAIL_POLICY` | YAML | `on`, `atr` |
 | `ZEUS_BE_TRIGGER_R`, `ZEUS_SESSION_PROFILE`, `ZEUS_TP1_RR` | YAML | `0.5`, `1`, `0.6` (BE/TP1 подчиняются профилю сессии, см. выше) |
+| `ZEUS_VST_DISABLE_PERFORMANCE_HALT` | YAML | `1` (только при подтверждённом VST endpoint) |
 | `ZEUS_STOP_PULL_PCT` | YAML | `0` |
-| `ZEUS_PF_SKIP_SCRATCHED`, `ZEUS_PF_INCLUDE_PARTIAL` | YAML | `1`, `1` |
+| `ZEUS_PF_SKIP_SCRATCHED` | YAML | `1` |
 | `ZEUS_MIN_STOP_PCT` | YAML | `0.01` |
 | `ZEUS_DEAD_FLAT_EXIT`, `ZEUS_DEAD_FLAT_AGE_H`, `ZEUS_DEAD_FLAT_MFE` | YAML | `1`, `12`, `0.15` |
 
-Секреты владельца не раскрываются этим документом. Значения Secret нельзя выводить из имени переменной или из пустого/непустого поля YAML.
+Секреты владельца не раскрываются этим документом. Значения Secret нельзя выводить из имени переменной или из пустого/непустого поля YAML. VST и mainnet больше не выбираются секретами: live workflow принудительно задаёт VST=1 / MAINNET=0.
 
 ## Общая конфигурация проекта — НЕ Zeus
 
 `config/settings.yaml` — общий конфиг ASTRA BOT. В нём есть `risk_per_trade=0.004` (0.4%), `daily_loss_limit=0.02` (2%) и `weekly_loss_limit=0.04` (4%). **Эти значения не заменяют Zeus-канон 4% дневного / 6% недельного ограничения, Zeus risk ladder и Zeus-параметры.** Не копировать значения в обе стороны. Бумажный Zeus отдельно описан в `config/paper_zeus_clock.yaml`.
 
+## VST experimental mode
+
+В live workflow принудительно заданы ZEUS_VST=1 и ZEUS_MAINNET=0. ZEUS_VST_DISABLE_PERFORMANCE_HALT=1 отключает только автоматические дневной/недельный/PF HALT, и только когда сам созданный клиент подтверждает VST endpoint. Риск на сделку, плечо, MAX_OPEN, same-side/cluster caps, margin gates, ручная блокировка входов, ручной kill-switch и сопровождение/защита открытых позиций не отключаются. На mainnet этот override не действует. Старый файл PF HALT не удаляется и не сбрасывается; в VST он игнорируется только в этом явно разрешённом режиме.
+
+PF и дневной/недельный PnL теперь считают только финальные event=exit строки. partial_fill не добавляется вторым разом: итоговый exit уже агрегирует realized PnL позиции. Повторные exit для одного trade_id схлопываются до последней записи.
+
 ## Операционные запреты
 
-- ON/режим exit-engine, изменения риска, ENV, Disable/Enable workflows и любые действия с real — только прямое слово владельца.
+- ON/режим exit-engine, изменения риска на сделку, ENV вне фиксированного VST-профиля, Disable/Enable workflows и любые действия с real — только прямое слово владельца.
 - Не править `models/` вручную ради документации.
 - Force-push и отключение Gitleaks запрещены.

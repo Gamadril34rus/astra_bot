@@ -74,44 +74,52 @@ def _read_exit_rows(path: Path = TRADES_PATH, *, require_pnl: bool = True) -> li
     return rows
 
 
-def _read_exit_pnls(path: Path = TRADES_PATH) -> list[dict[str, Any]]:
-    """PF path: exits with pnl≠null; optional partial_fill (realized scale legs).
+def _dedupe_exit_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep the latest finalized row per trade; preserve rows without a stable ID."""
+    def _row_ts(row: dict[str, Any]) -> float:
+        try:
+            return float(row.get("ts") or 0)
+        except (TypeError, ValueError):
+            return 0.0
 
-    ZEUS_PF_INCLUDE_PARTIAL=1 (default): count partial_fill rows so scale-out
-    profits (SOL +175 style) enter PF before full position close.
+    latest: dict[str, tuple[int, dict[str, Any]]] = {}
+    unkeyed: list[tuple[int, dict[str, Any]]] = []
+    for index, row in enumerate(rows):
+        identity = str(row.get("trade_id") or row.get("signal_id") or "").strip()
+        if not identity:
+            unkeyed.append((index, row))
+            continue
+        previous = latest.get(identity)
+        if previous is None:
+            latest[identity] = (index, row)
+            continue
+        previous_index, previous_row = previous
+        current_ts = _row_ts(row)
+        previous_ts = _row_ts(previous_row)
+        # Use the newest accounting snapshot, but anchor the trade to its first
+        # observed close time so a later reconciliation cannot move PnL into a
+        # different UTC day/week.
+        first_ts = min(current_ts, previous_ts)
+        if (current_ts, index) >= (previous_ts, previous_index):
+            selected_row = dict(row)
+            selected_row["ts"] = first_ts
+            latest[identity] = (index, selected_row)
+        elif current_ts < previous_ts:
+            selected_row = dict(previous_row)
+            selected_row["ts"] = first_ts
+            latest[identity] = (previous_index, selected_row)
+    selected = unkeyed + list(latest.values())
+    selected.sort(key=lambda item: (_row_ts(item[1]), item[0]))
+    return [row for _, row in selected]
+
+
+def _read_exit_pnls(path: Path = TRADES_PATH) -> list[dict[str, Any]]:
+    """PF input: one finalized exit per trade; partial fills are already in exit PnL.
+
+    Counting partial_fill income again double-counts realized legs when the final
+    exit row contains the aggregate realized PnL for the position.
     """
-    rows = _read_exit_rows(path, require_pnl=True)
-    include_partial = os.environ.get("ZEUS_PF_INCLUDE_PARTIAL", "1").strip().lower() not in (
-        "0",
-        "false",
-        "no",
-        "off",
-    )
-    if not include_partial or not path.exists():
-        return rows
-    try:
-        for line in path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                row = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if not isinstance(row, dict):
-                continue
-            if row.get("event") != "partial_fill":
-                continue
-            if row.get("pnl") is None:
-                continue
-            try:
-                float(row["pnl"])
-            except (TypeError, ValueError):
-                continue
-            rows.append(row)
-    except OSError as exp:
-        logger.warning("live_risk read partial_fill: %s", type(exp).__name__)
-    return rows
+    return _dedupe_exit_rows(_read_exit_rows(path, require_pnl=True))
 
 
 def sum_pnl_since(
@@ -120,9 +128,9 @@ def sum_pnl_since(
     *,
     equity: Decimal | None = None,
 ) -> Decimal:
-    """Day/week: include pnl=null as −1R (B-002). PF still uses _read_exit_pnls only."""
+    """Day/week: finalized exits only; include pnl=null as −1R (B-002)."""
     total = Decimal("0")
-    for row in _read_exit_rows(path, require_pnl=False):
+    for row in _dedupe_exit_rows(_read_exit_rows(path, require_pnl=False)):
         try:
             ts = float(row.get("ts") or 0)
         except (TypeError, ValueError):
@@ -301,6 +309,21 @@ def write_week_loss_reset(ts: float | None = None, path: Path | None = None) -> 
     )
     return t
 
+
+def should_disable_vst_performance_halt() -> bool:
+    """Allow only the explicit VST experiment to bypass automatic PnL halts.
+
+    ZEUS_VST_ENDPOINT_CONFIRMED is set by LiveBingXClient from its resolved
+    base URL, not by workflow input or a user-controlled secret.
+    """
+    return (
+        os.environ.get("ZEUS_VST_ENDPOINT_CONFIRMED", "").strip() == "1"
+        and os.environ.get("ZEUS_VST", "").strip() == "1"
+        and os.environ.get("ZEUS_MAINNET", "").strip() == "0"
+        and os.environ.get("ZEUS_VST_DISABLE_PERFORMANCE_HALT", "").strip() == "1"
+    )
+
+
 def check_day_week_limits(
     equity: Decimal,
     path: Path = TRADES_PATH,
@@ -312,6 +335,8 @@ def check_day_week_limits(
     week window so pre-reset exits do not count toward the 6% week limit.
     Day window unchanged unless reset_at is newer than day start.
     """
+    if should_disable_vst_performance_halt():
+        return None
     if equity <= 0:
         return None
     reset_at = load_week_loss_reset()
@@ -338,6 +363,8 @@ def check_pf_kill(path: Path = TRADES_PATH, state_path: Path = KILL_STATE_PATH) 
     Owner 28.10: reset_kill writes pf_window_reset_at so halt does not re-arm
     on the same pre-reset losses.
     """
+    if should_disable_vst_performance_halt():
+        return None
     win = kill_pf_window_size()
     # Owner 28.10: floor = max(kill_epoch_ts, pf_window_reset_at) so reset_kill
     # drops pre-reset losers from the sliding window without changing thresholds.
@@ -371,6 +398,8 @@ def check_pf_kill(path: Path = TRADES_PATH, state_path: Path = KILL_STATE_PATH) 
 
 
 def load_kill_halted(state_path: Path = KILL_STATE_PATH) -> str | None:
+    if should_disable_vst_performance_halt():
+        return None
     if not state_path.exists():
         return None
     try:
