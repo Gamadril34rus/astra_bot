@@ -259,6 +259,8 @@ class LiveBingXClient(BingXClient):
         cfg.setdefault("api_secret", os.environ.get("BINGX_API_SECRET", ""))
         super().__init__(cfg)
         self._is_vst = "vst" in (self.base_url or "").lower()
+        # Internal process-local proof consumed by live_risk; never supplied by Secrets.
+        os.environ["ZEUS_VST_ENDPOINT_CONFIRMED"] = "1" if self._is_vst else "0"
         logger.info(
             "LiveBingXClient base=%s vst=%s key=%s",
             self.base_url,
