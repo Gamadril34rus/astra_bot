@@ -16,7 +16,12 @@
       "opened_at_ms": 1794121354100,
       "plan_qty": "148.32982863",
       "qty_ratio": 1.0,
-      "tp1": "75.8743885"
+      "tp1": "75.8743885",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "77.224",
+      "current_regime": "WEAK_BEAR_TREND"
     },
     "INJ-USDT|long": {
       "symbol": "INJ-USDT",
@@ -34,8 +39,13 @@
       "opened_at_ms": 1794121369579,
       "plan_qty": "5075.66967041",
       "qty_ratio": 1.0,
-      "tp1": "8.1374545"
+      "tp1": "8.1374545",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_high": "8.098",
+      "current_regime": "WEAK_BULL_TREND"
     }
   },
-  "ts": 1794121369.579145
+  "ts": 1794122111.760948
 }
