@@ -7,6 +7,7 @@ import json
 from astra_bot.decision.live_income_report import (
     aggregate_income,
     enqueue_pending,
+    fetch_income_with_retries,
     format_estimate_rocket,
     format_pending_rocket,
     format_rocket_correction,
@@ -209,3 +210,24 @@ def test_stop_reason_marker():
     msg_e = format_estimate_rocket("X", "long", est=1.0, reason="стоп")
     assert "стоп" in msg_e
     assert "1.00$" not in msg_e
+
+
+
+def test_income_retry_stops_when_endpoint_cooldown_is_active():
+    class Client:
+        income_endpoint_cooldown_active = False
+
+        def __init__(self):
+            self.calls = 0
+
+        async def get_realized_income(self, symbol, start_ms=None):
+            self.calls += 1
+            self.income_endpoint_cooldown_active = True
+            return []
+
+    client = Client()
+    result = asyncio.run(
+        fetch_income_with_retries(client, "BTC-USDT", 1, attempts=3, delay_sec=0)
+    )
+    assert client.calls == 1
+    assert result["has_realized"] is False
