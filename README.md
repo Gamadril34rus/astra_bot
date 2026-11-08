@@ -143,7 +143,7 @@ EXIT-карточка занимает весь холст **1240×1640**. Фо�
 - **[docs/CONFIGURATION_MAP.md](docs/CONFIGURATION_MAP.md)** — где живут общие настройки, paper Zeus, live overrides и Actions Secrets.
 - **[docs/PR_HISTORY.md](docs/PR_HISTORY.md)** — хроника всех PR репозитория.
 - **[docs/INDEX.md](docs/INDEX.md)** — карта технической документации.
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) · [DECISION_PIPELINE.md](docs/DECISION_PIPELINE.md) · [GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md) · [REAL_READINESS.md](docs/REAL_READINESS.md).
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) · [DECISION_PIPELINE.md](docs/DECISION_PIPELINE.md) · [GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md) · [REAL_READINESS.md](docs/REAL_READINESS.md) · [BingX USDT-M candle archive](docs/BINGX_USDM_CANDLE_ARCHIVE.md).
 
 ## Права
 
