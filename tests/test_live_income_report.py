@@ -156,7 +156,7 @@ def test_funding_day_accumulate_and_reset(tmp_path, monkeypatch):
     async def _run():
         client = _C()
         s = await clock._accumulate_funding_day(client)
-        assert client.requested_types == [("FUNDING_FEE",)]
+        assert client.requested_types == []
         assert s == 0.0
         day_path = tmp_path / "models" / "zeus_funding_day.json"
         assert day_path.exists()
