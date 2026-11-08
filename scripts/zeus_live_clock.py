@@ -2891,28 +2891,16 @@ async def one_tick(*, dry: bool = False) -> int:
             check_day_week_limits,
             check_pf_kill,
             load_kill_halted,
-            should_disable_vst_performance_halt,
         )
 
         if is_blocked():
             broker.block_entries()
             logger.info("entries blocked via zeus_live_blocked.json")
 
-        vst_performance_relaxed = should_disable_vst_performance_halt(
-            is_vst=bool(getattr(client, "_is_vst", False))
-        )
-        if vst_performance_relaxed:
-            logger.warning(
-                "VST EXPERIMENT: day/week and PF auto-HALT disabled; "
-                "manual entry block, margin/position caps and position protection remain active"
-            )
-
-        prior = None if vst_performance_relaxed else load_kill_halted()
+        prior = load_kill_halted()
         if prior:
             broker.set_halt(prior)
             logger.error("HALT from kill state: %s", prior)
-        elif vst_performance_relaxed:
-            logger.info("VST experiment: skipping day/week and PF performance HALT checks")
         else:
             eq = await broker.client.get_balance_usdt()  # owner 16.10: day/week % от РЕАЛЬНОГО счёта
             write_live_equity(float(eq) if eq is not None else None)
