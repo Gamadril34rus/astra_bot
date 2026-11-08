@@ -31,10 +31,16 @@ jobs:
       - name: Guard flags
         env:
           ZEUS_LIVE: ${{ secrets.ZEUS_LIVE }}
+          ZEUS_VST: "1"
+          ZEUS_MAINNET: "0"
         run: |
           if [ "${ZEUS_LIVE}" != "1" ]; then
             echo "ZEUS_LIVE is not 1 — abort (adapter inactive)"
             exit 0
+          fi
+          if [ "${ZEUS_VST}" != "1" ] || [ "${ZEUS_MAINNET}" != "0" ]; then
+            echo "VST-only guard failed — refusing live clock" >&2
+            exit 1
           fi
       - name: TG commands poll
         env:
@@ -52,8 +58,9 @@ jobs:
       - name: Run live clock
         env:
           ZEUS_LIVE: ${{ secrets.ZEUS_LIVE }}
-          ZEUS_VST: ${{ secrets.ZEUS_VST }}
-          ZEUS_MAINNET: ${{ secrets.ZEUS_MAINNET }}
+          ZEUS_VST: "1"
+          ZEUS_MAINNET: "0"
+          ZEUS_VST_DISABLE_PERFORMANCE_HALT: "1"
           ZEUS_ARM: ${{ secrets.ZEUS_ARM }}
           ZEUS_RETEST_V1: "shadow"
           ZONE_SHADOW: "1"
@@ -67,7 +74,6 @@ jobs:
           ZEUS_TP1_RR: "0.6"
           ZEUS_STOP_PULL_PCT: "0"
           ZEUS_PF_SKIP_SCRATCHED: "1"
-          ZEUS_PF_INCLUDE_PARTIAL: "1"
           ZEUS_MIN_STOP_PCT: "0.01"
           ZEUS_DEAD_FLAT_EXIT: "1"
           ZEUS_DEAD_FLAT_AGE_H: "12"
