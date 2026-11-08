@@ -66,7 +66,7 @@ def _has_matching_protective_order(
         status = str(
             getattr(order, "status_raw", None) or getattr(order, "status", None) or ""
         ).upper()
-        if status and status not in {"NEW", "PENDING", "PARTIALLY_FILLED", "ACKNOWLEDGED"}:
+        if status in {"CANCELED", "CANCELLED", "FILLED", "REJECTED", "EXPIRED"}:
             continue
         if _order_matches_position_side(order, position_side):
             return True
