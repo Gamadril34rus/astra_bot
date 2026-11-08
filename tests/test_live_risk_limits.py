@@ -145,8 +145,11 @@ def test_vst_override_skips_day_week_and_pf_performance_checks(
     _write(
         p,
         [
-            {"event": "exit", "trade_id": "loss-1", "pnl": -10.0, "ts": now - 20},
-            {"event": "exit", "trade_id": "loss-2", "pnl": -10.0, "ts": now - 10},
+            {"event": "exit", "trade_id": "loss-1", "pnl": -10.0, "ts": now - 50},
+            {"event": "exit", "trade_id": "loss-2", "pnl": -10.0, "ts": now - 40},
+            {"event": "exit", "trade_id": "loss-3", "pnl": -10.0, "ts": now - 30},
+            {"event": "exit", "trade_id": "loss-4", "pnl": -10.0, "ts": now - 20},
+            {"event": "exit", "trade_id": "loss-5", "pnl": -10.0, "ts": now - 10},
         ],
     )
     state = tmp_path / "kill.json"
