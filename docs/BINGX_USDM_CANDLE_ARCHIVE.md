@@ -6,8 +6,13 @@ BingXClient. It is perpetual-futures OHLCV, not Binance spot candles.
 ## Scope
 
 - Symbols: BTC-USDT, ETH-USDT, SOL-USDT, HYPE-USDT, INJ-USDT.
-- Timeframes: 15m, 1h, 4h, 1d. These cover the live impulse, strategy, structure,
-  and higher-timeframe research layers without the storage and API cost of 1m/3m.
+- Default timeframes: 5m, 15m, 1h, 4h, 1d. These match the active Zeus decision
+  path: 5m micro-confirmation, 15m entry, 1h direction, 4h structure, 1d context.
+- 1m is supported by the downloader as an explicit workflow-dispatch override,
+  but is not in the default archive: it appears in the generic project candle
+  config, not the active Zeus decision timeframe tuple, and multiplies history
+  size/API cost substantially. 3m and other exchange intervals are not in the
+  active strategy config.
 - Initial history request starts at 2021-01-01 UTC. The actual first bar is the
   earliest bar BingX returns for each contract.
 - Only closed candles are written. The current still-open candle is excluded.
@@ -22,7 +27,9 @@ Workflow: .github/workflows/bingx-usdm-candle-archive.yml
 
 1. After this PR is merged, run workflow_dispatch with mode=initial once. This is
    the full historical backfill; it is not run automatically by the PR.
-2. The daily schedule appends bars newer than the last archived timestamp.
+2. The daily schedule appends bars newer than the last archived timestamp using
+   the default 5m/15m/1h/4h/1d set. A manual dispatch can supply another comma-
+   separated timeframe list, including 1m if explicitly required.
 3. If the manifest reports gaps or a data conflict, investigate and run a
    controlled initial/backfill repair separately. Daily mode does not rewrite
    old bars or hide missing intervals.
