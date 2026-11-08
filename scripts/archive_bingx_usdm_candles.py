@@ -170,7 +170,11 @@ async def _download_pair(
             "run workflow_dispatch with mode=initial first"
         )
     existing_max = max(existing) if existing else None
-    floor_ms = start_ms if mode == "initial" else int(existing_max or 0)
+    if mode == "initial":
+        floor_ms = start_ms
+    else:
+        overlap_floor = int(existing_max or 0) - 3 * interval_ms
+        floor_ms = max(min(existing) if existing else 0, overlap_floor)
     cursor_end = now_ms
     previous_oldest: int | None = None
     incoming: dict[int, dict[str, str]] = {}
@@ -195,9 +199,14 @@ async def _download_pair(
                 continue
             if open_time < floor_ms:
                 continue
-            if mode == "daily" and existing_max is not None and open_time <= existing_max:
-                continue
-            incoming[open_time] = _row_from_candle(candle)
+            row = _row_from_candle(candle)
+            previous = incoming.get(open_time)
+            if previous is not None and not _same_bar(previous, row):
+                raise ValueError(
+                    f"conflicting duplicate within BingX page at {symbol} "
+                    f"{timeframe} open_time={open_time}"
+                )
+            incoming[open_time] = row
 
         if oldest <= floor_ms or len(page) < PAGE_SIZE:
             break
@@ -218,6 +227,7 @@ async def _download_pair(
             "source": "BingX USDT-M perpetual swap public klines",
             "mode": mode,
             "new_bars": len(set(merged) - set(existing)),
+            "verified_overlap_bars": len(set(incoming) & set(existing)),
             "pages_requested": pages,
         }
     )
