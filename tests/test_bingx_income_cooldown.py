@@ -5,7 +5,10 @@ import asyncio
 
 from astra_bot.adapters.bingx.client_live import LiveBingXClient, _income_cooldown_until
 from astra_bot.core.exceptions import ExchangeError
-from astra_bot.decision.live_income_report import fetch_income_with_retries, process_income_fill_tape
+from astra_bot.decision.live_income_report import (
+    fetch_income_with_retries,
+    process_income_fill_tape,
+)
 from astra_bot.utils.retry import retry_async
 
 
