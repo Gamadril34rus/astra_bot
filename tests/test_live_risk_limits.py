@@ -128,3 +128,28 @@ def test_vst_override_ignores_persisted_performance_halt(monkeypatch, tmp_path: 
     state = tmp_path / "kill.json"
     state.write_text('{"halted": true, "reason": "PF=0.9"}', encoding="utf-8")
     assert load_kill_halted(state) is None
+
+
+
+def test_vst_override_skips_day_week_and_pf_performance_checks(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from astra_bot.decision.live_risk import check_pf_kill
+
+    monkeypatch.setenv("ZEUS_VST", "1")
+    monkeypatch.setenv("ZEUS_MAINNET", "0")
+    monkeypatch.setenv("ZEUS_VST_DISABLE_PERFORMANCE_HALT", "1")
+    monkeypatch.setenv("ZEUS_VST_ENDPOINT_CONFIRMED", "1")
+    p = tmp_path / "trades.jsonl"
+    now = time.time()
+    _write(
+        p,
+        [
+            {"event": "exit", "trade_id": "loss-1", "pnl": -10.0, "ts": now - 20},
+            {"event": "exit", "trade_id": "loss-2", "pnl": -10.0, "ts": now - 10},
+        ],
+    )
+    state = tmp_path / "kill.json"
+    assert check_day_week_limits(Decimal("100"), path=p) is None
+    assert check_pf_kill(path=p, state_path=state) is None
+    assert not state.exists()
