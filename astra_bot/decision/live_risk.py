@@ -74,44 +74,42 @@ def _read_exit_rows(path: Path = TRADES_PATH, *, require_pnl: bool = True) -> li
     return rows
 
 
-def _read_exit_pnls(path: Path = TRADES_PATH) -> list[dict[str, Any]]:
-    """PF path: exits with pnl≠null; optional partial_fill (realized scale legs).
+def _dedupe_exit_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep the latest finalized row per trade; preserve rows without a stable ID."""
+    latest: dict[str, tuple[int, dict[str, Any]]] = {}
+    unkeyed: list[tuple[int, dict[str, Any]]] = []
+    for index, row in enumerate(rows):
+        identity = str(row.get("trade_id") or row.get("signal_id") or "").strip()
+        if not identity:
+            unkeyed.append((index, row))
+            continue
+        previous = latest.get(identity)
+        if previous is None:
+            latest[identity] = (index, row)
+            continue
+        previous_index, previous_row = previous
+        try:
+            current_ts = float(row.get("ts") or 0)
+        except (TypeError, ValueError):
+            current_ts = 0.0
+        try:
+            previous_ts = float(previous_row.get("ts") or 0)
+        except (TypeError, ValueError):
+            previous_ts = 0.0
+        if (current_ts, index) >= (previous_ts, previous_index):
+            latest[identity] = (index, row)
+    selected = unkeyed + list(latest.values())
+    selected.sort(key=lambda item: (float(item[1].get("ts") or 0), item[0]))
+    return [row for _, row in selected]
 
-    ZEUS_PF_INCLUDE_PARTIAL=1 (default): count partial_fill rows so scale-out
-    profits (SOL +175 style) enter PF before full position close.
+
+def _read_exit_pnls(path: Path = TRADES_PATH) -> list[dict[str, Any]]:
+    """PF input: one finalized exit per trade; partial fills are already in exit PnL.
+
+    Counting partial_fill income again double-counts realized legs when the final
+    exit row contains the aggregate realized PnL for the position.
     """
-    rows = _read_exit_rows(path, require_pnl=True)
-    include_partial = os.environ.get("ZEUS_PF_INCLUDE_PARTIAL", "1").strip().lower() not in (
-        "0",
-        "false",
-        "no",
-        "off",
-    )
-    if not include_partial or not path.exists():
-        return rows
-    try:
-        for line in path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                row = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if not isinstance(row, dict):
-                continue
-            if row.get("event") != "partial_fill":
-                continue
-            if row.get("pnl") is None:
-                continue
-            try:
-                float(row["pnl"])
-            except (TypeError, ValueError):
-                continue
-            rows.append(row)
-    except OSError as exp:
-        logger.warning("live_risk read partial_fill: %s", type(exp).__name__)
-    return rows
+    return _dedupe_exit_rows(_read_exit_rows(path, require_pnl=True))
 
 
 def sum_pnl_since(
@@ -120,9 +118,9 @@ def sum_pnl_since(
     *,
     equity: Decimal | None = None,
 ) -> Decimal:
-    """Day/week: include pnl=null as −1R (B-002). PF still uses _read_exit_pnls only."""
+    """Day/week: finalized exits only; include pnl=null as −1R (B-002)."""
     total = Decimal("0")
-    for row in _read_exit_rows(path, require_pnl=False):
+    for row in _dedupe_exit_rows(_read_exit_rows(path, require_pnl=False)):
         try:
             ts = float(row.get("ts") or 0)
         except (TypeError, ValueError):
@@ -300,6 +298,20 @@ def write_week_loss_reset(ts: float | None = None, path: Path | None = None) -> 
         encoding="utf-8",
     )
     return t
+
+def should_disable_vst_performance_halt(*, is_vst: bool) -> bool:
+    """Allow the approved VST experiment to bypass only automatic PnL halts.
+
+    Requires the actual client endpoint and explicit VST workflow flags.
+    Mainnet never inherits this override.
+    """
+    return (
+        is_vst
+        and os.environ.get("ZEUS_VST", "").strip() == "1"
+        and os.environ.get("ZEUS_MAINNET", "").strip() != "1"
+        and os.environ.get("ZEUS_VST_DISABLE_PERFORMANCE_HALT", "").strip() == "1"
+    )
+
 
 def check_day_week_limits(
     equity: Decimal,
