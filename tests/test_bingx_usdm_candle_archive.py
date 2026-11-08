@@ -1,0 +1,57 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from scripts.archive_bingx_usdm_candles import (
+    TIMEFRAME_MS,
+    _coverage,
+    _merge_rows,
+    _read_rows,
+    _write_rows,
+)
+
+
+def _row(open_time: int, close: str = "100") -> dict[str, str]:
+    return {
+        "open_time": str(open_time),
+        "open_time_utc": "2026-01-01T00:00:00+00:00",
+        "open": "99",
+        "high": "101",
+        "low": "98",
+        "close": close,
+        "volume": "10",
+        "quote_volume": "1000",
+        "trades_count": "3",
+    }
+
+
+def test_merge_is_sorted_and_idempotent() -> None:
+    existing = {0: _row(0), 60_000: _row(60_000)}
+    incoming = {60_000: _row(60_000), 120_000: _row(120_000)}
+    merged = _merge_rows(existing, incoming)
+    assert list(merged) == [0, 60_000, 120_000]
+    assert _merge_rows(merged, incoming) == merged
+
+
+def test_merge_rejects_revised_historical_bar() -> None:
+    existing = {60_000: _row(60_000, "100")}
+    incoming = {60_000: _row(60_000, "100.01")}
+    with pytest.raises(ValueError, match="immutable candle conflict"):
+        _merge_rows(existing, incoming)
+
+
+def test_csv_roundtrip(tmp_path: Path) -> None:
+    path = tmp_path / "candles.csv"
+    rows = {0: _row(0), 60_000: _row(60_000)}
+    _write_rows(path, rows)
+    assert _read_rows(path) == rows
+
+
+def test_coverage_counts_missing_intervals() -> None:
+    rows = {0: _row(0), 15 * 60_000: _row(15 * 60_000), 45 * 60_000: _row(45 * 60_000)}
+    coverage = _coverage(rows, TIMEFRAME_MS["15m"])
+    assert coverage["bar_count"] == 3
+    assert coverage["gap_count"] == 1
+    assert coverage["gap_samples"][0]["missing_bars"] == 1
