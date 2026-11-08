@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from scripts.archive_bingx_usdm_candles import (
     DEFAULT_TIMEFRAMES,
     TIMEFRAME_MS,
@@ -13,6 +14,7 @@ from scripts.archive_bingx_usdm_candles import (
     _resolve_timeframes,
     _write_rows,
 )
+
 
 def _row(open_time: int, close: str = "100") -> dict[str, str]:
     return {
