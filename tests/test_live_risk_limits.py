@@ -65,3 +65,50 @@ def test_pf_insufficient_n(tmp_path: Path) -> None:
     _write(p, [{"event": "exit", "pnl": -1.0, "ts": now}])
     pf, n = profit_factor(p)
     assert pf is None and n == 1
+
+
+
+def test_pf_ignores_partial_income_and_deduplicates_final_exit(tmp_path: Path) -> None:
+    p = tmp_path / "trades.jsonl"
+    _write(
+        p,
+        [
+            {"event": "partial_fill", "income_id": "income-1", "pnl": 100.0, "ts": 1},
+            {"event": "exit", "trade_id": "trade-1", "pnl": -50.0, "ts": 2},
+            {"event": "exit", "trade_id": "trade-1", "pnl": -40.0, "ts": 3},
+            {"event": "exit", "trade_id": "trade-2", "pnl": 80.0, "ts": 4},
+            {"event": "exit", "trade_id": "trade-3", "pnl": 0.0, "ts": 5},
+            {"event": "exit", "trade_id": "trade-4", "pnl": 0.0, "ts": 6},
+            {"event": "exit", "trade_id": "trade-5", "pnl": 0.0, "ts": 7},
+        ],
+    )
+    pf, n = profit_factor(p)
+    assert n == 5
+    assert pf is not None
+    assert abs(float(pf) - 2.0) < 1e-9
+
+
+def test_day_loss_deduplicates_repeated_exit(tmp_path: Path) -> None:
+    p = tmp_path / "trades.jsonl"
+    now = time.time()
+    _write(
+        p,
+        [
+            {"event": "exit", "trade_id": "trade-1", "pnl": -3.0, "ts": now - 20},
+            {"event": "exit", "trade_id": "trade-1", "pnl": -3.0, "ts": now - 10},
+        ],
+    )
+    assert check_day_week_limits(Decimal("100"), path=p) is None
+
+
+def test_vst_performance_halt_override_is_endpoint_scoped(monkeypatch) -> None:
+    from astra_bot.decision.live_risk import should_disable_vst_performance_halt
+
+    monkeypatch.setenv("ZEUS_VST", "1")
+    monkeypatch.setenv("ZEUS_MAINNET", "0")
+    monkeypatch.setenv("ZEUS_VST_DISABLE_PERFORMANCE_HALT", "1")
+    assert should_disable_vst_performance_halt(is_vst=True)
+    assert not should_disable_vst_performance_halt(is_vst=False)
+
+    monkeypatch.setenv("ZEUS_MAINNET", "1")
+    assert not should_disable_vst_performance_halt(is_vst=True)
