@@ -2052,3 +2052,5 @@
 {"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2119489303263928320", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794168295.298251}
 {"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2119521568710811648", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794172597.4535978}
 {"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2119539613311262720", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794173255.2582676}
+{"event": "qty_reconcile", "symbol": "HYPE-USDT", "side": "short", "old_qty": 148.32982863, "new_qty": 103.8309, "rel_diff": 0.3, "signal_id": "zeus_multi_top_breakdown|HYPE-USDT|short|1794110400000", "ts": 1794173513.3274999}
+{"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2119542372357988352", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794173548.7386928}
