@@ -12,10 +12,10 @@ on:
         default: daily
         required: true
       timeframes:
-        description: "Comma-separated BingX intervals; 1m is available but not in the default strategy set"
+        description: "Optional comma-separated BingX intervals; blank uses the existing manifest or active Zeus defaults"
         type: string
-        default: "5m,15m,1h,4h,1d"
-        required: true
+        default: ""
+        required: false
   schedule:
     - cron: "17 2 * * *"
 
@@ -44,10 +44,14 @@ jobs:
       - name: Download closed USDT-M candles
         env:
           ARCHIVE_MODE: ${{ inputs.mode || 'daily' }}
-          ARCHIVE_TIMEFRAMES: ${{ inputs.timeframes || '5m,15m,1h,4h,1d' }}
+          ARCHIVE_TIMEFRAMES: ${{ inputs.timeframes || '' }}
         run: |
           set -euo pipefail
-          python scripts/archive_bingx_usdm_candles.py --mode "$ARCHIVE_MODE" --timeframes "$ARCHIVE_TIMEFRAMES"
+          args=(--mode "$ARCHIVE_MODE")
+          if [[ -n "$ARCHIVE_TIMEFRAMES" ]]; then
+            args+=(--timeframes "$ARCHIVE_TIMEFRAMES")
+          fi
+          python scripts/archive_bingx_usdm_candles.py "${args[@]}"
       - name: Commit append-only archive
         run: |
           set -euo pipefail
