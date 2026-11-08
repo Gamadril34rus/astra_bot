@@ -22,6 +22,8 @@ ARCHIVE_DIR = Path("data/bingx_usdm")
 MANIFEST_PATH = ARCHIVE_DIR / "manifest.json"
 SYMBOLS = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
 TIMEFRAME_MS = {
+    "1m": 60_000,
+    "5m": 5 * 60_000,
     "15m": 15 * 60_000,
     "1h": 60 * 60_000,
     "4h": 4 * 60 * 60_000,
@@ -291,7 +293,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mode", choices=("initial", "daily"), default="daily")
     parser.add_argument("--start-date", default="2021-01-01")
     parser.add_argument("--symbols", default=",".join(SYMBOLS))
-    parser.add_argument("--timeframes", default="15m,1h,4h,1d")
+    parser.add_argument("--timeframes", default="5m,15m,1h,4h,1d")
     return parser.parse_args()
 
 
