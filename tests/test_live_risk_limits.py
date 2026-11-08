@@ -67,7 +67,6 @@ def test_pf_insufficient_n(tmp_path: Path) -> None:
     assert pf is None and n == 1
 
 
-
 def test_pf_ignores_partial_income_and_deduplicates_final_exit(tmp_path: Path) -> None:
     p = tmp_path / "trades.jsonl"
     _write(
