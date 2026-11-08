@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from scripts.archive_bingx_usdm_candles import (
     TIMEFRAME_MS,
     _coverage,
