@@ -82,8 +82,6 @@ def _read_rows(path: Path) -> dict[int, dict[str, str]]:
 def _same_bar(left: dict[str, str], right: dict[str, str]) -> bool:
     if int(left["open_time"]) != int(right["open_time"]):
         return False
-    if int(left.get("trades_count") or 0) != int(right.get("trades_count") or 0):
-        return False
     return all(_decimal(left[key]) == _decimal(right[key]) for key in PRICE_FIELDS)
 
 
