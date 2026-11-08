@@ -21,6 +21,7 @@ LOGGER = logging.getLogger("bingx_candle_archive")
 ARCHIVE_DIR = Path("data/bingx_usdm")
 MANIFEST_PATH = ARCHIVE_DIR / "manifest.json"
 SYMBOLS = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
+DEFAULT_TIMEFRAMES = ("5m", "15m", "1h", "4h", "1d")
 TIMEFRAME_MS = {
     "1m": 60_000,
     "5m": 5 * 60_000,
@@ -293,14 +294,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mode", choices=("initial", "daily"), default="daily")
     parser.add_argument("--start-date", default="2021-01-01")
     parser.add_argument("--symbols", default=",".join(SYMBOLS))
-    parser.add_argument("--timeframes", default="5m,15m,1h,4h,1d")
+    parser.add_argument("--timeframes")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     args.symbols = tuple(item.strip().upper() for item in args.symbols.split(",") if item.strip())
-    args.timeframes = tuple(item.strip() for item in args.timeframes.split(",") if item.strip())
+    if args.timeframes:
+        args.timeframes = tuple(
+            item.strip() for item in args.timeframes.split(",") if item.strip()
+        )
+    elif args.mode == "daily" and MANIFEST_PATH.exists():
+        previous = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+        args.timeframes = tuple(previous.get("timeframes") or DEFAULT_TIMEFRAMES)
+    else:
+        args.timeframes = DEFAULT_TIMEFRAMES
     unknown = sorted(set(args.timeframes) - set(TIMEFRAME_MS))
     if unknown:
         raise SystemExit(f"unsupported archive timeframes: {', '.join(unknown)}")
