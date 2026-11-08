@@ -196,13 +196,19 @@ def test_funding_day_new_event_adds(tmp_path, monkeypatch):
     )
 
     class _C:
-        async def get_realized_income(self, symbol, start_ms=None):
+        def __init__(self):
+            self.requested_types = []
+
+        async def get_realized_income(self, symbol, start_ms=None, income_types=None):
+            self.requested_types.append(income_types)
             return [
                 {"_incomeType": "FUNDING_FEE", "income": "0.50", "time": 1_700_000_000_000},
             ]
 
     async def _run():
-        s = await clock._accumulate_funding_day(_C())
+        client = _C()
+        s = await clock._accumulate_funding_day(client)
+        assert client.requested_types == [("FUNDING_FEE",)]
         assert abs(s - 0.50) < 1e-9
         # second call dedups
         s2 = await clock._accumulate_funding_day(_C())
