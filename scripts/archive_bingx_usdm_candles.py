@@ -11,6 +11,7 @@ import os
 import tempfile
 from datetime import UTC, date, datetime, time
 from decimal import Decimal, InvalidOperation
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -134,7 +135,7 @@ def _coverage(rows: dict[int, dict[str, str]], interval_ms: int) -> dict[str, An
     times = sorted(rows)
     gaps = [
         {"after": left, "before": right, "missing_bars": (right - left) // interval_ms - 1}
-        for left, right in zip(times, times[1:])
+        for left, right in pairwise(times)
         if right - left > interval_ms
     ]
     return {
