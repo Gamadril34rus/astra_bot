@@ -253,7 +253,7 @@ def alert_foreign_balance_equity(foreign: list[str]) -> None:
 def _income_cooldown_until(exc: BaseException, *, now: float | None = None) -> float:
     """Parse BingX's 'unblocked after' epoch; fall back conservatively to 15 minutes."""
     current = float(time.time() if now is None else now)
-    match = re.search(r"unblocked\\s+after\\s+(\\d+)", str(exc), re.IGNORECASE)
+    match = re.search(r"unblocked\s+after\s+(\d+)", str(exc), re.IGNORECASE)
     if match:
         raw = int(match.group(1))
         until = raw / 1000.0 if raw > 10**12 else float(raw)
