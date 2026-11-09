@@ -228,6 +228,37 @@ async def _contract_launch_times(
     return found
 
 
+def _latest_contiguous_funding_start_ms(symbol: str, default_start_ms: int) -> int:
+    """Return the first event in the latest uninterrupted funding segment.
+
+    Candle history before this timestamp is unusable by the portfolio replay,
+    because missing funding is never imputed. Fetch it only when the funding
+    archive already exists; the workflow intentionally downloads funding first.
+    """
+    path = ARCHIVE_DIR / f"funding_{symbol.replace('-', '')}.csv"
+    if not path.exists():
+        return default_start_ms
+    timestamps: list[int] = []
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if not reader.fieldnames or not {"funding_time", "rate"}.issubset(reader.fieldnames):
+            raise ValueError(f"invalid funding archive schema for {symbol}: {path}")
+        for row in reader:
+            timestamp = int(row["funding_time"])
+            rate = _decimal(row["rate"])
+            if not rate.is_finite():
+                raise ValueError(f"non-finite funding rate for {symbol} at {timestamp}")
+            timestamps.append(timestamp)
+    timestamps = sorted(set(timestamps))
+    if not timestamps:
+        raise RuntimeError(f"empty BingX funding archive for {symbol}: {path}")
+    gap_indices = [
+        index for index, (left, right) in enumerate(pairwise(timestamps))
+        if right - left > 12 * 60 * 60 * 1000
+    ]
+    latest_start = timestamps[gap_indices[-1] + 1] if gap_indices else timestamps[0]
+    return max(default_start_ms, latest_start)
+
 async def _download_pair(
     client: BingXClient,
     *,
@@ -237,6 +268,7 @@ async def _download_pair(
     start_ms: int,
     now_ms: int,
     launch_ms: int = 0,
+    funding_start_ms: int | None = None,
 ) -> tuple[dict[str, Any], int]:
     interval_ms = TIMEFRAME_MS[timeframe]
     path = _archive_path(symbol, timeframe)
@@ -247,7 +279,10 @@ async def _download_pair(
             "run workflow_dispatch with mode=initial first"
         )
     if mode == "initial":
-        floor_ms = max(start_ms, launch_ms, min(existing) if existing else 0)
+        floor_ms = max(
+            start_ms, launch_ms, funding_start_ms or 0,
+            min(existing) if existing else 0,
+        )
     else:
         overlap_floor = max(existing) - 3 * interval_ms
         floor_ms = max(min(existing), overlap_floor, launch_ms)
@@ -329,6 +364,7 @@ async def _download_pair(
             "source": "BingX USDT-M perpetual swap public klines",
             "mode": mode,
             "contract_launch_time": launch_ms,
+            "funding_segment_start_time": funding_start_ms,
             "effective_start_time": cursor_start if not incoming else min(incoming),
             "new_bars": len(set(merged) - set(existing)),
             "verified_overlap_bars": len(set(incoming) & set(existing)),
@@ -364,6 +400,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                     start_ms=start_ms,
                     now_ms=now_ms,
                     launch_ms=launch_times[symbol],
+                    funding_start_ms=_latest_contiguous_funding_start_ms(symbol, start_ms),
                 )
                 results[f"{symbol}:{timeframe}"] = report
     finally:
