@@ -23,11 +23,44 @@ from research_perp_intraday import (
     request_json,
     resolve_barrier_exit,
     run_backtest,
+    signal_feature_diagnostics,
     validate_market_data,
     write_report,
 )
 
 
+def test_signal_feature_diagnostics_counts_missing_features_and_masks():
+    frame = pd.DataFrame({
+        "open": [100.0, 100.0, 100.0],
+        "high": [102.0, 102.0, 102.0],
+        "low": [99.0, 99.0, 99.0],
+        "close": [101.0, 101.0, 101.0],
+        "ema20": [100.0, 100.0, 100.0],
+        "ema50": [99.0, 99.0, 99.0],
+        "atr": [1.0, 1.0, 1.0],
+        "rsi": [60.0, 60.0, 60.0],
+        "volume_ratio": [1.0, 0.5, float("nan")],
+        "quote_volume": [1000.0, 500.0, 0.0],
+        "taker_buy_ratio": [0.55, 0.40, float("nan")],
+        "htf_close": [101.0, 98.0, float("nan")],
+        "htf_ema20": [100.0, 99.0, float("nan")],
+        "htf_ema50": [99.0, 100.0, float("nan")],
+        "htf_adx": [25.0, 25.0, float("nan")],
+        "bb_mid": [100.0, 100.0, 100.0],
+        "bb_upper": [102.0, 102.0, 102.0],
+        "bb_lower": [98.0, 98.0, 98.0],
+    })
+    counts = signal_feature_diagnostics(frame)
+    assert counts["rows"] == 3
+    assert counts["valid_htf_rows"] == 2
+    assert counts["positive_quote_volume_rows"] == 2
+    assert counts["valid_volume_ratio_rows"] == 2
+    assert counts["valid_taker_buy_ratio_rows"] == 2
+    assert set(counts["signals"]) == {
+        "trend_pullback:LONG", "trend_pullback:SHORT",
+        "trend_expansion:LONG", "trend_expansion:SHORT",
+        "range_reversion:LONG", "range_reversion:SHORT",
+    }
 def test_orderbook_cost_snapshot_includes_spread_depth_and_taker_fees():
     result = calculate_orderbook_costs({
         "T": 1_800_000_000_000,
