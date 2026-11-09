@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Research-only confirmed 30m breakout/retest strategy for BingX USDT-M perps.
+"""Research-only confirmed breakout/retest strategy for BingX USDT-M perps.
 
 This is an independent hypothesis runner. It reuses the frozen portfolio
 simulator, funding ledger, cost model, split logic and reporting from the
@@ -112,7 +112,9 @@ def main() -> int:
     parser.add_argument("--out", type=Path, default=Path("reports/adaptive_perp"))
     args, _ = parser.parse_known_args()
     if args.signal_timeframe != "30m":
-        raise SystemExit("confirmed breakout/retest hypothesis requires --signal-timeframe 30m")
+        raise SystemExit(
+            "confirmed breakout/retest hypothesis requires --signal-timeframe 30m"
+        )
 
     portfolio.choose_signal = choose_retest_breakout_signal
     result = portfolio.main()
