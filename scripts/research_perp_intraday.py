@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import bisect
+import hashlib
 import json
 import math
 import time
@@ -534,6 +535,30 @@ def build_frame(klines: list[list[Any]]) -> pd.DataFrame:
 
 
 
+
+def persist_source_snapshot(
+    output: Path, symbol: str, frame: pd.DataFrame, funding: list[dict[str, Any]]
+) -> dict[str, str]:
+    """Persist normalized, verified inputs for independent replay and audit."""
+    source_dir = output / "source_data"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    stem = symbol.replace("-", "")
+    candle_path = source_dir / f"{stem}_30m.csv"
+    funding_path = source_dir / f"funding_{stem}.csv"
+    frame.to_csv(candle_path, index=True, index_label="bar_open_utc")
+    pd.DataFrame(funding).to_csv(funding_path, index=False)
+    def digest(path: Path) -> str:
+        hasher = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+    return {
+        "candles_file": str(candle_path.relative_to(output)),
+        "candles_sha256": digest(candle_path),
+        "funding_file": str(funding_path.relative_to(output)),
+        "funding_sha256": digest(funding_path),
+    }
 def signal_feature_diagnostics(frame: pd.DataFrame) -> dict[str, Any]:
     """Count valid features and each independent gate before combining signals."""
     htf_valid = frame[["htf_close", "htf_ema20", "htf_ema50", "htf_adx"]].notna().all(axis=1)
@@ -1007,6 +1032,7 @@ def main() -> None:
             raise ValueError(f"{symbol}: no candles inside latest funding segment")
         validate_market_data(symbol, contract, klines, funding, end_ms)
         frame = build_frame(klines)
+        source_snapshot = persist_source_snapshot(Path(args.output), symbol, frame, funding)
         market_frames[symbol] = (frame, funding)
         manifest.setdefault("feature_diagnostics", {})[symbol] = signal_feature_diagnostics(frame)
         manifest["symbols"][symbol] = {
@@ -1018,6 +1044,7 @@ def main() -> None:
             "first_bar_utc": frame.index[0].isoformat(),
             "last_bar_utc": frame.index[-1].isoformat(),
             "bars": len(frame),
+            "source_snapshot": source_snapshot,
             "funding_events": len(funding),
             "funding_events_excluded_before_latest_contiguous_segment": len(excluded_funding),
             "excluded_funding_first_utc": datetime.fromtimestamp(int(excluded_funding[0]["fundingTime"]) / 1000, UTC).isoformat() if excluded_funding else None,
