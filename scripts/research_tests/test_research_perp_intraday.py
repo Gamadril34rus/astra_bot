@@ -179,7 +179,7 @@ def _synthetic_frame(bar_count: int = 22) -> pd.DataFrame:
 def test_no_progress_exit_happens_after_one_completed_30m_bar(monkeypatch):
     import research_perp_intraday as research
 
-    frame = _synthetic_frame(5)
+    frame = _synthetic_frame(20)
     masks = {
         (name, side): pd.Series(False, index=frame.index)
         for name in research.STRATEGIES
@@ -193,6 +193,20 @@ def test_no_progress_exit_happens_after_one_completed_30m_bar(monkeypatch):
     assert trades[0].hold_minutes == 30
 
 
+
+def test_last_partial_hold_window_is_not_mislabeled_as_nine_hour_exit(monkeypatch):
+    import research_perp_intraday as research
+
+    frame = _synthetic_frame(research.MAX_HOLD_BARS - 1)
+    masks = {
+        (name, side): pd.Series(False, index=frame.index)
+        for name in research.STRATEGIES
+        for side in (1, -1)
+    }
+    masks[("trend_pullback", 1)].iloc[0] = True
+    monkeypatch.setattr(research, "signal_masks", lambda _: masks)
+    trades = run_backtest("BTC-USDT", frame, [], "trend_pullback", 1, 0.001)
+    assert trades == []
 def test_hard_hold_cap_is_nine_hours(monkeypatch):
     import research_perp_intraday as research
 
@@ -342,7 +356,7 @@ def test_hourly_context_is_never_from_a_future_hour():
 def test_base_and_stress_cost_scenarios_share_same_cost_eligibility(monkeypatch):
     import research_perp_intraday as research
 
-    frame = _synthetic_frame(5)
+    frame = _synthetic_frame(20)
     frame["atr"] = 0.5  # 0.675% stop width; fails the frozen 0.40R stress-cost gate.
     masks = {
         (name, side): pd.Series(False, index=frame.index)
