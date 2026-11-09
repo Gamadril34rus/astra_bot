@@ -12,6 +12,7 @@ from scripts.research_adaptive_perp_portfolio import (
     add_features,
     funding_cost_fraction,
     load_bars,
+    latest_contiguous_funding_segment,
 )
 
 
@@ -111,3 +112,13 @@ async def test_candle_archive_continues_after_short_nonempty_page(tmp_path, monk
     )
     assert report["pages_requested"] == 3
     assert report["bar_count"] == 6
+
+
+def test_latest_funding_segment_excludes_gaps_without_imputation() -> None:
+    frame = pd.DataFrame({
+        "funding_time": [0, 8 * 3_600_000, 100 * 3_600_000, 108 * 3_600_000],
+        "rate": [0.0001, 0.0002, -0.0001, 0.0003],
+    })
+    segment, excluded = latest_contiguous_funding_segment(frame)
+    assert excluded == 2
+    assert segment["funding_time"].tolist() == [100 * 3_600_000, 108 * 3_600_000]
