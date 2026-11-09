@@ -424,6 +424,20 @@ def main() -> int:
             f"{symbol}_{side}": summarize(group, calendar_start, calendar_end)
             for (symbol, side), group in trades.groupby(["symbol", "side"])
         },
+        "oos_by_family": {
+            family: summarize(
+                group, pd.Period("2025-01", freq="M"), calendar_end
+            )
+            for family, group in trades[trades.period == "OOS"].groupby("family")
+        },
+        "oos_by_symbol_side": {
+            f"{symbol}_{side}": summarize(
+                group, pd.Period("2025-01", freq="M"), calendar_end
+            )
+            for (symbol, side), group in trades[trades.period == "OOS"].groupby(
+                ["symbol", "side"]
+            )
+        },
         "combined": summarize(trades, calendar_start, calendar_end),
         "warning": "OHLC trade-sequence drawdown is not portfolio equity drawdown; simultaneous symbols are not capital-constrained. Funding uses entry-notional approximation. OHLC fills are proxies, not confirmed exchange fills. No live/paper activation."
     }
