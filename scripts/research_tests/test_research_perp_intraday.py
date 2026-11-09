@@ -90,7 +90,7 @@ def test_hard_hold_cap_is_nine_hours(monkeypatch):
     }
     masks[("trend_pullback", 1)].iloc[0] = True
     monkeypatch.setattr(research, "signal_masks", lambda _: masks)
-    trades = run_backtest("BTCUSDT", frame, [], "trend_pullback", 1, 0.001)
+    trades = run_backtest("BTC-USDT", frame, [], "trend_pullback", 1, 0.001)
     assert len(trades) == 1
     assert trades[0].exit_reason == "max_hold_9h"
     assert trades[0].hold_minutes == 9 * 60
@@ -104,7 +104,7 @@ def test_metrics_pf_uses_net_trade_results():
             30, 100, 102, 98, 103, "take", 2, 2, 0.1, 0.1, 0, 1.8, 0.90, 0.15,
         ),
         Trade(
-            "BTCUSDT", "trend_pullback", "SHORT",
+            "BTC-USDT", "trend_pullback", "SHORT",
             "2026-01-01T01:00:00+00:00", "2026-01-01T01:30:00+00:00",
             30, 100, 101, 102, 97, "stop", 2, -1, 0.1, 0.1, 0, -1.2, -0.60, 0.15,
         ),
@@ -116,20 +116,20 @@ def test_metrics_pf_uses_net_trade_results():
 
 def test_write_report_serializes_nested_strategy_trade_map(tmp_path):
     trade = Trade(
-        "BTCUSDT", "trend_pullback", "LONG",
+        "BTC-USDT", "trend_pullback", "LONG",
         "2026-01-01T00:00:00+00:00", "2026-01-01T00:30:00+00:00",
         30, 100, 101, 98, 103, "take", 2, 1, 0.1, 0.1, 0,
         0.8, 0.4, 0.15,
     )
     result = {
         "base_30bps_rt": {
-            "BTCUSDT": {
+            "BTC-USDT": {
                 name: [trade] if name == "trend_pullback" else []
                 for name in ("trend_pullback", "trend_expansion", "range_reversion")
             }
         },
         "stress_40bps_rt": {
-            "BTCUSDT": {
+            "BTC-USDT": {
                 name: []
                 for name in ("trend_pullback", "trend_expansion", "range_reversion")
             }
@@ -138,7 +138,7 @@ def test_write_report_serializes_nested_strategy_trade_map(tmp_path):
     manifest = {
         "data_cutoff_utc": "2026-11-09T00:00:00+00:00",
         "symbols": {
-            "BTCUSDT": {
+            "BTC-USDT": {
                 "first_bar_utc": "2021-01-01T00:00:00+00:00",
                 "last_bar_utc": "2026-11-08T23:30:00+00:00",
                 "bars": 100000,
@@ -154,7 +154,7 @@ def test_write_report_serializes_nested_strategy_trade_map(tmp_path):
     report = (tmp_path / "report.md").read_text(encoding="utf-8")
     assert "Aggregate IS and OOS" in report
     assert "mean holding <= 90 minutes" in report
-    assert json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))["symbols"]["BTCUSDT"]["bars"] == 100000
+    assert json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))["symbols"]["BTC-USDT"]["bars"] == 100000
 
 
 def _valid_market_fixture(count=500):
@@ -233,7 +233,7 @@ def test_base_and_stress_cost_scenarios_share_same_cost_eligibility(monkeypatch)
     }
     masks[("trend_pullback", 1)].iloc[0] = True
     monkeypatch.setattr(research, "signal_masks", lambda _: masks)
-    base = run_backtest("BTCUSDT", frame, [], "trend_pullback", 1, research.BASE_SLIPPAGE_PER_SIDE)
-    stress = run_backtest("BTCUSDT", frame, [], "trend_pullback", 1, research.STRESS_SLIPPAGE_PER_SIDE)
+    base = run_backtest("BTC-USDT", frame, [], "trend_pullback", 1, research.BASE_SLIPPAGE_PER_SIDE)
+    stress = run_backtest("BTC-USDT", frame, [], "trend_pullback", 1, research.STRESS_SLIPPAGE_PER_SIDE)
     assert base == []
     assert stress == []
