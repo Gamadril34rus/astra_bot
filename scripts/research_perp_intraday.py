@@ -179,14 +179,22 @@ def fetch_klines(symbol: str, start_ms: int, end_ms: int) -> list[list[Any]]:
 
 
 def fetch_funding(symbol: str, start_ms: int, end_ms: int) -> list[dict[str, Any]]:
+    """Page the historical funding ledger backwards from the newest event."""
     rows: list[dict[str, Any]] = []
-    cursor = start_ms
-    while cursor < end_ms:
-        page = request_json(
-            FUNDING_ENDPOINT,
-            {"symbol": symbol, "startTime": cursor, "endTime": end_ms - 1, "limit": PAGE_FUNDING},
-        )
+    cursor_end = end_ms - 1
+    first_page = True
+    while cursor_end > start_ms:
+        params: dict[str, Any] = {
+            "symbol": symbol,
+            "limit": PAGE_FUNDING,
+            "timestamp": int(datetime.now(UTC).timestamp() * 1000),
+        }
+        if not first_page:
+            params["endTime"] = cursor_end
+        page = request_json(FUNDING_ENDPOINT, params)
         if not page:
+            if first_page:
+                print(f"{symbol}: funding endpoint returned an empty latest page", flush=True)
             break
         normalized = []
         for row in page:
@@ -194,27 +202,43 @@ def fetch_funding(symbol: str, start_ms: int, end_ms: int) -> list[dict[str, Any
                 continue
             funding_time = int(row.get("fundingTime", row.get("time", 0)) or 0)
             rate = row.get("fundingRate")
-            if funding_time and rate is not None:
+            if funding_time and rate is not None and start_ms <= funding_time <= cursor_end:
                 normalized.append({
                     "fundingTime": funding_time,
                     "fundingRate": str(rate),
                     "markPrice": row.get("markPrice"),
                 })
-        normalized.sort(key=lambda row: int(row["fundingTime"]))
         if not normalized:
+            if first_page:
+                print(
+                    f"{symbol}: funding page shape did not contain fundingTime/fundingRate; "
+                    f"item_types={[type(item).__name__ for item in page[:2]]}; "
+                    f"sample={str(page[:1])[:500]}",
+                    flush=True,
+                )
             break
+        normalized.sort(key=lambda row: int(row["fundingTime"]))
         rows.extend(normalized)
-        next_cursor = int(normalized[-1]["fundingTime"]) + 1
-        if next_cursor <= cursor:
-            raise RuntimeError(f"non-advancing BingX funding cursor for {symbol}")
-        cursor = next_cursor
-        if len(page) < PAGE_FUNDING:
+        oldest = int(normalized[0]["fundingTime"])
+        if oldest <= start_ms or len(page) < PAGE_FUNDING:
             break
+        next_end = oldest - 1
+        if next_end >= cursor_end:
+            raise RuntimeError(f"non-advancing BingX funding history cursor for {symbol}")
+        cursor_end = next_end
+        first_page = False
     deduped: dict[int, dict[str, Any]] = {}
     for row in rows:
         deduped[int(row["fundingTime"])] = row
-    return [deduped[key] for key in sorted(deduped)]
-
+    result = [deduped[key] for key in sorted(deduped)]
+    if result:
+        print(
+            f"{symbol}: funding events={len(result)} "
+            f"coverage={datetime.fromtimestamp(result[0]['fundingTime'] / 1000, UTC).isoformat()}.."
+            f"{datetime.fromtimestamp(result[-1]['fundingTime'] / 1000, UTC).isoformat()}",
+            flush=True,
+        )
+    return result
 
 def fetch_mark_prices(symbol: str, start_ms: int, end_ms: int) -> dict[int, float]:
     """Fetch 4h mark-price candles; funding settlements align to 4h boundaries."""
