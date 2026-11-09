@@ -47,18 +47,18 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/archive_bingx_usdm_candles.py \
-            --mode initial --start-date 2021-01-01 --timeframes 15m,30m,1h
+            --mode initial --start-date 2021-01-01 --timeframes 30m,1h
       - name: Run frozen router at base execution costs
         run: |
           set -euo pipefail
           python scripts/research_adaptive_perp_portfolio.py \
-            --fee-bps 5 --spread-bps 1.25 --slippage-bps 2 \
+            --signal-timeframe 30m --fee-bps 5 --spread-bps 1.25 --slippage-bps 2 \
             --out reports/adaptive_perp/base
       - name: Run frozen router at 1.5x execution costs
         run: |
           set -euo pipefail
           python scripts/research_adaptive_perp_portfolio.py \
-            --fee-bps 7.5 --spread-bps 1.875 --slippage-bps 3 \
+            --signal-timeframe 30m --fee-bps 7.5 --spread-bps 1.875 --slippage-bps 3 \
             --out reports/adaptive_perp/stress_1_5x
       - name: Upload immutable research evidence
         if: always()
