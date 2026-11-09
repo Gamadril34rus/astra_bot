@@ -16,6 +16,7 @@ def _run(broker, pos_path):
 def _broker(exch_qty, mark, moves, fail=False):
     pos = SimpleNamespace(
         symbol="SOL-USDT",
+        side="long",
         quantity=Decimal(str(exch_qty)),
         current_price=Decimal(str(mark)),
     )
@@ -100,7 +101,7 @@ def test_short_mark_above_entry_pending(tmp_path, monkeypatch):
         stop="0.09", tp="0.07", entry="0.08", path=pos_path, be_moved=False,
     )
     moves = []
-    pos = SimpleNamespace(symbol="DOGE-USDT", quantity=Decimal("60"), current_price=Decimal("0.085"))
+    pos = SimpleNamespace(symbol="DOGE-USDT", side="short", quantity=Decimal("60"), current_price=Decimal("0.085"))
 
     class Client:
         async def get_positions(self):
