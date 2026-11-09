@@ -37,15 +37,15 @@ jobs:
       - name: Run research unit tests
         run: |
           python -m pytest tests/unit/test_research_adaptive_perp_portfolio.py -q
+      - name: Download historical BingX funding rates
+        run: |
+          set -euo pipefail
+          python scripts/archive_bingx_funding_history.py --start-date 2021-01-01
       - name: Download BingX USDT-M perpetual candles
         run: |
           set -euo pipefail
           python scripts/archive_bingx_usdm_candles.py \
             --mode initial --start-date 2021-01-01 --timeframes 15m,1h
-      - name: Download historical BingX funding rates
-        run: |
-          set -euo pipefail
-          python scripts/archive_bingx_funding_history.py --start-date 2021-01-01
       - name: Run frozen router at base execution costs
         run: |
           set -euo pipefail
