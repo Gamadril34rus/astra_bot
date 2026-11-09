@@ -10,6 +10,7 @@ from scripts.archive_bingx_funding_history import _rows_from_response
 from scripts.research_adaptive_perp_portfolio import (
     MAX_HOLD_BARS,
     add_features,
+    choose_signal,
     funding_cost_fraction,
     load_bars,
     latest_contiguous_funding_segment,
@@ -122,3 +123,31 @@ def test_latest_funding_segment_excludes_gaps_without_imputation() -> None:
     segment, excluded = latest_contiguous_funding_segment(frame)
     assert excluded == 2
     assert segment["funding_time"].tolist() == [100 * 3_600_000, 108 * 3_600_000]
+
+
+def test_false_break_reversal_fades_failed_range_escape() -> None:
+    frame = pd.DataFrame({
+        "open": [100.0] * 22,
+        "high": [101.0] * 22,
+        "low": [99.0] * 22,
+        "close": [100.0] * 22,
+        "ema20": [100.0] * 22,
+        "ema50": [100.0] * 22,
+        "atr14": [1.0] * 22,
+        "bb_width_pct": [0.5] * 22,
+        "volume_ratio": [1.0] * 22,
+        "h1_adx14": [15.0] * 22,
+        "h1_ema20": [100.0] * 22,
+        "h1_ema50": [100.0] * 22,
+        "h1_ema20_rising": [False] * 22,
+        "bb_lower": [98.0] * 22,
+        "bb_upper": [102.0] * 22,
+        "rsi14": [50.0] * 22,
+    })
+    frame.loc[20, ["high", "close", "volume_ratio"]] = [104.0, 103.0, 2.0]
+    frame.loc[21, ["high", "close"]] = [103.0, 100.5]
+    signal = choose_signal(frame, 21)
+    assert signal is not None
+    assert signal["family"] == "FALSE_BREAK_REVERSAL"
+    assert signal["side"] == -1
+    assert signal["target_price"] == pytest.approx(100.0)
