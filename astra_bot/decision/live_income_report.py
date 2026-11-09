@@ -255,6 +255,8 @@ async def fetch_income_with_retries(
         if agg.get("has_realized") or abs(float(agg.get("net") or 0)) > 1e-9:
             return agg
         best = agg
+        if bool(getattr(client, "income_endpoint_cooldown_active", False)):
+            break
         if i + 1 < attempts:
             try:
                 await asyncio.sleep(delay_sec)
@@ -618,7 +620,12 @@ async def process_income_fill_tape(
         if not sym:
             continue
         try:
-            rows = await client.get_realized_income(sym, start_ms=start_ms, end_ms=now_ms)
+            rows = await client.get_realized_income(
+                sym,
+                start_ms=start_ms,
+                end_ms=now_ms,
+                income_types=("REALIZED_PNL",),
+            )
         except Exception as exc:
             logger.warning("fill_tape %s: %s", sym, type(exc).__name__)
             continue

@@ -33,12 +33,19 @@ class RiskError(AstraError):
 
 class ExchangeError(AstraError):
     """Ошибка биржи"""
-    def __init__(self, message: str, exchange: str = None,
-                 operation: str = None, original_error: Exception = None):
+    def __init__(
+        self,
+        message: str,
+        exchange: str = None,
+        operation: str = None,
+        original_error: Exception = None,
+        code: str | int | None = None,
+    ):
         super().__init__(message)
         self.exchange = exchange
         self.operation = operation
         self.original_error = original_error
+        self.code = code
 
 
 class OrderError(AstraError):

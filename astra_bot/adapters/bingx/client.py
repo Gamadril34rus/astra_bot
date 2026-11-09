@@ -257,6 +257,7 @@ class BingXClient(ExchangeAdapter):
                     f"BingX API error: {error_msg}",
                     exchange="bingx",
                     operation=endpoint,
+                    code=code,
                 )
             return data
 
