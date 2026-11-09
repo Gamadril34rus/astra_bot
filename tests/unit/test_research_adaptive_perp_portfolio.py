@@ -4,7 +4,6 @@ from types import SimpleNamespace
 
 import pandas as pd
 import pytest
-
 import scripts.archive_bingx_usdm_candles as candle_archive
 from scripts.archive_bingx_funding_history import _rows_from_response
 from scripts.research_adaptive_perp_portfolio import (
