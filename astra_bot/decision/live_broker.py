@@ -1518,6 +1518,14 @@ class LiveBroker:
                         pass
                 continue
 
+            # Snapshot only the orders positively attributed to this hedge leg.
+            # They are canceled only after the exchange confirms this leg is flat.
+            side_orders = [
+                order
+                for order in orders
+                if _order_is_open(order) and _order_matches_position_side(order, side)
+            ]
+
             # Close first, verify this exact hedge leg is flat, then remove only
             # its residual orders. A market-order acknowledgement is not a fill.
             close_error: Exception | None = None
