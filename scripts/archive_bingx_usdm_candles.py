@@ -305,11 +305,6 @@ async def _download_pair(
                 )
             if min(existing) == cursor_start:
                 cursor_start = max(cursor_start, max(existing) - 3 * interval_ms)
-            else:
-                # A prior first page may have skipped pre-history windows before
-                # the exchange's earliest retained candle. Resume at that first
-                # observed candle rather than treating those windows as a gap.
-                cursor_start = min(existing)
     last_closed_open = (now_ms // interval_ms) * interval_ms - interval_ms
     incoming: dict[int, dict[str, str]] = {}
     pages = 0
@@ -335,12 +330,19 @@ async def _download_pair(
             if cursor_start <= int(candle.open_time) <= page_last_open
             and int(candle.open_time) + interval_ms <= now_ms
         )
-        if not actual_times and not existing and not incoming:
+        if not actual_times and not incoming and (
+            not existing or cursor_start < min(existing)
+        ):
             # BingX may retain less history than contract launchTime. Skip only
-            # leading empty windows; once data starts, every later gap is fatal.
+            # leading empty windows, including windows before a partial file's
+            # first observed candle; once data starts, later gaps are fatal.
             cursor_start = page_last_open + interval_ms
             continue
-        expected_start = cursor_start if existing or incoming else actual_times[0]
+        expected_start = (
+            cursor_start
+            if incoming or (existing and cursor_start >= min(existing))
+            else actual_times[0]
+        )
         expected_times = list(range(expected_start, page_last_open + 1, interval_ms))
         if actual_times != expected_times:
             missing = sorted(set(expected_times) - set(actual_times))
