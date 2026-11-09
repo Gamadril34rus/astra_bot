@@ -263,7 +263,7 @@ async def _download_pair(
             cursor_start + (PAGE_SIZE - 1) * interval_ms, last_closed_open
         )
         page = await _call_with_cooldown(
-            lambda: client.fetch_kline_page(
+            lambda cursor_start=cursor_start, page_last_open=page_last_open: client.fetch_kline_page(
                 symbol,
                 timeframe,
                 end_time_ms=page_last_open + interval_ms - 1,
