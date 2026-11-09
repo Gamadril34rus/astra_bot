@@ -13,6 +13,7 @@ from scripts.research_adaptive_perp_portfolio import (
     MAX_HOLD_BARS,
     add_features,
     choose_signal,
+    common_15m_coverage_window,
     funding_cost_fraction,
     latest_contiguous_funding_segment,
     load_bars,
@@ -358,6 +359,16 @@ async def test_no_progress_exit_closes_after_30_minutes(monkeypatch) -> None:
     assert diagnostics["completed_by_family"] == {"TEST": 1}
 
 
+def test_common_15m_window_uses_overlapping_symbol_history() -> None:
+    coverage = {
+        "BTC-USDT": {"15m_first": 1_000, "15m_last": 100_000_000},
+        "ETH-USDT": {"15m_first": 2_000, "15m_last": 90_000_000},
+        "SOL-USDT": {"15m_first": 3_000, "15m_last": 95_000_000},
+    }
+    result = common_15m_coverage_window(coverage)
+    assert result["common_start_utc"] == pd.to_datetime(3_000, unit="ms", utc=True).isoformat()
+    assert result["common_end_utc"] == pd.to_datetime(90_000_000, unit="ms", utc=True).isoformat()
+    assert result["covers_12_months"] is False
 def test_latest_funding_segment_excludes_gaps_without_imputation() -> None:
     frame = pd.DataFrame({
         "funding_time": [0, 8 * 3_600_000, 100 * 3_600_000, 108 * 3_600_000],
