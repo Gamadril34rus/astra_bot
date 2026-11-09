@@ -142,13 +142,20 @@ async def _existing_protect(
     side: str,
     level: Decimal,
 ) -> Any | None:
-    """Return open protect order if same kind+level already exists (±pct)."""
-    del side  # reserved for future side match; level+kind is enough now
+    """Return an open protect order for this hedge leg at the requested level."""
+    normalized_side = _normalize_position_side(side)
+    if normalized_side is None:
+        return None
     try:
         orders = await client.get_open_orders(symbol)
     except Exception:
         return None
     for o in orders:
+        if (
+            not _order_is_open(o)
+            or not _order_matches_position_side(o, normalized_side)
+        ):
+            continue
         ot = str(getattr(o, "order_type", "") or "").upper()
         is_stop = kind == "stop" and "STOP" in ot and "TAKE_PROFIT" not in ot
         is_tp = kind == "tp" and "TAKE_PROFIT" in ot
