@@ -21,7 +21,7 @@ from astra_bot.adapters.bingx.client import (
 LOGGER = logging.getLogger("bingx_funding_archive")
 OUT_DIR = Path("data/bingx_usdm")
 SYMBOLS = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
-CHUNK_DAYS = 90
+CHUNK_DAYS = 30
 FIELDS = ("funding_time", "rate")
 
 
@@ -47,6 +47,7 @@ async def download_symbol(
     client: BingXClient, symbol: str, start_ms: int, end_ms: int
 ) -> dict[str, Any]:
     rows: dict[int, str] = {}
+    chunk_reports: list[dict[str, Any]] = []
     cursor = start_ms
     while cursor <= end_ms:
         chunk_end = min(
@@ -63,7 +64,9 @@ async def download_symbol(
                 "limit": 1000,
             },
         )
-        for row in _rows_from_response(response):
+        chunk_rows = _rows_from_response(response)
+        accepted = 0
+        for row in chunk_rows:
             ts = row["funding_time"]
             if cursor <= ts <= chunk_end:
                 previous = rows.get(ts)
@@ -73,6 +76,13 @@ async def download_symbol(
                         f"{previous} != {row['rate']}"
                     )
                 rows[ts] = row["rate"]
+                accepted += 1
+        chunk_reports.append({
+            "start_time": cursor,
+            "end_time": chunk_end,
+            "response_rows": len(chunk_rows),
+            "accepted_rows": accepted,
+        })
         cursor = chunk_end + 1
 
     ordered = sorted(rows.items())
@@ -96,6 +106,7 @@ async def download_symbol(
         "first_funding_time": ordered[0][0] if ordered else None,
         "last_funding_time": ordered[-1][0] if ordered else None,
         "max_gap_hours": max(gaps) if gaps else None,
+        "chunks": chunk_reports,
         "source": "BingX /openApi/swap/v2/quote/fundingRate",
     }
 
