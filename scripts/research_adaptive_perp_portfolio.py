@@ -363,15 +363,17 @@ def simulate_symbol(
 
 
 
-def common_15m_coverage_window(coverage: dict[str, dict], timeframe: str = "15m") -> dict[str, Any]:
+def common_15m_coverage_window(
+    coverage: dict[str, dict], timeframe: str = "15m"
+) -> dict[str, Any]:
     """Measure the overlapping signal-timeframe history across every symbol."""
     if not coverage:
-        raise ValueError("cannot calculate common 15m window without symbol coverage")
+        raise ValueError(f"cannot calculate common {timeframe} window without symbol coverage")
     start_key, end_key = f"{timeframe}_first", f"{timeframe}_last"
     start_ms = max(int(item[start_key]) for item in coverage.values())
     end_ms = min(int(item[end_key]) for item in coverage.values())
     if end_ms < start_ms:
-        raise ValueError("BingX symbols have no common 15m history window")
+        raise ValueError(f"BingX symbols have no common {timeframe} history window")
     days = (end_ms - start_ms) / 86_400_000
     return {
         "common_start_utc": pd.to_datetime(start_ms, unit="ms", utc=True).isoformat(),
@@ -570,6 +572,13 @@ def main() -> int:
     )
     calendar_start = pd.to_datetime(common_window["common_start_utc"], utc=True).to_period("M")
     calendar_end = pd.to_datetime(common_window["common_end_utc"], utc=True).to_period("M")
+    validation_start_period = pd.to_datetime(validation_start_ms, unit="ms", utc=True).to_period("M")
+    oos_start_period = pd.to_datetime(oos_start_ms, unit="ms", utc=True).to_period("M")
+    period_months = {
+        "IS": (calendar_start, validation_start_period),
+        "VALIDATION": (validation_start_period, oos_start_period),
+        "OOS": (oos_start_period, calendar_end),
+    }
     args.out.mkdir(parents=True, exist_ok=True)
     trades.to_csv(args.out / "trades.csv", index=False)
     report = {
@@ -588,10 +597,14 @@ def main() -> int:
         },
         "coverage": coverage,
         "common_signal_window": common_window,
-            "signal_timeframe": args.signal_timeframe,
+        "signal_timeframe": args.signal_timeframe,
+        "split_boundaries_utc": {
+            "validation_start": pd.to_datetime(validation_start_ms, unit="ms", utc=True).isoformat(),
+            "oos_start": pd.to_datetime(oos_start_ms, unit="ms", utc=True).isoformat(),
+        },
         "signal_diagnostics": signal_diagnostics,
         "by_period": {
-            period: summarize(group)
+            period: summarize(group, *period_months[period])
             for period, group in trades.groupby("period")
         },
         "by_family": {
@@ -604,13 +617,13 @@ def main() -> int:
         },
         "oos_by_family": {
             family: summarize(
-                group, pd.Period("2025-01", freq="M"), calendar_end
+                group, oos_start_period, calendar_end
             )
             for family, group in trades[trades.period == "OOS"].groupby("family")
         },
         "oos_by_symbol_side": {
             f"{symbol}_{side}": summarize(
-                group, pd.Period("2025-01", freq="M"), calendar_end
+                group, oos_start_period, calendar_end
             )
             for (symbol, side), group in trades[trades.period == "OOS"].groupby(
                 ["symbol", "side"]
