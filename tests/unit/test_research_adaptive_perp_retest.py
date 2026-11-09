@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pandas as pd
-
 from scripts.research_adaptive_perp_retest import choose_retest_breakout_signal
 
 
