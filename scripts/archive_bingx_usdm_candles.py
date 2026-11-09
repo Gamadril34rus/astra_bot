@@ -33,7 +33,7 @@ TIMEFRAME_MS = {
     "4h": 4 * 60 * 60_000,
     "1d": 24 * 60 * 60_000,
 }
-PAGE_SIZE = 1440
+PAGE_SIZE = 500
 CSV_FIELDS = (
     "open_time",
     "open_time_utc",
