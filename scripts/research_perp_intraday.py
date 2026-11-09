@@ -772,7 +772,7 @@ def write_report(
     lines += [
         "", "## Aggregate IS and OOS results by family and cost case", "",
         "IS: entries from 2021-01-01 through 2023-12-31. OOS: entries from 2024-01-01 through the data cutoff.", "",
-        "| Cost case | Period | Strategy | Trades | PF | Mean net R | Win % | Mean hold min | Median hold min | Max DD % (0.5% R) |",
+        "| Cost case | Period | Strategy | Trades | PF | Mean net R | Win % | Mean hold min | Median hold min | Trade-sequence DD proxy % (0.5% R) |",
         "|---|---|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for scenario, groups in all_results.items():
