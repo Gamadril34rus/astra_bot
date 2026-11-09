@@ -59,7 +59,7 @@ All LONG and SHORT sides are evaluated separately. A per-side candidate is skipp
 - The trades CSV separates gross price return, commissions, estimated slippage, funding and net return.
 - Reported trade returns are unlevered. Margin, liquidation, portfolio-level overlapping exposure and account collateral are not simulated.
 
-The slippage assumptions are sensitivity inputs, not measured BingX slippage. The 0.05% taker fee is a research assumption, not a verified user-specific fee tier.
+The slippage assumptions are sensitivity inputs, not measured historical BingX slippage. The 0.05% taker fee matches the default fee used in the repository's perpetual cost model, but is not a verified user-specific fee tier; the owner-specific fee rate must be checked before VST comparison.
 
 ## Evaluation protocol and promotion gate
 
@@ -69,7 +69,7 @@ The slippage assumptions are sensitivity inputs, not measured BingX slippage. Th
 - Minimum evidence before considering a BingX-specific VST validation: at least 100 closed OOS positions pooled for that family, positive net expectancy and PF >= 1.30 under both base and stress costs, positive results in at least 3 of 5 symbols where sufficient history exists, separate review of LONG and SHORT, no single symbol contributing more than 50% of positive net profit, mean holding <= 90 minutes, median holding <= 60 minutes and maximum holding <= 9 hours.
 - Yearly instability, a weak side, small sample, missing data, or a result that only survives one cost assumption blocks promotion.
 
-The gate is intentionally stricter than merely PF > 1. A positive Binance proxy result only unlocks another research step: BingX-specific VST validation. It does not authorize changing active execution.
+The gate is intentionally stricter than merely PF > 1. A positive candle/funding replay only unlocks another research step: VST validation using observable bid/ask quotes, actual paper fills, current configured fee tier and matched funding. It does not authorize changing active execution.
 
 ## Outputs
 
