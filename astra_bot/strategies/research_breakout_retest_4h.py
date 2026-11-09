@@ -9,6 +9,7 @@ must be validated in a separate runner before this candidate is promoted.
 
 from __future__ import annotations
 
+import itertools
 import logging
 from dataclasses import dataclass
 from decimal import Decimal
@@ -100,7 +101,7 @@ class ResearchBreakoutRetest4HStrategy(
             if any(candle.timeframe != "4h" for candle in candles):
                 return None
             open_times = [int(candle.open_time) for candle in candles]
-            if any(right <= left for left, right in zip(open_times, open_times[1:])):
+            if any(right <= left for left, right in itertools.pairwise(open_times)):
                 return None
 
             highs = [float(candle.high) for candle in candles]
