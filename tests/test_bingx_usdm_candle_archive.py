@@ -63,6 +63,14 @@ def test_merge_tolerates_optional_trade_count_shape_difference() -> None:
         60_000: existing_row
     }
 
+
+def test_30m_interval_is_supported_for_archive_probe() -> None:
+    assert TIMEFRAME_MS["30m"] == 30 * 60_000
+    rows = {0: _row(0), 30 * 60_000: _row(30 * 60_000)}
+    coverage = _coverage(rows, TIMEFRAME_MS["30m"])
+    assert coverage["bar_count"] == 2
+    assert coverage["gap_count"] == 0
+
 def test_daily_timeframes_follow_manifest(tmp_path: Path) -> None:
     manifest = tmp_path / "manifest.json"
     manifest.write_text(json.dumps({"timeframes": ["1m", "5m"]}), encoding="utf-8")
