@@ -2816,9 +2816,12 @@ async def one_tick(*, dry: bool = False) -> int:
                 by_sym.setdefault(getattr(o, "symbol", "") or "", []).append(o)
             for _key, plan in plans.items():
                 sym = str(plan.get("symbol") or _key.split("|")[0] or "")
-                if not sym:
+                side = _normalize_plan_side(plan.get("side") or (
+                    _key.rsplit("|", 1)[1] if "|" in _key else None
+                ))
+                if not sym or side is None:
                     continue
-                orders = by_sym.get(sym, [])
+                orders = _open_orders_for_hedge_leg(by_sym.get(sym, []), sym, side)
                 detail = []
                 n_stop = n_tp = 0
                 for o in orders:
