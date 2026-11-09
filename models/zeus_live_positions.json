@@ -27,7 +27,7 @@
       "symbol": "SOL-USDT",
       "side": "short",
       "qty": "234.35676799",
-      "stop": "89.14242857142857",
+      "stop": "89.01842857142857",
       "tp": "84.215365149936165",
       "entry": "86.115",
       "leverage": 6,
@@ -43,7 +43,7 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "86.458",
+      "peak_low": "86.334",
       "current_regime": "RANGE"
     },
     "HYPE-USDT|short": {
@@ -66,9 +66,27 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "73.505",
+      "peak_low": "73.367",
       "current_regime": "WEAK_BEAR_TREND"
+    },
+    "INJ-USDT|long": {
+      "symbol": "INJ-USDT",
+      "side": "long",
+      "qty": "6221.22682593",
+      "stop": "7.9566300000000005",
+      "tp": "8.081203499999999725",
+      "entry": "8.041",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|INJ-USDT|long|1794225600000",
+      "ts": 1794226406.9572523,
+      "be_moved": false,
+      "initial_stop": "7.9566300000000005",
+      "opened_at_ms": 1794226406957,
+      "plan_qty": "6221.22682593",
+      "qty_ratio": 1.0,
+      "tp1": "8.081203499999999725"
     }
   },
-  "ts": 1794226081.4283953
+  "ts": 1794226406.957273
 }
