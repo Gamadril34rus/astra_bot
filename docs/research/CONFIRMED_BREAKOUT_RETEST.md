@@ -11,7 +11,7 @@ This hypothesis is for BingX USDT-M perpetual futures only. It is not a scalping
 ## Frozen signal rules
 
 1. Define the breakout level from the highest high / lowest low of the preceding 20 completed 30m candles, excluding the breakout candle.
-2. The breakout candle must close beyond that level. Its quote volume must be at least 1.3 times the average quote volume of the preceding 20 completed candles. The breakout candle is not included in its own volume baseline.
+2. The breakout candle must close beyond that level. Its volume must be at least 1.3 times the average of the preceding 20 completed candles. Use quote volume when positive; if BingX omits quoteVolume and the archived field is zero, fall back to base volume. The breakout candle is not included in its own volume baseline.
 3. Within the next 1-3 completed 30m candles, price must retest the level:
    - LONG: the candle low reaches the level or up to 0.15 ATR above it; the candle closes at or above the level, no more than 0.50 ATR above it, and closes green.
    - SHORT: the candle high reaches the level or up to 0.15 ATR below it; the candle closes at or below the level, no more than 0.50 ATR below it, and closes red.
@@ -33,6 +33,6 @@ This hypothesis is for BingX USDT-M perpetual futures only. It is not a scalping
 ## Known limitations
 
 - The entry, stops and exits are OHLC proxies, not exchange-confirmed fills.
-- Quote-volume ratios can vary by contract and market regime.
+- Quote-volume ratios can vary by contract and market regime. When BingX's historical endpoint omits quoteVolume, base contract volume is used only as a same-symbol relative-volume proxy; absolute volume is not compared across symbols.
 - A three-bar retest window and 2R target are hypotheses, not empirically proven optimum values.
 - The current implementation reuses the common portfolio simulator; only the signal selector differs.
