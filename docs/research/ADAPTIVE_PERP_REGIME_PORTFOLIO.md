@@ -1,0 +1,66 @@
+# Adaptive BingX USDT-M perpetual portfolio — research contract
+
+Status: frozen research hypotheses; not validated and not enabled.
+
+## Owner constraints
+- BingX USDT-M perpetual contracts only. No spot and no scalping.
+- Target holding time around 30 minutes; hard maximum 9 hours.
+- Symbols: BTC-USDT, ETH-USDT, SOL-USDT, HYPE-USDT, INJ-USDT.
+- No requirement to force trades. A regime with no positive net edge must produce NO_TRADE; forcing activity would convert fees into a permanent tax.
+
+## Research objective
+Test whether a simple regime router can combine three distinct short-horizon families without double-counting signals:
+1. TREND_PULLBACK: 1h directional trend + 15m pullback/reclaim.
+2. COMPRESSION_BREAKOUT: 15m volatility compression + range break and relative volume confirmation.
+3. RANGE_REVERSION: weak 1h trend + 15m Bollinger re-entry from an extreme.
+
+The router assigns each closed 15m decision bar to at most one family, in priority order COMPRESSION_BREAKOUT, TREND_PULLBACK, RANGE_REVERSION. If no family has a valid signal, it does not trade. One open position per symbol.
+
+## Frozen v0 rules
+### Shared
+- 15m signal candle must be closed; entry proxy is the next 15m open.
+- 1h context is the latest 1h candle whose close timestamp is <= the 15m decision timestamp. No forming candles.
+- ATR14 is rolling mean true range; EMA values use pandas ewm(span, adjust=False); RSI14 uses Wilder-style ewm.
+- Every trade has a 36-bar (9h) maximum hold.
+- If stop and target are touched in the same OHLC bar, stop wins. If a stop is gapped through, use the adverse bar open.
+- No pyramiding, averaging down, grid, martingale, same-symbol re-entry before exit, or simultaneous opposite positions.
+
+### TREND_PULLBACK
+- Regime: 1h ADX14 >= 20; EMA20 > EMA50 and EMA20 rising over 3 closed bars for LONG; symmetric for SHORT.
+- Setup: within the prior 4 closed 15m bars, price tests EMA20 while closes remain on the trend side of EMA50.
+- Trigger: current closed 15m candle reclaims EMA20, closes beyond prior candle high/low, and quote-volume ratio >= 1.1.
+- Stop: beyond prior 4-bar swing by 0.15 ATR; reject risk outside 0.35–1.8 ATR.
+- Target: 1.5R.
+
+### COMPRESSION_BREAKOUT
+- Setup: prior 15m Bollinger bandwidth percentile over trailing 96 bars <= 25%.
+- Trigger: current close breaks the prior 20-bar high/low and quote-volume ratio >= 1.5.
+- 1h EMA20/EMA50 direction must not oppose the breakout.
+- Stop: 1.2 ATR; target: 1.5R.
+
+### RANGE_REVERSION
+- Regime: 1h ADX14 <= 18.
+- LONG: prior close below lower Bollinger band, current close re-enters above lower band, RSI14 <= 40.
+- SHORT: prior close above upper band, current close re-enters below upper band, RSI14 >= 60.
+- Stop: beyond prior 3-bar swing by 0.15 ATR.
+- Target: 15m EMA20 at signal time; reject if reward/risk < 1.0.
+
+## Costs and funding
+- Base taker fee: 5 bps per side (10 bps round trip), sensitivity at 6 and 8 bps per side.
+- Conservative spread proxy: 2 bps per side; slippage proxy: 3 bps per side. Stress all execution costs at 1.5x.
+- Funding is charged only at actual settlement timestamps crossed by the position, using signed symbol-specific BingX funding rates. Positive funding rate is paid by LONG and received by SHORT. Missing funding coverage is INCOMPLETE, never zero.
+- Gross return, fees, spread, slippage, funding and net return are separate ledger columns.
+- OHLC fills remain a proxy. A later VST replay must use exchange-confirmed fills and fees.
+
+## Validation
+- Source must be BingX USDT-M swap klines, not spot and not Binance substitute data.
+- Validate OHLCV, duplicates, gaps, symbol coverage, timestamps, contract listing windows, funding intervals and data checksums.
+- Chronological periods: IS through 2023-12-31; validation 2024; OOS from 2025-01-01. HYPE's shorter listing history is reported separately and is not pooled into pre-listing periods.
+- No parameter search on OOS. Compare each family, each side, each symbol, and the router.
+- Report PF, net expectancy, win rate, median/mean/P90 holding time, monthly positive share, drawdown, exposure and concurrent positions.
+- A small sample is INSUFFICIENT, not PASS.
+- Research promotion gate: OOS net PF >= 1.25; positive net expectancy; >=100 OOS trades combined; >=25 per side before side claims; positive months >=70%; drawdown within owner risk budget; net positive under 1.5x costs. Then require separate VST forward validation.
+- A profitable historical result is not a promise of future returns and does not authorize live activation.
+
+## Safety
+This research branch must not change active strategy registration, production risk, leverage, stops, exit engine, paper/real routing, secrets, workflows unrelated to research, or live settings.
