@@ -105,7 +105,12 @@ async def test_restore_does_not_drop_plan_after_unconfirmed_market_close(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     positions_path = tmp_path / "models" / "zeus_live_positions.json"
-    position = SimpleNamespace(
+    position_before_close = SimpleNamespace(
+        symbol="ETH-USDT",
+        side="long",
+        quantity=Decimal("1"),
+    )
+    position_after_close = SimpleNamespace(
         symbol="ETH-USDT",
         side=reported_side,
         quantity=Decimal("1"),
@@ -122,7 +127,9 @@ async def test_restore_does_not_drop_plan_after_unconfirmed_market_close(
         return True
 
     client = SimpleNamespace(
-        get_positions=AsyncMock(return_value=[position]),
+        get_positions=AsyncMock(
+            side_effect=[[position_before_close], [position_after_close]]
+        ),
         get_open_orders=AsyncMock(return_value=[]),
         close_position=close_position,
         cancel_order=AsyncMock(return_value=True),
