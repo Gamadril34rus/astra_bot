@@ -384,18 +384,9 @@ def income_too_small(agg: dict[str, Any], est: float | None) -> bool:
     """has_realized but |REALIZED_PNL| < 0.10·est and est > 50."""
     if est is None or est <= 50:
         return False
-    if not agg.get("has_realized"):
+    if not agg.get("has_realized") or agg.get("ambiguous_position_side"):
         return False
     try:
-        if agg.get("ambiguous_position_side"):
-            logger.warning(
-                "dogon: %s %s income rows cannot be mapped to the closed hedge leg; keep pending",
-                sym,
-                side,
-            )
-            remaining.append(item)
-            continue
-
         rp = abs(float(agg.get("pnl") or 0))
     except (TypeError, ValueError):
         return False
@@ -546,6 +537,14 @@ async def resolve_pending_dogon(
             )
         except Exception as exc:
             logger.warning("dogon exit_net %s: %s", sym, type(exc).__name__)
+            remaining.append(item)
+            continue
+        if agg.get("ambiguous_position_side"):
+            logger.warning(
+                "dogon: %s %s income rows cannot be mapped to the closed hedge leg; keep pending",
+                sym,
+                side,
+            )
             remaining.append(item)
             continue
 
