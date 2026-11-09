@@ -6,8 +6,6 @@ from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
 from astra_bot.decision.live_arm import (
     COOLDOWN_MS,
     MAX_OPEN,
@@ -23,6 +21,8 @@ from astra_bot.decision.live_arm import (
 )
 from astra_bot.decision.live_broker import LiveBroker
 from astra_bot.decision.live_positions import get_plan, save_positions, upsert_plan
+
+import pytest
 
 
 class MockClient:
@@ -367,3 +367,30 @@ def test_live_client_requires_side_for_ambiguous_hedge_close(monkeypatch):
     assert placed[0]["side"] == "BUY"
     assert placed[0]["position_side"] == "SHORT"
     assert placed[0]["quantity"] == Decimal("1")
+
+
+
+def test_existing_protect_does_not_reuse_opposite_hedge_stop():
+    from astra_bot.decision.live_broker import _existing_protect
+
+    async def _():
+        opposite_stop = SimpleNamespace(
+            id="short-stop",
+            symbol="BTC-USDT",
+            order_type="stop_market",
+            side="buy",
+            position_side="short",
+            status="new",
+            stop_price=Decimal("90"),
+        )
+        client = MockClient(orders=[opposite_stop])
+        found = await _existing_protect(
+            client,
+            "BTC-USDT",
+            kind="stop",
+            side="SELL",
+            level=Decimal("90"),
+        )
+        assert found is None
+
+    asyncio.run(_())
