@@ -1,6 +1,13 @@
 name: Research breakout reproducibility
 
 on:
+  push:
+    branches: [research/breakout-retest-4h-shadow]
+    paths:
+      - "scripts/research_bt_walkforward.py"
+      - "docs/research/WALKFORWARD_4H_BREAKOUT.md"
+      - "astra_bot/strategies/research_breakout_retest_4h.py"
+      - ".github/workflows/research-breakout-repro.yml"
   pull_request:
     branches: [master]
     paths:
