@@ -79,8 +79,9 @@ def test_funding_parser_rejects_incomplete_record() -> None:
 
 
 @pytest.mark.asyncio
-async def test_candle_archive_continues_after_short_nonempty_page(tmp_path, monkeypatch) -> None:
+async def test_candle_archive_uses_bounded_forward_pages(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(candle_archive, "ARCHIVE_DIR", tmp_path)
+    monkeypatch.setattr(candle_archive, "PAGE_SIZE", 3)
     bars = [
         SimpleNamespace(
             open_time=ts,
@@ -92,27 +93,36 @@ async def test_candle_archive_continues_after_short_nonempty_page(tmp_path, monk
             quote_volume=1000,
             trades_count=1,
         )
-        for ts in (1_000_000, 1_900_000, 2_800_000, 3_700_000, 4_600_000, 5_500_000)
+        for ts in range(0, 6 * 900_000, 900_000)
     ]
 
-    class ShortPageClient:
+    class RangedPageClient:
         def __init__(self) -> None:
-            self.pages = [bars[3:], bars[:3], []]
+            self.ranges: list[tuple[int, int]] = []
 
-        async def fetch_kline_page(self, *_args, **_kwargs):
-            return self.pages.pop(0)
+        async def fetch_kline_page(
+            self, _symbol, _timeframe, *, start_time_ms, end_time_ms, limit
+        ):
+            self.ranges.append((start_time_ms, end_time_ms))
+            return [
+                bar for bar in bars
+                if start_time_ms <= bar.open_time <= end_time_ms
+            ][:limit]
 
+    client = RangedPageClient()
     report, _ = await candle_archive._download_pair(
-        ShortPageClient(),
+        client,
         symbol="BTC-USDT",
         timeframe="15m",
         mode="initial",
         start_ms=0,
-        now_ms=10_000_000,
+        now_ms=6 * 900_000 + 1,
+        launch_ms=0,
     )
-    assert report["pages_requested"] == 3
+    assert report["pages_requested"] == 2
     assert report["bar_count"] == 6
-
+    assert client.ranges[0][0] == 0
+    assert client.ranges[1][0] == 3 * 900_000
 
 def test_latest_funding_segment_excludes_gaps_without_imputation() -> None:
     frame = pd.DataFrame({
