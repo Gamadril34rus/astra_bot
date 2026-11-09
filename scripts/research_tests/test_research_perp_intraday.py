@@ -132,6 +132,7 @@ def test_bingx_100410_uses_four_attempt_cooldown(monkeypatch):
         return FakeResponse({"code": 0, "data": [{"ok": True}]})
 
     monkeypatch.setattr(research.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(research, "_last_request_monotonic", 0.0)
     monkeypatch.setattr(research.time, "monotonic", lambda: 1000.0)
     monkeypatch.setattr(research.time, "sleep", delays.append)
     monkeypatch.setattr(research, "API_MIN_INTERVAL_S", 0)
