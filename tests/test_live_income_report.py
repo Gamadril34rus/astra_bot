@@ -177,6 +177,7 @@ def test_funding_day_accumulate_and_reset(tmp_path, monkeypatch):
 
 def test_funding_day_new_event_adds(tmp_path, monkeypatch):
     import asyncio
+
     from scripts import zeus_live_clock as clock
 
     monkeypatch.chdir(tmp_path)
