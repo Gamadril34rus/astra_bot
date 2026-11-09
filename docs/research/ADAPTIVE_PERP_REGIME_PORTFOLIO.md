@@ -22,7 +22,7 @@ The router assigns each closed 15m decision bar to at most one family, in priori
 - 15m signal candle must be closed; entry proxy is the next 15m open.
 - 1h context is the latest 1h candle whose close timestamp is <= the 15m decision timestamp. No forming candles.
 - ATR14 is rolling mean true range; EMA values use pandas ewm(span, adjust=False); RSI14 uses Wilder-style ewm.
-- No-progress rule: after 2 completed 15m position bars (30m), exit at that bar close if maximum favorable excursion is still below 0.35R. This is an invalidation rule, not a forced 30m take-profit.
+- No-progress rule: after 2 completed 15m position bars (30m), exit at that bar close if maximum favorable excursion is still below 0.35R. If the position remains open after 6 bars (90m) and MFE is still below 0.75R, exit at that close. These are invalidation rules, not forced profit targets.
 - Every trade has a 36-bar (9h) hard maximum hold.
 - If stop and target are touched in the same OHLC bar, stop wins. If a stop is gapped through, use the adverse bar open.
 - No pyramiding, averaging down, grid, martingale, same-symbol re-entry before exit, or simultaneous opposite positions.
@@ -55,8 +55,8 @@ The router assigns each closed 15m decision bar to at most one family, in priori
 - Target: 15m EMA20 at signal time; reject if reward/risk < 1.0.
 
 ## Costs and funding
-- Base taker fee: 5 bps per side; conservative spread proxy: 2 bps per side; adverse slippage proxy: 3 bps per side (20 bps round trip combined).
-- Stress all execution costs at 1.5x (15 bps per side, 30 bps round trip). Signal eligibility is frozen to the stress model: reject if round-trip stress cost exceeds 0.40R. This keeps the base and stress runs on the same trade population.
+- Base taker fee: 5 bps per side; book-crossing spread proxy: 0.5 bps per side; adverse slippage proxy: 2 bps per side (15 bps round trip combined).
+- Stress all execution costs at 1.5x (7.5 bps fee + 0.75 bps spread + 3 bps slippage per side; 22.5 bps round trip). Signal eligibility is frozen to the stress model: reject if round-trip stress cost exceeds 0.40R. This keeps base/stress runs on the same trade population. The reduced spread/slippage assumptions are calibrated against current BingX depth snapshots, but remain estimates and require VST verification.
 - Funding is charged only at actual settlement timestamps crossed by the position, using signed symbol-specific BingX funding rates. Positive funding rate is paid by LONG and received by SHORT. Missing funding coverage is INCOMPLETE, never zero.
 - Gross return, taker fees, spread, slippage, funding and net return are separate ledger columns.
 - Funding gaps >12h are not imputed. For a symbol with older funding holes, only its latest uninterrupted funding segment is eligible; earlier candle bars are excluded and the excluded funding count/window is reported.
@@ -69,7 +69,7 @@ The router assigns each closed 15m decision bar to at most one family, in priori
 - No parameter search on OOS. Compare each family, each side, each symbol, and the router.
 - Report PF, net expectancy, win rate, median/mean/P90 holding time, monthly positive share, drawdown, exposure and concurrent positions.
 - A small sample is INSUFFICIENT, not PASS.
-- Research promotion gate: OOS net PF >= 1.25; positive net expectancy; >=100 OOS trades combined; >=25 per side before side claims; positive months >=70%; drawdown within owner risk budget; net positive under 1.5x costs. Then require separate VST forward validation.
+- Research promotion gate: at least 12 months of common 15m history across all five symbols; OOS net PF >= 1.25; positive net expectancy; >=100 OOS trades combined; >=25 per side before side claims; positive months >=70%; mean hold <=90m, median <=60m, max <=9h; drawdown within owner risk budget; net positive under 1.5x costs. Then require separate VST forward validation.
 - A profitable historical result is not a promise of future returns and does not authorize live activation.
 
 ## Safety
