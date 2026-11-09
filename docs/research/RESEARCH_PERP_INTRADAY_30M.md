@@ -17,17 +17,18 @@ The 1h context is constructed from completed 30m candles and attached with an as
 
 ## Market data
 
-The runner uses the official Binance USDⓈ-M Futures public REST endpoints:
+The runner uses BingX's public USDT-M swap REST endpoints:
 
-- exchangeInfo to confirm contractType=PERPETUAL, quoteAsset=USDT, active status and contract onboarding time;
-- klines at 30m resolution;
-- historical funding-rate events with the recorded mark price.
+- `/openApi/swap/v2/quote/contracts` to confirm active USDT-settled contracts and exchange-reported launch time;
+- `/openApi/swap/v3/quote/klines` for 30m OHLCV candles;
+- `/openApi/swap/v2/quote/fundingRate` for historical funding-rate events;
+- `/openApi/swap/v1/market/markPriceKlines` for 4h mark-price candle opens aligned to funding settlements.
 
-Symbols: BTCUSDT, ETHUSDT, SOLUSDT, HYPEUSDT and INJUSDT. History starts at the later of 2021-01-01 UTC or the contract's exchange-reported onboard date. The run ends at the latest fully closed 30m bar.
+Symbols: BTC-USDT, ETH-USDT, SOL-USDT, HYPE-USDT and INJ-USDT. History starts at the later of 2021-01-01 UTC or each contract's exchange-reported `launchTime`. The run ends at the latest fully closed 30m bar. BingX documents up to 1,440 candles and 1,000 funding rows per request; the loader paginates and conservatively rate-limits public requests to one per second.
 
-The data validator rejects non-perpetual contracts, non-USDT quotes, pre-listing candles, duplicate/out-of-order bars, missing 30m intervals, invalid OHLC, open bars, duplicate funding timestamps, non-finite funding or missing funding mark prices. Funding coverage gaps over 24 hours are a hard failure, not a zero-funding assumption.
+The data validator rejects inactive/non-USDT contracts, pre-listing candles, duplicate/out-of-order bars, missing 30m intervals, invalid OHLC, open bars, duplicate funding timestamps, non-finite rates, missing mark prices and funding coverage gaps over 24 hours. It never silently fills missing funding as zero. Actual earliest retained history is accepted only after inspecting returned data for each symbol.
 
-Binance is a reference-market proxy. It is not BingX data and cannot establish BingX execution profitability. A positive result must be reproduced with BingX VST candles/quotes/fills and BingX funding before any runtime consideration.
+This is venue-matched BingX history, but still not an execution replay: historical BBO/L2 snapshots, maker queue priority, exchange order latency and market impact are not reconstructed. A positive candle/funding result is only a candidate for VST validation with observable bid/ask and exchange fills, not permission for any live execution.
 
 ## Frozen candidate families
 
