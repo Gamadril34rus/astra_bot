@@ -1824,7 +1824,6 @@ async def sync_partial_breakeven(
                 r_abs = abs(entry_px - stop_px)
             if r_abs <= 0 or exch_qty <= 0:
                 continue
-            side = str(plan.get("side") or "long").lower()
             if side == "long":
                 mfe_r = float((mark_px - entry_px) / r_abs)
             else:
