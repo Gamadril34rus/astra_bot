@@ -14,6 +14,9 @@ from astra_bot.decision.live_income_report import (
     format_usd,
     load_pending,
     remove_pending,
+    filter_income_rows_for_position_side,
+    fetch_income_with_retries,
+    resolve_pending_dogon,
 )
 
 
@@ -203,3 +206,122 @@ def test_funding_day_new_event_adds(tmp_path, monkeypatch):
         assert abs(s2 - 0.50) < 1e-9
 
     asyncio.run(_run())
+
+
+
+def test_income_rows_require_position_side_or_matched_fill_trade_id():
+    rows = [
+        {
+            "incomeType": "REALIZED_PNL",
+            "income": "10.00",
+            "tradeId": "long-fill",
+        },
+        {
+            "incomeType": "REALIZED_PNL",
+            "income": "-50.00",
+            "tradeId": "short-fill",
+            "positionSide": "SHORT",
+        },
+        {
+            "incomeType": "FUNDING_FEE",
+            "income": "-0.25",
+            "time": 1_700_000_000_000,
+        },
+    ]
+    selected, ambiguous = filter_income_rows_for_position_side(
+        rows, "long", trade_ids={"long-fill"}
+    )
+    assert ambiguous is False
+    assert len(selected) == 1
+    assert selected[0]["tradeId"] == "long-fill"
+
+
+def test_income_pnl_without_side_or_linked_fill_id_is_ambiguous():
+    rows = [
+        {
+            "incomeType": "REALIZED_PNL",
+            "income": "25.00",
+            "time": 1_700_000_000_000,
+        }
+    ]
+    selected, ambiguous = filter_income_rows_for_position_side(
+        rows, "long", trade_ids=set()
+    )
+    assert selected == []
+    assert ambiguous is True
+
+
+def test_income_retry_stops_after_ambiguous_hedge_attribution():
+    class Client:
+        def __init__(self):
+            self.calls = 0
+            self.income_endpoint_cooldown_active = False
+
+        async def get_realized_income(self, symbol, start_ms=None):
+            self.calls += 1
+            return [
+                {
+                    "incomeType": "REALIZED_PNL",
+                    "income": "25.00",
+                    "time": 1_700_000_000_000,
+                }
+            ]
+
+    client = Client()
+    result = asyncio.run(
+        fetch_income_with_retries(
+            client,
+            "BTC-USDT",
+            1,
+            attempts=3,
+            delay_sec=0,
+            position_side="long",
+            trade_ids=set(),
+        )
+    )
+    assert client.calls == 1
+    assert result["ambiguous_position_side"] is True
+    assert result["has_realized"] is False
+
+
+def test_pending_dogon_keeps_ambiguous_income_without_patching_or_tg(tmp_path):
+    pending_path = tmp_path / "pending.json"
+    trades_path = tmp_path / "trades.jsonl"
+    enqueue_pending(
+        {
+            "symbol": "BTC-USDT",
+            "side": "long",
+            "signal_id": "signal-long",
+            "since_ms": 1,
+            "reason": "стоп",
+            "entry": 100.0,
+            "trade_ids": [],
+            "ts": 1_700_000_000.0,
+        },
+        path=pending_path,
+    )
+
+    class Client:
+        async def get_realized_income(self, symbol, start_ms=None):
+            return [
+                {
+                    "incomeType": "REALIZED_PNL",
+                    "income": "40.00",
+                    "time": 1_700_000_001_000,
+                }
+            ]
+
+    sent = []
+    result = asyncio.run(
+        resolve_pending_dogon(
+            Client(),
+            send_tg=lambda message: sent.append(message),
+            path=pending_path,
+            trades_path=trades_path,
+            now=1_700_000_100.0,
+        )
+    )
+    assert result == 0
+    assert sent == []
+    assert len(load_pending(pending_path)) == 1
+    assert not trades_path.exists()
