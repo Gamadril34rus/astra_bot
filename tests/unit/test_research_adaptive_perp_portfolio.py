@@ -450,6 +450,17 @@ def test_common_15m_window_uses_overlapping_symbol_history() -> None:
     assert result["common_end_utc"] == pd.to_datetime(90_000_000, unit="ms", utc=True).isoformat()
     assert result["covers_12_months"] is False
 
+def test_common_window_accepts_30m_coverage_fields() -> None:
+    coverage = {
+        "BTC-USDT": {"30m_first": 1_000, "30m_last": 100_000_000},
+        "ETH-USDT": {"30m_first": 2_000, "30m_last": 90_000_000},
+        "HYPE-USDT": {"30m_first": 3_000, "30m_last": 95_000_000},
+    }
+    result = common_15m_coverage_window(coverage, "30m")
+    assert result["common_start_utc"] == pd.to_datetime(3_000, unit="ms", utc=True).isoformat()
+    assert result["common_end_utc"] == pd.to_datetime(90_000_000, unit="ms", utc=True).isoformat()
+
+
 @pytest.mark.asyncio
 async def test_no_progress_90m_exit_closes_stagnant_position(monkeypatch) -> None:
     times = [index * 900_000 for index in range(160)]
