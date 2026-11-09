@@ -983,12 +983,14 @@ def main() -> None:
             raise RuntimeError(f"{symbol}: no active BingX USDT-M perpetual contract found")
         start_ms = max(utc_ms(DATA_START_FLOOR), int(contract.get("launchTime", 0) or 0))
         print(f"Fetching BingX {symbol} {INTERVAL} perpetual candles, funding and mark prices...", flush=True)
-        klines = fetch_klines(symbol, start_ms, end_ms)
         raw_funding = fetch_funding(symbol, start_ms, end_ms)
         funding, excluded_funding = latest_contiguous_funding_segment(raw_funding)
         if not funding:
             raise ValueError(f"{symbol}: no contiguous BingX funding segment")
         funding_start_ms = int(funding[0]["fundingTime"])
+        # Earlier candles cannot be costed without missing funding events.
+        # Fetch only the latest continuous funding-covered interval.
+        klines = fetch_klines(symbol, funding_start_ms, end_ms)
         missing_mark_events = [
             event for event in funding if float(event.get("markPrice") or 0) <= 0
         ]
