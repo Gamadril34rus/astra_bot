@@ -1489,80 +1489,120 @@ class LiveBroker:
                         pass
                 continue
 
-            # No local plan and no matching stop: cancel only orders positively
-            # attributed to this hedge leg, then close that exact positionSide.
-            side_orders = [
-                order
-                for order in orders
-                if _order_is_open(order) and _order_matches_position_side(order, side)
-            ]
-            cancel_ok = True
-            for order in side_orders:
-                order_id = (
-                    getattr(order, "id", None)
-                    or getattr(order, "exchange_order_id", None)
-                    or getattr(order, "order_id", None)
+            # Close first, verify this exact hedge leg is flat, then remove only
+            # its residual orders. A market-order acknowledgement is not a fill.
+            close_error: Exception | None = None
+            try:
+                close_ok = await self.client.close_position(
+                    symbol,
+                    quantity=qty,
+                    position_side=side,
                 )
-                if not order_id:
-                    cancel_ok = False
-                    break
-                try:
-                    canceled_ok = await self.client.cancel_order(symbol, str(order_id))
-                    if not canceled_ok:
-                        cancel_ok = False
-                        break
-                    journal_order_cancel(
-                        symbol=symbol,
-                        order_id=str(order_id),
-                        order_type=_protective_order_kind(order)
-                        or str(getattr(order, "order_type", "UNKNOWN")),
-                        reason="restore_naked_close",
-                        path="restore_missing_stops.cancel_side_orders",
-                        side=side,
-                    )
-                except Exception as exc:
+                if close_ok is False:
+                    close_error = RuntimeError("exchange did not acknowledge side-specific close")
+            except Exception as exc:
+                close_error = exc
+
+            try:
+                positions_after_close = await self.client.get_positions()
+            except Exception as verify_exc:
+                logger.warning(
+                    "restore_missing_stops: %s %s close verification failed: %s",
+                    symbol,
+                    side,
+                    type(verify_exc).__name__,
+                )
+                positions_after_close = None
+
+            if positions_after_close is None:
+                still_open = True
+                verify_reason = "закрытие отправлено, но состояние hedge-стороны не удалось проверить"
+            else:
+                still_open = any(
+                    str(getattr(position, "symbol", "") or "") == symbol
+                    and _normalize_position_side(getattr(position, "side", None)) == side
+                    and Decimal(str(getattr(position, "quantity", 0) or 0)) > 0
+                    for position in positions_after_close or []
+                )
+                verify_reason = (
+                    "биржа всё ещё показывает открытую hedge-позицию после запроса закрытия"
+                    if still_open
+                    else ""
+                )
+
+            if still_open:
+                if close_error is not None:
                     logger.warning(
-                        "restore_missing_stops: %s %s cancel order %s failed: %s",
+                        "restore_missing_stops: %s %s close unconfirmed (%s); keep orders",
                         symbol,
                         side,
-                        order_id,
-                        type(exc).__name__,
+                        type(close_error).__name__,
                     )
-                    cancel_ok = False
-                    break
-            if not cancel_ok:
                 orphan_unknown.append(symbol)
                 orphan_unknown_legs.append(f"{symbol}|{side}")
                 await warn_orphan(
                     symbol,
                     side,
                     qty,
-                    "orphan_order_cancel_failed",
-                    "не удалось безопасно отменить ордера этой hedge-стороны; позиция сохранена",
+                    "orphan_close_unconfirmed",
+                    verify_reason,
                 )
                 continue
 
-            try:
-                await self.client.close_position(
-                    symbol,
-                    quantity=qty,
-                    position_side=side,
+            # Only after the exchange confirms this side is flat may its remaining
+            # side-scoped STOP/TP orders be canceled. The opposite hedge leg stays intact.
+            cleanup_failed = False
+            for order in side_orders:
+                if not _order_is_open(order) or not _order_matches_position_side(order, side):
+                    continue
+                order_id = (
+                    getattr(order, "id", None)
+                    or getattr(order, "exchange_order_id", None)
+                    or getattr(order, "order_id", None)
                 )
-                remove_plan(symbol, path, side=side)
-                closed_naked.append(symbol)
-                closed_legs.append(f"{symbol}|{side}")
-                logger.warning(
-                    "restore_missing_stops: closed naked leg %s %s qty=%s",
+                if not order_id:
+                    cleanup_failed = True
+                    continue
+                try:
+                    canceled_ok = await self.client.cancel_order(symbol, str(order_id))
+                    if canceled_ok:
+                        journal_order_cancel(
+                            symbol=symbol,
+                            order_id=str(order_id),
+                            order_type=_protective_order_kind(order)
+                            or str(getattr(order, "order_type", "UNKNOWN")),
+                            reason="restore_naked_close",
+                            path="restore_missing_stops.cancel_side_orders_after_flat",
+                            side=side,
+                        )
+                    else:
+                        cleanup_failed = True
+                except Exception as exc:
+                    logger.warning(
+                        "restore_missing_stops: %s %s residual order %s cleanup failed: %s",
+                        symbol,
+                        side,
+                        order_id,
+                        type(exc).__name__,
+                    )
+                    cleanup_failed = True
+
+            remove_plan(symbol, path, side=side)
+            closed_naked.append(symbol)
+            closed_legs.append(f"{symbol}|{side}")
+            logger.warning(
+                "restore_missing_stops: verified flat naked leg %s %s qty=%s",
+                symbol,
+                side,
+                qty,
+            )
+            if cleanup_failed:
+                await warn_orphan(
                     symbol,
                     side,
                     qty,
-                )
-            except Exception as exc:
-                logger.warning(
-                    "restore_missing_stops: %s %s side-specific close failed: %s",
-                    symbol,
-                    side,
-                    type(exc).__name__,
+                    "orphan_residual_orders_after_flat",
+                    "позиция подтверждённо закрыта, но часть её защитных ордеров не удалось отменить",
                 )
 
         if warn_state_changed:
