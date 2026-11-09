@@ -194,3 +194,53 @@ def test_order_cancel_on_parity(tmp_path, monkeypatch):
     assert "old_tp" in cancels
     assert any(j.get("event") == "order_cancel" for j in journals)
     assert any(j.get("event") == "tp_parity_replace" for j in journals)
+
+
+def test_legacy_unscoped_tp_journal_is_not_applied_to_two_hedge_legs(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "models").mkdir()
+    save_positions(
+        {
+            "BTC-USDT|long": {
+                "symbol": "BTC-USDT",
+                "side": "long",
+                "entry": "100",
+                "stop": "100.1",
+                "tp": "104",
+                "be_moved": True,
+                "qty": "1",
+            },
+            "BTC-USDT|short": {
+                "symbol": "BTC-USDT",
+                "side": "short",
+                "entry": "100",
+                "stop": "99.9",
+                "tp": "96",
+                "be_moved": True,
+                "qty": "2",
+            },
+        }
+    )
+    with open("models/zeus_live_journal.jsonl", "w", encoding="utf-8") as stream:
+        stream.write(
+            json.dumps(
+                {
+                    "event": "tp_parity_failed",
+                    "symbol": "BTC-USDT",
+                    "old_tp": "94",
+                    "ts": 1,
+                }
+            )
+            + "\n"
+        )
+
+    result = migrate_initial_stop_v1()
+
+    assert result["migrated"] == 0
+    saved = json.loads(Path("models/zeus_live_positions.json").read_text())
+    long_plan = saved["positions"]["BTC-USDT|long"]
+    short_plan = saved["positions"]["BTC-USDT|short"]
+    assert "initial_stop" not in long_plan
+    assert "initial_stop" not in short_plan
