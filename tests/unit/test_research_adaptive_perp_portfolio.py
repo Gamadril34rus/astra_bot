@@ -128,6 +128,47 @@ def test_candle_archive_uses_latest_contiguous_funding_start(tmp_path, monkeypat
     assert candle_archive._latest_contiguous_funding_start_ms("BTC-USDT", 200 * 3_600_000) == 200 * 3_600_000
 
 @pytest.mark.asyncio
+async def test_initial_archive_backfills_prefix_left_by_partial_run(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(candle_archive, "ARCHIVE_DIR", tmp_path)
+    monkeypatch.setattr(candle_archive, "PAGE_SIZE", 2)
+    interval = 900_000
+    bars = [
+        SimpleNamespace(
+            open_time=ts, open=100, high=102, low=99, close=101,
+            volume=10, quote_volume=1000, trades_count=1,
+        )
+        for ts in range(0, 4 * interval, interval)
+    ]
+    path = candle_archive._archive_path("BTC-USDT", "15m")
+    candle_archive._write_rows(path, {
+        int(bar.open_time): candle_archive._row_from_candle(bar)
+        for bar in bars[2:]
+    })
+
+    class RangedPageClient:
+        async def fetch_kline_page(
+            self, _symbol, _timeframe, *, start_time_ms, end_time_ms, limit
+        ):
+            return [
+                bar for bar in bars
+                if start_time_ms <= bar.open_time <= end_time_ms
+            ][:limit]
+
+    report, _ = await candle_archive._download_pair(
+        RangedPageClient(),
+        symbol="BTC-USDT",
+        timeframe="15m",
+        mode="initial",
+        start_ms=0,
+        now_ms=4 * interval + 1,
+        launch_ms=0,
+        funding_start_ms=0,
+    )
+    assert report["first_open_time"] == 0
+    assert report["new_bars"] == 2
+    assert report["verified_overlap_bars"] == 2
+
+@pytest.mark.asyncio
 async def test_archive_retries_bingx_100410_with_cooldowns(monkeypatch) -> None:
     delays = []
 
