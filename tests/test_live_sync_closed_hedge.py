@@ -8,10 +8,14 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from astra_bot.decision.live_broker import LiveBroker, LiveBrokerConfig
-from astra_bot.decision.live_positions import get_plan, upsert_plan
-
 import pytest
+from astra_bot.decision.live_broker import (
+    LiveBroker,
+    LiveBrokerConfig,
+    _aggregate_exit_fills,
+    _filter_fills_for_position_side,
+)
+from astra_bot.decision.live_positions import get_plan, upsert_plan
 
 
 @pytest.mark.asyncio
@@ -219,3 +223,64 @@ async def test_sync_closed_plans_retries_when_side_order_cancel_fails(
     assert cancel_calls == ["long-stop"]
     assert get_plan("BTC-USDT", positions_path, side="long") is not None
     assert get_plan("BTC-USDT", positions_path, side="short") is not None
+
+
+
+def test_exit_fill_aggregation_isolated_by_bingx_position_side():
+    fills = [
+        {
+            "tradeId": "long-fill",
+            "positionSide": "LONG",
+            "side": "SELL",
+            "type": "STOP_MARKET",
+            "price": "100",
+            "qty": "1",
+            "fee": "-0.10",
+            "realizedPnl": "10.00",
+        },
+        {
+            "tradeId": "short-fill",
+            "positionSide": "SHORT",
+            "side": "SELL",
+            "type": "MARKET",
+            "price": "101",
+            "qty": "5",
+            "fee": "-0.90",
+            "realizedPnl": "-50.00",
+        },
+    ]
+    long_fills, ambiguous = _filter_fills_for_position_side(fills, "long")
+    assert ambiguous is False
+    assert [row["tradeId"] for row in long_fills] == ["long-fill"]
+
+    exit_avg, fees, reason, qty = _aggregate_exit_fills(
+        long_fills, side="long", entry_px=110.0
+    )
+    assert exit_avg == 100.0
+    assert fees == 0.10
+    assert reason == "стоп"
+    assert qty == 1.0
+    assert sum(float(row["realizedPnl"]) for row in long_fills) == 10.0
+
+
+def test_fill_without_position_side_invalidates_side_specific_batch():
+    fills = [
+        {
+            "tradeId": "known-long",
+            "positionSide": "LONG",
+            "side": "SELL",
+            "price": "100",
+            "qty": "1",
+            "fee": "-0.10",
+        },
+        {
+            "tradeId": "unknown",
+            "side": "SELL",
+            "price": "101",
+            "qty": "2",
+            "fee": "-0.20",
+        },
+    ]
+    selected, ambiguous = _filter_fills_for_position_side(fills, "long")
+    assert selected == []
+    assert ambiguous is True
