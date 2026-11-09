@@ -305,6 +305,11 @@ async def _download_pair(
                 )
             if min(existing) == cursor_start:
                 cursor_start = max(cursor_start, max(existing) - 3 * interval_ms)
+            else:
+                # A prior first page may have skipped pre-history windows before
+                # the exchange's earliest retained candle. Resume at that first
+                # observed candle rather than treating those windows as a gap.
+                cursor_start = min(existing)
     last_closed_open = (now_ms // interval_ms) * interval_ms - interval_ms
     incoming: dict[int, dict[str, str]] = {}
     pages = 0
