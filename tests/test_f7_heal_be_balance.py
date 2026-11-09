@@ -61,6 +61,7 @@ def test_sync_partial_uses_current_price(tmp_path, monkeypatch):
 
     pos = SimpleNamespace(
         symbol="DOGE-USDT",
+        side="short",
         quantity=Decimal("100"),
         current_price=Decimal("0.06"),  # short MFE >> 0.8R
         mark_price=None,
@@ -108,6 +109,9 @@ def test_heal_dead_tp_replace_first_after_2_ticks(tmp_path, monkeypatch):
 
     old_tp = SimpleNamespace(
         id="old1",
+        symbol="DOGE-USDT",
+        side="BUY",
+        position_side="SHORT",
         order_type="TAKE_PROFIT_MARKET",
         status="new",
         status_raw="NEW",
@@ -116,6 +120,7 @@ def test_heal_dead_tp_replace_first_after_2_ticks(tmp_path, monkeypatch):
     )
     pos = SimpleNamespace(
         symbol="DOGE-USDT",
+        side="short",
         quantity=Decimal("100"),
         current_price=Decimal("0.076"),  # crossed below TP for short
     )
