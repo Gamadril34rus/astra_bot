@@ -2149,7 +2149,7 @@ class LiveBroker:
         def _oids_from(orders: list) -> list[str]:
             out: list[str] = []
             for o in orders:
-                if not _is_stop_order(o):
+                if not _is_stop_order(o) or not _order_matches_position_side(o, side.lower()):
                     continue
                 oid = str(getattr(o, "id", None) or getattr(o, "exchange_order_id", None) or "")
                 if oid:
@@ -2202,11 +2202,7 @@ class LiveBroker:
                 cancel_retry = True
                 cancelled: list[str] = []
                 for o in before:
-                    if not _is_stop_order(o):
-                        continue
-                    # same position side when available
-                    ops = str(getattr(o, "position_side", None) or getattr(o, "positionSide", None) or "").upper()
-                    if ops and ops not in (ps, ""):
+                    if not _is_stop_order(o) or not _order_matches_position_side(o, side.lower()):
                         continue
                     oid = str(getattr(o, "id", None) or "")
                     if not oid:
@@ -2276,7 +2272,7 @@ class LiveBroker:
         orders = await _open_stops()
         after_ids = _oids_from(orders)
         for o in orders:
-            if not _is_stop_order(o):
+            if not _is_stop_order(o) or not _order_matches_position_side(o, side.lower()):
                 continue
             oid = str(getattr(o, "id", None) or "")
             if not oid or (new_id and oid == new_id):
@@ -2310,29 +2306,73 @@ class LiveBroker:
         return placed
 
     async def flat_all(self) -> dict[str, Any]:
-        """B-008: close_position first, then cancel residual orders."""
+        """Emergency flat: close each hedge leg explicitly, then cancel only flat symbols."""
         positions = await self.client.get_positions()
+        symbols = {
+            str(getattr(position, "symbol", "") or "")
+            for position in positions or []
+        }
+        unresolved_symbols: set[str] = set()
         cancelled = 0
         closed = 0
         failed = 0
-        for p in positions:
+
+        for position in positions or []:
+            symbol = str(getattr(position, "symbol", "") or "")
+            side = _normalize_position_side(getattr(position, "side", None))
+            qty = Decimal(str(getattr(position, "quantity", 0) or 0))
+            if not symbol or not side or qty <= 0:
+                if symbol:
+                    unresolved_symbols.add(symbol)
+                failed += 1
+                logger.warning(
+                    "flat_all: cannot safely identify hedge side for %s; retain protective orders",
+                    symbol,
+                )
+                continue
             try:
-                if await self.client.close_position(p.symbol):
+                if await self.client.close_position(
+                    symbol,
+                    quantity=qty,
+                    position_side=side,
+                ):
                     closed += 1
             except Exception as exc:
+                unresolved_symbols.add(symbol)
                 failed += 1
-                logger.warning("flat_all: close_position %s failed: %s", p.symbol, exc)
+                logger.warning(
+                    "flat_all: close_position %s %s failed: %s",
+                    symbol,
+                    side,
+                    type(exc).__name__,
+                )
+
+        try:
+            remaining = await self.client.get_positions()
+            remaining_symbols = {
+                str(getattr(position, "symbol", "") or "")
+                for position in remaining or []
+                if Decimal(str(getattr(position, "quantity", 0) or 0)) > 0
+            }
+        except Exception as exc:
+            logger.warning(
+                "flat_all: cannot confirm remaining positions; retain protective orders: %s",
+                type(exc).__name__,
+            )
+            return {"cancelled": 0, "closed": closed, "failed": failed + 1}
+
+        # A symbol is eligible for cancel_all only when every hedge leg was known,
+        # close calls succeeded, and the exchange confirmed there is no residual position.
+        for symbol in sorted(symbols - remaining_symbols - unresolved_symbols):
+            if not symbol:
+                continue
             try:
-                cancelled += await self.client.cancel_all_orders(p.symbol)
+                cancelled += await self.client.cancel_all_orders(symbol)
             except Exception as exc:
                 failed += 1
-                logger.warning("flat_all: cancel_all_orders %s failed: %s", p.symbol, exc)
-        for o in await self.client.get_open_orders():
-            if getattr(o, "id", None) and getattr(o, "symbol", None):
-                try:
-                    await self.client.cancel_order(o.symbol, str(o.id))
-                    cancelled += 1
-                except Exception as exc:
-                    failed += 1
-                    logger.warning("flat_all: cancel_order %s failed: %s", o.id, exc)
+                logger.warning(
+                    "flat_all: cancel_all_orders %s failed: %s",
+                    symbol,
+                    type(exc).__name__,
+                )
         return {"cancelled": cancelled, "closed": closed, "failed": failed}
