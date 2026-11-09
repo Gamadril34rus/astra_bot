@@ -663,7 +663,7 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
                         if not oid:
                             continue
                         try:
-                            await broker.client.cancel_order(sym, str(oid))
+                                await broker.client.cancel_order(sym, str(oid))
                         except Exception as cexc:
                             append_journal(
                                 {
