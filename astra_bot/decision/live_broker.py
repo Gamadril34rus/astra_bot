@@ -1318,10 +1318,10 @@ class LiveBroker:
                                 tp_qty = self._quantize_to_step(
                                     plan_qty * _tp_frac_from_plan(plan), step
                                 )
-                                close_position = False
+                                ro, cp = False, False  # F4: hedge forbids ReduceOnly (109400)
                             else:
                                 tp_qty = self._quantize_to_step(plan_qty, step)
-                                close_position = True
+                                ro, cp = False, True
                             if tp_qty > 0:
                                 await self.client.place_order(
                                     symbol=symbol,
@@ -1330,8 +1330,8 @@ class LiveBroker:
                                     quantity=tp_qty,
                                     stop_price=Decimal(str(tp)),
                                     position_side=exchange_side,
-                                    reduce_only=False,
-                                    close_position=close_position,
+                                    reduce_only=ro,
+                                    close_position=cp,
                                     client_order_id=unique_client_order_id(symbol, "r"),
                                 )
                         except Exception as exc:
@@ -1397,10 +1397,10 @@ class LiveBroker:
                             tp_qty = self._quantize_to_step(
                                 plan_qty * _tp_frac_from_plan(plan), step
                             )
-                            close_position = False
+                            ro, cp = False, False  # F4: hedge forbids ReduceOnly (109400)
                         else:
                             tp_qty = self._quantize_to_step(plan_qty, step)
-                            close_position = True
+                            ro, cp = False, True
                         if tp_qty > 0:
                             await self.client.place_order(
                                 symbol=symbol,
@@ -1409,8 +1409,8 @@ class LiveBroker:
                                 quantity=tp_qty,
                                 stop_price=Decimal(str(tp)),
                                 position_side=exchange_side,
-                                reduce_only=False,
-                                close_position=close_position,
+                                reduce_only=ro,
+                                close_position=cp,
                                 client_order_id=unique_client_order_id(symbol, "r"),
                             )
                     restored.append(symbol)
