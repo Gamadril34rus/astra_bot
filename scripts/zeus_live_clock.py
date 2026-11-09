@@ -909,11 +909,7 @@ async def heal_ratchet_and_runner_tp(broker, send_tg=None) -> dict:
         positions = await broker.client.get_positions()
     except Exception as exc:
         return {**out, "error": type(exc).__name__}
-    by_sym: dict = {}
-    for p in positions or []:
-        sym = getattr(p, "symbol", None) or getattr(p, "symbol_name", None)
-        if sym:
-            by_sym[str(sym)] = p
+    by_leg = _positions_by_hedge_leg(positions)
 
     def _mark(pos):
         if pos is None:
@@ -934,10 +930,12 @@ async def heal_ratchet_and_runner_tp(broker, send_tg=None) -> dict:
         if not isinstance(plan, dict):
             continue
         sym = plan.get("symbol") or key.split("|")[0]
-        side = (plan.get("side") or "").lower()
+        side = _normalize_plan_side(plan.get("side") or (
+            key.rsplit("|", 1)[1] if "|" in key else None
+        ))
         entry = plan.get("entry")
         init_raw = plan.get("initial_stop") or plan.get("stop")
-        if entry is None or init_raw is None or side not in ("long", "short"):
+        if entry is None or init_raw is None or side is None:
             out["skipped"] += 1
             continue
         try:
@@ -951,7 +949,10 @@ async def heal_ratchet_and_runner_tp(broker, send_tg=None) -> dict:
         if risk <= 0:
             out["skipped"] += 1
             continue
-        pos = by_sym.get(sym)
+        pos = _position_for_hedge_leg(by_leg, sym, side)
+        if pos is None:
+            out["skipped"] += 1
+            continue
         mark = _mark(pos)
         qty = Decimal(
             str(
@@ -1109,11 +1110,9 @@ async def heal_ratchet_and_runner_tp(broker, send_tg=None) -> dict:
         if need_tp and not plan.get("runner_tp_healed_v1"):
             try:
                 orders = await broker.client.get_open_orders(sym)
-                n_tp = 0
-                for o in orders or []:
-                    ot = str(getattr(o, "type", "") or getattr(o, "order_type", "") or "").upper()
-                    if "TAKE_PROFIT" in ot:
-                        n_tp += 1
+                n_tp = len(
+                    _open_orders_for_hedge_leg(orders, sym, side, kind="take_profit")
+                )
                 if n_tp == 0:
                     if side == "long":
                         runner_tp = entry_d + risk * Decimal("1.5")
