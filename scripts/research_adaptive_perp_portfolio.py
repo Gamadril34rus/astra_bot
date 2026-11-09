@@ -14,6 +14,8 @@ INTERVAL_MS = {"15m": 900_000, "1h": 3_600_000}
 MAX_HOLD_BARS = 36
 NO_PROGRESS_BARS = 2
 NO_PROGRESS_MFE_R = 0.35
+STRESS_COST_BPS_PER_SIDE = 15.0
+MAX_STRESS_COST_TO_R = 0.40
 WARMUP_BARS = 120
 
 
@@ -239,6 +241,14 @@ def simulate_symbol(
         if risk <= 0 or risk < 0.35 * atr or risk > 1.8 * atr:
             i += 1
             continue
+        # Freeze eligibility to the 1.5x stress model so base/stress runs
+        # compare the same signal population.
+        risk_pct = risk / raw_entry
+        stress_round_trip_cost = 2 * STRESS_COST_BPS_PER_SIDE / 10_000
+        stress_cost_to_r = stress_round_trip_cost / risk_pct
+        if stress_cost_to_r > MAX_STRESS_COST_TO_R:
+            i += 1
+            continue
         if "target_price" in signal:
             target = float(signal["target_price"])
             reward = target - raw_entry if side == 1 else raw_entry - target
@@ -299,7 +309,7 @@ def simulate_symbol(
             "fee_pct": fee_cost * 100, "spread_pct": spread_cost * 100,
             "slippage_pct": slippage_cost * 100,
             "funding_pct": funding_cost * 100, "net_pct": net * 100,
-            "net_r": net / (risk / raw_entry),
+            "net_r": net / risk_pct, "stress_cost_to_r": stress_cost_to_r,
         })
         i = exit_i + 1
     return trades
@@ -436,7 +446,7 @@ def main() -> int:
     trade_columns = [
         "symbol", "family", "side", "entry_time", "exit_time", "hold_minutes",
         "exit_reason", "gross_pct", "fee_pct", "spread_pct", "slippage_pct",
-        "funding_pct", "net_pct", "net_r",
+        "funding_pct", "net_pct", "net_r", "stress_cost_to_r",
     ]
     trades = pd.DataFrame(all_trades, columns=trade_columns)
     if trades.empty:
