@@ -1,28 +1,5 @@
 {
   "positions": {
-    "BTC-USDT|short": {
-      "symbol": "BTC-USDT",
-      "side": "short",
-      "qty": "0.54420524",
-      "stop": "75848.61518603314",
-      "tp": "73548.7016476817730",
-      "entry": "74378.6",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|BTC-USDT|short|1794225600000",
-      "ts": 1794225781.1496923,
-      "be_moved": false,
-      "initial_stop": "75848.61518603314",
-      "opened_at_ms": 1794225781149,
-      "plan_qty": "0.54420524",
-      "qty_ratio": 1.0,
-      "tp1": "73548.7016476817730",
-      "initial_stop_v1": true,
-      "tp_parity_v1": true,
-      "early_tp1": true,
-      "peak_low": "74525.0",
-      "current_regime": "STRONG_BEAR_TREND"
-    },
     "SOL-USDT|short": {
       "symbol": "SOL-USDT",
       "side": "short",
@@ -66,7 +43,7 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "73.367",
+      "peak_low": "73.352",
       "current_regime": "WEAK_BEAR_TREND"
     },
     "INJ-USDT|long": {
@@ -85,8 +62,13 @@
       "opened_at_ms": 1794226406957,
       "plan_qty": "6221.22682593",
       "qty_ratio": 1.0,
-      "tp1": "8.081203499999999725"
+      "tp1": "8.081203499999999725",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_high": "8.033",
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1794226406.957273
+  "ts": 1794226638.0951934
 }
