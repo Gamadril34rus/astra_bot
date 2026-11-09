@@ -12,7 +12,9 @@ from research_perp_intraday import (
     INTERVAL_MS,
     Trade,
     build_frame,
+    fetch_funding,
     funding_cashflow,
+    latest_contiguous_funding_segment,
     metrics,
     net_trade_return,
     resolve_barrier_exit,
@@ -22,6 +24,38 @@ from research_perp_intraday import (
 )
 
 
+def test_funding_history_uses_bounded_30_day_windows(monkeypatch):
+    import research_perp_intraday as research
+
+    calls = []
+    def fake_request(_path, params):
+        calls.append(params)
+        return [{
+            "fundingTime": params["startTime"],
+            "fundingRate": "0.0001",
+            "markPrice": "100",
+        }]
+
+    monkeypatch.setattr(research, "request_json", fake_request)
+    chunk_ms = 30 * 24 * 60 * 60 * 1000
+    rows = fetch_funding("BTC-USDT", 0, chunk_ms + 1000)
+    assert len(rows) == 2
+    assert len(calls) == 2
+    assert calls[0]["startTime"] == 0
+    assert calls[0]["endTime"] == chunk_ms - 1
+    assert calls[1]["startTime"] == chunk_ms
+
+
+def test_latest_funding_segment_excludes_gaps_without_imputation():
+    funding = [
+        {"fundingTime": 0, "fundingRate": "0.0001", "markPrice": "100"},
+        {"fundingTime": 8 * 3_600_000, "fundingRate": "0.0001", "markPrice": "100"},
+        {"fundingTime": 24 * 3_600_000, "fundingRate": "-0.0001", "markPrice": "100"},
+        {"fundingTime": 32 * 3_600_000, "fundingRate": "0.0001", "markPrice": "100"},
+    ]
+    segment, excluded = latest_contiguous_funding_segment(funding)
+    assert len(excluded) == 2
+    assert [row["fundingTime"] for row in segment] == [24 * 3_600_000, 32 * 3_600_000]
 def test_positive_funding_is_paid_by_long_and_received_by_short():
     assert funding_cashflow(1, 0.001, 100.0, 100.0) == -0.001
     assert funding_cashflow(-1, 0.001, 100.0, 100.0) == 0.001
