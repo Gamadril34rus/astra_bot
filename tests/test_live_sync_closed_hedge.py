@@ -8,10 +8,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-import pytest
-
 from astra_bot.decision.live_broker import LiveBroker, LiveBrokerConfig
 from astra_bot.decision.live_positions import get_plan, upsert_plan
+
+import pytest
 
 
 @pytest.mark.asyncio
