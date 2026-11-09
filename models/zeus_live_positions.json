@@ -16,7 +16,12 @@
       "opened_at_ms": 1794207760752,
       "plan_qty": "0.34052473",
       "qty_ratio": 1.0,
-      "tp1": "72441.01958"
+      "tp1": "72441.01958",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "74206.1",
+      "current_regime": "LOW_VOLATILITY"
     },
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
@@ -34,7 +39,13 @@
       "opened_at_ms": 1794207768565,
       "plan_qty": "6.65324061",
       "qty_ratio": 1.0,
-      "tp1": "2047.8164426741054"
+      "tp1": "2047.8164426741054",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "2133.40",
+      "migrate_stop_v1": true,
+      "current_regime": "WEAK_BEAR_TREND"
     },
     "INJ-USDT|long": {
       "symbol": "INJ-USDT",
@@ -52,8 +63,14 @@
       "opened_at_ms": 1794207774617,
       "plan_qty": "6234.41396508",
       "qty_ratio": 1.0,
-      "tp1": "8.0761400000000007"
+      "tp1": "8.0761400000000007",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_high": "8.025",
+      "be_earned": true,
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1794207774.6171947
+  "ts": 1794208068.1979656
 }
