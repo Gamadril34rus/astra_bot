@@ -50,13 +50,13 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/research_adaptive_perp_portfolio.py \
-            --fee-bps 5 --spread-bps 2 --slippage-bps 3 \
+            --fee-bps 5 --spread-bps 0.5 --slippage-bps 2 \
             --out reports/adaptive_perp/base
       - name: Run frozen router at 1.5x execution costs
         run: |
           set -euo pipefail
           python scripts/research_adaptive_perp_portfolio.py \
-            --fee-bps 7.5 --spread-bps 3 --slippage-bps 4.5 \
+            --fee-bps 7.5 --spread-bps 0.75 --slippage-bps 3 \
             --out reports/adaptive_perp/stress_1_5x
       - name: Upload immutable research evidence
         if: always()
