@@ -1310,9 +1310,9 @@ async def scale_out_early_if_due(broker, send_tg=None) -> dict:
                         oid = getattr(o, "id", None) or getattr(o, "order_id", None)
                         if oid:
                             try:
-                                    await broker.client.cancel_order(sym, str(oid))
-                                except Exception:
-                                    pass
+                                await broker.client.cancel_order(sym, str(oid))
+                            except Exception:
+                                pass
                 except Exception:
                     pass
                 new_qty = exch_qty - q_tp
