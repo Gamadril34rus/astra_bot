@@ -24,7 +24,7 @@ The runner uses BingX's public USDT-M swap REST endpoints:
 - `/openApi/swap/v2/quote/fundingRate` for historical funding-rate events;
 - `/openApi/swap/v1/market/markPriceKlines` for 4h mark-price candle opens aligned to funding settlements.
 
-Symbols: BTC-USDT, ETH-USDT, SOL-USDT, HYPE-USDT and INJ-USDT. History starts at the later of 2021-01-01 UTC or each contract's exchange-reported `launchTime`. The run ends at the latest fully closed 30m bar. BingX documents up to 1,440 candles and 1,000 funding rows per request; the loader paginates and conservatively rate-limits public requests to one per second.
+Symbols: BTC-USDT, ETH-USDT, SOL-USDT, HYPE-USDT and INJ-USDT. The loader requests history from the later of 2021-01-01 UTC or each contract's exchange-reported `launchTime`, using bounded windows of at most 1,440 candles. Because the endpoint may retain less history than the contract's full lifetime, the manifest records the actual first returned candle. Empty windows before the first retained candle are skipped; any missing interval after history begins fails closed. The run ends at the latest fully closed 30m bar. Funding is requested in bounded 30-day windows (well below the 1,000-row cap), with public requests rate-limited to approximately one per second.
 
 The data validator rejects inactive/non-USDT contracts, pre-listing candles, duplicate/out-of-order bars, missing 30m intervals, invalid OHLC, open bars, duplicate funding timestamps, non-finite rates, missing mark prices and funding coverage gaps over 24 hours. It never silently fills missing funding as zero. Actual earliest retained history is accepted only after inspecting returned data for each symbol.
 
