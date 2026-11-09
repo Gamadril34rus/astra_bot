@@ -617,6 +617,16 @@ def signal_feature_diagnostics(frame: pd.DataFrame) -> dict[str, Any]:
         & (frame["high"].shift(1) <= frame["ema20"].shift(1) + 0.60 * frame["atr"].shift(1))
     )
     masks = signal_masks(frame)
+    quote_sources = (
+        frame["quote_volume_source"]
+        if "quote_volume_source" in frame
+        else pd.Series("unknown", index=frame.index)
+    )
+    close_location = (
+        frame["close_location"]
+        if "close_location" in frame
+        else pd.Series(np.nan, index=frame.index)
+    )
     counts = {
         "rows": len(frame),
         "valid_htf_rows": int(htf_valid.sum()),
@@ -625,8 +635,8 @@ def signal_feature_diagnostics(frame: pd.DataFrame) -> dict[str, Any]:
         "valid_volume_ratio_rows": int(frame["volume_ratio"].notna().sum()),
         "positive_quote_volume_rows": int((frame["quote_volume"] > 0).sum()),
         "valid_taker_buy_ratio_rows": int(frame["taker_buy_ratio"].notna().sum()),
-        "estimated_quote_volume_rows": int((frame["quote_volume_source"] == "estimated_base_volume_x_close").sum()),
-        "valid_close_location_rows": int(frame["close_location"].notna().sum()),
+        "estimated_quote_volume_rows": int((quote_sources == "estimated_base_volume_x_close").sum()),
+        "valid_close_location_rows": int(close_location.notna().sum()),
         "uptrend_rows": int(uptrend.fillna(False).sum()),
         "downtrend_rows": int(downtrend.fillna(False).sum()),
         "neutral_rows": int(neutral.fillna(False).sum()),
