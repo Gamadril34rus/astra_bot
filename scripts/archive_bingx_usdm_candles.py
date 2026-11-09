@@ -31,7 +31,7 @@ TIMEFRAME_MS = {
     "4h": 4 * 60 * 60_000,
     "1d": 24 * 60 * 60_000,
 }
-PAGE_SIZE = 500
+PAGE_SIZE = 1440
 CSV_FIELDS = (
     "open_time",
     "open_time_utc",
@@ -223,7 +223,7 @@ async def _download_pair(
             "run workflow_dispatch with mode=initial first"
         )
     if mode == "initial":
-        floor_ms = max(start_ms, launch_ms)
+        floor_ms = max(start_ms, launch_ms, min(existing) if existing else 0)
     else:
         overlap_floor = max(existing) - 3 * interval_ms
         floor_ms = max(min(existing), overlap_floor, launch_ms)
@@ -254,6 +254,13 @@ async def _download_pair(
             if cursor_start <= int(candle.open_time) <= page_last_open
             and int(candle.open_time) + interval_ms <= now_ms
         )
+        if not actual_times and not existing and not incoming:
+            # BingX may retain less history than contract launchTime. Skip only
+            # leading empty windows; once data starts, every later gap is fatal.
+            cursor_start = page_last_open + interval_ms
+            continue
+        expected_start = cursor_start if existing or incoming else actual_times[0]
+        expected_times = list(range(expected_start, page_last_open + 1, interval_ms))
         if actual_times != expected_times:
             missing = sorted(set(expected_times) - set(actual_times))
             duplicates = len(actual_times) != len(set(actual_times))
