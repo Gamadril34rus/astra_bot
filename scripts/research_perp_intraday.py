@@ -583,6 +583,7 @@ def run_backtest(
     strategy: str,
     side: int,
     slippage: float,
+    diagnostics: dict[str, int] | None = None,
 ) -> list[Trade]:
     config = STRATEGIES[strategy]
     signals = signal_masks(frame)[(strategy, side)].to_numpy(dtype=bool)
@@ -597,6 +598,12 @@ def run_backtest(
     bb_mid = frame["bb_mid"].to_numpy(dtype=float)
     stamps = frame.index
     results: list[Trade] = []
+    if diagnostics is not None:
+        diagnostics.setdefault("raw_signals", int(signals[:-MAX_HOLD_BARS].sum()))
+        diagnostics.setdefault("tail_signals_skipped", int(signals[-MAX_HOLD_BARS:].sum()))
+        diagnostics.setdefault("cost_rejected", 0)
+        diagnostics.setdefault("target_rejected", 0)
+        diagnostics.setdefault("completed_trades", 0)
     signal_idx = 0
     # Do not start positions without a full 9h observation window; otherwise
     # the end of the data set would masquerade as a time-stop exit.
@@ -613,6 +620,8 @@ def run_backtest(
         estimated_round_trip_cost = 2 * (FEE_PER_SIDE + STRESS_SLIPPAGE_PER_SIDE)
         cost_to_r = estimated_round_trip_cost / risk_pct if risk_pct > 0 else math.inf
         if risk_pct <= 0 or cost_to_r > MAX_COST_TO_R:
+            if diagnostics is not None:
+                diagnostics["cost_rejected"] += 1
             signal_idx += 1
             continue
         stop = entry_raw - side * stop_distance
@@ -620,6 +629,8 @@ def run_backtest(
             take = float(bb_mid[signal_idx])
             target_distance = side * (take - entry_raw)
             if not math.isfinite(take) or target_distance < 0.85 * stop_distance:
+                if diagnostics is not None:
+                    diagnostics["target_rejected"] += 1
                 signal_idx += 1
                 continue
         else:
@@ -689,6 +700,8 @@ def run_backtest(
                 cost_to_r=cost_to_r,
             )
         )
+        if diagnostics is not None:
+            diagnostics["completed_trades"] += 1
         # The exit is known at this bar's close; the next eligible signal can
         # only be evaluated on this close and filled at the following bar open.
         signal_idx = exit_idx
@@ -885,6 +898,7 @@ def main() -> None:
         }
 
     all_results: dict[str, dict[str, dict[str, list[Trade]]]] = {}
+    diagnostics_report: dict[str, dict[str, dict[str, int]]] = {}
     for scenario, slip in COST_SCENARIOS.items():
         scenario_results: dict[str, dict[str, list[Trade]]] = {}
         for symbol, (frame, funding) in market_frames.items():
@@ -892,10 +906,19 @@ def main() -> None:
             for strategy in STRATEGIES:
                 symbol_results[strategy] = []
                 for side in (1, -1):
-                    symbol_results[strategy].extend(run_backtest(symbol, frame, funding, strategy, side, slip))
+                    side_diagnostics: dict[str, int] = {}
+                    symbol_results[strategy].extend(
+                        run_backtest(
+                            symbol, frame, funding, strategy, side, slip,
+                            side_diagnostics if scenario == "base_30bps_rt" else None,
+                        )
+                    )
+                    if scenario == "base_30bps_rt":
+                        diagnostics_report[f"{symbol}:{strategy}:{'LONG' if side > 0 else 'SHORT'}"] = side_diagnostics
                 symbol_results[strategy].sort(key=lambda trade: trade.entry_time)
             scenario_results[symbol] = symbol_results
         all_results[scenario] = scenario_results
+    manifest["strategy_diagnostics"] = diagnostics_report
     write_report(Path(args.output), manifest, all_results)
     print(f"Research complete: {Path(args.output) / 'report.md'}", flush=True)
     for scenario, groups in all_results.items():
