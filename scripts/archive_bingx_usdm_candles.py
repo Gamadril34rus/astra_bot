@@ -290,6 +290,11 @@ async def _download_pair(
     # Use bounded startTime/endTime windows so every request has an explicit
     # non-overlapping range and the expected candle count can be verified.
     cursor_start = ((floor_ms + interval_ms - 1) // interval_ms) * interval_ms
+    if mode == "initial":
+        # A failed pre-funding archive may have left unusable earlier rows.
+        # Drop those rows from this initial dataset so the gap gate validates
+        # only the requested continuous funding-covered interval.
+        existing = {ts: row for ts, row in existing.items() if ts >= cursor_start}
     last_closed_open = (now_ms // interval_ms) * interval_ms - interval_ms
     incoming: dict[int, dict[str, str]] = {}
     pages = 0
