@@ -214,6 +214,7 @@ def funding_cost_fraction(side: int, rates: pd.Series) -> float:
 def simulate_symbol(
     symbol: str, x: pd.DataFrame, funding: pd.DataFrame,
     fee_bps: float, spread_bps: float, slippage_bps: float,
+    diagnostics: dict[str, Any] | None = None,
 ) -> list[dict]:
     trades: list[dict] = []
     if funding.empty:
@@ -227,18 +228,43 @@ def simulate_symbol(
     if len(funding_times) > 1 and np.diff(funding_times).max() > 12 * 60 * 60 * 1000:
         raise ValueError(f"{symbol}: funding history gap exceeds 12 hours")
 
+    if diagnostics is not None:
+        diagnostics.update({
+            "raw_signals": 0,
+            "risk_rejected": 0,
+            "cost_rejected": 0,
+            "target_rejected": 0,
+            "completed_trades": 0,
+            "raw_signals_by_family": {},
+            "risk_rejected_by_family": {},
+            "cost_rejected_by_family": {},
+            "target_rejected_by_family": {},
+            "completed_by_family": {},
+        })
+
+    def bump(key: str, family: str) -> None:
+        if diagnostics is None:
+            return
+        diagnostics[key] += 1
+        family_key = f"{key}_by_family"
+        family_counts = diagnostics[family_key]
+        family_counts[family] = family_counts.get(family, 0) + 1
+
     i = WARMUP_BARS
     while i < len(x) - MAX_HOLD_BARS - 1:
         signal = choose_signal(x, i)
         if signal is None:
             i += 1
             continue
+        family = str(signal["family"])
+        bump("raw_signals", family)
         side = int(signal["side"])
         raw_entry = float(x.iloc[i + 1]["open"])
         stop = float(signal["stop"])
         risk = raw_entry - stop if side == 1 else stop - raw_entry
         atr = float(x.iloc[i]["atr14"])
         if risk <= 0 or risk < 0.35 * atr or risk > 1.8 * atr:
+            bump("risk_rejected", family)
             i += 1
             continue
         # Freeze eligibility to the 1.5x stress model so base/stress runs
@@ -247,12 +273,14 @@ def simulate_symbol(
         stress_round_trip_cost = 2 * STRESS_COST_BPS_PER_SIDE / 10_000
         stress_cost_to_r = stress_round_trip_cost / risk_pct
         if stress_cost_to_r > MAX_STRESS_COST_TO_R:
+            bump("cost_rejected", family)
             i += 1
             continue
         if "target_price" in signal:
             target = float(signal["target_price"])
             reward = target - raw_entry if side == 1 else raw_entry - target
             if reward <= 0 or reward / risk < 1.0:
+                bump("target_rejected", family)
                 i += 1
                 continue
         else:
@@ -311,6 +339,7 @@ def simulate_symbol(
             "funding_pct": funding_cost * 100, "net_pct": net * 100,
             "net_r": net / risk_pct, "stress_cost_to_r": stress_cost_to_r,
         })
+        bump("completed_trades", family)
         i = exit_i + 1
     return trades
 
@@ -399,6 +428,7 @@ def main() -> int:
     args = parser.parse_args()
     all_trades = []
     coverage = {}
+    signal_diagnostics: dict[str, dict[str, Any]] = {}
     for symbol in SYMBOLS:
         stem = symbol.replace("-", "")
         m15_path = args.data_dir / f"{stem}_15m.csv"
@@ -440,9 +470,12 @@ def main() -> int:
             "funding_first": int(funding.funding_time.iloc[0]) if not funding.empty else None,
             "funding_last": int(funding.funding_time.iloc[-1]) if not funding.empty else None,
         }
+        symbol_diagnostics: dict[str, Any] = {}
         all_trades.extend(simulate_symbol(
-            symbol, x, funding, args.fee_bps, args.spread_bps, args.slippage_bps
+            symbol, x, funding, args.fee_bps, args.spread_bps, args.slippage_bps,
+            diagnostics=symbol_diagnostics,
         ))
+        signal_diagnostics[symbol] = symbol_diagnostics
     trade_columns = [
         "symbol", "family", "side", "entry_time", "exit_time", "hold_minutes",
         "exit_reason", "gross_pct", "fee_pct", "spread_pct", "slippage_pct",
@@ -460,6 +493,7 @@ def main() -> int:
                 "slippage_bps_per_side": args.slippage_bps,
             },
             "coverage": coverage,
+            "signal_diagnostics": signal_diagnostics,
             "by_period": {},
             "by_family": {},
             "by_symbol_side": {},
@@ -496,6 +530,7 @@ def main() -> int:
             "slippage_bps_per_side": args.slippage_bps,
         },
         "coverage": coverage,
+        "signal_diagnostics": signal_diagnostics,
         "by_period": {
             period: summarize(
                 group,
