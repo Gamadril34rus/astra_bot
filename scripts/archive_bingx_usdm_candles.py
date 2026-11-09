@@ -14,9 +14,10 @@ from datetime import UTC, date, datetime, time
 from decimal import Decimal, InvalidOperation
 from itertools import pairwise
 from pathlib import Path
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from astra_bot.adapters.bingx.client import BINGX_API_BASE, BINGX_ENDPOINTS, BingXClient
+from astra_bot.utils.retry import is_exchange_endpoint_cooldown_error
 
 LOGGER = logging.getLogger("bingx_candle_archive")
 ARCHIVE_DIR = Path("data/bingx_usdm")
@@ -165,11 +166,33 @@ def _archive_path(symbol: str, timeframe: str) -> Path:
     return ARCHIVE_DIR / f"{symbol.replace('-', '')}_{timeframe}.csv"
 
 
+async def _call_with_cooldown(
+    operation: Callable[[], Awaitable[Any]], *, label: str
+) -> Any:
+    """Retry BingX HTTP-200 code 100410 after endpoint cooldown windows."""
+    delays = (5.0, 30.0, 60.0)
+    for attempt in range(4):
+        try:
+            return await operation()
+        except Exception as exc:
+            if not is_exchange_endpoint_cooldown_error(exc) or attempt == 3:
+                raise
+            delay = delays[attempt]
+            LOGGER.warning(
+                "%s returned BingX 100410; retry %d/4 in %.0fs",
+                label, attempt + 2, delay,
+            )
+            await asyncio.sleep(delay)
+    raise RuntimeError(f"{label}: BingX cooldown retries exhausted")
+
 async def _contract_launch_times(
     client: BingXClient, symbols: tuple[str, ...]
 ) -> dict[str, int]:
-    response = await client._request(
-        "GET", BINGX_ENDPOINTS["swap"]["instruments"], params={}
+    response = await _call_with_cooldown(
+        lambda: client._request(
+            "GET", BINGX_ENDPOINTS["swap"]["instruments"], params={}
+        ),
+        label="BingX contract metadata",
     )
     data = response.get("data") or []
     if isinstance(data, dict):
@@ -239,12 +262,15 @@ async def _download_pair(
         page_last_open = min(
             cursor_start + (PAGE_SIZE - 1) * interval_ms, last_closed_open
         )
-        page = await client.fetch_kline_page(
-            symbol,
-            timeframe,
-            end_time_ms=page_last_open + interval_ms - 1,
-            limit=PAGE_SIZE,
-            start_time_ms=cursor_start,
+        page = await _call_with_cooldown(
+            lambda: client.fetch_kline_page(
+                symbol,
+                timeframe,
+                end_time_ms=page_last_open + interval_ms - 1,
+                limit=PAGE_SIZE,
+                start_time_ms=cursor_start,
+            ),
+            label=f"BingX {symbol} {timeframe} {cursor_start}",
         )
         pages += 1
         expected_times = list(range(cursor_start, page_last_open + 1, interval_ms))
