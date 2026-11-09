@@ -26,7 +26,7 @@ The runner uses BingX's public USDT-M swap REST endpoints:
 
 Symbols: BTC-USDT, ETH-USDT, SOL-USDT, HYPE-USDT and INJ-USDT. The loader requests history from the later of 2021-01-01 UTC or each contract's exchange-reported `launchTime`, using bounded windows of 1,000 candles. Although reference documentation describes a 1,440-candle maximum, the live BingX endpoint returned 1,000 rows in the observed run, so the research loader pins the smaller verified page size. Because the endpoint may retain less history than the contract's full lifetime, the manifest records the actual first returned candle. Empty windows before the first retained candle are skipped; any missing interval after history begins fails closed. The run ends at the latest fully closed 30m bar. Funding is requested in bounded 30-day windows (well below the 1,000-row cap), with public requests rate-limited to approximately one per second.
 
-The data validator rejects inactive/non-USDT contracts, pre-listing candles, duplicate/out-of-order bars, missing 30m intervals, invalid OHLC, open bars, duplicate funding timestamps, non-finite rates, missing mark prices and funding coverage gaps over 24 hours. It never silently fills missing funding as zero. Actual earliest retained history is accepted only after inspecting returned data for each symbol.
+The data validator rejects inactive/non-USDT contracts, pre-listing candles, duplicate/out-of-order bars, missing 30m intervals, invalid OHLC, open bars, duplicate funding timestamps, non-finite rates, missing mark prices and funding coverage gaps over 12 hours. Any older gap causes the loader to exclude all earlier discontinuous funding events and candles before the latest uninterrupted segment; the exact excluded interval is recorded in the manifest. It never silently fills missing funding as zero. Actual earliest retained history is accepted only after inspecting returned data for each symbol.
 
 This is venue-matched BingX history, but still not an execution replay: historical BBO/L2 snapshots, maker queue priority, exchange order latency and market impact are not reconstructed. A positive candle/funding result is only a candidate for VST validation with observable bid/ask and exchange fills, not permission for any live execution.
 
@@ -58,7 +58,7 @@ All LONG and SHORT sides are evaluated separately. A per-side candidate is skipp
 - Stress adverse slippage: 0.15% per side, 0.40% total round-trip including fees.
 - Funding cashflows are assigned from historical funding events that occur strictly after entry and at or before exit. Positive funding is paid by longs and received by shorts; negative funding is the reverse.
 - The trades CSV separates gross price return, commissions, estimated slippage, funding and net return.
-- Reported trade returns are unlevered. Margin, liquidation, portfolio-level overlapping exposure and account collateral are not simulated.
+- Reported trade returns are unlevered. The 0.5%-per-R drawdown is a sequential trade-series proxy, not account or portfolio drawdown. Positions across symbols can overlap; concurrent exposure is not mark-to-market aggregated, and margin, liquidation and account collateral are not simulated.
 
 The slippage assumptions are sensitivity inputs, not measured historical BingX slippage. The 0.05% taker fee matches the default fee used in the repository's perpetual cost model, but is not a verified user-specific fee tier; the owner-specific fee rate must be checked before VST comparison.
 
