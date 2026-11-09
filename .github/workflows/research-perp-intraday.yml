@@ -5,13 +5,13 @@ on:
     branches: [research/perp-intraday-30m]
     paths:
       - "scripts/research_perp_intraday.py"
-      - "tests/unit/test_research_perp_intraday.py"
+      - "scripts/research_tests/test_research_perp_intraday.py"
       - "docs/research/RESEARCH_PERP_INTRADAY_30M.md"
       - ".github/workflows/research-perp-intraday.yml"
   pull_request:
     paths:
       - "scripts/research_perp_intraday.py"
-      - "tests/unit/test_research_perp_intraday.py"
+      - "scripts/research_tests/test_research_perp_intraday.py"
       - "docs/research/RESEARCH_PERP_INTRADAY_30M.md"
       - ".github/workflows/research-perp-intraday.yml"
 
@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: research-perp-intraday-${ github.ref }
+  group: research-perp-intraday-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -37,14 +37,14 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install numpy pandas pytest
       - name: Run isolated unit tests
-        run: python -m pytest tests/unit/test_research_perp_intraday.py -q
+        run: python -m pytest scripts/research_tests/test_research_perp_intraday.py -q
       - name: Fetch and validate USDT perpetual candles and funding, then backtest
         run: python scripts/research_perp_intraday.py --output reports/research_perp_intraday
       - name: Upload immutable research outputs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: perp-intraday-30m-${ github.run_id }
+          name: perp-intraday-30m-${{ github.run_id }}
           path: reports/research_perp_intraday/
           if-no-files-found: warn
           retention-days: 90
