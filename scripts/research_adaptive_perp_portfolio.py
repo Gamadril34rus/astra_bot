@@ -60,6 +60,18 @@ def load_funding(path: Path, symbol: str) -> pd.DataFrame:
     return frame.sort_values("funding_time").reset_index(drop=True)
 
 
+def latest_contiguous_funding_segment(
+    funding: pd.DataFrame, max_gap_hours: float = 12.0
+) -> tuple[pd.DataFrame, int]:
+    """Keep the latest uninterrupted funding segment; never impute missing rates."""
+    if funding.empty:
+        return funding.copy(), 0
+    times = funding["funding_time"].to_numpy(dtype="int64")
+    gap_indices = np.flatnonzero(np.diff(times) > max_gap_hours * 60 * 60 * 1000)
+    start = int(gap_indices[-1] + 1) if len(gap_indices) else 0
+    return funding.iloc[start:].reset_index(drop=True), start
+
+
 def _adx(frame: pd.DataFrame, period: int = 14) -> pd.Series:
     up = frame["high"].diff()
     down = -frame["low"].diff()
@@ -325,9 +337,12 @@ def main() -> int:
         funding = load_funding(funding_path, symbol)
         if funding.empty:
             raise SystemExit(f"INCOMPLETE: {symbol} has no BingX funding history")
-        # Funding history may begin later than the contract's candle archive.
-        # Keep only bars at/after the first observed settlement; never fill missing
-        # funding with zero or backtest trades outside verified funding coverage.
+        funding, excluded_funding_events = latest_contiguous_funding_segment(funding)
+        if funding.empty:
+            raise SystemExit(f"INCOMPLETE: {symbol} has no contiguous BingX funding segment")
+        # Earlier funding history contains multi-day/month holes. Use only the
+        # latest uninterrupted segment, selected solely on data integrity, never PnL.
+        # Trim candles to that segment; do not impute missing funding as zero.
         m15 = m15[m15.open_time >= int(funding.funding_time.iloc[0])].reset_index(drop=True)
         if m15.empty:
             raise SystemExit(f"INCOMPLETE: {symbol} has no candles inside funding coverage")
@@ -337,6 +352,7 @@ def main() -> int:
             "15m_last": int(m15.open_time.iloc[-1]), "1h_rows": len(h1),
             "1h_first": int(h1.open_time.iloc[0]), "1h_last": int(h1.open_time.iloc[-1]),
             "funding_events": len(funding),
+            "funding_events_excluded_before_latest_contiguous_segment": excluded_funding_events,
             "funding_first": int(funding.funding_time.iloc[0]) if not funding.empty else None,
             "funding_last": int(funding.funding_time.iloc[-1]) if not funding.empty else None,
         }
