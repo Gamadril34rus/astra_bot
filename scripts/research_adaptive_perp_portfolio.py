@@ -301,7 +301,17 @@ def summarize(
     calendar_end: pd.Period | None = None,
 ) -> dict:
     if frame.empty:
-        return {"trades": 0, "pf": 0.0, "net_expectancy_pct": 0.0}
+        return {
+            "trades": 0, "pf": 0.0, "win_rate_pct": 0.0,
+            "net_expectancy_pct": 0.0, "net_expectancy_r": 0.0,
+            "sum_trade_net_pct": 0.0, "median_hold_min": None,
+            "mean_hold_min": None, "p90_hold_min": None, "max_hold_min": None,
+            "positive_month_share_pct": 0.0,
+            "trade_sequence_drawdown_pct": 0.0,
+            "realized_equal_notional_drawdown_pct": 0.0,
+            "equal_notional_weight_per_trade_pct": 0.0,
+            "max_concurrent_positions": 0,
+        }
     wins = frame.loc[frame.net_pct > 0, "net_pct"].sum()
     losses = -frame.loc[frame.net_pct <= 0, "net_pct"].sum()
     monthly = frame.assign(
@@ -395,9 +405,36 @@ def main() -> int:
         all_trades.extend(simulate_symbol(
             symbol, x, funding, args.fee_bps, args.spread_bps, args.slippage_bps
         ))
-    trades = pd.DataFrame(all_trades)
+    trade_columns = [
+        "symbol", "family", "side", "entry_time", "exit_time", "hold_minutes",
+        "exit_reason", "gross_pct", "fee_pct", "spread_pct", "slippage_pct",
+        "funding_pct", "net_pct", "net_r",
+    ]
+    trades = pd.DataFrame(all_trades, columns=trade_columns)
     if trades.empty:
-        raise SystemExit("NO_TRADES: frozen router produced no completed trades")
+        args.out.mkdir(parents=True, exist_ok=True)
+        trades.to_csv(args.out / "trades.csv", index=False)
+        report = {
+            "status": "NO_TRADES_RESEARCH_ONLY",
+            "costs": {
+                "fee_bps_per_side": args.fee_bps,
+                "spread_bps_per_side": args.spread_bps,
+                "slippage_bps_per_side": args.slippage_bps,
+            },
+            "coverage": coverage,
+            "by_period": {},
+            "by_family": {},
+            "by_symbol_side": {},
+            "oos_by_family": {},
+            "oos_by_symbol_side": {},
+            "combined": summarize(trades),
+            "warning": "No completed trades were generated. No profitability claim or promotion is possible.",
+        }
+        (args.out / "summary.json").write_text(
+            json.dumps(report, indent=2), encoding="utf-8"
+        )
+        print(json.dumps(report, indent=2))
+        return 0
     trades["period"] = np.select(
         [
             trades.entry_time < pd.Timestamp("2024-01-01", tz="UTC").timestamp() * 1000,
