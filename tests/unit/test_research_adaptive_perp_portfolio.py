@@ -127,6 +127,40 @@ async def test_candle_archive_uses_bounded_forward_pages(tmp_path, monkeypatch) 
     assert client.ranges[1][0] == 3 * 900_000
 
 @pytest.mark.asyncio
+async def test_candle_archive_skips_only_leading_empty_windows(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(candle_archive, "ARCHIVE_DIR", tmp_path)
+    monkeypatch.setattr(candle_archive, "PAGE_SIZE", 2)
+    bars = [
+        SimpleNamespace(
+            open_time=ts, open=100, high=102, low=99, close=101,
+            volume=10, quote_volume=1000, trades_count=1,
+        )
+        for ts in range(4 * 900_000, 8 * 900_000, 900_000)
+    ]
+
+    class RangedPageClient:
+        async def fetch_kline_page(
+            self, _symbol, _timeframe, *, start_time_ms, end_time_ms, limit
+        ):
+            return [
+                bar for bar in bars
+                if start_time_ms <= bar.open_time <= end_time_ms
+            ][:limit]
+
+    report, _ = await candle_archive._download_pair(
+        RangedPageClient(),
+        symbol="BTC-USDT",
+        timeframe="15m",
+        mode="initial",
+        start_ms=0,
+        now_ms=8 * 900_000 + 1,
+        launch_ms=0,
+    )
+    assert report["pages_requested"] == 4
+    assert report["bar_count"] == 4
+    assert report["first_open_time"] == 4 * 900_000
+
+@pytest.mark.asyncio
 async def test_no_progress_exit_closes_after_30_minutes(monkeypatch) -> None:
     times = [index * 900_000 for index in range(160)]
     frame = pd.DataFrame({
