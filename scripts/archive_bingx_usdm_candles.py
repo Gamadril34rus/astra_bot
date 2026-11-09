@@ -212,7 +212,11 @@ async def _download_pair(
                 )
             incoming[open_time] = row
 
-        if oldest <= floor_ms or len(page) < PAGE_SIZE:
+        # BingX may return fewer than the requested limit after silently
+        # dropping malformed rows or applying endpoint-side result caps. A short
+        # page is not proof that the requested historical floor was reached.
+        # Continue backward while timestamps make progress; stop only at floor.
+        if oldest <= floor_ms:
             break
         previous_oldest = oldest
         cursor_end = oldest - 1
