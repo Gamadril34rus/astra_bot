@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 import scripts.archive_bingx_usdm_candles as candle_archive
 from scripts.archive_bingx_funding_history import _rows_from_response
+import scripts.research_adaptive_perp_portfolio as research
 from scripts.research_adaptive_perp_portfolio import (
     MAX_HOLD_BARS,
     add_features,
@@ -13,6 +14,7 @@ from scripts.research_adaptive_perp_portfolio import (
     funding_cost_fraction,
     latest_contiguous_funding_segment,
     load_bars,
+    simulate_symbol,
 )
 
 
@@ -124,6 +126,35 @@ async def test_candle_archive_uses_bounded_forward_pages(tmp_path, monkeypatch) 
     assert client.ranges[0][0] == 0
     assert client.ranges[1][0] == 3 * 900_000
 
+@pytest.mark.asyncio
+async def test_no_progress_exit_closes_after_30_minutes(monkeypatch) -> None:
+    times = [index * 900_000 for index in range(160)]
+    frame = pd.DataFrame({
+        "open_time": times,
+        "decision_time": [value + 900_000 for value in times],
+        "open": [100.0] * 160,
+        "high": [100.2] * 160,
+        "low": [99.5] * 160,
+        "close": [100.1] * 160,
+        "atr14": [1.0] * 160,
+    })
+
+    def frozen_signal(_frame, index):
+        if index == 120:
+            return {"family": "TEST", "side": 1, "stop": 99.0, "target_rr": 1.5}
+        return None
+
+    monkeypatch.setattr(research, "choose_signal", frozen_signal)
+    funding = pd.DataFrame({
+        "funding_time": list(range(0, 40 * 3_600_000 + 1, 8 * 3_600_000)),
+        "rate": [0.0] * 6,
+    })
+    trades = simulate_symbol(
+        "BTC-USDT", frame, funding, fee_bps=0, spread_bps=0, slippage_bps=0
+    )
+    assert len(trades) == 1
+    assert trades[0]["exit_reason"] == "no_progress_30m"
+    assert trades[0]["hold_minutes"] == pytest.approx(30.0)
 def test_latest_funding_segment_excludes_gaps_without_imputation() -> None:
     frame = pd.DataFrame({
         "funding_time": [0, 8 * 3_600_000, 100 * 3_600_000, 108 * 3_600_000],
