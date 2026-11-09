@@ -810,6 +810,13 @@ def write_report(
                         safe_number(m["max_dd_pct_at_0_5pct_risk"]),
                     ]) + " |"
                 )
+    diagnostics = manifest.get("strategy_diagnostics", {})
+    lines += ["", "## Signal eligibility diagnostics", "", "| Symbol | Strategy | Side | Raw signals | Cost rejected | Target rejected | Completed |", "|---|---|---|---:|---:|---:|---:|"]
+    for diagnostic_key, values in sorted(diagnostics.items()):
+        symbol, strategy, side = diagnostic_key.split(":", 2)
+        lines.append(" | ".join(["| " + symbol, strategy, side, str(values.get("raw_signals", 0)), str(values.get("cost_rejected", 0)), str(values.get("target_rejected", 0)), str(values.get("completed_trades", 0))]) + " |")
+    if not diagnostics:
+        lines.append("| — | — | — | 0 | 0 | 0 | 0 |")
     lines += ["", "## OOS by symbol and side (base cost)", "", "| Symbol | Strategy | Side | Trades | PF | Mean net R | Win % | Mean hold min |", "|---|---|---|---:|---:|---:|---:|---:|"]
     base_groups = all_results["base_30bps_rt"]
     for symbol, strategies in base_groups.items():
