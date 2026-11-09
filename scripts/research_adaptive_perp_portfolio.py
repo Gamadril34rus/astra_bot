@@ -351,6 +351,22 @@ def simulate_symbol(
     return trades
 
 
+
+def common_15m_coverage_window(coverage: dict[str, dict]) -> dict[str, Any]:
+    """Measure the overlapping 15m history available across every symbol."""
+    if not coverage:
+        raise ValueError("cannot calculate common 15m window without symbol coverage")
+    start_ms = max(int(item["15m_first"]) for item in coverage.values())
+    end_ms = min(int(item["15m_last"]) for item in coverage.values())
+    if end_ms < start_ms:
+        raise ValueError("BingX symbols have no common 15m history window")
+    days = (end_ms - start_ms) / 86_400_000
+    return {
+        "common_start_utc": pd.to_datetime(start_ms, unit="ms", utc=True).isoformat(),
+        "common_end_utc": pd.to_datetime(end_ms, unit="ms", utc=True).isoformat(),
+        "common_days": round(days, 2),
+        "covers_12_months": days >= 365.0,
+    }
 def summarize(
     frame: pd.DataFrame,
     calendar_start: pd.Period | None = None,
@@ -483,6 +499,7 @@ def main() -> int:
             diagnostics=symbol_diagnostics,
         ))
         signal_diagnostics[symbol] = symbol_diagnostics
+    common_window = common_15m_coverage_window(coverage)
     trade_columns = [
         "symbol", "family", "side", "entry_time", "exit_time", "hold_minutes",
         "exit_reason", "gross_pct", "fee_pct", "spread_pct", "slippage_pct",
@@ -500,6 +517,7 @@ def main() -> int:
                 "slippage_bps_per_side": args.slippage_bps,
             },
             "coverage": coverage,
+            "common_15m_window": common_window,
             "signal_diagnostics": signal_diagnostics,
             "by_period": {},
             "by_family": {},
@@ -537,6 +555,7 @@ def main() -> int:
             "slippage_bps_per_side": args.slippage_bps,
         },
         "coverage": coverage,
+        "common_15m_window": common_window,
         "signal_diagnostics": signal_diagnostics,
         "by_period": {
             period: summarize(
@@ -569,7 +588,7 @@ def main() -> int:
             )
         },
         "combined": summarize(trades, calendar_start, calendar_end),
-        "warning": "Equal-notional drawdown is a realized-PnL proxy with each trade weighted at 1/max-concurrency of starting equity (peak gross exposure 1x); it omits intratrade mark-to-market, margin and liquidation. Trade-sequence drawdown is also shown. Funding uses entry-notional approximation. OHLC fills are proxies, not confirmed exchange fills. No live/paper activation."
+        "warning": "Equal-notional drawdown is a realized-PnL proxy with each trade weighted at 1/max-concurrency of starting equity (peak gross exposure 1x); it omits intratrade mark-to-market, margin and liquidation. Trade-sequence drawdown is also shown. Funding uses entry-notional approximation. OHLC fills are proxies, not confirmed exchange fills. No live/paper activation." + (" Common 15m history is shorter than 12 months; this run is insufficient for a profitability promotion claim." if not common_window["covers_12_months"] else "")
     }
     (args.out / "summary.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2))
