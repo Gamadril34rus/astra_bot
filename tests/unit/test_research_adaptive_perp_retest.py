@@ -114,3 +114,56 @@ def test_zero_quote_volume_falls_back_to_base_volume() -> None:
     assert signal is not None
     assert signal["family"] == "RETEST_BREAKOUT"
     assert signal["side"] == 1
+
+
+
+def test_retest_is_allowed_on_the_third_closed_bar() -> None:
+    frame = _frame()
+    frame.loc[23, ["open", "high", "low", "close", "quote_volume"]] = [
+        100.0, 101.5, 99.8, 101.0, 200.0
+    ]
+    frame.loc[24:25, "low"] = 100.0
+    frame.loc[24:25, "close"] = 100.2
+    frame.loc[26, ["open", "high", "low", "close"]] = [
+        100.2, 101.0, 99.9, 100.4
+    ]
+
+    signal = choose_retest_breakout_signal(frame, 26)
+
+    assert signal is not None
+    assert signal["side"] == 1
+
+
+def test_retest_is_rejected_after_the_three_bar_window() -> None:
+    frame = _frame()
+    frame.loc[22, ["open", "high", "low", "close", "quote_volume"]] = [
+        100.0, 101.5, 99.8, 101.0, 200.0
+    ]
+    frame.loc[23:25, "low"] = 100.0
+    frame.loc[23:25, "close"] = 100.2
+    frame.loc[26, ["open", "high", "low", "close"]] = [
+        100.2, 101.0, 99.9, 100.4
+    ]
+
+    signal = choose_retest_breakout_signal(frame, 26)
+
+    assert signal is None
+
+
+def test_future_candles_do_not_change_a_closed_bar_signal() -> None:
+    frame = _frame()
+    frame.loc[25, ["open", "high", "low", "close", "quote_volume"]] = [
+        100.0, 101.5, 99.8, 101.0, 200.0
+    ]
+    frame.loc[26, ["open", "high", "low", "close"]] = [
+        100.2, 101.0, 99.9, 100.4
+    ]
+
+    before = choose_retest_breakout_signal(frame, 26)
+    frame.loc[27:, ["open", "high", "low", "close", "quote_volume"]] = [
+        [100.0, 500.0, 50.0, 400.0, 999_999.0]
+        for _ in range(len(frame) - 27)
+    ]
+    after = choose_retest_breakout_signal(frame, 26)
+
+    assert before == after
