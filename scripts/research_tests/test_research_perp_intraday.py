@@ -70,7 +70,7 @@ def test_no_progress_exit_happens_after_one_completed_30m_bar(monkeypatch):
     }
     masks[("trend_pullback", 1)].iloc[0] = True
     monkeypatch.setattr(research, "signal_masks", lambda _: masks)
-    trades = run_backtest("BTCUSDT", frame, [], "trend_pullback", 1, 0.001)
+    trades = run_backtest("BTC-USDT", frame, [], "trend_pullback", 1, 0.001)
     assert len(trades) == 1
     assert trades[0].exit_reason == "no_progress_30m"
     assert trades[0].hold_minutes == 30
@@ -99,7 +99,7 @@ def test_hard_hold_cap_is_nine_hours(monkeypatch):
 def test_metrics_pf_uses_net_trade_results():
     trades = [
         Trade(
-            "BTCUSDT", "trend_pullback", "LONG",
+            "BTC-USDT", "trend_pullback", "LONG",
             "2026-01-01T00:00:00+00:00", "2026-01-01T00:30:00+00:00",
             30, 100, 102, 98, 103, "take", 2, 2, 0.1, 0.1, 0, 1.8, 0.90, 0.15,
         ),
@@ -165,7 +165,7 @@ def _valid_market_fixture(count=500):
         ts = start + index * INTERVAL_MS
         klines.append([
             ts, "100", "101", "99", "100", "10", ts + INTERVAL_MS - 1,
-            "1000", 10, "5", "500", "0",
+            "1000", 10, "5", "500",
         ])
     funding = []
     funding_ts = start + 8 * 60 * 60 * 1000
@@ -178,30 +178,29 @@ def _valid_market_fixture(count=500):
 
 def test_market_validation_requires_usdt_perpetual_and_complete_funding():
     _, klines, funding, end = _valid_market_fixture(count=501)
-    contract = {"contractType": "PERPETUAL", "quoteAsset": "USDT", "status": "TRADING"}
-    validate_market_data("BTCUSDT", contract, klines, funding, end)
-    with pytest.raises(ValueError, match="not a USDT perpetual"):
+    contract = {"currency": "USDT", "status": 1, "launchTime": 0}
+    validate_market_data("BTC-USDT", contract, klines, funding, end)
+    with pytest.raises(ValueError, match="not a USDT-margined perpetual"):
         validate_market_data(
-            "BTCUSDT",
-            {**contract, "contractType": "CURRENT_QUARTER"},
+            "BTC-USD",
+            {**contract, "currency": "USD"},
             klines,
             funding,
             end,
         )
     with pytest.raises(ValueError, match="missing or irregular 30m intervals"):
-        validate_market_data("BTCUSDT", contract, klines[:10] + klines[11:], funding, end)
+        validate_market_data("BTC-USDT", contract, klines[:10] + klines[11:], funding, end)
 
 
-def test_contract_onboard_date_prevents_pre_listing_prices():
+def test_contract_launch_time_prevents_pre_listing_prices():
     _, klines, funding, end = _valid_market_fixture()
     contract = {
-        "contractType": "PERPETUAL",
-        "quoteAsset": "USDT",
-        "status": "TRADING",
-        "onboardDate": int(klines[1][0]),
+        "currency": "USDT",
+        "status": 1,
+        "launchTime": int(klines[1][0]),
     }
-    with pytest.raises(ValueError, match="predates contract onboardDate"):
-        validate_market_data("BTCUSDT", contract, klines, funding, end)
+    with pytest.raises(ValueError, match="predates BingX launchTime"):
+        validate_market_data("BTC-USDT", contract, klines, funding, end)
 
 
 def test_hourly_context_is_never_from_a_future_hour():
@@ -213,7 +212,7 @@ def test_hourly_context_is_never_from_a_future_hour():
         price = 100 + index * 0.01
         rows.append([
             ts, price, price + 0.2, price - 0.2, price + 0.05, 10,
-            ts + INTERVAL_MS - 1, 1000, 10, 5, 500, 0,
+            ts + INTERVAL_MS - 1, 1000, 10, 5, 500,
         ])
     frame = build_frame(rows)
     base = frame.reset_index()
