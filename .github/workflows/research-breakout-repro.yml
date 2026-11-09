@@ -1,0 +1,67 @@
+name: Research breakout reproducibility
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - "scripts/research_bt_walkforward.py"
+      - "docs/research/WALKFORWARD_4H_BREAKOUT.md"
+      - "astra_bot/strategies/research_breakout_retest_4h.py"
+      - ".github/workflows/research-breakout-repro.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    name: Reproduce pinned BTC/ETH/SOL 4h walk-forward
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout strategy repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install pinned research dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy==2.2.6 pandas==2.2.3
+
+      - name: Fetch exact historical data revision
+        env:
+          DATA_COMMIT: "307d684174bddc0c32c22929ab5d7411fa576d6d"
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin refs/heads/research/binance-data
+          actual="$(git rev-parse FETCH_HEAD)"
+          test "$actual" = "$DATA_COMMIT"
+          mkdir -p data
+          for symbol in BTCUSDT ETHUSDT SOLUSDT; do
+            git show "$actual:data/${symbol}_4h.csv" > "data/${symbol}_4h.csv"
+          done
+          echo "DATA_COMMIT=$actual"
+          sha256sum data/*_4h.csv | tee data-sha256.txt
+          wc -l data/*_4h.csv
+
+      - name: Run original walk-forward implementation
+        run: |
+          set -euo pipefail
+          python --version
+          python -m pip freeze
+          python scripts/research_bt_walkforward.py | tee walkforward-results.txt
+
+      - name: Upload reproducibility evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: breakout-walkforward-reproduction
+          path: |
+            walkforward-results.txt
+            data-sha256.txt
+          if-no-files-found: error
+          retention-days: 30
