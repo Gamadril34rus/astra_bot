@@ -111,7 +111,7 @@ async def test_funding_archive_retries_bingx_100410_with_cooldowns(monkeypatch) 
     result = await funding_archive._call_with_cooldown(client.call, label="funding test")
     assert result == {"code": 0, "data": []}
     assert client.attempts == 4
-    assert delays == [300.0, 300.0, 300.0]
+    assert delays == [5.0, 30.0, 60.0]
 
 def test_candle_archive_uses_latest_contiguous_funding_start(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(candle_archive, "ARCHIVE_DIR", tmp_path)
