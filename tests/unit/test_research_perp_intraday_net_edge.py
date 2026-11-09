@@ -11,7 +11,7 @@ from scripts.research_perp_intraday_net_edge import (
 
 
 def _bars(times: list[int], interval_ms: int) -> pd.DataFrame:
-    return pd.DataFrame({
+    frame = pd.DataFrame({
         "open_time": times,
         "open": [100.0] * len(times),
         "high": [102.0] * len(times),
@@ -19,6 +19,8 @@ def _bars(times: list[int], interval_ms: int) -> pd.DataFrame:
         "close": [101.0] * len(times),
         "volume": [10.0] * len(times),
     })
+    frame["decision_time"] = frame["open_time"] + interval_ms
+    return frame
 
 
 def test_higher_timeframe_features_use_only_closed_hour() -> None:
