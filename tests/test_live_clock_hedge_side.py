@@ -344,3 +344,45 @@ def test_missing_position_detection_does_not_confuse_opposite_hedge_leg(
         assert "BTC-USDT|long" in state
 
     asyncio.run(run())
+
+
+def test_missing_detector_does_not_call_duplicate_side_row_missing(
+    tmp_path, monkeypatch
+):
+    async def run():
+        monkeypatch.chdir(tmp_path)
+        models = tmp_path / "models"
+        models.mkdir()
+        plans_path = models / "positions.json"
+        save_positions(
+            {
+                "BTC-USDT|long": {
+                    "symbol": "BTC-USDT",
+                    "side": "long",
+                    "qty": "1",
+                }
+            },
+            plans_path,
+        )
+        duplicate_positions = [
+            _position("long", "1", "110"),
+            _position("long", "1.1", "111"),
+        ]
+        orders = [_stop("long-stop", "long"), _tp("long-tp", "long", "0.3", "110")]
+
+        class Client:
+            async def get_positions(self):
+                return duplicate_positions
+
+            async def get_open_orders(self, symbol=None):
+                return orders
+
+        monkeypatch.setattr(
+            "astra_bot.decision.live_arm_wiring.append_journal", lambda _row: None
+        )
+        result = await detect_position_missing_with_orders(
+            SimpleNamespace(client=Client()), positions_path=plans_path
+        )
+        assert result["missing"] == []
+
+    asyncio.run(run())
