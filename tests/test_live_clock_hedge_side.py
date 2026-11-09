@@ -3,9 +3,8 @@
 import asyncio
 import json
 from decimal import Decimal
-from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 from astra_bot.decision.live_positions import save_positions, upsert_plan
 from scripts.zeus_live_clock import (
