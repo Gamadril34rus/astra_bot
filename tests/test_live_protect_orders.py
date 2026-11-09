@@ -418,3 +418,42 @@ async def test_ensure_protection_resets_bare_streak_after_unknown_order_state(tm
     )
     assert fourth["closed_legs"] == ["LINK-USDT|long"]
     assert close_calls == [("LINK-USDT", "long")]
+
+
+
+@pytest.mark.asyncio
+async def test_reconcile_counts_missing_stop_for_each_hedge_leg():
+    from astra_bot.decision.live_broker import LiveBroker, LiveBrokerConfig
+
+    short_stop = SimpleNamespace(
+        id="short-stop",
+        symbol="BTC-USDT",
+        order_type="STOP_MARKET",
+        side="BUY",
+        position_side="SHORT",
+        status="NEW",
+    )
+    client = SimpleNamespace(
+        get_positions=AsyncMock(
+            return_value=[
+                SimpleNamespace(
+                    symbol="BTC-USDT",
+                    side="long",
+                    quantity=Decimal("0.01"),
+                ),
+                SimpleNamespace(
+                    symbol="BTC-USDT",
+                    side="short",
+                    quantity=Decimal("0.02"),
+                ),
+            ]
+        ),
+        get_open_orders=AsyncMock(return_value=[short_stop]),
+    )
+    broker = LiveBroker(client=client, config=LiveBrokerConfig())
+    broker.equity = AsyncMock(return_value=Decimal("100"))
+
+    result = await broker.reconcile()
+
+    # The SHORT STOP must not hide the unprotected LONG hedge leg.
+    assert result["missing_stops"] == 1
