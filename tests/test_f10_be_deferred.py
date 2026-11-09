@@ -4,7 +4,6 @@ from __future__ import annotations
 import asyncio
 import json
 from decimal import Decimal
-from pathlib import Path
 from types import SimpleNamespace
 
 
@@ -64,7 +63,7 @@ def test_long_mark_below_entry_pending_no_place(tmp_path, monkeypatch):
 def test_long_mark_reaches_entry_places_once(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "models").mkdir()
-    from astra_bot.decision.live_positions import upsert_plan, load_positions
+    from astra_bot.decision.live_positions import load_positions, upsert_plan
 
     pos_path = tmp_path / "models" / "zeus_live_positions.json"
     upsert_plan(
@@ -133,7 +132,7 @@ def test_move_stop_reject_no_be_catchup_no_crash(tmp_path, monkeypatch):
         stop="102.114", tp="108.326", entry="104.752", path=pos_path, be_moved=False,
     )
     moves = []
-    r = _run(_broker("241.7", "104.752", moves, fail=True), pos_path)
+    _run(_broker("241.7", "104.752", moves, fail=True), pos_path)
     assert moves == []
     plan = load_positions(pos_path)["SOL-USDT|long"]
     assert plan.get("be_moved") is False
