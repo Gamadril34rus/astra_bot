@@ -533,6 +533,49 @@ def build_frame(klines: list[list[Any]]) -> pd.DataFrame:
     return merged.set_index("bar_open").sort_index()
 
 
+
+def signal_feature_diagnostics(frame: pd.DataFrame) -> dict[str, Any]:
+    """Count valid features and each independent gate before combining signals."""
+    htf_valid = frame[["htf_close", "htf_ema20", "htf_ema50", "htf_adx"]].notna().all(axis=1)
+    uptrend = (frame["htf_ema20"] > frame["htf_ema50"]) & (frame["htf_close"] > frame["htf_ema20"])
+    downtrend = (frame["htf_ema20"] < frame["htf_ema50"]) & (frame["htf_close"] < frame["htf_ema20"])
+    neutral = ((frame["htf_ema20"] / frame["htf_ema50"] - 1).abs() <= 0.003) & (frame["htf_adx"] < 22)
+    touch_long = (
+        (frame["low"].shift(1) <= frame["ema20"].shift(1) + 0.15 * frame["atr"].shift(1))
+        & (frame["low"].shift(1) >= frame["ema20"].shift(1) - 0.60 * frame["atr"].shift(1))
+    )
+    touch_short = (
+        (frame["high"].shift(1) >= frame["ema20"].shift(1) - 0.15 * frame["atr"].shift(1))
+        & (frame["high"].shift(1) <= frame["ema20"].shift(1) + 0.60 * frame["atr"].shift(1))
+    )
+    masks = signal_masks(frame)
+    counts = {
+        "rows": len(frame),
+        "valid_htf_rows": int(htf_valid.sum()),
+        "valid_atr_rows": int(frame["atr"].notna().sum()),
+        "valid_rsi_rows": int(frame["rsi"].notna().sum()),
+        "valid_volume_ratio_rows": int(frame["volume_ratio"].notna().sum()),
+        "positive_quote_volume_rows": int((frame["quote_volume"] > 0).sum()),
+        "valid_taker_buy_ratio_rows": int(frame["taker_buy_ratio"].notna().sum()),
+        "uptrend_rows": int(uptrend.fillna(False).sum()),
+        "downtrend_rows": int(downtrend.fillna(False).sum()),
+        "neutral_rows": int(neutral.fillna(False).sum()),
+        "touch_long_rows": int(touch_long.fillna(False).sum()),
+        "touch_short_rows": int(touch_short.fillna(False).sum()),
+        "signals": {
+            f"{name}:{'LONG' if side > 0 else 'SHORT'}": int(mask.sum())
+            for (name, side), mask in masks.items()
+        },
+        "volume_ratio_quantiles": {
+            str(q): float(value) if math.isfinite(float(value)) else None
+            for q, value in frame["volume_ratio"].quantile([0.1, 0.5, 0.9]).items()
+        },
+        "taker_buy_ratio_quantiles": {
+            str(q): float(value) if math.isfinite(float(value)) else None
+            for q, value in frame["taker_buy_ratio"].quantile([0.1, 0.5, 0.9]).items()
+        },
+    }
+    return counts
 def signal_masks(frame: pd.DataFrame) -> dict[tuple[str, int], pd.Series]:
     uptrend = (frame["htf_ema20"] > frame["htf_ema50"]) & (frame["htf_close"] > frame["htf_ema20"])
     downtrend = (frame["htf_ema20"] < frame["htf_ema50"]) & (frame["htf_close"] < frame["htf_ema20"])
@@ -963,6 +1006,7 @@ def main() -> None:
         validate_market_data(symbol, contract, klines, funding, end_ms)
         frame = build_frame(klines)
         market_frames[symbol] = (frame, funding)
+        manifest.setdefault("feature_diagnostics", {})[symbol] = signal_feature_diagnostics(frame)
         manifest["symbols"][symbol] = {
             "symbol": contract.get("symbol"),
             "settlement_currency": contract.get("currency"),
