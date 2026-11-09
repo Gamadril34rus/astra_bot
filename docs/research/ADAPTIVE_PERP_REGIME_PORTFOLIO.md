@@ -9,12 +9,13 @@ Status: frozen research hypotheses; not validated and not enabled.
 - No requirement to force trades. A regime with no positive net edge must produce NO_TRADE; forcing activity would convert fees into a permanent tax.
 
 ## Research objective
-Test whether a simple regime router can combine three distinct short-horizon families without double-counting signals:
+Test whether a simple regime router can combine four distinct short-horizon families without double-counting signals:
 1. TREND_PULLBACK: 1h directional trend + 15m pullback/reclaim.
 2. COMPRESSION_BREAKOUT: 15m volatility compression + range break and relative volume confirmation.
-3. RANGE_REVERSION: weak 1h trend + 15m Bollinger re-entry from an extreme.
+3. FALSE_BREAK_REVERSAL: failed 20-bar range escape, return inside range, and weak 1h trend.
+4. RANGE_REVERSION: weak 1h trend + 15m Bollinger re-entry from an extreme.
 
-The router assigns each closed 15m decision bar to at most one family, in priority order COMPRESSION_BREAKOUT, TREND_PULLBACK, RANGE_REVERSION. If no family has a valid signal, it does not trade. One open position per symbol.
+The router assigns each closed 15m decision bar to at most one family, in priority order COMPRESSION_BREAKOUT, FALSE_BREAK_REVERSAL, TREND_PULLBACK, RANGE_REVERSION. If no family has a valid signal, it does not trade. One open position per symbol.
 
 ## Frozen v0 rules
 ### Shared
@@ -38,6 +39,13 @@ The router assigns each closed 15m decision bar to at most one family, in priori
 - 1h EMA20/EMA50 direction must not oppose the breakout.
 - Stop: 1.2 ATR; target: 1.5R.
 
+### FALSE_BREAK_REVERSAL
+- Regime: 1h ADX14 <= 22.
+- Setup: the prior closed 15m candle closes outside the preceding 20-bar range on relative quote volume >= 1.5.
+- Trigger: the current closed 15m candle closes back inside that same pre-break range.
+- Stop: beyond the failed-break excursion by 0.15 ATR.
+- Target: midpoint of the pre-break range; reject if reward/risk < 1.0.
+
 ### RANGE_REVERSION
 - Regime: 1h ADX14 <= 18.
 - LONG: prior close below lower Bollinger band, current close re-enters above lower band, RSI14 <= 40.
@@ -49,7 +57,8 @@ The router assigns each closed 15m decision bar to at most one family, in priori
 - Base taker fee: 5 bps per side (10 bps round trip), sensitivity at 6 and 8 bps per side.
 - Conservative spread proxy: 2 bps per side; slippage proxy: 3 bps per side. Stress all execution costs at 1.5x.
 - Funding is charged only at actual settlement timestamps crossed by the position, using signed symbol-specific BingX funding rates. Positive funding rate is paid by LONG and received by SHORT. Missing funding coverage is INCOMPLETE, never zero.
-- Gross return, fees, spread, slippage, funding and net return are separate ledger columns.
+- Gross return, taker fees, spread, slippage, funding and net return are separate ledger columns.
+- Funding gaps >12h are not imputed. For a symbol with older funding holes, only its latest uninterrupted funding segment is eligible; earlier candle bars are excluded and the excluded funding count/window is reported.
 - OHLC fills remain a proxy. A later VST replay must use exchange-confirmed fills and fees.
 
 ## Validation
