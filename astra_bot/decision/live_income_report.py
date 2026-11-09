@@ -515,7 +515,7 @@ async def resolve_pending_dogon(
     sent = 0
     for item in items:
         sym = str(item.get("symbol") or "")
-        side = str(item.get("side") or "long")
+        side = str(item.get("side") or "").strip().lower()
         sid = item.get("signal_id")
         since_ms = item.get("since_ms")
         reason = str(item.get("reason") or "стоп")
@@ -526,6 +526,13 @@ async def resolve_pending_dogon(
         enqueued_ts = float(item.get("ts") or now_ts)
         age = now_ts - enqueued_ts
         if not sym:
+            continue
+        if side not in {"long", "short"}:
+            logger.warning(
+                "dogon: %s pending income has no valid LONG/SHORT side; retain without patch",
+                sym,
+            )
+            remaining.append(item)
             continue
         try:
             agg = await exit_net_from_client(
