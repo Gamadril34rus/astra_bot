@@ -32,7 +32,7 @@ def test_tp_parity_preserves_early_sub_2r(tmp_path, monkeypatch):
         lambda row: journals.append(row),
     )
     broker = MagicMock()
-    pos = SimpleNamespace(symbol="ETH-USDT", quantity=Decimal("1.0"))
+    pos = SimpleNamespace(symbol="ETH-USDT", side="short", quantity=Decimal("1.0"))
     broker.client.get_positions = AsyncMock(return_value=[pos])
     broker.client.place_order = AsyncMock()
     broker.client.get_open_orders = AsyncMock(return_value=[])
@@ -66,7 +66,7 @@ def test_tp_parity_clamps_overshoot(tmp_path, monkeypatch):
     save_positions(plans)
     monkeypatch.setattr("astra_bot.decision.live_arm_wiring.append_journal", lambda row: None)
     broker = MagicMock()
-    pos = SimpleNamespace(symbol="BTC-USDT", quantity=Decimal("1.0"))
+    pos = SimpleNamespace(symbol="BTC-USDT", side="long", quantity=Decimal("1.0"))
     broker.client.get_positions = AsyncMock(return_value=[pos])
     broker.client.place_order = AsyncMock()
     broker.client.get_open_orders = AsyncMock(return_value=[])
