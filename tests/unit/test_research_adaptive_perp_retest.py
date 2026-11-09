@@ -7,7 +7,7 @@ from scripts.research_adaptive_perp_retest import choose_retest_breakout_signal
 
 def _frame() -> pd.DataFrame:
     rows = []
-    for index in range(30):
+    for _ in range(30):
         rows.append({
             "open": 99.0,
             "high": 100.0,
@@ -77,7 +77,7 @@ def test_retest_breakout_requires_higher_timeframe_direction() -> None:
 
 def test_short_breakout_uses_symmetric_retest_rule() -> None:
     frame = _frame()
-    frame.loc[26, ["open", "high", "low", "close"]] = [
+    frame.loc[:24, ["open", "high", "low", "close"]] = [
         101.0, 102.0, 100.0, 101.0
     ]
     frame.loc[25, ["open", "high", "low", "close", "quote_volume"]] = [
