@@ -18,6 +18,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -61,29 +62,6 @@ COST_SCENARIOS = {
 def utc_ms(value: str) -> int:
     stamp = pd.Timestamp(value, tz="UTC")
     return int(stamp.timestamp() * 1000)
-
-
-def request_json(path: str, params: dict[str, Any], retries: int = 5) -> Any:
-    query = urllib.parse.urlencode(params)
-    url = f"{BASE_URL}{path}?{query}"
-    last_error: Exception | None = None
-    for attempt in range(retries):
-        request = urllib.request.Request(
-            url,
-            headers={"User-Agent": "astra-bot-perp-research/1.0"},
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=45) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            if exc.code not in (418, 429, 500, 502, 503, 504):
-                raise RuntimeError(f"{path} returned HTTP {exc.code}: {exc.read()[:300]!r}") from exc
-            last_error = exc
-        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
-            last_error = exc
-        wait = min(2 ** attempt, 20)
-        time.sleep(wait)
-    raise RuntimeError(f"request failed after {retries} attempts: {path}: {last_error}")
 
 
 def unwrap_data(payload: Any, path: str) -> list[Any]:
@@ -179,74 +157,74 @@ def fetch_klines(symbol: str, start_ms: int, end_ms: int) -> list[list[Any]]:
 
 
 def fetch_funding(symbol: str, start_ms: int, end_ms: int) -> list[dict[str, Any]]:
-    """Page the historical funding ledger backwards from the newest event."""
-    rows: list[dict[str, Any]] = []
-    cursor_end = end_ms - 1
-    first_page = True
-    while cursor_end > start_ms:
-        params: dict[str, Any] = {
-            "symbol": symbol,
-            "limit": PAGE_FUNDING,
-            "timestamp": int(datetime.now(UTC).timestamp() * 1000),
-        }
-        if not first_page:
-            params["endTime"] = cursor_end
-        page = request_json(FUNDING_ENDPOINT, params)
-        if not page:
-            if first_page:
-                print(f"{symbol}: funding endpoint returned an empty latest page", flush=True)
-            break
-        normalized = []
+    """Fetch funding in bounded 30-day windows; never stop at a short page."""
+    rows: dict[int, dict[str, Any]] = {}
+    chunk_ms = 30 * 24 * 60 * 60 * 1000
+    cursor = start_ms
+    while cursor <= end_ms:
+        chunk_end = min(end_ms, cursor + chunk_ms - 1)
+        page = request_json(
+            FUNDING_ENDPOINT,
+            {
+                "symbol": symbol,
+                "startTime": cursor,
+                "endTime": chunk_end,
+                "limit": PAGE_FUNDING,
+            },
+        )
+        accepted = 0
         for row in page:
             if not isinstance(row, dict):
                 continue
             funding_time = int(row.get("fundingTime", row.get("time", 0)) or 0)
             rate = row.get("fundingRate")
-            if funding_time and rate is not None and start_ms <= funding_time <= cursor_end:
-                normalized.append({
-                    "fundingTime": funding_time,
-                    "fundingRate": str(rate),
-                    "markPrice": row.get("markPrice"),
-                })
-        if not normalized:
-            if first_page:
-                print(
-                    f"{symbol}: funding page shape did not contain fundingTime/fundingRate; "
-                    f"item_types={[type(item).__name__ for item in page[:2]]}; "
-                    f"sample={str(page[:1])[:500]}",
-                    flush=True,
+            if not funding_time or rate is None or not cursor <= funding_time <= chunk_end:
+                continue
+            normalized = {
+                "fundingTime": funding_time,
+                "fundingRate": str(rate),
+                "markPrice": row.get("markPrice"),
+            }
+            previous = rows.get(funding_time)
+            if previous is not None and previous["fundingRate"] != normalized["fundingRate"]:
+                raise RuntimeError(
+                    f"conflicting BingX funding rates for {symbol} at {funding_time}"
                 )
-            break
-        normalized.sort(key=lambda row: int(row["fundingTime"]))
-        rows.extend(normalized)
-        oldest = int(normalized[0]["fundingTime"])
-        newest = int(normalized[-1]["fundingTime"])
+            rows[funding_time] = normalized
+            accepted += 1
         print(
-            f"{symbol}: funding page size={len(normalized)} "
-            f"{datetime.fromtimestamp(oldest / 1000, UTC).isoformat()}.."
-            f"{datetime.fromtimestamp(newest / 1000, UTC).isoformat()}",
+            f"{symbol}: funding window {datetime.fromtimestamp(cursor / 1000, UTC).isoformat()}.."
+            f"{datetime.fromtimestamp(chunk_end / 1000, UTC).isoformat()} "
+            f"rows={len(page)} accepted={accepted}",
             flush=True,
         )
-        if oldest <= start_ms or len(page) < PAGE_FUNDING:
-            break
-        next_end = oldest - 1
-        if next_end >= cursor_end:
-            raise RuntimeError(f"non-advancing BingX funding history cursor for {symbol}")
-        cursor_end = next_end
-        first_page = False
-    deduped: dict[int, dict[str, Any]] = {}
-    for row in rows:
-        deduped[int(row["fundingTime"])] = row
-    result = [deduped[key] for key in sorted(deduped)]
-    if result:
+        cursor = chunk_end + 1
+    ordered = [rows[key] for key in sorted(rows)]
+    if ordered:
         print(
-            f"{symbol}: funding events={len(result)} "
-            f"coverage={datetime.fromtimestamp(result[0]['fundingTime'] / 1000, UTC).isoformat()}.."
-            f"{datetime.fromtimestamp(result[-1]['fundingTime'] / 1000, UTC).isoformat()}",
+            f"{symbol}: funding events={len(ordered)} "
+            f"coverage={datetime.fromtimestamp(ordered[0]['fundingTime'] / 1000, UTC).isoformat()}.."
+            f"{datetime.fromtimestamp(ordered[-1]['fundingTime'] / 1000, UTC).isoformat()}",
             flush=True,
         )
-    return result
+    return ordered
 
+
+def latest_contiguous_funding_segment(
+    funding: list[dict[str, Any]], max_gap_hours: float = 12.0
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Keep the latest uninterrupted funding segment and return excluded rows."""
+    ordered = sorted(funding, key=lambda row: int(row["fundingTime"]))
+    if not ordered:
+        return [], []
+    max_gap_ms = max_gap_hours * 60 * 60 * 1000
+    gap_indices = [
+        index
+        for index, (left, right) in enumerate(pairwise(ordered))
+        if int(right["fundingTime"]) - int(left["fundingTime"]) > max_gap_ms
+    ]
+    start_index = gap_indices[-1] + 1 if gap_indices else 0
+    return ordered[start_index:], ordered[:start_index]
 def fetch_mark_prices(symbol: str, start_ms: int, end_ms: int) -> dict[int, float]:
     """Fetch 4h mark-price candles; funding settlements align to 4h boundaries."""
     rows: dict[int, float] = {}
@@ -305,7 +283,7 @@ def validate_market_data(
         raise ValueError(f"{symbol}: duplicate kline open times")
     if opens != sorted(opens):
         raise ValueError(f"{symbol}: klines are not ordered")
-    if any(right - left != INTERVAL_MS for left, right in zip(opens[:-1], opens[1:], strict=True)):
+    if any(right - left != INTERVAL_MS for left, right in pairwise(opens)):
         raise ValueError(f"{symbol}: missing or irregular 30m intervals")
     if opens[-1] + INTERVAL_MS > end_ms:
         raise ValueError(f"{symbol}: latest bar is not fully closed")
@@ -330,9 +308,9 @@ def validate_market_data(
         raise ValueError(f"{symbol}: funding coverage starts more than 24h after candles")
     if times[-1] < opens[-1] - 24 * 60 * 60 * 1000:
         raise ValueError(f"{symbol}: funding coverage ends more than 24h before candles")
-    gaps = [(right - left, left, right) for left, right in zip(times[:-1], times[1:], strict=True)]
+    gaps = [(right - left, left, right) for left, right in pairwise(times)]
     largest_gap = max(gaps, default=(0, 0, 0))
-    if largest_gap[0] > 24 * 60 * 60 * 1000:
+    if largest_gap[0] > 12 * 60 * 60 * 1000:
         left_dt = datetime.fromtimestamp(largest_gap[1] / 1000, UTC).isoformat()
         right_dt = datetime.fromtimestamp(largest_gap[2] / 1000, UTC).isoformat()
         raise ValueError(
@@ -796,11 +774,18 @@ def main() -> None:
         start_ms = max(utc_ms(DATA_START_FLOOR), int(contract.get("launchTime", 0) or 0))
         print(f"Fetching BingX {symbol} {INTERVAL} perpetual candles, funding and mark prices...", flush=True)
         klines = fetch_klines(symbol, start_ms, end_ms)
-        funding = fetch_funding(symbol, start_ms, end_ms)
+        raw_funding = fetch_funding(symbol, start_ms, end_ms)
         mark_prices = fetch_mark_prices(symbol, start_ms, end_ms)
-        for event in funding:
-            if not event.get("markPrice"):
+        for event in raw_funding:
+            if float(event.get("markPrice") or 0) <= 0:
                 event["markPrice"] = mark_prices.get(int(event["fundingTime"]))
+        funding, excluded_funding = latest_contiguous_funding_segment(raw_funding)
+        if not funding:
+            raise ValueError(f"{symbol}: no contiguous BingX funding segment")
+        funding_start_ms = int(funding[0]["fundingTime"])
+        klines = [row for row in klines if int(row[0]) >= funding_start_ms]
+        if not klines:
+            raise ValueError(f"{symbol}: no candles inside latest funding segment")
         validate_market_data(symbol, contract, klines, funding, end_ms)
         frame = build_frame(klines)
         market_frames[symbol] = (frame, funding)
@@ -814,6 +799,9 @@ def main() -> None:
             "last_bar_utc": frame.index[-1].isoformat(),
             "bars": len(frame),
             "funding_events": len(funding),
+            "funding_events_excluded_before_latest_contiguous_segment": len(excluded_funding),
+            "excluded_funding_first_utc": datetime.fromtimestamp(int(excluded_funding[0]["fundingTime"]) / 1000, UTC).isoformat() if excluded_funding else None,
+            "excluded_funding_last_utc": datetime.fromtimestamp(int(excluded_funding[-1]["fundingTime"]) / 1000, UTC).isoformat() if excluded_funding else None,
             "first_funding_utc": datetime.fromtimestamp(int(funding[0]["fundingTime"]) / 1000, UTC).isoformat(),
             "last_funding_utc": datetime.fromtimestamp(int(funding[-1]["fundingTime"]) / 1000, UTC).isoformat(),
         }
