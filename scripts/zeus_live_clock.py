@@ -152,7 +152,7 @@ def _positions_by_hedge_leg(positions) -> dict[tuple[str, str], object]:
         else:
             result[key] = position
     for key in duplicates:
-        result.pop(key, None)
+        result[key] = None
     return result
 
 
@@ -200,8 +200,24 @@ def migrate_initial_stop_v1() -> dict:
     plans = load_positions(DEFAULT_PATH)
     if not plans:
         return out
-    # index entry stops from journal (best-effort, last wins)
-    entry_stop_by_sid: dict[str, str] = {}
+    # Legacy rows without side are usable only when the symbol has one active plan leg.
+    plan_sides_by_symbol: dict[str, set[str]] = {}
+    for plan_key, plan in plans.items():
+        if not isinstance(plan, dict):
+            continue
+        plan_symbol = str(plan.get("symbol") or plan_key.split("|")[0])
+        plan_side = _normalize_plan_side(plan.get("side") or (
+            plan_key.rsplit("|", 1)[1] if "|" in plan_key else None
+        ))
+        if plan_symbol and plan_side is not None:
+            plan_sides_by_symbol.setdefault(plan_symbol, set()).add(plan_side)
+    unique_plan_side = {
+        symbol: next(iter(sides))
+        for symbol, sides in plan_sides_by_symbol.items()
+        if len(sides) == 1
+    }
+    # Index entry stops by signal and hedge leg (best-effort, last wins).
+    entry_stop_by_sid_side: dict[tuple[str, str], str] = {}
     entry_stop_by_sym_side: dict[tuple[str, str], str] = {}
     parity_old_tp_by_sym_side: dict[tuple[str, str], str] = {}
     jpath = Path("models/zeus_live_journal.jsonl")
@@ -222,14 +238,14 @@ def migrate_initial_stop_v1() -> dict:
                     if ev == "entry" and o.get("stop") is not None:
                         sid = str(o.get("signal_id") or "")
                         sym = str(o.get("symbol") or "")
-                        if sid:
-                            entry_stop_by_sid[sid] = str(o["stop"])
-                        side = _normalize_plan_side(o.get("side"))
+                        side = _normalize_plan_side(o.get("side")) or unique_plan_side.get(sym)
+                        if sid and side is not None:
+                            entry_stop_by_sid_side[(sid, side)] = str(o["stop"])
                         if sym and side is not None:
                             entry_stop_by_sym_side[(sym, side)] = str(o["stop"])
                     if ev in ("tp_parity_replace", "tp_parity_failed") and o.get("old_tp"):
                         sym = str(o.get("symbol") or "")
-                        side = _normalize_plan_side(o.get("side"))
+                        side = _normalize_plan_side(o.get("side")) or unique_plan_side.get(sym)
                         if sym and side is not None:
                             parity_old_tp_by_sym_side[(sym, side)] = str(o["old_tp"])
         except Exception:
@@ -255,8 +271,8 @@ def migrate_initial_stop_v1() -> dict:
         ))
         init = None
         src = None
-        if sid and sid in entry_stop_by_sid:
-            init, src = entry_stop_by_sid[sid], "journal_entry_sid"
+        if sid and side is not None and (sid, side) in entry_stop_by_sid_side:
+            init, src = entry_stop_by_sid_side[(sid, side)], "journal_entry_signal_side"
         elif side is not None and (sym, side) in entry_stop_by_sym_side:
             init, src = entry_stop_by_sym_side[(sym, side)], "journal_entry_symbol_side"
         elif side is not None and (sym, side) in parity_old_tp_by_sym_side and plan.get("entry") is not None:
@@ -2149,7 +2165,7 @@ async def detect_position_missing_with_orders(broker, *, positions_path: Path | 
         side = _normalize_plan_side(plan.get("side") or (
             _key.rsplit("|", 1)[1] if "|" in _key else None
         ))
-        if not sym or side is None or _position_for_hedge_leg(by_leg, sym, side) is not None:
+        if not sym or side is None or (sym, side) in by_leg:
             continue
         try:
             orders = await broker.client.get_open_orders(sym)
