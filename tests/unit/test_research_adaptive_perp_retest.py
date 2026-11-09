@@ -96,3 +96,21 @@ def test_short_breakout_uses_symmetric_retest_rule() -> None:
     assert signal["side"] == -1
     assert signal["stop"] == 100.25
     assert signal["target_rr"] == 2.0
+
+
+
+def test_zero_quote_volume_falls_back_to_base_volume() -> None:
+    frame = _frame()
+    frame["quote_volume"] = 0.0
+    frame.loc[25, ["open", "high", "low", "close", "volume"]] = [
+        100.0, 101.5, 99.8, 101.0, 200.0
+    ]
+    frame.loc[26, ["open", "high", "low", "close"]] = [
+        100.2, 101.0, 99.9, 100.4
+    ]
+
+    signal = choose_retest_breakout_signal(frame, 26)
+
+    assert signal is not None
+    assert signal["family"] == "RETEST_BREAKOUT"
+    assert signal["side"] == 1
