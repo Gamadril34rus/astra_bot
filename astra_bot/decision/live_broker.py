@@ -4,6 +4,7 @@ Does not touch PaperBroker. HALT/kill checked before any place_order.
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -50,6 +51,89 @@ def _price_near(a: Decimal, b: Decimal, pct: float = 0.0005) -> bool:
     return abs(a - b) / ref <= Decimal(str(pct))
 
 
+def _normalize_position_side(value: Any) -> str | None:
+    side = str(value or "").strip().lower()
+    return side if side in {"long", "short"} else None
+
+
+def _expected_reducing_order_side(position_side: str) -> str:
+    return "sell" if position_side == "long" else "buy"
+
+
+def _order_is_open(order: Any) -> bool:
+    status = str(
+        getattr(order, "status_raw", None) or getattr(order, "status", None) or ""
+    ).strip().lower()
+    return status not in {"filled", "canceled", "cancelled", "rejected", "expired"}
+
+
+def _order_matches_position_side(order: Any, position_side: str) -> bool:
+    """Match a protective order to one hedge leg, not merely to its symbol."""
+    expected = _expected_reducing_order_side(position_side)
+    order_side = str(getattr(order, "side", "") or "").strip().lower()
+    order_position_side = str(
+        getattr(order, "position_side", None)
+        or getattr(order, "positionSide", None)
+        or ""
+    ).strip().lower()
+    if order_side and order_side != expected:
+        return False
+    if order_position_side and order_position_side != position_side:
+        return False
+    return bool(order_side == expected or order_position_side == position_side)
+
+
+def _protective_order_kind(order: Any) -> str | None:
+    order_type = str(
+        getattr(order, "order_type", None) or getattr(order, "type", None) or ""
+    ).lower()
+    if "take_profit" in order_type or order_type.startswith("tp"):
+        return "take_profit"
+    if "stop" in order_type:
+        return "stop"
+    return None
+
+
+def _has_matching_protective_order(
+    orders: list[Any], position_side: str, *, kind: str
+) -> bool:
+    return any(
+        _order_is_open(order)
+        and _protective_order_kind(order) == kind
+        and _order_matches_position_side(order, position_side)
+        for order in orders or []
+    )
+
+
+def _has_unscoped_protective_order(orders: list[Any], *, kind: str) -> bool:
+    """A side-less STOP is unknown protection, never permission to close a leg."""
+    for order in orders or []:
+        if not _order_is_open(order) or _protective_order_kind(order) != kind:
+            continue
+        order_side = str(getattr(order, "side", "") or "").strip()
+        position_side = str(
+            getattr(order, "position_side", None)
+            or getattr(order, "positionSide", None)
+            or ""
+        ).strip()
+        if not order_side and not position_side:
+            return True
+    return False
+
+
+def _has_unscoped_open_order(orders: list[Any]) -> bool:
+    return any(
+        _order_is_open(order)
+        and not str(getattr(order, "side", "") or "").strip()
+        and not str(
+            getattr(order, "position_side", None)
+            or getattr(order, "positionSide", None)
+            or ""
+        ).strip()
+        for order in orders or []
+    )
+
+
 async def _existing_protect(
     client: Any,
     symbol: str,
@@ -92,7 +176,13 @@ class LiveClientProto(Protocol):
     async def cancel_all_orders(self, symbol: str) -> int: ...
     async def set_leverage(self, symbol: str, leverage: int, side: str = "LONG") -> None: ...
     async def set_margin_isolated(self, symbol: str) -> None: ...
-    async def close_position(self, symbol: str, quantity: Any = None, price: Any = None) -> bool: ...
+    async def close_position(
+        self,
+        symbol: str,
+        quantity: Any = None,
+        price: Any = None,
+        position_side: str | None = None,
+    ) -> bool: ...
 
 
 def _journal_protect(event: str, **fields) -> None:
@@ -1130,213 +1220,306 @@ class LiveBroker:
         positions_path: Path | None = None,
         send_tg=None,
     ) -> dict[str, Any]:
-        """After reconcile: positions without stop get plan stop or market close.
-
-        (a) plan in zeus_live_positions.json → re-place STOP_MARKET (+TP) via move_stop
-        (b) no plan → market reduceOnly close + warning (naked position forbidden)
-        """
+        """Restore protection per hedge leg; never flatten/cancel by symbol alone."""
         from pathlib import Path as _Path
-
         from astra_bot.decision.live_positions import get_plan, remove_plan
 
         path = positions_path or _Path("models/zeus_live_positions.json")
         positions = await self.client.get_positions()
         open_orders = await self.client.get_open_orders()
-        by_sym: dict[str, list] = {}
-        for o in open_orders:
-            by_sym.setdefault(getattr(o, "symbol", ""), []).append(o)
+        by_symbol: dict[str, list[Any]] = {}
+        for order in open_orders or []:
+            by_symbol.setdefault(getattr(order, "symbol", "") or "", []).append(order)
 
         restored: list[str] = []
-        closed: list[str] = []
-        for p in positions:
-            sym = getattr(p, "symbol", "")
-            qty = getattr(p, "quantity", None) or Decimal("0")
-            if qty <= 0:
-                continue
-            orders = by_sym.get(sym, [])
-            has_stop = any(
-                "stop" in str(getattr(o, "order_type", "")).lower()
-                and "take_profit" not in str(getattr(o, "order_type", "")).lower()
-                for o in orders
-            )
-            plan = get_plan(sym, path)
-            has_tp = any(
-                "take_profit" in str(getattr(o, "order_type", "")).lower()
-                for o in orders
-            )
-            # stop without our plan → unsupervised close below
-            if has_stop and plan and plan.get("stop"):
-                # Follow-up #4: stop alive but TP missing → place TP only
-                # After be_moved (TP1 already filled) never re-place the partial TP.
-                tp = plan.get("tp") or plan.get("tp1")
-                if (
-                    tp is not None
-                    and not has_tp
-                    and not plan.get("be_moved")
-                ):
-                    side = str(plan.get("side") or getattr(p, "side", "long")).lower()
-                    stop_side = "SELL" if side == "long" else "BUY"
-                    ps = "LONG" if side == "long" else "SHORT"
-                    try:
-                        q_full = Decimal(str(plan.get("qty") or qty))
-                        has_tp1 = plan.get("tp1") is not None
-                        step = await self._qty_step_for_symbol(sym)
-                        if has_tp1:
-                            q_tp = self._quantize_to_step(q_full * _tp_frac_from_plan(plan), step)
-                            ro, cp = False, False  # F4: hedge forbids ReduceOnly (109400)
-                        else:
-                            q_tp = self._quantize_to_step(q_full, step)
-                            ro, cp = False, True
-                        await self.client.place_order(
-                            symbol=sym,
-                            side=stop_side,
-                            order_type="TAKE_PROFIT_MARKET",
-                            quantity=q_tp,
-                            stop_price=Decimal(str(tp)),
-                            position_side=ps,
-                            reduce_only=ro,
-                            close_position=cp,
-                            client_order_id=unique_client_order_id(sym, "r"),
-                        )
-                        restored.append(sym)
-                        logger.info(
-                            "restore_missing_stops: %s TP re-placed @ %s (stop was live)",
-                            sym, tp,
-                        )
-                    except Exception as exp:
-                        logger.warning(
-                            "restore_missing_stops: %s TP-only failed: %s",
-                            sym, type(exp).__name__,
-                        )
-                        err_s = f"{type(exp).__name__}: {exp}"
-                        try:
-                            append_live_trade(
-                                {
-                                    "event": "restore_tp_failed",
-                                    "symbol": sym,
-                                    "error": err_s,
-                                    "ts": time.time(),
-                                }
-                            )
-                        except Exception:
-                            pass
-                        try:
-                            from astra_bot.decision.live_arm_wiring import append_journal
-                            append_journal(
-                                {
-                                    "event": "restore_tp_failed",
-                                    "symbol": sym,
-                                    "error": err_s,
-                                    "ts": time.time(),
-                                }
-                            )
-                        except Exception:
-                            pass
-                        try:
-                            from astra_bot.decision.live_margin_warn import maybe_warn_margin_reject
-                            maybe_warn_margin_reject(sym, err_s, send_tg)
-                        except Exception:
-                            pass
-                continue
-            if plan and plan.get("stop"):
-                side = str(plan.get("side") or getattr(p, "side", "long")).lower()
-                # be_moved: protective stop sits at entry (breakeven)
-                if plan.get("be_moved") and plan.get("entry") is not None:
-                    stop_px = Decimal(str(plan["entry"]))
-                else:
-                    stop_px = Decimal(str(plan["stop"]))
-                q = Decimal(str(plan.get("qty") or qty))
+        closed_naked: list[str] = []
+        closed_legs: list[str] = []
+        orphan_protected: list[str] = []
+        orphan_protected_legs: list[str] = []
+        orphan_unknown: list[str] = []
+        orphan_unknown_legs: list[str] = []
+
+        warn_path = _Path("models/zeus_orphan_protected_warn.json")
+        try:
+            warn_state = json.loads(warn_path.read_text(encoding="utf-8")) if warn_path.exists() else {}
+        except Exception:
+            warn_state = {}
+        if not isinstance(warn_state, dict):
+            warn_state = {}
+        warn_state_changed = False
+
+        async def warn_orphan(
+            symbol: str, side: str, qty: Decimal, event: str, message: str
+        ) -> None:
+            nonlocal warn_state_changed
+            now = time.time()
+            key = f"{symbol}|{side}"
+            last = float(warn_state.get(key) or 0.0)
+            if now - last < 3600:
+                return
+            logger.warning("%s: %s", event, message)
+            try:
+                append_live_trade({
+                    "event": event,
+                    "symbol": symbol,
+                    "side": side,
+                    "qty": str(qty),
+                    "ts": now,
+                    "reason": message,
+                })
+            except Exception:
+                pass
+            if send_tg is not None:
                 try:
-                    await self.move_stop(sym, side, q, stop_px)
+                    await send_tg(f"⚠️ {symbol} {side.upper()}: {message}")
+                except Exception:
+                    pass
+            warn_state[key] = now
+            warn_state_changed = True
+
+        for position in positions or []:
+            symbol = getattr(position, "symbol", "") or ""
+            qty = Decimal(str(getattr(position, "quantity", 0) or 0))
+            if not symbol or qty <= 0:
+                continue
+            side = _normalize_position_side(getattr(position, "side", None))
+            orders = by_symbol.get(symbol, [])
+            if side is None:
+                orphan_unknown.append(symbol)
+                orphan_unknown_legs.append(f"{symbol}|unknown")
+                await warn_orphan(
+                    symbol,
+                    "unknown",
+                    qty,
+                    "orphan_position_side_unknown",
+                    "биржа не вернула сторону позиции; автоматическое закрытие пропущено",
+                )
+                continue
+
+            # Plans are keyed by symbol|side. Never borrow the other hedge leg's plan.
+            plan = get_plan(symbol, path, side) or {}
+            has_stop = _has_matching_protective_order(orders, side, kind="stop")
+            has_tp = _has_matching_protective_order(orders, side, kind="take_profit")
+            unknown_stop = _has_unscoped_protective_order(orders, kind="stop")
+            unknown_order = _has_unscoped_open_order(orders)
+
+            if has_stop:
+                if plan.get("stop"):
+                    # Keep the exchange STOP. Restore only a missing TP for this same hedge leg.
                     tp = plan.get("tp") or plan.get("tp1")
-                    # Do not re-place TP if a smaller-volume TP is already open (partial leg).
-                    if tp is not None and not has_tp:
-                        stop_side = "SELL" if side == "long" else "BUY"
-                        ps = "LONG" if side == "long" else "SHORT"
-                        has_tp1 = plan.get("tp1") is not None
-                        step = await self._qty_step_for_symbol(sym)
-                        if has_tp1 and not plan.get("be_moved"):
-                            q_tp = self._quantize_to_step(q * _tp_frac_from_plan(plan), step)
-                            ro, cp = False, False  # F4: hedge forbids ReduceOnly (109400)
-                        elif has_tp1 and plan.get("be_moved"):
-                            # After TP1 filled, no second TP restore for partial
-                            q_tp = None
-                            ro, cp = False, False
-                        else:
-                            q_tp = self._quantize_to_step(q, step)
-                            ro, cp = False, True
-                        if q_tp is not None and q_tp > 0:
-                            await self.client.place_order(
-                                symbol=sym,
-                                side=stop_side,
-                                order_type="TAKE_PROFIT_MARKET",
-                                quantity=q_tp,
-                                stop_price=Decimal(str(tp)),
-                                position_side=ps,
-                                reduce_only=ro,
-                                close_position=cp,
-                                client_order_id=unique_client_order_id(sym, "r"),
+                    if tp is not None and not has_tp and not plan.get("be_moved"):
+                        exchange_side = "LONG" if side == "long" else "SHORT"
+                        order_side = "SELL" if side == "long" else "BUY"
+                        try:
+                            plan_qty = Decimal(str(plan.get("qty") or qty))
+                            step = await self._qty_step_for_symbol(symbol)
+                            if plan.get("tp1") is not None:
+                                tp_qty = self._quantize_to_step(
+                                    plan_qty * _tp_frac_from_plan(plan), step
+                                )
+                                close_position = False
+                            else:
+                                tp_qty = self._quantize_to_step(plan_qty, step)
+                                close_position = True
+                            if tp_qty > 0:
+                                await self.client.place_order(
+                                    symbol=symbol,
+                                    side=order_side,
+                                    order_type="TAKE_PROFIT_MARKET",
+                                    quantity=tp_qty,
+                                    stop_price=Decimal(str(tp)),
+                                    position_side=exchange_side,
+                                    reduce_only=False,
+                                    close_position=close_position,
+                                    client_order_id=unique_client_order_id(symbol, "r"),
+                                )
+                        except Exception as exc:
+                            logger.warning(
+                                "restore_missing_stops: %s %s TP restore failed: %s",
+                                symbol,
+                                side,
+                                type(exc).__name__,
                             )
-                    restored.append(sym)
-                    logger.info("restore_missing_stops: %s STOP re-placed @ %s", sym, stop_px)
-                except Exception as exp:
-                    logger.warning(
-                        "restore_missing_stops: %s move_stop failed: %s",
-                        sym, type(exp).__name__,
-                    )
-                    try:
-                        append_live_trade(
-                            {
-                                "event": "restore_stop_failed",
-                                "symbol": sym,
-                                "error": f"{type(exp).__name__}: {exp}",
-                                "ts": time.time(),
-                            }
-                        )
-                    except Exception:
-                        pass
-            else:
-                logger.warning(
-                    "restore_missing_stops: %s naked/no-plan qty=%s has_stop=%s — closing market",
-                    sym, qty, has_stop,
+                            try:
+                                append_live_trade({
+                                    "event": "restore_tp_failed",
+                                    "symbol": symbol,
+                                    "side": side,
+                                    "error": f"{type(exc).__name__}: {exc}",
+                                    "ts": time.time(),
+                                })
+                            except Exception:
+                                pass
+                    restored.append(f"{symbol}|{side}")
+                    continue
+
+                # A matching exchange STOP is valid protection without local metadata.
+                orphan_protected.append(symbol)
+                orphan_protected_legs.append(f"{symbol}|{side}")
+                await warn_orphan(
+                    symbol,
+                    side,
+                    qty,
+                    "orphan_protected_position",
+                    "биржевой STOP найден, локального плана нет; стоп и позиция сохранены",
+                )
+                continue
+
+            if unknown_stop or unknown_order:
+                orphan_unknown.append(symbol)
+                orphan_unknown_legs.append(f"{symbol}|{side}")
+                await warn_orphan(
+                    symbol,
+                    side,
+                    qty,
+                    "orphan_protection_unknown",
+                    "есть открытый ордер без однозначной hedge-стороны; позиция и ордера сохранены",
+                )
+                continue
+
+            if plan.get("stop"):
+                plan_qty = Decimal(str(plan.get("qty") or qty))
+                stop_price = (
+                    Decimal(str(plan["entry"]))
+                    if plan.get("be_moved") and plan.get("entry") is not None
+                    else Decimal(str(plan["stop"]))
                 )
                 try:
-                    try:
-                        try:
-                            _oo = await self.client.get_open_orders(sym)
-                        except Exception:
-                            _oo = []
-                        for _o in _oo or []:
-                            _oid = getattr(_o, "id", None) or getattr(_o, "order_id", None)
-                            _ot = str(getattr(_o, "type", "") or getattr(_o, "order_type", "") or "")
-                            _ou = _ot.upper()
-                            _otype = (
-                                "STOP" if "STOP" in _ou else
-                                ("TP" if ("TAKE" in _ou or "PROFIT" in _ou) else (_ot or "UNKNOWN"))
+                    await self.move_stop(symbol, side, plan_qty, stop_price)
+                    tp = plan.get("tp") or plan.get("tp1")
+                    if tp is not None and not has_tp and not plan.get("be_moved"):
+                        exchange_side = "LONG" if side == "long" else "SHORT"
+                        order_side = "SELL" if side == "long" else "BUY"
+                        step = await self._qty_step_for_symbol(symbol)
+                        if plan.get("tp1") is not None:
+                            tp_qty = self._quantize_to_step(
+                                plan_qty * _tp_frac_from_plan(plan), step
                             )
-                            journal_order_cancel(
-                                symbol=sym,
-                                order_id=str(_oid) if _oid is not None else None,
-                                order_type=_otype,
-                                reason="restore_naked_close",
-                                path="restore_missing_stops.cancel_all",
-                                side=None,
+                            close_position = False
+                        else:
+                            tp_qty = self._quantize_to_step(plan_qty, step)
+                            close_position = True
+                        if tp_qty > 0:
+                            await self.client.place_order(
+                                symbol=symbol,
+                                side=order_side,
+                                order_type="TAKE_PROFIT_MARKET",
+                                quantity=tp_qty,
+                                stop_price=Decimal(str(tp)),
+                                position_side=exchange_side,
+                                reduce_only=False,
+                                close_position=close_position,
+                                client_order_id=unique_client_order_id(symbol, "r"),
                             )
-                        await self.client.cancel_all_orders(sym)
-                    except Exception as cexc:
-                        logger.warning(
-                            "restore_missing_stops: cancel_all %s: %s",
-                            sym, type(cexc).__name__,
-                        )
-                    await self.client.close_position(sym, quantity=None)
-                    remove_plan(sym, path)
-                    closed.append(sym)
+                    restored.append(f"{symbol}|{side}")
                 except Exception as exc:
                     logger.warning(
-                        "restore_missing_stops: close %s failed: %s",
-                        sym, type(exc).__name__,
+                        "restore_missing_stops: %s %s stop restore failed: %s",
+                        symbol,
+                        side,
+                        type(exc).__name__,
                     )
-        return {"restored": restored, "closed_naked": closed}
+                    try:
+                        append_live_trade({
+                            "event": "restore_stop_failed",
+                            "symbol": symbol,
+                            "side": side,
+                            "error": f"{type(exc).__name__}: {exc}",
+                            "ts": time.time(),
+                        })
+                    except Exception:
+                        pass
+                continue
+
+            # No local plan and no matching stop: cancel only orders positively
+            # attributed to this hedge leg, then close that exact positionSide.
+            side_orders = [
+                order
+                for order in orders
+                if _order_is_open(order) and _order_matches_position_side(order, side)
+            ]
+            cancel_ok = True
+            for order in side_orders:
+                order_id = (
+                    getattr(order, "id", None)
+                    or getattr(order, "exchange_order_id", None)
+                    or getattr(order, "order_id", None)
+                )
+                if not order_id:
+                    cancel_ok = False
+                    break
+                try:
+                    await self.client.cancel_order(symbol, str(order_id))
+                    journal_order_cancel(
+                        symbol=symbol,
+                        order_id=str(order_id),
+                        order_type=_protective_order_kind(order)
+                        or str(getattr(order, "order_type", "UNKNOWN")),
+                        reason="restore_naked_close",
+                        path="restore_missing_stops.cancel_side_orders",
+                        side=side,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "restore_missing_stops: %s %s cancel order %s failed: %s",
+                        symbol,
+                        side,
+                        order_id,
+                        type(exc).__name__,
+                    )
+                    cancel_ok = False
+                    break
+            if not cancel_ok:
+                orphan_unknown.append(symbol)
+                orphan_unknown_legs.append(f"{symbol}|{side}")
+                await warn_orphan(
+                    symbol,
+                    side,
+                    qty,
+                    "orphan_order_cancel_failed",
+                    "не удалось безопасно отменить ордера этой hedge-стороны; позиция сохранена",
+                )
+                continue
+
+            try:
+                await self.client.close_position(
+                    symbol,
+                    quantity=qty,
+                    position_side=side,
+                )
+                remove_plan(symbol, path, side=side)
+                closed_naked.append(symbol)
+                closed_legs.append(f"{symbol}|{side}")
+                logger.warning(
+                    "restore_missing_stops: closed naked leg %s %s qty=%s",
+                    symbol,
+                    side,
+                    qty,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "restore_missing_stops: %s %s side-specific close failed: %s",
+                    symbol,
+                    side,
+                    type(exc).__name__,
+                )
+
+        if warn_state_changed:
+            try:
+                warn_path.parent.mkdir(parents=True, exist_ok=True)
+                warn_path.write_text(json.dumps(warn_state, ensure_ascii=False), encoding="utf-8")
+            except Exception:
+                pass
+
+        return {
+            "restored": restored,
+            "closed_naked": closed_naked,
+            "closed_legs": closed_legs,
+            "orphan_protected": orphan_protected,
+            "orphan_protected_legs": orphan_protected_legs,
+            "orphan_protection_unknown": orphan_unknown,
+            "orphan_protection_unknown_legs": orphan_unknown_legs,
+        }
 
 
     async def ensure_protection(
