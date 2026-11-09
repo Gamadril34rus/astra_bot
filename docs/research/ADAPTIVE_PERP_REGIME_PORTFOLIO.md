@@ -22,7 +22,8 @@ The router assigns each closed 15m decision bar to at most one family, in priori
 - 15m signal candle must be closed; entry proxy is the next 15m open.
 - 1h context is the latest 1h candle whose close timestamp is <= the 15m decision timestamp. No forming candles.
 - ATR14 is rolling mean true range; EMA values use pandas ewm(span, adjust=False); RSI14 uses Wilder-style ewm.
-- Every trade has a 36-bar (9h) maximum hold.
+- No-progress rule: after 2 completed 15m position bars (30m), exit at that bar close if maximum favorable excursion is still below 0.35R. This is an invalidation rule, not a forced 30m take-profit.
+- Every trade has a 36-bar (9h) hard maximum hold.
 - If stop and target are touched in the same OHLC bar, stop wins. If a stop is gapped through, use the adverse bar open.
 - No pyramiding, averaging down, grid, martingale, same-symbol re-entry before exit, or simultaneous opposite positions.
 
