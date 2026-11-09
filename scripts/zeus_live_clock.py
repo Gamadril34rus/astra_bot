@@ -561,11 +561,7 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
         positions = await broker.client.get_positions()
     except Exception as exc:
         return {**out, "error": type(exc).__name__}
-    by_sym: dict = {}
-    for p in positions or []:
-        sym = getattr(p, "symbol", None) or getattr(p, "symbol_name", None)
-        if sym:
-            by_sym[str(sym)] = p
+    by_leg = _positions_by_hedge_leg(positions)
 
     def _mark_of(pos) -> Decimal | None:
         if pos is None:
@@ -598,7 +594,12 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
             out["skipped"] += 1
             continue
         sym = plan.get("symbol") or key.split("|")[0]
-        side = (plan.get("side") or "").lower()
+        side = _normalize_plan_side(plan.get("side") or (
+            key.rsplit("|", 1)[1] if "|" in key else None
+        ))
+        if side is None:
+            out["skipped"] += 1
+            continue
         entry = plan.get("entry")
         init_raw = plan.get("initial_stop") or plan.get("stop")
         tp = plan.get("tp") or plan.get("tp1")
@@ -626,7 +627,10 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
                 new_tp = entry_d + risk * early_rr
             else:
                 new_tp = entry_d - risk * early_rr
-            pos = by_sym.get(sym)
+            pos = _position_for_hedge_leg(by_leg, sym, side)
+            if pos is None:
+                out["skipped"] += 1
+                continue
             mark = _mark_of(pos)
             exch_qty = Decimal(
                 str(
@@ -652,12 +656,9 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
                     if not (hasattr(broker, "client") and hasattr(broker.client, "get_open_orders")):
                         return
                     orders = await broker.client.get_open_orders(sym)
-                    for o in orders or []:
-                        ot = str(
-                            getattr(o, "type", "") or getattr(o, "order_type", "") or ""
-                        ).upper()
-                        if "TAKE_PROFIT" not in ot:
-                            continue
+                    for o in _open_orders_for_hedge_leg(
+                        orders, sym, side, kind="take_profit"
+                    ):
                         oid = getattr(o, "id", None) or getattr(o, "order_id", None)
                         if not oid:
                             continue
