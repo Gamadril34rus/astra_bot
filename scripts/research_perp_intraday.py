@@ -524,7 +524,7 @@ def build_frame(klines: list[list[Any]]) -> pd.DataFrame:
     ]
     normalized_rows = [
         list(row) if len(row) >= len(columns)
-        else list(row) + ["unknown"]
+        else [*list(row), "unknown"]
         for row in klines
     ]
     frame = pd.DataFrame(normalized_rows, columns=columns)
