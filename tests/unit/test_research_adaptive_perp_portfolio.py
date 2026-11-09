@@ -46,6 +46,9 @@ def test_positive_funding_is_cost_for_long_and_credit_for_short() -> None:
     assert funding_cost_fraction(-1, rates) == pytest.approx(-0.0003)
 
 
+def test_archive_page_size_matches_verified_bingx_adapter_cap() -> None:
+    assert candle_archive.PAGE_SIZE == 500
+
 def test_hard_hold_limit_is_nine_hours() -> None:
     assert MAX_HOLD_BARS * 15 == 540
 
