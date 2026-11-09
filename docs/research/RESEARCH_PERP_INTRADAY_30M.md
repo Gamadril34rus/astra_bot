@@ -53,6 +53,8 @@ All LONG and SHORT sides are evaluated separately. A per-side candidate is skipp
 
 The run also captures a current BingX USDT-M order-book snapshot for each symbol. It estimates the round-trip cost of crossing both sides of the visible book at 1k, 5k and 10k USDT notional, then adds the 0.05% per-side standard taker fee. This is a current liquidity diagnostic only; it does not rewrite historical slippage assumptions or claim that today's book represents past fills. Incomplete visible depth is reported as unavailable for that notional, never as zero cost.
 
+The manifest records feature coverage (valid 1h trend/ADX rows, ATR, RSI, quote-volume and taker-buy ratio), independent regime counts, and final signals by family and side. A zero-trade replay must therefore distinguish missing source fields from an over-restrictive strategy filter.
+
 - Signal is known only after the 30m candle closes. Entry is the next 30m bar open.
 - OHLC cannot establish the true intrabar order of stop/target touches. If both are touched in one bar, the stop wins.
 - A stop gap is filled at the adverse bar open reference; otherwise a barrier touch uses the stop/target reference. Both are conservative OHLC proxies, not exchange fill records.
