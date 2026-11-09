@@ -13,6 +13,8 @@ from research_perp_intraday import (
     Trade,
     build_frame,
     fetch_funding,
+    fetch_klines,
+    fetch_mark_prices,
     funding_cashflow,
     latest_contiguous_funding_segment,
     metrics,
@@ -47,6 +49,53 @@ def test_funding_history_uses_bounded_30_day_windows(monkeypatch):
     assert calls[1]["startTime"] == start_ms + chunk_ms
 
 
+def test_candle_loader_pages_1000_bar_windows_and_skips_only_leading_empty(monkeypatch):
+    import research_perp_intraday as research
+
+    interval = INTERVAL_MS
+    start_ms = 1_700_000_000_000 - (1_700_000_000_000 % interval)
+    available_start = start_ms + 2 * interval
+    end_ms = start_ms + 6 * interval + 1
+    calls = []
+
+    def fake_request(_path, params):
+        calls.append(params)
+        return [
+            [
+                ts, "100", "101", "99", "100", "10",
+                ts + interval - 1, "1000", 10, "5", "500",
+            ]
+            for ts in range(params["startTime"], params["endTime"] + 1, interval)
+            if ts >= available_start
+        ][:params["limit"]]
+
+    monkeypatch.setattr(research, "PAGE_KLINES", 2)
+    monkeypatch.setattr(research, "request_json", fake_request)
+    rows = fetch_klines("BTC-USDT", start_ms, end_ms)
+    assert [row[0] for row in rows] == list(range(available_start, start_ms + 6 * interval, interval))
+    assert len(calls) == 3
+
+
+def test_mark_price_loader_pages_bounded_4h_windows(monkeypatch):
+    import research_perp_intraday as research
+
+    interval = 4 * 60 * 60 * 1000
+    base = 1_700_000_000_000 - (1_700_000_000_000 % interval)
+    end_ms = base + 5 * interval + 1
+    calls = []
+
+    def fake_request(_path, params):
+        calls.append(params)
+        return [
+            [ts, "100"]
+            for ts in range(params["startTime"], params["endTime"] + 1, interval)
+        ][:params["limit"]]
+
+    monkeypatch.setattr(research, "PAGE_KLINES", 2)
+    monkeypatch.setattr(research, "request_json", fake_request)
+    prices = fetch_mark_prices("BTC-USDT", base, end_ms)
+    assert len(prices) == 6
+    assert len(calls) == 3
 def test_latest_funding_segment_excludes_gaps_without_imputation():
     funding = [
         {"fundingTime": 0, "fundingRate": "0.0001", "markPrice": "100"},
