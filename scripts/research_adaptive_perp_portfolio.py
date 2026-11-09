@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 SYMBOLS = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
-INTERVAL_MS = {"15m": 900_000, "1h": 3_600_000}
+INTERVAL_MS = {"15m": 900_000, "30m": 1_800_000, "1h": 3_600_000}
 MAX_HOLD_BARS = 36
 NO_PROGRESS_BARS = 2
 NO_PROGRESS_MFE_R = 0.35
@@ -218,7 +218,13 @@ def simulate_symbol(
     symbol: str, x: pd.DataFrame, funding: pd.DataFrame,
     fee_bps: float, spread_bps: float, slippage_bps: float,
     diagnostics: dict[str, Any] | None = None,
+    bar_minutes: int = 15,
 ) -> list[dict]:
+    if bar_minutes not in (15, 30):
+        raise ValueError(f"unsupported signal bar duration: {bar_minutes}")
+    max_hold_bars = 540 // bar_minutes
+    no_progress_bars = 30 // bar_minutes
+    min_progress_exit_bars = 90 // bar_minutes
     trades: list[dict] = []
     if funding.empty:
         raise ValueError(f"{symbol}: no funding history; cannot assume zero")
@@ -260,7 +266,7 @@ def simulate_symbol(
         family_counts[family] = family_counts.get(family, 0) + 1
 
     i = WARMUP_BARS
-    while i < len(x) - MAX_HOLD_BARS - 1:
+    while i < len(x) - max_hold_bars - 1:
         signal = choose_signal(x, i)
         if signal is None:
             i += 1
@@ -295,11 +301,11 @@ def simulate_symbol(
         else:
             target = raw_entry + side * float(signal["target_rr"]) * risk
         entry_time = int(x.iloc[i + 1]["open_time"])
-        exit_i = i + MAX_HOLD_BARS
+        exit_i = i + max_hold_bars
         exit_ref = float(x.iloc[exit_i]["close"])
         reason = "max_hold_9h"
         best_mfe_r = 0.0
-        for j in range(i + 1, i + 1 + MAX_HOLD_BARS):
+        for j in range(i + 1, i + 1 + max_hold_bars):
             bar = x.iloc[j]
             open_px, high, low = float(bar["open"]), float(bar["high"]), float(bar["low"])
             favorable_move = high - raw_entry if side == 1 else raw_entry - low
@@ -323,10 +329,10 @@ def simulate_symbol(
                     exit_i, exit_ref, reason = j, target, "target"
                     break
             held_bars = j - i
-            if held_bars >= NO_PROGRESS_BARS and best_mfe_r < NO_PROGRESS_MFE_R:
+            if held_bars >= no_progress_bars and best_mfe_r < NO_PROGRESS_MFE_R:
                 exit_i, exit_ref, reason = j, float(bar["close"]), "no_progress_30m"
                 break
-            if held_bars >= MIN_PROGRESS_EXIT_BARS and best_mfe_r < MIN_PROGRESS_MFE_R:
+            if held_bars >= min_progress_exit_bars and best_mfe_r < MIN_PROGRESS_MFE_R:
                 exit_i, exit_ref, reason = j, float(bar["close"]), "no_progress_90m"
                 break
         exit_time = int(x.iloc[exit_i]["decision_time"])
@@ -357,12 +363,13 @@ def simulate_symbol(
 
 
 
-def common_15m_coverage_window(coverage: dict[str, dict]) -> dict[str, Any]:
-    """Measure the overlapping 15m history available across every symbol."""
+def common_15m_coverage_window(coverage: dict[str, dict], timeframe: str = "15m") -> dict[str, Any]:
+    """Measure the overlapping signal-timeframe history across every symbol."""
     if not coverage:
         raise ValueError("cannot calculate common 15m window without symbol coverage")
-    start_ms = max(int(item["15m_first"]) for item in coverage.values())
-    end_ms = min(int(item["15m_last"]) for item in coverage.values())
+    start_key, end_key = f"{timeframe}_first", f"{timeframe}_last"
+    start_ms = max(int(item[start_key]) for item in coverage.values())
+    end_ms = min(int(item[end_key]) for item in coverage.values())
     if end_ms < start_ms:
         raise ValueError("BingX symbols have no common 15m history window")
     days = (end_ms - start_ms) / 86_400_000
@@ -452,6 +459,7 @@ def main() -> int:
     parser.add_argument("--fee-bps", type=float, default=5.0)
     parser.add_argument("--spread-bps", type=float, default=2.0)
     parser.add_argument("--slippage-bps", type=float, default=3.0)
+    parser.add_argument("--signal-timeframe", choices=("15m", "30m"), default="15m")
     parser.add_argument("--out", type=Path, default=Path("reports/adaptive_perp"))
     args = parser.parse_args()
     all_trades = []
@@ -459,13 +467,13 @@ def main() -> int:
     signal_diagnostics: dict[str, dict[str, Any]] = {}
     for symbol in SYMBOLS:
         stem = symbol.replace("-", "")
-        m15_path = args.data_dir / f"{stem}_15m.csv"
+        signal_path = args.data_dir / f"{stem}_{args.signal_timeframe}.csv"
         h1_path = args.data_dir / f"{stem}_1h.csv"
         funding_path = args.data_dir / f"funding_{stem}.csv"
-        for path in (m15_path, h1_path, funding_path):
+        for path in (signal_path, h1_path, funding_path):
             if not path.exists():
                 raise SystemExit(f"INCOMPLETE: required BingX source is missing: {path}")
-        m15, h1 = load_bars(m15_path, "15m"), load_bars(h1_path, "1h")
+        signal_bars, h1 = load_bars(signal_path, args.signal_timeframe), load_bars(h1_path, "1h")
         funding = load_funding(funding_path, symbol)
         if funding.empty:
             raise SystemExit(f"INCOMPLETE: {symbol} has no BingX funding history")
@@ -483,13 +491,14 @@ def main() -> int:
         # Earlier funding history contains multi-day/month holes. Use only the
         # latest uninterrupted segment, selected solely on data integrity, never PnL.
         # Trim candles to that segment; do not impute missing funding as zero.
-        m15 = m15[m15.open_time >= int(funding.funding_time.iloc[0])].reset_index(drop=True)
-        if m15.empty:
-            raise SystemExit(f"INCOMPLETE: {symbol} has no candles inside funding coverage")
-        x = add_features(m15, h1)
+        signal_bars = signal_bars[signal_bars.open_time >= int(funding.funding_time.iloc[0])].reset_index(drop=True)
+        if signal_bars.empty:
+            raise SystemExit(f"INCOMPLETE: {symbol} has no {args.signal_timeframe} candles inside funding coverage")
+        x = add_features(signal_bars, h1)
         coverage[symbol] = {
-            "15m_rows": len(m15), "15m_first": int(m15.open_time.iloc[0]),
-            "15m_last": int(m15.open_time.iloc[-1]), "1h_rows": len(h1),
+            f"{args.signal_timeframe}_rows": len(signal_bars),
+            f"{args.signal_timeframe}_first": int(signal_bars.open_time.iloc[0]),
+            f"{args.signal_timeframe}_last": int(signal_bars.open_time.iloc[-1]), "1h_rows": len(h1),
             "1h_first": int(h1.open_time.iloc[0]), "1h_last": int(h1.open_time.iloc[-1]),
             "funding_events": len(funding),
             "funding_events_excluded_before_latest_contiguous_segment": excluded_funding_events,
@@ -502,9 +511,10 @@ def main() -> int:
         all_trades.extend(simulate_symbol(
             symbol, x, funding, args.fee_bps, args.spread_bps, args.slippage_bps,
             diagnostics=symbol_diagnostics,
+            bar_minutes=INTERVAL_MS[args.signal_timeframe] // 60_000,
         ))
         signal_diagnostics[symbol] = symbol_diagnostics
-    common_window = common_15m_coverage_window(coverage)
+    common_window = common_15m_coverage_window(coverage, args.signal_timeframe)
     trade_columns = [
         "symbol", "family", "side", "entry_time", "exit_time", "hold_minutes",
         "exit_reason", "gross_pct", "fee_pct", "spread_pct", "slippage_pct",
@@ -517,10 +527,11 @@ def main() -> int:
         report = {
             "status": "NO_TRADES_RESEARCH_ONLY",
             "holding_rules": {
+                "no_progress_30m_bars": 30 // (INTERVAL_MS[args.signal_timeframe] // 60_000),
                 "no_progress_30m_mfe_r": NO_PROGRESS_MFE_R,
-                "no_progress_90m_bars": MIN_PROGRESS_EXIT_BARS,
+                "no_progress_90m_bars": 90 // (INTERVAL_MS[args.signal_timeframe] // 60_000),
                 "no_progress_90m_mfe_r": MIN_PROGRESS_MFE_R,
-                "max_hold_bars": MAX_HOLD_BARS,
+                "max_hold_bars": 540 // (INTERVAL_MS[args.signal_timeframe] // 60_000),
             },
             "costs": {
                 "fee_bps_per_side": args.fee_bps,
@@ -528,7 +539,8 @@ def main() -> int:
                 "slippage_bps_per_side": args.slippage_bps,
             },
             "coverage": coverage,
-            "common_15m_window": common_window,
+            "common_signal_window": common_window,
+            "signal_timeframe": args.signal_timeframe,
             "signal_diagnostics": signal_diagnostics,
             "by_period": {},
             "by_family": {},
@@ -543,28 +555,31 @@ def main() -> int:
         )
         print(json.dumps(report, indent=2))
         return 0
+    common_start_ms = int(pd.Timestamp(common_window["common_start_utc"]).timestamp() * 1000)
+    common_end_ms = int(pd.Timestamp(common_window["common_end_utc"]).timestamp() * 1000)
+    trades = trades[
+        (trades.entry_time >= common_start_ms)
+        & (trades.exit_time <= common_end_ms)
+    ].copy()
+    split_span = common_end_ms - common_start_ms
+    validation_start_ms = common_start_ms + int(split_span * 0.60)
+    oos_start_ms = common_start_ms + int(split_span * 0.80)
     trades["period"] = np.select(
-        [
-            trades.entry_time < pd.Timestamp("2024-01-01", tz="UTC").timestamp() * 1000,
-            trades.entry_time < pd.Timestamp("2025-01-01", tz="UTC").timestamp() * 1000,
-        ],
+        [trades.entry_time < validation_start_ms, trades.entry_time < oos_start_ms],
         ["IS", "VALIDATION"], default="OOS"
     )
-    calendar_start = pd.to_datetime(
-        min(item["15m_first"] for item in coverage.values()), unit="ms", utc=True
-    ).to_period("M")
-    calendar_end = pd.to_datetime(
-        max(item["15m_last"] for item in coverage.values()), unit="ms", utc=True
-    ).to_period("M")
+    calendar_start = pd.to_datetime(common_window["common_start_utc"], utc=True).to_period("M")
+    calendar_end = pd.to_datetime(common_window["common_end_utc"], utc=True).to_period("M")
     args.out.mkdir(parents=True, exist_ok=True)
     trades.to_csv(args.out / "trades.csv", index=False)
     report = {
         "status": "RESEARCH_ONLY_OHLC_PROXY",
         "holding_rules": {
-            "no_progress_30m_mfe_r": NO_PROGRESS_MFE_R,
-            "no_progress_90m_bars": MIN_PROGRESS_EXIT_BARS,
+            "no_progress_30m_bars": 30 // (INTERVAL_MS[args.signal_timeframe] // 60_000),
+                "no_progress_30m_mfe_r": NO_PROGRESS_MFE_R,
+            "no_progress_90m_bars": 90 // (INTERVAL_MS[args.signal_timeframe] // 60_000),
             "no_progress_90m_mfe_r": MIN_PROGRESS_MFE_R,
-            "max_hold_bars": MAX_HOLD_BARS,
+            "max_hold_bars": 540 // (INTERVAL_MS[args.signal_timeframe] // 60_000),
         },
         "costs": {
             "fee_bps_per_side": args.fee_bps,
@@ -572,14 +587,11 @@ def main() -> int:
             "slippage_bps_per_side": args.slippage_bps,
         },
         "coverage": coverage,
-        "common_15m_window": common_window,
+        "common_signal_window": common_window,
+            "signal_timeframe": args.signal_timeframe,
         "signal_diagnostics": signal_diagnostics,
         "by_period": {
-            period: summarize(
-                group,
-                calendar_start if period == "IS" else pd.Period("2024-01", freq="M") if period == "VALIDATION" else pd.Period("2025-01", freq="M"),
-                pd.Period("2023-12", freq="M") if period == "IS" else pd.Period("2024-12", freq="M") if period == "VALIDATION" else calendar_end,
-            )
+            period: summarize(group)
             for period, group in trades.groupby("period")
         },
         "by_family": {
@@ -605,7 +617,7 @@ def main() -> int:
             )
         },
         "combined": summarize(trades, calendar_start, calendar_end),
-        "warning": "Equal-notional drawdown is a realized-PnL proxy with each trade weighted at 1/max-concurrency of starting equity (peak gross exposure 1x); it omits intratrade mark-to-market, margin and liquidation. Trade-sequence drawdown is also shown. Funding uses entry-notional approximation. OHLC fills are proxies, not confirmed exchange fills. No live/paper activation." + (" Common 15m history is shorter than 12 months; this run is insufficient for a profitability promotion claim." if not common_window["covers_12_months"] else "")
+        "warning": "Equal-notional drawdown is a realized-PnL proxy with each trade weighted at 1/max-concurrency of starting equity (peak gross exposure 1x); it omits intratrade mark-to-market, margin and liquidation. Trade-sequence drawdown is also shown. Funding uses entry-notional approximation. OHLC fills are proxies, not confirmed exchange fills. IS/validation/OOS are chronological 60/20/20 splits of the common signal-timeframe window. No live/paper activation." + (f" Common {args.signal_timeframe} history is shorter than 12 months; this run is insufficient for a profitability promotion claim." if not common_window["covers_12_months"] else "")
     }
     (args.out / "summary.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2))
