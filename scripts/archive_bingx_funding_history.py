@@ -8,10 +8,13 @@ import csv
 import hashlib
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime, time, timedelta
 from itertools import pairwise
 from pathlib import Path
 from typing import Any
+
+from astra_bot.utils.retry import is_exchange_endpoint_cooldown_error
 
 from astra_bot.adapters.bingx.client import (
     BINGX_API_BASE,
@@ -52,6 +55,25 @@ def _rows_from_response(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
+async def _call_with_cooldown(
+    operation: Callable[[], Awaitable[Any]], *, label: str
+) -> Any:
+    """Retry only BingX's HTTP-200 100410 cooldown response after its wait."""
+    delays = (5.0, 30.0, 60.0)
+    for attempt in range(4):
+        try:
+            return await operation()
+        except Exception as exc:
+            if not is_exchange_endpoint_cooldown_error(exc) or attempt == 3:
+                raise
+            delay = delays[attempt]
+            LOGGER.warning(
+                "%s returned BingX 100410; retry %d/4 in %.0fs",
+                label, attempt + 2, delay,
+            )
+            await asyncio.sleep(delay)
+    raise RuntimeError(f"{label}: BingX cooldown retries exhausted")
+
 async def download_symbol(
     client: BingXClient, symbol: str, start_ms: int, end_ms: int
 ) -> dict[str, Any]:
@@ -63,15 +85,18 @@ async def download_symbol(
             end_ms,
             cursor + int(timedelta(days=CHUNK_DAYS).total_seconds() * 1000) - 1,
         )
-        response = await client._request(
-            "GET",
-            BINGX_ENDPOINTS["swap"]["funding_rate"],
-            params={
-                "symbol": symbol,
-                "startTime": cursor,
-                "endTime": chunk_end,
-                "limit": 1000,
-            },
+        response = await _call_with_cooldown(
+            lambda cursor=cursor, chunk_end=chunk_end: client._request(
+                "GET",
+                BINGX_ENDPOINTS["swap"]["funding_rate"],
+                params={
+                    "symbol": symbol,
+                    "startTime": cursor,
+                    "endTime": chunk_end,
+                    "limit": 1000,
+                },
+            ),
+            label=f"BingX funding {symbol} {cursor}",
         )
         chunk_rows = _rows_from_response(response)
         accepted = 0
