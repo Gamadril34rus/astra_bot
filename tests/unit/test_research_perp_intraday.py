@@ -1,0 +1,240 @@
+import json
+import math
+import sys
+from pathlib import Path
+
+import pandas as pd
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+
+from research_perp_intraday import (
+    INTERVAL_MS,
+    Trade,
+    build_frame,
+    funding_cashflow,
+    metrics,
+    net_trade_return,
+    resolve_barrier_exit,
+    run_backtest,
+    validate_market_data,
+    write_report,
+)
+
+
+def test_positive_funding_is_paid_by_long_and_received_by_short():
+    assert funding_cashflow(1, 0.001, 100.0, 100.0) == -0.001
+    assert funding_cashflow(-1, 0.001, 100.0, 100.0) == 0.001
+    assert funding_cashflow(1, -0.001, 100.0, 100.0) == 0.001
+
+
+def test_flat_trade_is_negative_after_fees_and_adverse_slippage():
+    net, fees, price_return = net_trade_return(
+        side=1,
+        entry_raw=100.0,
+        exit_raw=100.0,
+        slippage=0.001,
+        fee_per_side=0.0005,
+        funding_return=0.0,
+    )
+    assert net < 0
+    assert fees > 0
+    assert price_return < 0
+
+
+def test_same_bar_stop_and_target_uses_stop_first_for_both_sides():
+    assert resolve_barrier_exit(1, 100.0, 103.0, 97.0, 98.0, 102.0) == (98.0, "stop")
+    assert resolve_barrier_exit(-1, 100.0, 103.0, 97.0, 102.0, 98.0) == (102.0, "stop")
+
+
+def _synthetic_frame(bar_count: int = 22) -> pd.DataFrame:
+    index = pd.date_range("2026-01-01", periods=bar_count, freq="30min", tz="UTC")
+    frame = pd.DataFrame(index=index)
+    frame["open"] = 100.0
+    frame["high"] = 100.3
+    frame["low"] = 99.8
+    frame["close"] = 100.1
+    frame["atr"] = 1.0
+    frame["bb_mid"] = 100.0
+    return frame
+
+
+def test_no_progress_exit_happens_after_one_completed_30m_bar(monkeypatch):
+    import research_perp_intraday as research
+
+    frame = _synthetic_frame(5)
+    masks = {
+        (name, side): pd.Series(False, index=frame.index)
+        for name in research.STRATEGIES
+        for side in (1, -1)
+    }
+    masks[("trend_pullback", 1)].iloc[0] = True
+    monkeypatch.setattr(research, "signal_masks", lambda _: masks)
+    trades = run_backtest("BTCUSDT", frame, [], "trend_pullback", 1, 0.001)
+    assert len(trades) == 1
+    assert trades[0].exit_reason == "no_progress_30m"
+    assert trades[0].hold_minutes == 30
+
+
+def test_hard_hold_cap_is_nine_hours(monkeypatch):
+    import research_perp_intraday as research
+
+    frame = _synthetic_frame(24)
+    frame["high"] = 101.0  # MFE clears 0.35R, so the no-progress exit does not fire.
+    frame["low"] = 99.9
+    frame["close"] = 100.4
+    masks = {
+        (name, side): pd.Series(False, index=frame.index)
+        for name in research.STRATEGIES
+        for side in (1, -1)
+    }
+    masks[("trend_pullback", 1)].iloc[0] = True
+    monkeypatch.setattr(research, "signal_masks", lambda _: masks)
+    trades = run_backtest("BTCUSDT", frame, [], "trend_pullback", 1, 0.001)
+    assert len(trades) == 1
+    assert trades[0].exit_reason == "max_hold_9h"
+    assert trades[0].hold_minutes == 9 * 60
+
+
+def test_metrics_pf_uses_net_trade_results():
+    trades = [
+        Trade(
+            "BTCUSDT", "trend_pullback", "LONG",
+            "2026-01-01T00:00:00+00:00", "2026-01-01T00:30:00+00:00",
+            30, 100, 102, 98, 103, "take", 2, 2, 0.1, 0.1, 0, 1.8, 0.90, 0.15,
+        ),
+        Trade(
+            "BTCUSDT", "trend_pullback", "SHORT",
+            "2026-01-01T01:00:00+00:00", "2026-01-01T01:30:00+00:00",
+            30, 100, 101, 102, 97, "stop", 2, -1, 0.1, 0.1, 0, -1.2, -0.60, 0.15,
+        ),
+    ]
+    result = metrics(trades)
+    assert math.isclose(result["pf"], 1.8 / 1.2)
+    assert result["n"] == 2
+
+
+def test_write_report_serializes_nested_strategy_trade_map(tmp_path):
+    trade = Trade(
+        "BTCUSDT", "trend_pullback", "LONG",
+        "2026-01-01T00:00:00+00:00", "2026-01-01T00:30:00+00:00",
+        30, 100, 101, 98, 103, "take", 2, 1, 0.1, 0.1, 0,
+        0.8, 0.4, 0.15,
+    )
+    result = {
+        "base_30bps_rt": {
+            "BTCUSDT": {
+                name: [trade] if name == "trend_pullback" else []
+                for name in ("trend_pullback", "trend_expansion", "range_reversion")
+            }
+        },
+        "stress_40bps_rt": {
+            "BTCUSDT": {
+                name: []
+                for name in ("trend_pullback", "trend_expansion", "range_reversion")
+            }
+        },
+    }
+    manifest = {
+        "data_cutoff_utc": "2026-11-09T00:00:00+00:00",
+        "symbols": {
+            "BTCUSDT": {
+                "first_bar_utc": "2021-01-01T00:00:00+00:00",
+                "last_bar_utc": "2026-11-08T23:30:00+00:00",
+                "bars": 100000,
+                "funding_events": 5000,
+            }
+        },
+    }
+    write_report(tmp_path, manifest, result)
+    trades = pd.read_csv(tmp_path / "trades.csv")
+    assert len(trades) == 1
+    assert trades.iloc[0]["strategy"] == "trend_pullback"
+    assert trades.iloc[0]["slippage_pct"] == 0.1
+    report = (tmp_path / "report.md").read_text(encoding="utf-8")
+    assert "Aggregate IS and OOS" in report
+    assert "mean holding <= 90 minutes" in report
+    assert json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))["symbols"]["BTCUSDT"]["bars"] == 100000
+
+
+def _valid_market_fixture(count=500):
+    start = 1_700_000_000_000
+    start -= start % INTERVAL_MS
+    klines = []
+    for index in range(count):
+        ts = start + index * INTERVAL_MS
+        klines.append([
+            ts, "100", "101", "99", "100", "10", ts + INTERVAL_MS - 1,
+            "1000", 10, "5", "500", "0",
+        ])
+    funding = []
+    funding_ts = start + 8 * 60 * 60 * 1000
+    end = start + count * INTERVAL_MS
+    while funding_ts < end:
+        funding.append({"fundingTime": funding_ts, "fundingRate": "0.0001", "markPrice": "100"})
+        funding_ts += 8 * 60 * 60 * 1000
+    return start, klines, funding, end
+
+
+def test_market_validation_requires_usdt_perpetual_and_complete_funding():
+    _, klines, funding, end = _valid_market_fixture(count=501)
+    contract = {"contractType": "PERPETUAL", "quoteAsset": "USDT", "status": "TRADING"}
+    validate_market_data("BTCUSDT", contract, klines, funding, end)
+    with pytest.raises(ValueError, match="not a USDT perpetual"):
+        validate_market_data(
+            "BTCUSDT",
+            {**contract, "contractType": "CURRENT_QUARTER"},
+            klines,
+            funding,
+            end,
+        )
+    with pytest.raises(ValueError, match="missing or irregular 30m intervals"):
+        validate_market_data("BTCUSDT", contract, klines[:10] + klines[11:], funding, end)
+
+
+def test_contract_onboard_date_prevents_pre_listing_prices():
+    _, klines, funding, end = _valid_market_fixture()
+    contract = {
+        "contractType": "PERPETUAL",
+        "quoteAsset": "USDT",
+        "status": "TRADING",
+        "onboardDate": int(klines[1][0]),
+    }
+    with pytest.raises(ValueError, match="predates contract onboardDate"):
+        validate_market_data("BTCUSDT", contract, klines, funding, end)
+
+
+def test_hourly_context_is_never_from_a_future_hour():
+    rows = []
+    start = 1_700_000_000_000
+    start -= start % INTERVAL_MS
+    for index in range(100):
+        ts = start + index * INTERVAL_MS
+        price = 100 + index * 0.01
+        rows.append([
+            ts, price, price + 0.2, price - 0.2, price + 0.05, 10,
+            ts + INTERVAL_MS - 1, 1000, 10, 5, 500, 0,
+        ])
+    frame = build_frame(rows)
+    base = frame.reset_index()
+    assert (base["available_at"].isna() | (base["available_at"] <= base["decision_at"])).all()
+    assert pd.isna(frame.iloc[0]["htf_close"])
+    assert pd.notna(frame.iloc[1]["htf_close"])
+
+
+def test_base_and_stress_cost_scenarios_share_same_cost_eligibility(monkeypatch):
+    import research_perp_intraday as research
+
+    frame = _synthetic_frame(5)
+    frame["atr"] = 0.5  # 0.675% stop width; fails the frozen 0.40R stress-cost gate.
+    masks = {
+        (name, side): pd.Series(False, index=frame.index)
+        for name in research.STRATEGIES
+        for side in (1, -1)
+    }
+    masks[("trend_pullback", 1)].iloc[0] = True
+    monkeypatch.setattr(research, "signal_masks", lambda _: masks)
+    base = run_backtest("BTCUSDT", frame, [], "trend_pullback", 1, research.BASE_SLIPPAGE_PER_SIDE)
+    stress = run_backtest("BTCUSDT", frame, [], "trend_pullback", 1, research.STRESS_SLIPPAGE_PER_SIDE)
+    assert base == []
+    assert stress == []
