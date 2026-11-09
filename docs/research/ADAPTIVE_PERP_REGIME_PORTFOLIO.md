@@ -63,7 +63,7 @@ The router assigns each closed 15m decision bar to at most one family, in priori
 
 ## Validation
 - Source must be BingX USDT-M swap klines, not spot and not Binance substitute data.
-- Validate OHLCV, duplicates, gaps, symbol coverage, timestamps, contract listing windows, funding intervals and data checksums.
+- Validate OHLCV, duplicates, gaps, symbol coverage, timestamps, contract listing windows, funding intervals and SHA-256 checksums recorded in both archive manifests.
 - Chronological periods: IS through 2023-12-31; validation 2024; OOS from 2025-01-01. HYPE's shorter listing history is reported separately and is not pooled into pre-listing periods.
 - No parameter search on OOS. Compare each family, each side, each symbol, and the router.
 - Report PF, net expectancy, win rate, median/mean/P90 holding time, monthly positive share, drawdown, exposure and concurrent positions.
