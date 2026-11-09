@@ -96,15 +96,18 @@ async def test_sync_closed_plans_only_cancels_and_removes_flat_hedge_leg(
     assert get_plan("BTC-USDT", positions_path, side="short") is not None
 
 
+@pytest.mark.parametrize("reported_side", ["long", None])
 @pytest.mark.asyncio
 async def test_restore_does_not_drop_plan_after_unconfirmed_market_close(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reported_side: str | None,
 ) -> None:
     monkeypatch.chdir(tmp_path)
     positions_path = tmp_path / "models" / "zeus_live_positions.json"
     position = SimpleNamespace(
         symbol="ETH-USDT",
-        side="long",
+        side=reported_side,
         quantity=Decimal("1"),
     )
     close_calls: list[tuple[str, str]] = []
