@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-
 from scripts.archive_bingx_funding_history import _rows_from_response
 from scripts.research_adaptive_perp_portfolio import (
     MAX_HOLD_BARS,
