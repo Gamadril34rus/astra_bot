@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
+from scripts.archive_bingx_funding_history import _rows_from_response
 from scripts.research_adaptive_perp_portfolio import (
     MAX_HOLD_BARS,
     add_features,
@@ -55,3 +56,19 @@ def test_loader_rejects_duplicate_timestamps(tmp_path) -> None:
     _bars([0, 900_000, 900_000], 900_000).to_csv(path, index=False)
     with pytest.raises(ValueError, match="duplicate"):
         load_bars(path, "15m")
+
+
+
+def test_funding_parser_reads_bingx_funding_records() -> None:
+    rows = _rows_from_response({
+        "code": 0,
+        "data": [
+            {"symbol": "BTC-USDT", "fundingTime": 1_700_000_000_000, "fundingRate": "0.0001"}
+        ],
+    })
+    assert rows == [{"funding_time": 1_700_000_000_000, "rate": "0.0001"}]
+
+
+def test_funding_parser_rejects_incomplete_record() -> None:
+    with pytest.raises(ValueError, match="missing time/rate"):
+        _rows_from_response({"code": 0, "data": [{"fundingTime": 1_700_000_000_000}]})
