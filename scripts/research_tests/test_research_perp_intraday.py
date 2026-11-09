@@ -367,7 +367,17 @@ def test_base_and_stress_cost_scenarios_share_same_cost_eligibility(monkeypatch)
     }
     masks[("trend_pullback", 1)].iloc[0] = True
     monkeypatch.setattr(research, "signal_masks", lambda _: masks)
-    base = run_backtest("BTC-USDT", frame, [], "trend_pullback", 1, research.BASE_SLIPPAGE_PER_SIDE)
-    stress = run_backtest("BTC-USDT", frame, [], "trend_pullback", 1, research.STRESS_SLIPPAGE_PER_SIDE)
+    diagnostics = {}
+    base = run_backtest(
+        "BTC-USDT", frame, [], "trend_pullback", 1,
+        research.BASE_SLIPPAGE_PER_SIDE, diagnostics,
+    )
+    stress = run_backtest(
+        "BTC-USDT", frame, [], "trend_pullback", 1,
+        research.STRESS_SLIPPAGE_PER_SIDE,
+    )
     assert base == []
     assert stress == []
+    assert diagnostics["raw_signals"] == 1
+    assert diagnostics["cost_rejected"] == 1
+    assert diagnostics["completed_trades"] == 0
