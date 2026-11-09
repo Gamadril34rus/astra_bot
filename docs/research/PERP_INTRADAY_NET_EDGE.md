@@ -15,7 +15,7 @@ This is a new candidate family, not a claim that EMA pullbacks are profitable. I
 2. Regime: last **fully closed** 1h candle. LONG only if EMA20 > EMA50 and EMA20 is rising over the prior 3 closed 1h bars; SHORT is symmetric. No signal when trend direction is ambiguous.
 3. Setup: 15m price has pulled back toward EMA20 while remaining on the trend side of EMA50. The pullback must occur within the previous 4 closed 15m bars; no chasing an extended candle.
 4. Trigger: a closed 15m candle reclaims EMA20 and closes beyond the previous candle's high (LONG) / low (SHORT), with quote-volume at least 1.2x its trailing 20-bar mean. Signal is evaluated only after candle close; entry is the next bar's executable open proxy.
-5. Initial stop: beyond the pullback swing extreme with a 0.15 ATR(14) buffer. Reject if stop distance is below 0.35 ATR or above 1.8 ATR; reject if expected gross reward to the next opposing structure is less than 1.5R.
+5. Initial stop: beyond the pullback swing extreme with a 0.15 ATR(14) buffer. Reject if stop distance is below 0.35 ATR or above 1.8 ATR. The frozen target is 1.5R; no structure-derived target is used in v0.
 6. Exit hypothesis: initial target 1.5R; stop-first if stop and target are both touched in one OHLC bar; time-stop at 36 × 15m bars (9h). Report actual holding-time distribution; the target is a median near 30m, not a forced early exit.
 7. No averaging down, grid, martingale, add-ons, re-entry while the same symbol-side trade is open, or simultaneous LONG+SHORT on one symbol.
 
