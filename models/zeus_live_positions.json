@@ -27,7 +27,7 @@
       "symbol": "ETH-USDT",
       "side": "short",
       "qty": "3.5003846",
-      "stop": "2152.08",
+      "stop": "2150.49",
       "tp": "2047.53086895833388",
       "entry": "2128.24",
       "leverage": 6,
@@ -43,7 +43,7 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "2094.81",
+      "peak_low": "2093.22",
       "be_earned": true,
       "migrate_stop_v1": true,
       "current_regime": "WEAK_BEAR_TREND"
@@ -88,7 +88,13 @@
       "opened_at_ms": 1794211695595,
       "plan_qty": "130.01649445",
       "qty_ratio": 1.0,
-      "tp1": "70.413514488095253"
+      "tp1": "70.413514488095253",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "72.622",
+      "be_earned": true,
+      "current_regime": "WEAK_BEAR_TREND"
     },
     "INJ-USDT|long": {
       "symbol": "INJ-USDT",
@@ -106,8 +112,13 @@
       "opened_at_ms": 1794211711888,
       "plan_qty": "5079.59260656",
       "qty_ratio": 1.0,
-      "tp1": "8.008671"
+      "tp1": "8.008671",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_high": "7.942",
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1794211711.8886456
+  "ts": 1794212010.6714158
 }
