@@ -2245,8 +2245,6 @@ async def detect_ghost_positions(
             qty_d = 0.0
         if not sym or qty_d <= 0:
             continue
-        if sym in plan_syms:
-            continue
         entry = getattr(pos, "entry_price", None) or getattr(pos, "avg_price", None)
         side = _normalize_plan_side(getattr(pos, "side", None))
         side_label = side or "unknown"
