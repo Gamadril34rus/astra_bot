@@ -4,18 +4,17 @@ from __future__ import annotations
 import asyncio
 import json
 from decimal import Decimal
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 
 def test_ghost_position_journals_and_warns(tmp_path, monkeypatch):
+    from astra_bot.decision.live_positions import upsert_plan
     from scripts import zeus_live_clock as z
 
     monkeypatch.chdir(tmp_path)
     (tmp_path / "models").mkdir()
     # plan only for BTC — SOL is ghost on exchange
-    from astra_bot.decision.live_positions import upsert_plan, save_positions
 
     pos_path = tmp_path / "models" / "zeus_live_positions.json"
     upsert_plan(
@@ -154,8 +153,8 @@ def test_entry_save_failure_surfaces_as_ghost_next_tick(tmp_path, monkeypatch):
 
 
 def test_ghost_position_detects_unplanned_opposite_hedge_leg(tmp_path, monkeypatch):
-    from scripts import zeus_live_clock as z
     from astra_bot.decision.live_positions import upsert_plan
+    from scripts import zeus_live_clock as z
 
     monkeypatch.chdir(tmp_path)
     (tmp_path / "models").mkdir()
