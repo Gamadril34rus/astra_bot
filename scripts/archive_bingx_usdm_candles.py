@@ -388,7 +388,7 @@ async def _download_pair(
             "mode": mode,
             "contract_launch_time": launch_ms,
             "funding_segment_start_time": funding_start_ms,
-            "effective_start_time": cursor_start if not incoming else min(incoming),
+            "effective_start_time": min(merged) if merged else None,
             "new_bars": len(set(merged) - set(existing)),
             "verified_overlap_bars": len(set(incoming) & set(existing)),
             "pages_requested": pages,
