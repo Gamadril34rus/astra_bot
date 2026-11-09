@@ -161,6 +161,17 @@ def retry(
     return decorator
 
 
+def is_exchange_endpoint_cooldown_error(exc: BaseException) -> bool:
+    """Detect BingX 100410 from structured code or its explicit cooldown message."""
+    if str(getattr(exc, "code", "")) == "100410":
+        return True
+    message = str(exc).lower()
+    return "bingx" in message and (
+        "100410" in message
+        or ("endpoint trigger frequency limit" in message and "disabled period" in message)
+    )
+
+
 def retry_async(
     attempts: int = 3,
     delays: tuple[float, ...] = (2.0, 5.0, 15.0),
@@ -209,6 +220,17 @@ def retry_async(
                         if log_errors:
                             _log_error_to_file(exc, func.__name__)
                 except Exception as exc:
+                    # BingX 100410 is an endpoint-level cooldown, not a transient
+                    # transport failure. Retrying during the disabled period is useless.
+                    if is_exchange_endpoint_cooldown_error(exc):
+                        logger.warning(
+                            "%s stopped retrying: BingX income endpoint cooldown: %s",
+                            func.__name__,
+                            exc,
+                        )
+                        if fallback is not None:
+                            return fallback
+                        raise
                     # For API errors that are not in retryable list but should be retried
                     # Check by name: RateLimit, HTTPError, etc.
                     exc_name = type(exc).__name__
