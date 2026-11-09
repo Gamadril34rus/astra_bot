@@ -251,20 +251,22 @@ def simulate_symbol(
         exit_time = int(x.iloc[exit_i]["decision_time"])
         gross = side * (exit_ref / raw_entry - 1.0)
         fee_cost = 2 * fee_bps / 10_000
-        execution_cost = 2 * (spread_bps + slippage_bps) / 10_000
+        spread_cost = 2 * spread_bps / 10_000
+        slippage_cost = 2 * slippage_bps / 10_000
         crossed = funding[
             (funding["funding_time"] >= entry_time)
             & (funding["funding_time"] <= exit_time)
         ]
         funding_cost = funding_cost_fraction(side, crossed["rate"])
-        net = gross - fee_cost - execution_cost - funding_cost
+        net = gross - fee_cost - spread_cost - slippage_cost - funding_cost
         trades.append({
             "symbol": symbol, "family": signal["family"],
             "side": "LONG" if side == 1 else "SHORT",
             "entry_time": entry_time, "exit_time": exit_time,
             "hold_minutes": (exit_time - entry_time) / 60_000,
             "exit_reason": reason, "gross_pct": gross * 100,
-            "fee_pct": fee_cost * 100, "spread_slippage_pct": execution_cost * 100,
+            "fee_pct": fee_cost * 100, "spread_pct": spread_cost * 100,
+            "slippage_pct": slippage_cost * 100,
             "funding_pct": funding_cost * 100, "net_pct": net * 100,
             "net_r": net / (risk / raw_entry),
         })
@@ -364,8 +366,8 @@ def main() -> int:
         raise SystemExit("NO_TRADES: frozen router produced no completed trades")
     trades["period"] = np.select(
         [
-            trades.exit_time < pd.Timestamp("2024-01-01", tz="UTC").timestamp() * 1000,
-            trades.exit_time < pd.Timestamp("2025-01-01", tz="UTC").timestamp() * 1000,
+            trades.entry_time < pd.Timestamp("2024-01-01", tz="UTC").timestamp() * 1000,
+            trades.entry_time < pd.Timestamp("2025-01-01", tz="UTC").timestamp() * 1000,
         ],
         ["IS", "VALIDATION"], default="OOS"
     )
