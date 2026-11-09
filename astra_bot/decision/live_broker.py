@@ -1351,6 +1351,24 @@ class LiveBroker:
                                 })
                             except Exception:
                                 pass
+                            # Journal every failure, but rate-limit owner alerts per hedge leg.
+                            warn_key = f"tp_restore|{symbol}|{side}"
+                            now = time.time()
+                            try:
+                                last_warn = float(warn_state.get(warn_key) or 0.0)
+                            except (TypeError, ValueError):
+                                last_warn = 0.0
+                            if now - last_warn >= 3600:
+                                if send_tg is not None:
+                                    try:
+                                        await send_tg(
+                                            f"⚠️ {symbol} {side.upper()}: биржа отклонила восстановление TP; "
+                                            "действующий STOP сохранён"
+                                        )
+                                    except Exception:
+                                        pass
+                                warn_state[warn_key] = now
+                                warn_state_changed = True
                     restored.append(symbol)
                     restored_legs.append(f"{symbol}|{side}")
                     continue
