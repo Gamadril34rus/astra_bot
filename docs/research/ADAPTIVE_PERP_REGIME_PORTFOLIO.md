@@ -55,8 +55,8 @@ The router assigns each closed 15m decision bar to at most one family, in priori
 - Target: 15m EMA20 at signal time; reject if reward/risk < 1.0.
 
 ## Costs and funding
-- Base taker fee: 5 bps per side; book-crossing spread proxy: 0.5 bps per side; adverse slippage proxy: 2 bps per side (15 bps round trip combined).
-- Stress all execution costs at 1.5x (7.5 bps fee + 0.75 bps spread + 3 bps slippage per side; 22.5 bps round trip). Signal eligibility is frozen to the stress model: reject if round-trip stress cost exceeds 0.40R. This keeps base/stress runs on the same trade population. The reduced spread/slippage assumptions are calibrated against current BingX depth snapshots, but remain estimates and require VST verification.
+- Base taker fee: 5 bps per side; book-crossing spread proxy: 1.25 bps per side; adverse slippage proxy: 2 bps per side (16.5 bps round trip combined).
+- Stress all execution costs at 1.5x (7.5 bps fee + 1.875 bps spread + 3 bps slippage per side; 24.75 bps round trip). Signal eligibility is frozen to the stress model: reject if round-trip stress cost exceeds 0.40R. This keeps base/stress runs on the same trade population. Spread proxy is set slightly above the widest current $10k round-trip book snapshot observed (INJ: 2.439 bps); these are still estimates and require VST verification.
 - Funding is charged only at actual settlement timestamps crossed by the position, using signed symbol-specific BingX funding rates. Positive funding rate is paid by LONG and received by SHORT. Missing funding coverage is INCOMPLETE, never zero.
 - Gross return, taker fees, spread, slippage, funding and net return are separate ledger columns.
 - Funding gaps >12h are not imputed. For a symbol with older funding holes, only its latest uninterrupted funding segment is eligible; earlier candle bars are excluded and the excluded funding count/window is reported.
