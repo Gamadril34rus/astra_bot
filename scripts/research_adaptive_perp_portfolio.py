@@ -168,6 +168,11 @@ def choose_signal(x: pd.DataFrame, i: int) -> dict | None:
     return None
 
 
+def funding_cost_fraction(side: int, rates: pd.Series) -> float:
+    """Positive funding rate is paid by LONG and received by SHORT."""
+    return float(rates.sum()) * side
+
+
 def simulate_symbol(
     symbol: str, x: pd.DataFrame, funding: pd.DataFrame,
     fee_bps: float, spread_bps: float, slippage_bps: float,
@@ -237,7 +242,7 @@ def simulate_symbol(
             (funding["funding_time"] >= entry_time)
             & (funding["funding_time"] <= exit_time)
         ]
-        funding_cost = float(crossed["rate"].sum()) * side
+        funding_cost = funding_cost_fraction(side, crossed["rate"])
         net = gross - fee_cost - execution_cost - funding_cost
         trades.append({
             "symbol": symbol, "family": signal["family"],
