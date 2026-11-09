@@ -391,7 +391,15 @@ def main() -> int:
         funding = load_funding(funding_path, symbol)
         if funding.empty:
             raise SystemExit(f"INCOMPLETE: {symbol} has no BingX funding history")
+        raw_funding = funding
         funding, excluded_funding_events = latest_contiguous_funding_segment(funding)
+        excluded_funding_first = (
+            int(raw_funding.funding_time.iloc[0]) if excluded_funding_events else None
+        )
+        excluded_funding_last = (
+            int(raw_funding.funding_time.iloc[excluded_funding_events - 1])
+            if excluded_funding_events else None
+        )
         if funding.empty:
             raise SystemExit(f"INCOMPLETE: {symbol} has no contiguous BingX funding segment")
         # Earlier funding history contains multi-day/month holes. Use only the
@@ -407,6 +415,8 @@ def main() -> int:
             "1h_first": int(h1.open_time.iloc[0]), "1h_last": int(h1.open_time.iloc[-1]),
             "funding_events": len(funding),
             "funding_events_excluded_before_latest_contiguous_segment": excluded_funding_events,
+            "excluded_funding_first": excluded_funding_first,
+            "excluded_funding_last": excluded_funding_last,
             "funding_first": int(funding.funding_time.iloc[0]) if not funding.empty else None,
             "funding_last": int(funding.funding_time.iloc[-1]) if not funding.empty else None,
         }
