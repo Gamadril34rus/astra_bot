@@ -24,7 +24,15 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-BASE_URL = "https://fapi.binance.com"
+BASE_URL = "https://open-api.bingx.com"
+API_MIN_INTERVAL_S = 1.05
+_last_request_monotonic = 0.0
+KLINES_ENDPOINT = "/openApi/swap/v3/quote/klines"
+CONTRACTS_ENDPOINT = "/openApi/swap/v2/quote/contracts"
+FUNDING_ENDPOINT = "/openApi/swap/v2/quote/fundingRate"
+MARK_KLINES_ENDPOINT = "/openApi/swap/v1/market/markPriceKlines"
+PAGE_KLINES = 1440
+PAGE_FUNDING = 1000
 INTERVAL = "30m"
 INTERVAL_MS = 30 * 60 * 1000
 FEE_PER_SIDE = 0.0005
@@ -35,10 +43,9 @@ NO_PROGRESS_BARS = 1
 NO_PROGRESS_MFE_R = 0.35
 MAX_COST_TO_R = 0.40
 
-# A common lower bound is used for every contract. Actual history starts at
-# max(2021-01-01, exchangeInfo.onboardDate), never at a guessed listing date.
+# Each market history starts at the later of 2021-01-01 UTC and BingX launchTime.
 DATA_START_FLOOR = "2021-01-01"
-SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT", "HYPEUSDT", "INJUSDT")
+SYMBOLS = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
 
 STRATEGIES = {
     "trend_pullback": {"stop_atr": 1.35, "target_r": 1.50, "target_mode": "fixed"},
@@ -79,13 +86,64 @@ def request_json(path: str, params: dict[str, Any], retries: int = 5) -> Any:
     raise RuntimeError(f"request failed after {retries} attempts: {path}: {last_error}")
 
 
+def unwrap_data(payload: Any, path: str) -> list[Any]:
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"{path}: invalid BingX response object")
+    if str(payload.get("code", 0)) not in {"0", "None"}:
+        raise RuntimeError(f"{path}: BingX code={payload.get('code')} msg={payload.get('msg')}")
+    data = payload.get("data")
+    if isinstance(data, dict):
+        for key in ("klines", "fundingRates", "data"):
+            if key in data:
+                data = data[key]
+                break
+    if data is None:
+        return []
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        return [data]
+    raise RuntimeError(f"{path}: unexpected data payload type {type(data).__name__}")
+
+
+def request_json(path: str, params: dict[str, Any], retries: int = 5) -> list[Any]:
+    global _last_request_monotonic
+    query = urllib.parse.urlencode(params)
+    url = f"{BASE_URL}{path}?{query}"
+    last_error: Exception | None = None
+    for attempt in range(retries):
+        elapsed = time.monotonic() - _last_request_monotonic
+        if elapsed < API_MIN_INTERVAL_S:
+            time.sleep(API_MIN_INTERVAL_S - elapsed)
+        request = urllib.request.Request(url, headers={"User-Agent": "astra-bot-bingx-perp-research/1.0"})
+        _last_request_monotonic = time.monotonic()
+        try:
+            with urllib.request.urlopen(request, timeout=45) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            return unwrap_data(payload, path)
+        except urllib.error.HTTPError as exc:
+            if exc.code not in (418, 429, 500, 502, 503, 504):
+                raise RuntimeError(f"{path} returned HTTP {exc.code}: {exc.read()[:300]!r}") from exc
+            last_error = exc
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
+            last_error = exc
+        time.sleep(min(2 ** attempt, 20))
+    raise RuntimeError(f"request failed after {retries} attempts: {path}: {last_error}")
+
+
 def get_perpetual_contracts() -> dict[str, dict[str, Any]]:
-    payload = request_json("/fapi/v1/exchangeInfo", {})
-    return {
-        row["symbol"]: row
-        for row in payload.get("symbols", [])
-        if row.get("contractType") == "PERPETUAL" and row.get("quoteAsset") == "USDT"
-    }
+    contracts = request_json(CONTRACTS_ENDPOINT, {})
+    result = {}
+    for row in contracts:
+        symbol = str(row.get("symbol", "")).upper()
+        if (
+            symbol.endswith("-USDT")
+            and str(row.get("currency", "")).upper() == "USDT"
+            and str(row.get("status", "")) == "1"
+            and str(row.get("apiStateOpen", "true")).lower() == "true"
+        ):
+            result[symbol] = row
+    return result
 
 
 def fetch_klines(symbol: str, start_ms: int, end_ms: int) -> list[list[Any]]:
@@ -93,19 +151,30 @@ def fetch_klines(symbol: str, start_ms: int, end_ms: int) -> list[list[Any]]:
     cursor = start_ms
     while cursor < end_ms:
         page = request_json(
-            "/fapi/v1/klines",
-            {"symbol": symbol, "interval": INTERVAL, "startTime": cursor, "endTime": end_ms - 1, "limit": 1500},
+            KLINES_ENDPOINT,
+            {"symbol": symbol, "interval": INTERVAL, "startTime": cursor, "endTime": end_ms - 1, "limit": PAGE_KLINES},
         )
         if not page:
             break
-        rows.extend(page)
-        next_cursor = int(page[-1][0]) + INTERVAL_MS
+        normalized_page = []
+        for row in page:
+            if isinstance(row, dict):
+                normalized_page.append([
+                    row.get("time", row.get("openTime")), row.get("open"), row.get("high"),
+                    row.get("low"), row.get("close"), row.get("volume"),
+                    row.get("closeTime", 0), row.get("quoteVolume", 0), row.get("n", 0),
+                    row.get("takerBuyBaseVolume", 0), row.get("takerBuyQuoteVolume", 0),
+                ])
+            else:
+                normalized_page.append(list(row) + [0] * max(0, 11 - len(row)))
+        normalized_page.sort(key=lambda row: int(row[0]))
+        rows.extend(normalized_page)
+        next_cursor = int(normalized_page[-1][0]) + INTERVAL_MS
         if next_cursor <= cursor:
-            raise RuntimeError(f"non-advancing kline cursor for {symbol}: {cursor} -> {next_cursor}")
+            raise RuntimeError(f"non-advancing BingX kline cursor for {symbol}")
         cursor = next_cursor
-        if len(page) < 1500:
+        if len(page) < PAGE_KLINES:
             break
-        time.sleep(0.08)
     return rows
 
 
@@ -114,19 +183,73 @@ def fetch_funding(symbol: str, start_ms: int, end_ms: int) -> list[dict[str, Any
     cursor = start_ms
     while cursor < end_ms:
         page = request_json(
-            "/fapi/v1/fundingRate",
-            {"symbol": symbol, "startTime": cursor, "endTime": end_ms - 1, "limit": 1000},
+            FUNDING_ENDPOINT,
+            {"symbol": symbol, "startTime": cursor, "endTime": end_ms - 1, "limit": PAGE_FUNDING},
         )
         if not page:
             break
-        rows.extend(page)
-        next_cursor = int(page[-1]["fundingTime"]) + 1
-        if next_cursor <= cursor:
-            raise RuntimeError(f"non-advancing funding cursor for {symbol}")
-        cursor = next_cursor
-        if len(page) < 1000:
+        normalized = []
+        for row in page:
+            if not isinstance(row, dict):
+                continue
+            funding_time = int(row.get("fundingTime", row.get("time", 0)) or 0)
+            rate = row.get("fundingRate")
+            if funding_time and rate is not None:
+                normalized.append({
+                    "fundingTime": funding_time,
+                    "fundingRate": str(rate),
+                    "markPrice": row.get("markPrice"),
+                })
+        normalized.sort(key=lambda row: int(row["fundingTime"]))
+        if not normalized:
             break
-        time.sleep(0.08)
+        rows.extend(normalized)
+        next_cursor = int(normalized[-1]["fundingTime"]) + 1
+        if next_cursor <= cursor:
+            raise RuntimeError(f"non-advancing BingX funding cursor for {symbol}")
+        cursor = next_cursor
+        if len(page) < PAGE_FUNDING:
+            break
+    deduped: dict[int, dict[str, Any]] = {}
+    for row in rows:
+        deduped[int(row["fundingTime"])] = row
+    return [deduped[key] for key in sorted(deduped)]
+
+
+def fetch_mark_prices(symbol: str, start_ms: int, end_ms: int) -> dict[int, float]:
+    """Fetch 4h mark-price candles; funding settlements align to 4h boundaries."""
+    rows: dict[int, float] = {}
+    interval_ms = 4 * 60 * 60 * 1000
+    cursor = start_ms
+    while cursor < end_ms:
+        page = request_json(
+            MARK_KLINES_ENDPOINT,
+            {"symbol": symbol, "interval": "4h", "startTime": cursor, "endTime": end_ms - 1, "limit": PAGE_KLINES},
+        )
+        if not page:
+            break
+        parsed = []
+        for row in page:
+            try:
+                if isinstance(row, dict):
+                    timestamp = int(row.get("time", row.get("openTime", 0)))
+                    price = float(row.get("open", 0))
+                else:
+                    timestamp, price = int(row[0]), float(row[1])
+                if timestamp > 0 and math.isfinite(price) and price > 0:
+                    parsed.append((timestamp, price))
+            except (ValueError, TypeError, IndexError):
+                continue
+        parsed.sort()
+        if not parsed:
+            break
+        rows.update(parsed)
+        next_cursor = parsed[-1][0] + interval_ms
+        if next_cursor <= cursor:
+            raise RuntimeError(f"non-advancing BingX mark-price cursor for {symbol}")
+        cursor = next_cursor
+        if len(page) < PAGE_KLINES:
+            break
     return rows
 
 
@@ -137,11 +260,11 @@ def validate_market_data(
     funding: list[dict[str, Any]],
     end_ms: int,
 ) -> None:
-    if contract.get("contractType") != "PERPETUAL" or contract.get("quoteAsset") != "USDT":
-        raise ValueError(f"{symbol}: instrument is not a USDT perpetual")
-    if contract.get("status") != "TRADING":
-        raise ValueError(f"{symbol}: contract is not currently TRADING")
-    onboard_ms = int(contract.get("onboardDate", 0) or 0)
+    if not symbol.endswith("-USDT") or str(contract.get("currency", "")).upper() != "USDT":
+        raise ValueError(f"{symbol}: instrument is not a USDT-margined perpetual")
+    if str(contract.get("status", "")) != "1":
+        raise ValueError(f"{symbol}: contract is not currently active on BingX")
+    launch_ms = int(contract.get("launchTime", 0) or 0)
     if not klines or len(klines) < 500:
         raise ValueError(f"{symbol}: insufficient 30m kline history ({len(klines)})")
     opens = [int(row[0]) for row in klines]
@@ -151,20 +274,20 @@ def validate_market_data(
         raise ValueError(f"{symbol}: duplicate kline open times")
     if opens != sorted(opens):
         raise ValueError(f"{symbol}: klines are not ordered")
-    if any((right - left) != INTERVAL_MS for left, right in zip(opens[:-1], opens[1:], strict=True)):
+    if any(right - left != INTERVAL_MS for left, right in zip(opens[:-1], opens[1:], strict=True)):
         raise ValueError(f"{symbol}: missing or irregular 30m intervals")
     if opens[-1] + INTERVAL_MS > end_ms:
         raise ValueError(f"{symbol}: latest bar is not fully closed")
-    if onboard_ms and opens[0] < onboard_ms:
-        raise ValueError(f"{symbol}: candle history predates contract onboardDate")
+    if launch_ms and opens[0] < launch_ms:
+        raise ValueError(f"{symbol}: candle history predates BingX launchTime")
     for row in klines:
-        open_p, high, low, close, volume = map(float, (row[1], row[2], row[3], row[4], row[5]))
+        open_p, high, low, close, volume = map(float, row[1:6])
         if min(open_p, high, low, close) <= 0 or volume < 0:
             raise ValueError(f"{symbol}: non-positive OHLC or negative volume")
         if high < max(open_p, close, low) or low > min(open_p, close, high):
             raise ValueError(f"{symbol}: invalid OHLC geometry")
     if not funding:
-        raise ValueError(f"{symbol}: no funding history returned")
+        raise ValueError(f"{symbol}: no historical funding returned")
     times = [int(row["fundingTime"]) for row in funding]
     if times != sorted(set(times)):
         raise ValueError(f"{symbol}: duplicate or unordered funding events")
@@ -172,15 +295,12 @@ def validate_market_data(
         raise ValueError(f"{symbol}: non-finite funding rate")
     if any(float(row.get("markPrice", 0) or 0) <= 0 for row in funding):
         raise ValueError(f"{symbol}: funding event missing its mark price")
-    # Funding cadence is normally 8h, but tolerate up to one day to avoid
-    # inventing zero funding across an unobserved coverage gap.
     if times[0] > opens[0] + 24 * 60 * 60 * 1000:
         raise ValueError(f"{symbol}: funding coverage starts more than 24h after candles")
     if times[-1] < opens[-1] - 24 * 60 * 60 * 1000:
         raise ValueError(f"{symbol}: funding coverage ends more than 24h before candles")
     if any(right - left > 24 * 60 * 60 * 1000 for left, right in zip(times[:-1], times[1:], strict=True)):
         raise ValueError(f"{symbol}: funding history contains a gap larger than 24h")
-
 
 def _adx(frame: pd.DataFrame, period: int = 14) -> pd.Series:
     up = frame["high"].diff()
@@ -202,7 +322,7 @@ def _adx(frame: pd.DataFrame, period: int = 14) -> pd.Series:
 def build_frame(klines: list[list[Any]]) -> pd.DataFrame:
     columns = [
         "open_time", "open", "high", "low", "close", "volume", "close_time",
-        "quote_volume", "trade_count", "taker_buy_volume", "taker_buy_quote_volume", "ignore",
+        "quote_volume", "trade_count", "taker_buy_volume", "taker_buy_quote_volume",
     ]
     frame = pd.DataFrame(klines, columns=columns)
     frame["bar_open"] = pd.to_datetime(frame["open_time"].astype("int64"), unit="ms", utc=True)
@@ -556,7 +676,7 @@ def write_report(
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     lines = [
         "# 30m perpetual intraday research report", "",
-        "Research only. This is a Binance USDⓈ-M perpetual reference-market test, not a BingX fill simulation and not a live-performance claim.", "",
+        "Research only. This is a BingX USDT-M perpetual candle/funding replay, not a full historical order-book fill simulation and not a live-performance claim.", "",
         f"Data cutoff (UTC): {manifest['data_cutoff_utc']}", "",
         "## Universe and data integrity", "",
         "| Symbol | First 30m bar | Last 30m bar | 30m bars | Funding events | Contract |",
@@ -605,7 +725,7 @@ def write_report(
             subset = [t for t in base_all if t.strategy == strategy and pd.Timestamp(t.entry_time).year == year]
             m = metrics(subset)
             lines.append("| " + " | ".join([str(year), strategy, safe_number(m["n"]), safe_number(m["pf"]), safe_number(m["mean_net_r"]), safe_number(m["mean_hold_min"])]) + " |")
-    lines += ["", "## Promotion rule", "", "No candidate is promoted by this report. A family may proceed to a separate BingX-specific validation only if it has at least 100 OOS closed trades pooled, positive net expectancy and PF >= 1.30 in both base and stress cost cases, positive results in at least 3 of the 5 symbols where history permits, both directions separately reviewed, no single symbol accounting for more than 50% of net profit, mean holding <= 90 minutes, median holding <= 60 minutes, maximum holding <= 9h, and acceptable rolling-year stability. A promising Binance proxy is only a candidate for BingX VST validation, not permission for live execution.", "", "## Limitations", "", "- Binance perpetual data is a reference-market proxy. Venue basis, BingX liquidity, actual bid/ask spread, market impact, queue priority, order trigger semantics and fill latency are not reproduced.", "- OHLC bars cannot reveal the within-bar path. Stop-first is intentionally adverse but does not recover actual execution prices.", "- Funding uses historical Binance funding events, not BingX funding history.", "- Unlevered returns exclude margin utilization, liquidation, portfolio correlation, wallet transfers and account-level constraints.", "- No parameter search is performed; thresholds are frozen before the run. A negative result is retained, not tuned away.", "", "*Generated by scripts/research_perp_intraday.py. Research only; no live or VST execution wiring.*", ""]
+    lines += ["", "## Promotion rule", "", "No candidate is promoted by this report. A family may proceed to a separate BingX-specific validation only if it has at least 100 OOS closed trades pooled, positive net expectancy and PF >= 1.30 in both base and stress cost cases, positive results in at least 3 of the 5 symbols where history permits, both directions separately reviewed, no single symbol accounting for more than 50% of net profit, mean holding <= 90 minutes, median holding <= 60 minutes, maximum holding <= 9h, and acceptable rolling-year stability. A positive BingX candle/funding replay is only a candidate for VST validation with observed bid/ask and exchange fills, not permission for live execution.", "", "## Limitations", "", "- BingX OHLC history cannot reconstruct the historical bid/ask book, queue priority, actual fill latency or market impact. Slippage remains an explicit sensitivity assumption.", "- OHLC bars cannot reveal the within-bar path. Stop-first is intentionally adverse but does not recover actual execution prices.", "- Funding uses BingX historical funding-rate events and aligned BingX 4h mark-price candle opens; this mark-price alignment is a historical proxy and should be checked against settlement records when available.", "- Unlevered returns exclude margin utilization, liquidation, portfolio correlation, wallet transfers and account-level constraints.", "- No parameter search is performed; thresholds are frozen before the run. A negative result is retained, not tuned away.", "", "*Generated by scripts/research_perp_intraday.py. Research only; no live or VST execution wiring.*", ""]
     (output / "report.md").write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -620,12 +740,12 @@ def main() -> None:
         raise SystemExit("end must be later than 2024-01-01 UTC")
     contracts = get_perpetual_contracts()
     manifest: dict[str, Any] = {
-        "venue": "Binance USDⓈ-M Futures",
-        "contract_type": "PERPETUAL",
+        "venue": "BingX USDT-M Perpetual",
+        "contract_type": "USDT-M perpetual swap",
         "quote_asset": "USDT",
         "interval": INTERVAL,
         "data_cutoff_utc": datetime.fromtimestamp(end_ms / 1000, UTC).isoformat(),
-        "source_endpoints": ["/fapi/v1/exchangeInfo", "/fapi/v1/klines", "/fapi/v1/fundingRate"],
+        "source_endpoints": [CONTRACTS_ENDPOINT, KLINES_ENDPOINT, FUNDING_ENDPOINT, MARK_KLINES_ENDPOINT],
         "cost_model": {"fee_per_side": FEE_PER_SIDE, "base_slippage_per_side": BASE_SLIPPAGE_PER_SIDE, "stress_slippage_per_side": STRESS_SLIPPAGE_PER_SIDE, "max_cost_to_r": MAX_COST_TO_R},
         "holding_model": {"no_progress_bars": NO_PROGRESS_BARS, "no_progress_mfe_r": NO_PROGRESS_MFE_R, "max_hold_bars": MAX_HOLD_BARS},
         "symbols": {},
@@ -634,19 +754,23 @@ def main() -> None:
     for symbol in SYMBOLS:
         contract = contracts.get(symbol)
         if contract is None:
-            raise RuntimeError(f"{symbol}: no active USDT perpetual contract found in exchangeInfo")
-        start_ms = max(utc_ms(DATA_START_FLOOR), int(contract.get("onboardDate", 0) or 0))
-        print(f"Fetching {symbol} {INTERVAL} perpetual candles and funding...", flush=True)
+            raise RuntimeError(f"{symbol}: no active BingX USDT-M perpetual contract found")
+        start_ms = max(utc_ms(DATA_START_FLOOR), int(contract.get("launchTime", 0) or 0))
+        print(f"Fetching BingX {symbol} {INTERVAL} perpetual candles, funding and mark prices...", flush=True)
         klines = fetch_klines(symbol, start_ms, end_ms)
         funding = fetch_funding(symbol, start_ms, end_ms)
+        mark_prices = fetch_mark_prices(symbol, start_ms, end_ms)
+        for event in funding:
+            if not event.get("markPrice"):
+                event["markPrice"] = mark_prices.get(int(event["fundingTime"]))
         validate_market_data(symbol, contract, klines, funding, end_ms)
         frame = build_frame(klines)
         market_frames[symbol] = (frame, funding)
         manifest["symbols"][symbol] = {
-            "contract_type": contract.get("contractType"),
-            "quote_asset": contract.get("quoteAsset"),
+            "symbol": contract.get("symbol"),
+            "settlement_currency": contract.get("currency"),
             "status": contract.get("status"),
-            "onboard_date_ms": contract.get("onboardDate"),
+            "launch_time_ms": contract.get("launchTime"),
             "requested_start_ms": start_ms,
             "first_bar_utc": frame.index[0].isoformat(),
             "last_bar_utc": frame.index[-1].isoformat(),
