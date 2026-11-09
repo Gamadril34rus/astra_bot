@@ -311,7 +311,8 @@ def summarize(
     if calendar_start is not None and calendar_end is not None:
         months = pd.period_range(calendar_start, calendar_end, freq="M")
         month_net = month_net.reindex(months, fill_value=0.0)
-    equity = (1 + frame.sort_values("exit_time")["net_pct"] / 100).cumprod()
+    ordered = frame.sort_values("exit_time")
+    equity = (1 + ordered["net_pct"] / 100).cumprod()
     trade_sequence_drawdown = equity / equity.cummax() - 1
     events = []
     for row in frame.itertuples():
@@ -322,6 +323,14 @@ def summarize(
     for _, delta in sorted(events, key=lambda item: (item[0], item[1])):
         active += delta
         max_concurrent = max(max_concurrent, active)
+    # Equal-notional portfolio proxy: each trade gets 1/max-concurrency of
+    # starting equity, so peak gross exposure is capped at 1x. PnL is realized
+    # at exit; this is not an intratrade mark-to-market or margin liquidation model.
+    trade_weight = 1.0 / max(max_concurrent, 1)
+    portfolio_pnl = ordered["net_pct"].to_numpy(dtype=float) * trade_weight / 100
+    portfolio_equity = 1.0 + np.cumsum(portfolio_pnl)
+    portfolio_peak = np.maximum.accumulate(np.r_[1.0, portfolio_equity])[1:]
+    portfolio_drawdown = portfolio_equity / portfolio_peak - 1
     return {
         "trades": len(frame),
         "pf": round(float(wins / losses), 4) if losses else ("inf" if wins else 0.0),
@@ -335,6 +344,10 @@ def summarize(
         "max_hold_min": round(float(frame.hold_minutes.max()), 1),
         "positive_month_share_pct": round(float((month_net > 0).mean() * 100), 2),
         "trade_sequence_drawdown_pct": round(float(trade_sequence_drawdown.min() * 100), 2),
+        "realized_equal_notional_drawdown_pct": round(
+            float(min(0.0, portfolio_drawdown.min(initial=0.0)) * 100), 2
+        ),
+        "equal_notional_weight_per_trade_pct": round(trade_weight * 100, 2),
         "max_concurrent_positions": max_concurrent,
     }
 
@@ -439,7 +452,7 @@ def main() -> int:
             )
         },
         "combined": summarize(trades, calendar_start, calendar_end),
-        "warning": "OHLC trade-sequence drawdown is not portfolio equity drawdown; simultaneous symbols are not capital-constrained. Funding uses entry-notional approximation. OHLC fills are proxies, not confirmed exchange fills. No live/paper activation."
+        "warning": "Equal-notional drawdown is a realized-PnL proxy with each trade weighted at 1/max-concurrency of starting equity (peak gross exposure 1x); it omits intratrade mark-to-market, margin and liquidation. Trade-sequence drawdown is also shown. Funding uses entry-notional approximation. OHLC fills are proxies, not confirmed exchange fills. No live/paper activation."
     }
     (args.out / "summary.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2))
