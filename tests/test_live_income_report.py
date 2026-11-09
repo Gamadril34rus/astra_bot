@@ -66,7 +66,7 @@ def test_format_rocket_breakdown():
 
 def test_format_pending_no_sign():
     msg = format_pending_rocket("BTC-USDT", "short")
-    assert "🏁 BTC ШОРТ: закрыта — сумма уточняется, пришлю следом" == msg
+    assert msg == "🏁 BTC ШОРТ: закрыта — сумма уточняется, пришлю следом"
     assert "+" not in msg
     assert "?" not in msg
 
@@ -140,6 +140,7 @@ def test_pending_then_exact_flow(tmp_path):
 def test_funding_day_accumulate_and_reset(tmp_path, monkeypatch):
     """New funding event adds to day sum; MSK date change resets."""
     import asyncio
+
     from scripts import zeus_live_clock as clock
 
     monkeypatch.chdir(tmp_path)
