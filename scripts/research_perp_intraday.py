@@ -29,6 +29,7 @@ BASE_URL = "https://open-api.bingx.com"
 API_MIN_INTERVAL_S = 1.05
 _last_request_monotonic = 0.0
 KLINES_ENDPOINT = "/openApi/swap/v3/quote/klines"
+DEPTH_ENDPOINT = "/openApi/swap/v2/quote/depth"
 CONTRACTS_ENDPOINT = "/openApi/swap/v2/quote/contracts"
 FUNDING_ENDPOINT = "/openApi/swap/v2/quote/fundingRate"
 MARK_KLINES_ENDPOINT = "/openApi/swap/v1/market/markPriceKlines"
@@ -64,6 +65,81 @@ def utc_ms(value: str) -> int:
     return int(stamp.timestamp() * 1000)
 
 
+
+def _average_sweep_price(levels: list[list[Any]], target_quantity: float) -> float | None:
+    """Return volume-weighted average execution price or None if book is thin."""
+    remaining = target_quantity
+    quote_spent = 0.0
+    quantity_filled = 0.0
+    for price_raw, quantity_raw in levels:
+        price, available = float(price_raw), float(quantity_raw)
+        if not math.isfinite(price) or not math.isfinite(available) or price <= 0 or available <= 0:
+            continue
+        take = min(remaining, available)
+        quote_spent += take * price
+        quantity_filled += take
+        remaining -= take
+        if remaining <= max(1e-12, target_quantity * 1e-10):
+            return quote_spent / quantity_filled
+    return None
+
+
+def calculate_orderbook_costs(
+    orderbook: dict[str, Any], notionals_usdt: tuple[float, ...] = (1_000.0, 5_000.0, 10_000.0)
+) -> dict[str, Any]:
+    """Estimate taker round-trip spread+depth cost from one live order-book snapshot.
+
+    This is a current liquidity diagnostic, not a historical fill reconstruction.
+    """
+    bids = orderbook.get("bids") or []
+    asks = orderbook.get("asks") or []
+    if not bids or not asks:
+        raise ValueError("BingX order book has no bid or ask levels")
+    best_bid, best_ask = float(bids[0][0]), float(asks[0][0])
+    if best_bid <= 0 or best_ask <= best_bid:
+        raise ValueError(f"invalid top of book: bid={best_bid} ask={best_ask}")
+    mid = (best_bid + best_ask) / 2
+    spread_bps = (best_ask - best_bid) / mid * 10_000
+    scenarios: dict[str, Any] = {}
+    for notional in notionals_usdt:
+        target_quantity = notional / mid
+        average_buy = _average_sweep_price(asks, target_quantity)
+        average_sell = _average_sweep_price(bids, target_quantity)
+        if average_buy is None or average_sell is None:
+            scenarios[f"{int(notional)}"] = {
+                "complete": False,
+                "available_bid_notional_usdt": round(sum(float(p) * float(q) for p, q in bids), 2),
+                "available_ask_notional_usdt": round(sum(float(p) * float(q) for p, q in asks), 2),
+            }
+            continue
+        round_trip_book_bps = (average_buy - average_sell) / mid * 10_000
+        round_trip_fee_bps = 2 * FEE_PER_SIDE * 10_000
+        total_round_trip_bps = round_trip_book_bps + round_trip_fee_bps
+        scenarios[f"{int(notional)}"] = {
+            "complete": True,
+            "average_buy_price": average_buy,
+            "average_sell_price": average_sell,
+            "round_trip_book_cost_bps": round(round_trip_book_bps, 3),
+            "taker_fee_round_trip_bps": round(round_trip_fee_bps, 3),
+            "total_round_trip_cost_bps": round(total_round_trip_bps, 3),
+        }
+    return {
+        "timestamp_ms": int(orderbook.get("T") or 0),
+        "best_bid": best_bid,
+        "best_ask": best_ask,
+        "mid": mid,
+        "top_spread_bps": round(spread_bps, 3),
+        "taker_fee_per_side_bps": FEE_PER_SIDE * 10_000,
+        "notional_scenarios": scenarios,
+        "note": "current snapshot only; not a substitute for historical BBO/L2 or actual fills",
+    }
+
+
+def fetch_orderbook_execution_costs(symbol: str) -> dict[str, Any]:
+    rows = request_json(DEPTH_ENDPOINT, {"symbol": symbol, "limit": 100})
+    if not rows or not isinstance(rows[0], dict):
+        raise RuntimeError(f"{symbol}: invalid BingX order-book response")
+    return calculate_orderbook_costs(rows[0])
 def unwrap_data(payload: Any, path: str) -> list[Any]:
     if not isinstance(payload, dict):
         raise RuntimeError(f"{path}: invalid BingX response object")
@@ -903,6 +979,14 @@ def main() -> None:
             "first_funding_utc": datetime.fromtimestamp(int(funding[0]["fundingTime"]) / 1000, UTC).isoformat(),
             "last_funding_utc": datetime.fromtimestamp(int(funding[-1]["fundingTime"]) / 1000, UTC).isoformat(),
         }
+
+    live_execution_costs: dict[str, Any] = {}
+    for symbol in SYMBOLS:
+        try:
+            live_execution_costs[symbol] = fetch_orderbook_execution_costs(symbol)
+        except Exception as exc:
+            live_execution_costs[symbol] = {"status": "unavailable", "error": str(exc)}
+    manifest["current_orderbook_cost_snapshot"] = live_execution_costs
 
     all_results: dict[str, dict[str, dict[str, list[Trade]]]] = {}
     diagnostics_report: dict[str, dict[str, dict[str, int]]] = {}
