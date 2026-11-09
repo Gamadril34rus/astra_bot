@@ -24,29 +24,6 @@
       "current_regime": "RANGE",
       "peak_high": "87.92"
     },
-    "INJ-USDT|long": {
-      "symbol": "INJ-USDT",
-      "side": "long",
-      "qty": "4291.000",
-      "stop": "8.1681600",
-      "tp": "8.291310",
-      "entry": "8.160",
-      "leverage": 5,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|INJ-USDT|long|1794254400000",
-      "ts": 1794256018.7153146,
-      "be_moved": true,
-      "initial_stop": "8.07246",
-      "opened_at_ms": 1794254563782,
-      "tp_parity_v1": true,
-      "be_earned": true,
-      "peak_high": "8.206",
-      "current_regime": "RANGE",
-      "tp1": "8.1906930",
-      "initial_stop_v1": true,
-      "early_tp1": true,
-      "early_tp_repair_v1": true
-    },
     "HYPE-USDT|short": {
       "symbol": "HYPE-USDT",
       "side": "short",
@@ -63,8 +40,13 @@
       "opened_at_ms": 1794256371905,
       "plan_qty": "666.89785792",
       "qty_ratio": 1.0,
-      "tp1": "74.6366170"
+      "tp1": "74.6366170",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "75.005",
+      "current_regime": "WEAK_BEAR_TREND"
     }
   },
-  "ts": 1794256371.9059002
+  "ts": 1794256643.1013098
 }
