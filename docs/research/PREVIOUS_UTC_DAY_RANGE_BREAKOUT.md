@@ -46,3 +46,21 @@ This is a hypothesis, not an assertion that previous-day highs/lows predict retu
 ## Safety
 
 Research-only. No production config, active Zeus strategy, risk, leverage, position sizing, stops, exit engine, paper/REAL routing, or secrets are changed.
+
+
+## First partial screening result (3 symbols only)
+
+A local diagnostic replay against the surviving continuous BTC/ETH/SOL archive applied the exact frozen first-break-per-side-per-day rule, 30m next-open entry proxy, 1h filter, prior-20-bar volume baseline (current bar excluded), preceding-four-bar structural stop, 2.5R target, shared 0.35-1.8 ATR risk and 1.5x cost-to-risk eligibility, symbol funding ledger, stop-first OHLC exits, 30m/90m no-progress rules and 9h cap.
+
+The shared valid interval was 2025-12-26 00:00 UTC to 2026-11-09 19:00 UTC (318.79 days). HYPE and INJ candle pairs were not available in the partial artifact. The 60/20/20 split was applied chronologically. OOS metrics were deliberately not inspected.
+
+| Period | Cost case | Trades | PF | Net expectancy / trade | Win rate |
+|---|---|---:|---:|---:|---:|
+| IS | Base | 6 | 0.2483 | -0.27561% | 33.33% |
+| IS | 1.5x | 6 | 0.1732 | -0.35811% | 16.67% |
+| Validation | Base | 1 | 0.0000 | -0.11671% | 0.00% |
+| Validation | 1.5x | 1 | 0.0000 | -0.19921% | 0.00% |
+
+The total common-window sample had only seven completed trades. This is far below the 100-trade OOS minimum and below 12 months of five-symbol history. The negative IS screen and single losing validation trade do not justify selecting the hypothesis. The very small sample is **INCONCLUSIVE / NOT A PASS**, and no OOS result is disclosed.
+
+**Decision:** retain as a frozen research candidate only long enough to test on the complete five-symbol archive. Do not tune thresholds from this partial diagnostic, and do not promote it to VST or production.
