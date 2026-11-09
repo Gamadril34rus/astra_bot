@@ -262,18 +262,24 @@ def latest_contiguous_funding_segment(
     start_index = gap_indices[-1] + 1 if gap_indices else 0
     return ordered[start_index:], ordered[:start_index]
 def fetch_mark_prices(symbol: str, start_ms: int, end_ms: int) -> dict[int, float]:
-    """Fetch 4h mark-price candles; funding settlements align to 4h boundaries."""
+    """Fetch complete bounded 4h mark-price windows for funding settlements."""
     rows: dict[int, float] = {}
     interval_ms = 4 * 60 * 60 * 1000
-    cursor = start_ms
-    while cursor < end_ms:
+    cursor = ((start_ms + interval_ms - 1) // interval_ms) * interval_ms
+    last_open = (end_ms // interval_ms) * interval_ms
+    while cursor <= last_open:
+        page_last = min(cursor + (PAGE_KLINES - 1) * interval_ms, last_open)
         page = request_json(
             MARK_KLINES_ENDPOINT,
-            {"symbol": symbol, "interval": "4h", "startTime": cursor, "endTime": end_ms - 1, "limit": PAGE_KLINES},
+            {
+                "symbol": symbol,
+                "interval": "4h",
+                "startTime": cursor,
+                "endTime": page_last + interval_ms - 1,
+                "limit": PAGE_KLINES,
+            },
         )
-        if not page:
-            break
-        parsed = []
+        parsed: list[tuple[int, float]] = []
         for row in page:
             try:
                 if isinstance(row, dict):
@@ -281,23 +287,35 @@ def fetch_mark_prices(symbol: str, start_ms: int, end_ms: int) -> dict[int, floa
                     price = float(row.get("open", 0))
                 else:
                     timestamp, price = int(row[0]), float(row[1])
-                if timestamp > 0 and math.isfinite(price) and price > 0:
+                if cursor <= timestamp <= page_last and math.isfinite(price) and price > 0:
                     parsed.append((timestamp, price))
             except (ValueError, TypeError, IndexError):
                 continue
         parsed.sort()
-        if not parsed:
-            break
-        rows.update(parsed)
-        next_cursor = parsed[-1][0] + interval_ms
-        if next_cursor <= cursor:
-            raise RuntimeError(f"non-advancing BingX mark-price cursor for {symbol}")
-        cursor = next_cursor
-        if len(page) < PAGE_KLINES:
-            break
+        actual_times = [timestamp for timestamp, _ in parsed]
+        if not actual_times:
+            if rows:
+                raise RuntimeError(
+                    f"BingX mark-price history gap for {symbol}: {cursor}..{page_last}"
+                )
+            cursor = page_last + interval_ms
+            continue
+        expected_start = cursor if rows else actual_times[0]
+        expected_times = list(range(expected_start, page_last + 1, interval_ms))
+        if actual_times != expected_times:
+            raise RuntimeError(
+                f"incomplete BingX mark-price window for {symbol}: "
+                f"start={cursor} end={page_last} "
+                f"expected={len(expected_times)} actual={len(actual_times)}"
+            )
+        for timestamp, price in parsed:
+            if timestamp in rows and rows[timestamp] != price:
+                raise RuntimeError(
+                    f"conflicting BingX mark-price duplicate for {symbol} at {timestamp}"
+                )
+            rows[timestamp] = price
+        cursor = page_last + interval_ms
     return rows
-
-
 def validate_market_data(
     symbol: str,
     contract: dict[str, Any],
