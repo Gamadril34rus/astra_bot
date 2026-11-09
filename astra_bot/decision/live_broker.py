@@ -375,6 +375,54 @@ class LiveEntryPlan:
 
 
 
+def _fill_position_side(fill: dict[str, Any]) -> str | None:
+    """Read BingX allFillOrders positionSide without guessing from BUY/SELL."""
+    raw = fill.get("positionSide") or fill.get("position_side")
+    info = fill.get("info")
+    if raw is None and isinstance(info, dict):
+        raw = info.get("positionSide") or info.get("position_side")
+    if raw is None:
+        return None
+    return _normalize_position_side(raw)
+
+
+def _fill_trade_id(fill: dict[str, Any]) -> str | None:
+    """Stable BingX trade fill identifier used to link income rows to one hedge leg."""
+    for key in ("tradeId", "trade_id"):
+        value = fill.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return None
+
+
+def _filter_fills_for_position_side(
+    fills: list[dict[str, Any]], position_side: str
+) -> tuple[list[dict[str, Any]], bool]:
+    """Return fills for one hedge leg; ambiguous side metadata invalidates the batch.
+
+    BUY/SELL alone is insufficient in Hedge Mode: SELL can close LONG or open
+    SHORT, and BUY can close SHORT or open LONG.
+    """
+    normalized = _normalize_position_side(position_side)
+    if normalized is None:
+        return [], True
+    selected: list[dict[str, Any]] = []
+    ambiguous = False
+    for fill in fills or []:
+        if not isinstance(fill, dict):
+            ambiguous = True
+            continue
+        fill_side = _fill_position_side(fill)
+        if fill_side is None:
+            ambiguous = True
+            continue
+        if fill_side == normalized:
+            selected.append(fill)
+    if ambiguous:
+        return [], True
+    return selected, False
+
+
 def _aggregate_exit_fills(
     fills: list,
     *,
@@ -912,11 +960,25 @@ class LiveBroker:
                         continue
                     filtered.append(f)
                 fills = filtered
+
+            fills, fill_side_ambiguous = _filter_fills_for_position_side(fills, side)
+            if fill_side_ambiguous:
+                logger.warning(
+                    "sync_closed: %s %s fill history has missing/invalid positionSide; "
+                    "refusing cross-hedge PnL attribution",
+                    sym,
+                    side,
+                )
+            trade_ids = {
+                trade_id
+                for fill in fills
+                if (trade_id := _fill_trade_id(fill)) is not None
+            }
             exit_fill, fees, exit_reason, qty_closed = _aggregate_exit_fills(
                 fills, side=side, entry_px=entry_px
             )
 
-            # Prefer realizedPnl sum from fill rows when exchange provides it
+            # Only explicit LONG/SHORT fills can contribute realized PnL and fees.
             pnl: float | None = None
             slip_exit: float | None = None
             funding_fee: float = 0.0
@@ -955,13 +1017,29 @@ class LiveBroker:
                     )
 
                     agg = await fetch_income_with_retries(
-                        self.client, sym, start_ms, attempts=3, delay_sec=7.0
+                        self.client,
+                        sym,
+                        start_ms,
+                        attempts=3,
+                        delay_sec=7.0,
+                        position_side=side,
+                        trade_ids=trade_ids,
                     )
+                    if agg.get("ambiguous_position_side"):
+                        logger.warning(
+                            "sync_closed: %s %s income history cannot be mapped to hedge leg; "
+                            "keep exit pending instead of guessing",
+                            sym,
+                            side,
+                        )
                     funding_fee = float(agg.get("funding") or 0.0)
                     fee_signed = float(agg.get("fees") or 0.0)
                     if fees is None or fees == 0:
                         fees = abs(fee_signed)
-                    if agg.get("has_realized") or abs(float(agg.get("net") or 0)) > 1e-9:
+                    if (
+                        not agg.get("ambiguous_position_side")
+                        and (agg.get("has_realized") or abs(float(agg.get("net") or 0)) > 1e-9)
+                    ):
                         from astra_bot.decision.live_income_report import (
                             income_too_small,
                             plan_est_risk,
@@ -1049,6 +1127,7 @@ class LiveBroker:
                             "since_ms": start_ms,
                             "reason": exit_reason or "no_fills",
                             "entry": entry_px,
+                            "trade_ids": sorted(trade_ids),
                             "ts": now,
                         }
                     )
