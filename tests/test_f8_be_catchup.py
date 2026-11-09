@@ -14,6 +14,7 @@ from astra_bot.decision.live_positions import upsert_plan
 def _broker(exch_qty: Decimal, moves: list):
     pos = SimpleNamespace(
         symbol="SOL-USDT",
+        side="long",
         quantity=exch_qty,
         current_price=Decimal("104.752"),
     )
