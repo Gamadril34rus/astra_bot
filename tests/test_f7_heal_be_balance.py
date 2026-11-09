@@ -1,13 +1,10 @@
 """F7: balance pos count, BE mark from current_price, dead-TP heal replace-first."""
 from __future__ import annotations
 
+import asyncio
 import json
 from decimal import Decimal
-from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
-
-import pytest
 
 
 def test_fmt_balance_counts_positions_not_zeroed_by_equity(tmp_path, monkeypatch):
@@ -40,9 +37,8 @@ def test_fmt_balance_counts_positions_not_zeroed_by_equity(tmp_path, monkeypatch
 
 def test_sync_partial_uses_current_price(tmp_path, monkeypatch):
     """F7.4: mark from Position.current_price (BingX markPrice mapping)."""
-    import asyncio
-    from scripts.zeus_live_clock import sync_partial_breakeven
     from astra_bot.decision.live_positions import upsert_plan
+    from scripts.zeus_live_clock import sync_partial_breakeven
 
     monkeypatch.chdir(tmp_path)
     models = tmp_path / "models"
@@ -143,7 +139,6 @@ def test_heal_dead_tp_replace_first_after_2_ticks(tmp_path, monkeypatch):
     class Broker:
         client = Client()
 
-    import asyncio
     async def _run():
         r1 = await heal_dead_tp_legs(Broker())
         assert r1.get("healed") == []
