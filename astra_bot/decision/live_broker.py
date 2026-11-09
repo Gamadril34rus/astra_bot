@@ -1624,18 +1624,31 @@ class LiveBroker:
             qty = Decimal(str(getattr(p, "quantity", 0) or 0))
             if not sym or qty <= 0:
                 continue
+            side = _normalize_position_side(getattr(p, "side", None))
+            if side is None:
+                logger.warning(
+                    "ensure_protection: %s position side unknown; skip destructive action",
+                    sym,
+                )
+                continue
+            key = f"{sym}|{side}"
             orders = by_sym.get(sym, [])
-            has_stop = any(
-                "stop" in str(getattr(o, "order_type", "")).lower()
-                and "take_profit" not in str(getattr(o, "order_type", "")).lower()
-                for o in orders
-            )
+            has_stop = _has_matching_protective_order(orders, side, kind="stop")
+            unknown_stop = _has_unscoped_protective_order(orders, kind="stop")
+            unknown_order = _has_unscoped_open_order(orders)
             if has_stop:
-                bare.pop(sym, None)
+                bare.pop(key, None)
+                continue
+            if unknown_stop or unknown_order:
+                logger.warning(
+                    "ensure_protection: %s %s has unscoped exchange orders; preserve them",
+                    sym,
+                    side,
+                )
+                still_bare.add(key)
                 continue
 
-            plan = get_plan(sym, path) or {}
-            side = str(plan.get("side") or getattr(p, "side", "long") or "long").lower()
+            plan = get_plan(sym, path, side) or {};
             entry = plan.get("entry") or getattr(p, "entry_price", None) or getattr(p, "avg_price", None)
             stop_px = plan.get("stop")
             if plan.get("be_moved") and entry is not None:
@@ -1655,10 +1668,8 @@ class LiveBroker:
                     await self.move_stop(sym, side, qty, Decimal(str(stop_px)))
                     try:
                         oo = await self.client.get_open_orders(sym)
-                        placed_ok = any(
-                            "stop" in str(getattr(o, "order_type", "")).lower()
-                            and "take_profit" not in str(getattr(o, "order_type", "")).lower()
-                            for o in (oo or [])
+                        placed_ok = _has_matching_protective_order(
+                            oo or [], side, kind="stop"
                         )
                     except Exception as vexc:
                         # B2b: place may have succeeded — do NOT close
@@ -1677,7 +1688,7 @@ class LiveBroker:
                         )
                     if placed_ok:
                         placed.append(sym)
-                        bare.pop(sym, None)
+                        bare.pop(key, None)
                         _journal_protect(
                             "protect_place",
                             symbol=sym,
@@ -1718,13 +1729,9 @@ class LiveBroker:
                     await self.move_stop(sym, side, qty, Decimal(str(entry)))
                     try:
                         oo = await self.client.get_open_orders(sym)
-                        if any(
-                            "stop" in str(getattr(o, "order_type", "")).lower()
-                            and "take_profit" not in str(getattr(o, "order_type", "")).lower()
-                            for o in (oo or [])
-                        ):
+                        if _has_matching_protective_order(oo or [], side, kind="stop"):
                             placed.append(sym)
-                            bare.pop(sym, None)
+                            bare.pop(key, None)
                             try:
                                 upsert_plan(
                                     symbol=sym, side=side,
@@ -1759,12 +1766,12 @@ class LiveBroker:
             # B2d: two consecutive ticks of confirmed bare before close
             if not confirmed_reject:
                 # network / unknown — do not increment toward close
-                still_bare.add(sym)
+                still_bare.add(key)
                 continue
 
-            n = int(bare.get(sym, 0) or 0) + 1
-            bare[sym] = n
-            still_bare.add(sym)
+            n = int(bare.get(key, 0) or 0) + 1
+            bare[key] = n
+            still_bare.add(key)
             if n < 2:
                 if n == 1 and send_tg is not None:
                     try:
@@ -1779,12 +1786,17 @@ class LiveBroker:
 
             # B2c/e: close FIRST, then cancel remnants
             try:
-                await self.client.close_position(sym, quantity=None)
-                # confirm flat
+                await self.client.close_position(
+                    sym,
+                    quantity=qty,
+                    position_side=side,
+                )
+                # Confirm only this hedge leg is flat; the opposite leg may remain.
                 try:
                     pos2 = await self.client.get_positions()
                     still = any(
                         (getattr(x, "symbol", "") == sym)
+                        and (_normalize_position_side(getattr(x, "side", None)) == side)
                         and Decimal(str(getattr(x, "quantity", 0) or 0)) > 0
                         for x in (pos2 or [])
                     )
@@ -1792,15 +1804,30 @@ class LiveBroker:
                     still = True  # unknown — do not cancel stops under open pos
                 if not still:
                     try:
-                        await self.client.cancel_all_orders(sym)
-                    except Exception:
-                        pass
+                        remaining_orders = await self.client.get_open_orders(sym)
+                        for order in remaining_orders or []:
+                            if not _order_matches_position_side(order, side):
+                                continue
+                            order_id = (
+                                getattr(order, "id", None)
+                                or getattr(order, "exchange_order_id", None)
+                                or getattr(order, "order_id", None)
+                            )
+                            if order_id:
+                                await self.client.cancel_order(sym, str(order_id))
+                    except Exception as cancel_exc:
+                        logger.warning(
+                            "ensure_protection: %s %s residual-order cleanup failed: %s",
+                            sym,
+                            side,
+                            type(cancel_exc).__name__,
+                        )
                     try:
-                        remove_plan(sym, path)
+                        remove_plan(sym, path, side=side)
                     except Exception:
                         pass
-                    bare.pop(sym, None)
-                    closed.append(sym)
+                    bare.pop(key, None)
+                    closed.append(f"{sym}|{side}")
                     msg = f"⚠️ {sym}: нет стопа 2 тика — закрыта по рынку (protect_failed_closed)"
                     _journal_protect(
                         "protect_failed_closed",
@@ -1839,12 +1866,16 @@ class LiveBroker:
                     except Exception:
                         pass
 
-        # drop symbols no longer bare / open
-        for k in list(bare.keys()):
-            if k not in still_bare and k not in closed:
-                # protected this tick or not in positions
-                if k not in {getattr(p, "symbol", "") for p in positions}:
-                    bare.pop(k, None)
+        # Drop hedge-leg counters only when that exact position side is gone.
+        open_position_keys = {
+            f"{getattr(position, 'symbol', '')}|{_normalize_position_side(getattr(position, 'side', None))}"
+            for position in positions
+            if getattr(position, "symbol", "")
+            and _normalize_position_side(getattr(position, "side", None))
+        }
+        for key in list(bare):
+            if key not in still_bare and key not in closed and key not in open_position_keys:
+                bare.pop(key, None)
         _save_bare(bare)
         return {"placed": placed, "closed": closed, "bare": bare}
 
