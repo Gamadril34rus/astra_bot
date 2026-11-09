@@ -59,8 +59,8 @@ def test_position_missing_with_orders_journals(tmp_path, monkeypatch):
         path=tmp_path / "models" / "zeus_live_positions.json",
     )
     orders = [
-        SimpleNamespace(order_type="STOP_MARKET", id="1"),
-        SimpleNamespace(order_type="TAKE_PROFIT_MARKET", id="2"),
+        SimpleNamespace(symbol="SOL-USDT", side="SELL", position_side="LONG", order_type="STOP_MARKET", id="1"),
+        SimpleNamespace(symbol="SOL-USDT", side="SELL", position_side="LONG", order_type="TAKE_PROFIT_MARKET", id="2"),
     ]
 
     class Client:
@@ -74,7 +74,7 @@ def test_position_missing_with_orders_journals(tmp_path, monkeypatch):
         client = Client()
 
     r = asyncio.run(detect_position_missing_with_orders(Broker()))
-    assert "SOL-USDT" in r.get("missing", [])
+    assert "SOL-USDT|long" in r.get("missing", [])
     j = (tmp_path / "models" / "zeus_live_journal.jsonl").read_text()
     assert "position_missing_with_open_orders" in j
 
@@ -100,6 +100,7 @@ def test_be_catchup_sol_partial_e2e(tmp_path, monkeypatch):
     moves = []
     pos = SimpleNamespace(
         symbol="SOL-USDT",
+        side="long",
         quantity=Decimal("241.7"),
         current_price=Decimal("104.752"),
     )
