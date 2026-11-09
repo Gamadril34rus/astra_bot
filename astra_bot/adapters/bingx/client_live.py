@@ -682,6 +682,13 @@ class LiveBingXClient(BingXClient):
             )
         if not matches:
             return True
+        if len(matches) > 1:
+            raise ExchangeError(
+                f"multiple {normalized_side or 'unspecified'} hedge rows for {symbol}: "
+                "refusing ambiguous close",
+                exchange="bingx",
+                operation="close_position",
+            )
         position = matches[0]
         if position.quantity <= 0:
             return True
