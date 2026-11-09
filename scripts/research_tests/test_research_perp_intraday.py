@@ -1,3 +1,4 @@
+import hashlib
 import json
 import math
 import sys
@@ -20,6 +21,7 @@ from research_perp_intraday import (
     latest_contiguous_funding_segment,
     metrics,
     net_trade_return,
+    persist_source_snapshot,
     request_json,
     resolve_barrier_exit,
     run_backtest,
@@ -29,6 +31,24 @@ from research_perp_intraday import (
 )
 
 
+def test_persist_source_snapshot_writes_hash_verified_inputs(tmp_path):
+    frame = pd.DataFrame({
+        "open_time": [1_700_000_000_000, 1_700_001_800_000],
+        "open": [100.0, 101.0],
+        "high": [102.0, 103.0],
+        "low": [99.0, 100.0],
+        "close": [101.0, 102.0],
+        "volume": [10.0, 11.0],
+    })
+    funding = [{"fundingTime": 1_700_000_000_000, "fundingRate": "0.0001", "markPrice": "100"}]
+    manifest = persist_source_snapshot(tmp_path, "BTC-USDT", frame, funding)
+    candles = tmp_path / manifest["candles_file"]
+    rates = tmp_path / manifest["funding_file"]
+    assert candles.exists() and rates.exists()
+    assert manifest["candles_sha256"] == hashlib.sha256(candles.read_bytes()).hexdigest()
+    assert manifest["funding_sha256"] == hashlib.sha256(rates.read_bytes()).hexdigest()
+    assert pd.read_csv(candles).shape[0] == 2
+    assert pd.read_csv(rates).shape[0] == 1
 def test_signal_feature_diagnostics_counts_missing_features_and_masks():
     frame = pd.DataFrame({
         "open": [100.0, 100.0, 100.0],
