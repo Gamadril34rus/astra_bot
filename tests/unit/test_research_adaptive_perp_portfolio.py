@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pandas as pd
 import pytest
+
+import scripts.archive_bingx_usdm_candles as candle_archive
 from scripts.archive_bingx_funding_history import _rows_from_response
 from scripts.research_adaptive_perp_portfolio import (
     MAX_HOLD_BARS,
@@ -71,3 +75,39 @@ def test_funding_parser_reads_bingx_funding_records() -> None:
 def test_funding_parser_rejects_incomplete_record() -> None:
     with pytest.raises(ValueError, match="missing time/rate"):
         _rows_from_response({"code": 0, "data": [{"fundingTime": 1_700_000_000_000}]})
+
+
+@pytest.mark.asyncio
+async def test_candle_archive_continues_after_short_nonempty_page(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(candle_archive, "ARCHIVE_DIR", tmp_path)
+    bars = [
+        SimpleNamespace(
+            open_time=ts,
+            open=100,
+            high=102,
+            low=99,
+            close=101,
+            volume=10,
+            quote_volume=1000,
+            trades_count=1,
+        )
+        for ts in (1_000_000, 1_900_000, 2_800_000, 3_700_000, 4_600_000, 5_500_000)
+    ]
+
+    class ShortPageClient:
+        def __init__(self) -> None:
+            self.pages = [bars[3:], bars[:3], []]
+
+        async def fetch_kline_page(self, *_args, **_kwargs):
+            return self.pages.pop(0)
+
+    report, _ = await candle_archive._download_pair(
+        ShortPageClient(),
+        symbol="BTC-USDT",
+        timeframe="15m",
+        mode="initial",
+        start_ms=0,
+        now_ms=10_000_000,
+    )
+    assert report["pages_requested"] == 3
+    assert report["bar_count"] == 6
