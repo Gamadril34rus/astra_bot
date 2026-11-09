@@ -123,8 +123,9 @@ def add_features(m15: pd.DataFrame, h1: pd.DataFrame) -> pd.DataFrame:
     h["h1_ema20"] = hc.ewm(span=20, adjust=False).mean()
     h["h1_ema50"] = hc.ewm(span=50, adjust=False).mean()
     h["h1_ema20_rising"] = h["h1_ema20"] > h["h1_ema20"].shift(3)
+    h["h1_ema20_falling"] = h["h1_ema20"] < h["h1_ema20"].shift(3)
     h["h1_adx14"] = _adx(h)
-    h = h[["decision_time", "h1_ema20", "h1_ema50", "h1_ema20_rising", "h1_adx14"]]
+    h = h[["decision_time", "h1_ema20", "h1_ema50", "h1_ema20_rising", "h1_ema20_falling", "h1_adx14"]]
     return pd.merge_asof(
         x.sort_values("decision_time"), h.sort_values("decision_time"),
         on="decision_time", direction="backward", allow_exact_matches=True
@@ -185,7 +186,7 @@ def choose_signal(x: pd.DataFrame, i: int) -> dict | None:
             if touched and held and row["close"] > row["ema20"] and row["close"] > previous["high"]:
                 stop = float(prior4["low"].min()) - 0.15 * atr
                 return {"family": "TREND_PULLBACK", "side": 1, "stop": stop, "target_rr": 1.5}
-        if short_bias and not bool(row["h1_ema20_rising"]):
+        if short_bias and bool(row["h1_ema20_falling"]):
             touched = (prior4["high"] >= prior4["ema20"]).any()
             held = (prior4["close"] < prior4["ema50"]).all()
             if touched and held and row["close"] < row["ema20"] and row["close"] < previous["low"]:
