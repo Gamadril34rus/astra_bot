@@ -125,37 +125,73 @@ def get_perpetual_contracts() -> dict[str, dict[str, Any]]:
 
 
 def fetch_klines(symbol: str, start_ms: int, end_ms: int) -> list[list[Any]]:
-    rows: list[list[Any]] = []
-    cursor = start_ms
-    while cursor < end_ms:
+    """Fetch complete bounded 30m windows, skipping only pre-history empties."""
+    rows_by_time: dict[int, list[Any]] = {}
+    cursor = ((start_ms + INTERVAL_MS - 1) // INTERVAL_MS) * INTERVAL_MS
+    last_closed_open = (end_ms // INTERVAL_MS) * INTERVAL_MS - INTERVAL_MS
+    while cursor <= last_closed_open:
+        page_last_open = min(
+            cursor + (PAGE_KLINES - 1) * INTERVAL_MS, last_closed_open
+        )
         page = request_json(
             KLINES_ENDPOINT,
-            {"symbol": symbol, "interval": INTERVAL, "startTime": cursor, "endTime": end_ms - 1, "limit": PAGE_KLINES},
+            {
+                "symbol": symbol,
+                "interval": INTERVAL,
+                "startTime": cursor,
+                "endTime": page_last_open + INTERVAL_MS - 1,
+                "limit": PAGE_KLINES,
+            },
         )
-        if not page:
-            break
         normalized_page = []
         for row in page:
             if isinstance(row, dict):
                 normalized_page.append([
-                    row.get("time", row.get("openTime")), row.get("open"), row.get("high"),
-                    row.get("low"), row.get("close"), row.get("volume"),
-                    row.get("closeTime", 0), row.get("quoteVolume", 0), row.get("n", 0),
-                    row.get("takerBuyBaseVolume", 0), row.get("takerBuyQuoteVolume", 0),
+                    row.get("time", row.get("openTime")), row.get("open"),
+                    row.get("high"), row.get("low"), row.get("close"),
+                    row.get("volume"), row.get("closeTime", 0),
+                    row.get("quoteVolume", 0), row.get("n", 0),
+                    row.get("takerBuyBaseVolume", 0),
+                    row.get("takerBuyQuoteVolume", 0),
                 ])
             else:
                 normalized_page.append(list(row) + [0] * max(0, 11 - len(row)))
         normalized_page.sort(key=lambda row: int(row[0]))
-        rows.extend(normalized_page)
-        next_cursor = int(normalized_page[-1][0]) + INTERVAL_MS
-        if next_cursor <= cursor:
-            raise RuntimeError(f"non-advancing BingX kline cursor for {symbol}")
-        cursor = next_cursor
-        if len(page) < PAGE_KLINES:
-            break
-    return rows
-
-
+        actual_times = [
+            int(row[0]) for row in normalized_page
+            if cursor <= int(row[0]) <= page_last_open
+            and int(row[0]) + INTERVAL_MS <= end_ms
+        ]
+        if not actual_times:
+            if rows_by_time:
+                raise RuntimeError(
+                    f"BingX returned an empty candle window after history began "
+                    f"for {symbol}: {cursor}..{page_last_open}"
+                )
+            cursor = page_last_open + INTERVAL_MS
+            continue
+        # The public endpoint may have a shorter retained history than the
+        # contract's launchTime. Allow only a leading pre-history prefix.
+        expected_start = cursor if rows_by_time else actual_times[0]
+        expected_times = list(range(expected_start, page_last_open + 1, INTERVAL_MS))
+        if actual_times != expected_times:
+            raise RuntimeError(
+                f"incomplete BingX candle window for {symbol}: "
+                f"start={cursor} end={page_last_open} "
+                f"expected={len(expected_times)} actual={len(actual_times)}"
+            )
+        for row in normalized_page:
+            open_time = int(row[0])
+            if open_time in actual_times:
+                if open_time in rows_by_time and rows_by_time[open_time] != row:
+                    raise RuntimeError(
+                        f"conflicting BingX candle duplicate for {symbol} at {open_time}"
+                    )
+                rows_by_time[open_time] = row
+        cursor = page_last_open + INTERVAL_MS
+    if not rows_by_time:
+        raise RuntimeError(f"BingX returned no retained closed 30m candles for {symbol}")
+    return [rows_by_time[key] for key in sorted(rows_by_time)]
 def fetch_funding(symbol: str, start_ms: int, end_ms: int) -> list[dict[str, Any]]:
     """Fetch funding in bounded 30-day windows; never stop at a short page."""
     rows: dict[int, dict[str, Any]] = {}
