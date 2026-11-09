@@ -80,7 +80,7 @@ async def test_ensure_get_open_orders_fail_aborts_no_close(tmp_path):
     )
     closed = []
 
-    async def close_position(symbol, quantity=None):
+    async def close_position(symbol, quantity=None, position_side=None):
         closed.append(symbol)
         return True
 
@@ -168,8 +168,8 @@ async def test_ensure_two_confirmed_rejects_closes_only_that_symbol(tmp_path):
     cancels = []
     close_order = []
 
-    async def close_position(symbol, quantity=None):
-        close_order.append("close")
+    async def close_position(symbol, quantity=None, position_side=None):
+        close_order.append(f"close:{symbol}:{position_side}")
         closed.append(symbol)
         return True
 
@@ -204,8 +204,10 @@ async def test_ensure_two_confirmed_rejects_closes_only_that_symbol(tmp_path):
     out2 = await broker.ensure_protection(positions_path=path, bare_state_path=bare)
     # both ADA and BTC are bare with confirmed reject → both may close on 2nd tick
     assert "ADA-USDT" in out2.get("closed", [])
-    # cancel only after close
-    assert close_order.index("close") < close_order.index("cancel")
+    assert "BTC-USDT" in out2.get("closed", [])
+    assert close_order == ["close:ADA-USDT:short", "close:BTC-USDT:short"]
+    # The exact hedge legs were closed; no symbol-wide order cancellation occurred.
+    assert cancels == []
 
 
 @pytest.mark.asyncio
@@ -223,7 +225,7 @@ async def test_ensure_cancel_not_before_close(tmp_path):
     )
     cancels = []
 
-    async def close_position(symbol, quantity=None):
+    async def close_position(symbol, quantity=None, position_side=None):
         raise RuntimeError("close failed")
 
     async def cancel_all_orders(symbol):
