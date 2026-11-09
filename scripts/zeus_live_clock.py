@@ -2216,13 +2216,16 @@ async def detect_ghost_positions(
         logger.warning("detect_ghost_positions: setup %s", type(exc).__name__)
         return {"ghosts": [], "error": type(exc).__name__}
 
-    plan_syms: set[str] = set()
+    plan_legs: set[tuple[str, str]] = set()
     for _key, plan in (plans or {}).items():
         if not isinstance(plan, dict):
             continue
         sym = str(plan.get("symbol") or _key.split("|")[0] or "")
-        if sym:
-            plan_syms.add(sym)
+        side = _normalize_plan_side(plan.get("side") or (
+            _key.rsplit("|", 1)[1] if "|" in _key else None
+        ))
+        if sym and side is not None:
+            plan_legs.add((sym, side))
 
     try:
         st = json.loads(flag.read_text(encoding="utf-8")) if flag.exists() else {}
@@ -2245,11 +2248,15 @@ async def detect_ghost_positions(
         if sym in plan_syms:
             continue
         entry = getattr(pos, "entry_price", None) or getattr(pos, "avg_price", None)
-        side = str(getattr(pos, "side", "") or "").lower()
-        last = float(st.get(sym) or 0)
+        side = _normalize_plan_side(getattr(pos, "side", None))
+        side_label = side or "unknown"
+        if side is not None and (sym, side) in plan_legs:
+            continue
+        warning_key = f"{sym}|{side_label}"
+        last = float(st.get(warning_key) or 0)
         row = {
             "symbol": sym,
-            "side": side,
+            "side": side_label,
             "qty": str(qty),
             "entry": str(entry) if entry is not None else None,
         }
@@ -2260,15 +2267,15 @@ async def detect_ghost_positions(
             append_journal({
                 "event": "ghost_position",
                 "symbol": sym,
-                "side": side,
+                "side": side_label,
                 "qty": str(qty),
                 "entry": str(entry) if entry is not None else None,
                 "ts": now,
             })
         except Exception:
             pass
-        st[sym] = now
-        msg = f"⚠️ {sym}: позиция без плана (qty={qty}"
+        st[warning_key] = now
+        msg = f"⚠️ {sym} {side_label}: позиция без плана (qty={qty}"
         if entry is not None:
             msg += f", entry={entry}"
         msg += ") — защита неизвестна"
