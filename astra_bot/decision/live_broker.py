@@ -1232,6 +1232,7 @@ class LiveBroker:
             by_symbol.setdefault(getattr(order, "symbol", "") or "", []).append(order)
 
         restored: list[str] = []
+        restored_legs: list[str] = []
         closed_naked: list[str] = []
         closed_legs: list[str] = []
         orphan_protected: list[str] = []
@@ -1350,7 +1351,8 @@ class LiveBroker:
                                 })
                             except Exception:
                                 pass
-                    restored.append(f"{symbol}|{side}")
+                    restored.append(symbol)
+                    restored_legs.append(f"{symbol}|{side}")
                     continue
 
                 # A matching exchange STOP is valid protection without local metadata.
@@ -1411,7 +1413,8 @@ class LiveBroker:
                                 close_position=close_position,
                                 client_order_id=unique_client_order_id(symbol, "r"),
                             )
-                    restored.append(f"{symbol}|{side}")
+                    restored.append(symbol)
+                    restored_legs.append(f"{symbol}|{side}")
                 except Exception as exc:
                     logger.warning(
                         "restore_missing_stops: %s %s stop restore failed: %s",
@@ -1516,6 +1519,7 @@ class LiveBroker:
 
         return {
             "restored": restored,
+            "restored_legs": restored_legs,
             "closed_naked": closed_naked,
             "closed_legs": closed_legs,
             "orphan_protected": orphan_protected,
@@ -1620,6 +1624,7 @@ class LiveBroker:
         bare = _load_bare()
         placed: list[str] = []
         closed: list[str] = []
+        closed_legs: list[str] = []
         still_bare: set[str] = set()
 
         for p in positions:
@@ -1830,7 +1835,8 @@ class LiveBroker:
                     except Exception:
                         pass
                     bare.pop(key, None)
-                    closed.append(f"{sym}|{side}")
+                    closed.append(sym)
+                    closed_legs.append(f"{sym}|{side}")
                     msg = f"⚠️ {sym}: нет стопа 2 тика — закрыта по рынку (protect_failed_closed)"
                     _journal_protect(
                         "protect_failed_closed",
@@ -1880,7 +1886,12 @@ class LiveBroker:
             if key not in still_bare and key not in closed and key not in open_position_keys:
                 bare.pop(key, None)
         _save_bare(bare)
-        return {"placed": placed, "closed": closed, "bare": bare}
+        return {
+            "placed": placed,
+            "closed": closed,
+            "closed_legs": closed_legs,
+            "bare": bare,
+        }
 
 
     async def open_with_protection(self, plan: LiveEntryPlan) -> dict[str, Any]:
