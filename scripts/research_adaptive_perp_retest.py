@@ -35,7 +35,15 @@ def choose_retest_breakout_signal(frame: pd.DataFrame, index: int) -> dict | Non
     if atr <= 0 or float(row["h1_adx14"]) < 18:
         return None
 
-    volume_column = "quote_volume" if "quote_volume" in frame.columns else "volume"
+    # BingX v3 may omit quoteVolume in historical responses. The archive
+    # records that as zero; use base volume for those bars, matching the
+    # shared feature pipeline's documented fallback.
+    if "quote_volume" in frame.columns:
+        volume = frame["quote_volume"].where(
+            frame["quote_volume"] > 0, frame["volume"]
+        )
+    else:
+        volume = frame["volume"]
     long_regime = (
         float(row["h1_ema20"]) > float(row["h1_ema50"])
         and pd.notna(row["h1_ema20_rising"])
@@ -55,8 +63,8 @@ def choose_retest_breakout_signal(frame: pd.DataFrame, index: int) -> dict | Non
         if len(prior) != 20:
             continue
 
-        prior_volume_mean = float(prior[volume_column].mean())
-        breakout_volume = float(breakout[volume_column])
+        prior_volume_mean = float(volume.iloc[breakout_index - 20:breakout_index].mean())
+        breakout_volume = float(volume.iloc[breakout_index])
         if prior_volume_mean <= 0 or breakout_volume <= 0:
             continue
         relative_volume = breakout_volume / prior_volume_mean
