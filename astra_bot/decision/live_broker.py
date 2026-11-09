@@ -1743,6 +1743,9 @@ class LiveBroker:
                 bare.pop(key, None)
                 continue
             if unknown_stop or unknown_order:
+                # An unknown exchange state breaks the consecutive confirmed-reject
+                # sequence. Do not carry a previous bare tick across uncertainty.
+                bare.pop(key, None)
                 logger.warning(
                     "ensure_protection: %s %s has unscoped exchange orders; preserve them",
                     sym,
@@ -1812,6 +1815,8 @@ class LiveBroker:
                     )
 
             if placed_ok or verify_unknown:
+                # Success or an inconclusive verification both reset the bare streak.
+                bare.pop(key, None)
                 continue
 
             # BE fallback only on confirmed reject + mfe
@@ -1868,7 +1873,9 @@ class LiveBroker:
 
             # B2d: two consecutive ticks of confirmed bare before close
             if not confirmed_reject:
-                # network / unknown — do not increment toward close
+                # Network / missing-plan / unknown response breaks the consecutive
+                # confirmed-reject sequence; never close based on non-consecutive ticks.
+                bare.pop(key, None)
                 still_bare.add(key)
                 continue
 
