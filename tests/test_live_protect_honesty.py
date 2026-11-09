@@ -76,7 +76,7 @@ def test_workflow_save_bash_n():
             lines.append(ln[10:])
         elif not ln.strip():
             lines.append("")
-        elif ln.startswith("      -") or ln.startswith("    -"):
+        elif ln.startswith(("      -", "    -")):
             break
     tmp = Path("/tmp/wf_for_test.sh")
     tmp.write_text("#!/bin/bash\n" + "\n".join(lines) + "\n")
