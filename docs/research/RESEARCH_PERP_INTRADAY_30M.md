@@ -11,6 +11,7 @@ The requested holding profile is built into the experiment:
 - hard maximum holding period: 18 × 30m = 9 hours;
 - no 1m/5m signal logic, tick scalping, or spot instruments;
 - entries use the next 30m open after a completed signal candle;
+- no new signal is entered within the final 9h of available candles, so no incomplete position is force-closed and mislabeled as a full 9h time stop;
 - at most one position per symbol and candidate, with no pyramiding.
 
 The 1h context is constructed from completed 30m candles and attached with an as-of join. A signal cannot read a still-forming 1h candle.
