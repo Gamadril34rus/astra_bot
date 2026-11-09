@@ -17,7 +17,7 @@ def test_already_exists_cancel_then_place(tmp_path, monkeypatch):
             self.places = 0
             self.cancelled = []
             self.orders = [
-                SimpleNamespace(id="old-sl", order_type="STOP_MARKET", position_side="LONG"),
+                SimpleNamespace(id="old-sl", order_type="STOP_MARKET", side="SELL", position_side="LONG"),
             ]
 
         async def place_order(self, **kwargs):
@@ -25,7 +25,7 @@ def test_already_exists_cancel_then_place(tmp_path, monkeypatch):
             if self.places == 1:
                 raise RuntimeError("BingX API error: Position SL order already exists (code=101406)")
             oid = f"new-{self.places}"
-            self.orders = [SimpleNamespace(id=oid, order_type="STOP_MARKET", position_side="LONG")]
+            self.orders = [SimpleNamespace(id=oid, order_type="STOP_MARKET", side="SELL", position_side="LONG")]
             return SimpleNamespace(id=oid)
 
         async def get_open_orders(self, symbol=None):
@@ -67,7 +67,7 @@ def test_second_call_no_extra_when_place_ok(tmp_path, monkeypatch):
             return SimpleNamespace(id=f"s{self.places}")
 
         async def get_open_orders(self, symbol=None):
-            return [SimpleNamespace(id=f"s{self.places}", order_type="STOP_MARKET", position_side="LONG")]
+            return [SimpleNamespace(id=f"s{self.places}", order_type="STOP_MARKET", side="SELL", position_side="LONG")]
 
         async def cancel_order(self, symbol, order_id):
             return True
