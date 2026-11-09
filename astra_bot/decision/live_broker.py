@@ -719,14 +719,24 @@ class LiveBroker:
         for o in open_orders:
             by_sym.setdefault(getattr(o, "symbol", ""), []).append(o)
         restored = 0
-        for p in positions:
-            sym = p.symbol
-            orders = by_sym.get(sym, [])
-            has_stop = any(
-                "stop" in str(getattr(o, "order_type", "")).lower() for o in orders
+        for position in positions or []:
+            symbol = str(getattr(position, "symbol", "") or "")
+            qty = Decimal(str(getattr(position, "quantity", 0) or 0))
+            if not symbol or qty <= 0:
+                continue
+            side = _normalize_position_side(getattr(position, "side", None))
+            orders = by_sym.get(symbol, [])
+            has_stop = (
+                side is not None
+                and _has_matching_protective_order(orders, side, kind="stop")
             )
-            if not has_stop and p.quantity > 0:
-                logger.warning("reconcile: %s open qty=%s but no stop order", sym, p.quantity)
+            if not has_stop:
+                logger.warning(
+                    "reconcile: %s side=%s open qty=%s but no matching STOP order",
+                    symbol,
+                    side or "unknown",
+                    qty,
+                )
                 restored += 1
         eq = await self.equity()
         return {
