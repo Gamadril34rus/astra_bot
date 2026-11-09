@@ -270,6 +270,12 @@ def test_write_report_serializes_nested_strategy_trade_map(tmp_path):
     }
     manifest = {
         "data_cutoff_utc": "2026-11-09T00:00:00+00:00",
+        "strategy_diagnostics": {
+            "BTC-USDT:trend_pullback:LONG": {
+                "raw_signals": 4, "cost_rejected": 2,
+                "target_rejected": 1, "completed_trades": 1,
+            }
+        },
         "symbols": {
             "BTC-USDT": {
                 "first_bar_utc": "2021-01-01T00:00:00+00:00",
@@ -286,6 +292,7 @@ def test_write_report_serializes_nested_strategy_trade_map(tmp_path):
     assert trades.iloc[0]["slippage_pct"] == 0.1
     report = (tmp_path / "report.md").read_text(encoding="utf-8")
     assert "Aggregate IS and OOS" in report
+    assert "BTC-USDT | trend_pullback | LONG | 4 | 2 | 1 | 1 |" in report
     assert "Trade-sequence DD proxy" in report
     assert "mean holding <= 90 minutes" in report
     assert json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))["symbols"]["BTC-USDT"]["bars"] == 100000
