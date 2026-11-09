@@ -4,24 +4,27 @@
 
 This is a **research-only entry detector** based on the fixed `break` entry conditions in `scripts/research_bt_walkforward.py`. The strategy is disabled by default (`enabled=false`), is not registered in any live or Zeus pipeline, and does not alter the production strategy, sizing, stops, leverage, or VST/REAL routing.
 
-This PR ports the signal conditions only. It does **not** port the full historical execution harness (next-bar open, 24-bar time stop, intrabar stop/target precedence, fees/slippage, and one position per symbol). The repository's normal paper/live exit controllers would produce a different complete strategy. Do not compare their results to the reported walk-forward PF as if they were the same test.
+This PR ports the entry detector only. It does **not** port the historical execution harness (next-bar open, 24-bar time stop, intrabar stop/target precedence, fees/slippage, and one position per symbol). The normal paper/live exit controllers create a different strategy. No performance claim is made for this implementation.
 
-## Research provenance
+## Validation status: NOT VALIDATED
 
-`docs/research/WALKFORWARD_4H_BREAKOUT.md` records the fixed candidate:
+The previously published `docs/research/WALKFORWARD_4H_BREAKOUT.md` reported OOS PF 1.238 (n=81). That figure must **not** be used as evidence of an edge.
 
-| Metric | IS 2021–2023 | OOS 2024–2026 | Full |
-|---|---:|---:|---:|
-| Trades | 57 | 81 | 145 |
-| Profit factor | 1.71 | 1.238 | 1.315 |
-| Mean R | +0.334 | +0.131 | +0.170 |
-| Win rate | 56.1% | 49.4% | 50.3% |
-| Return at 0.5% risk | +9.9% | +5.3% | +12.8% |
-| Max drawdown | 2.0% | 3.2% | 3.2% |
+An independent data-integrity check of branch `research/binance-data` found the following CSV blob inputs:
 
-Source data: BTC/ETH/SOL 4h Binance-style klines from branch `research/binance-data`, 2021–2026. The documented cost assumption is approximately 0.18% round-trip. Raw CSV files are not present in the current master tree, so this report cannot be independently rerun from master alone. Past results are not a promise of future results.
+| File | Blob SHA | Rows | Coverage |
+|---|---|---:|---|
+| `BTCUSDT_4h.csv` | `bf1119238982838f2ef3fd9323bc30275ac30a38` | 12,414 | 2021-01-01 to 2026-08-31 20:00 UTC |
+| `ETHUSDT_4h.csv` | `8eb0a7ee2137f9da2e787e228920447c08818587` | 12,414 | 2021-01-01 to 2026-08-31 20:00 UTC |
+| `SOLUSDT_4h.csv` | `5375a7af1298cf7c6ac88fc310a14bbb20b878f9` | 12,414 | 2021-01-01 to 2026-08-31 20:00 UTC |
 
-## Entry rules ported
+The files have continuous 4h timestamps and valid OHLC ordering, but the prices do not match the named markets on the stated dates. For example, the BTC file's 2025-01-01 00:00 UTC open is about 12,939.98 USDT, while the public historical BTC reference for 2025-01-01 is about 93,425 USDT ([StatMuse historical record](https://www.statmuse.com/money/ask/bitcoin-price-day-by-day-january-1-2025)). The SOL file records approximately 5.16 USDT at 2024-01-01 and 1.58 USDT at 2025-01-01. These are not credible Binance BTC/ETH/SOL futures histories.
+
+A direct implementation of the documented backtest logic over those archived files also fails to reproduce the published aggregate: it produces OOS n=196 and PF about 0.789, rather than n=81 and PF 1.238. Because the input prices fail symbol/date validation, **neither the old report metrics nor this diagnostic reproduction is a valid strategy-performance estimate**. This discrepancy is a data/provenance failure, not an invitation to tune parameters until a positive number appears.
+
+Until official, symbol-verified raw klines are obtained and the full execution harness is independently reproduced, the candidate has no validated IS/OOS evidence and must not be promoted.
+
+## Entry rules implemented
 
 For a closed 4h signal bar (i), with the preceding 20 bars defining the range:
 
@@ -30,11 +33,21 @@ For a closed 4h signal bar (i), with the preceding 20 bars defining the range:
 - Stop distance: 1.5× simple rolling ATR(14).
 - Target geometry exposed in the signal: 1.5R.
 
-The pipeline already strips the forming candle before calling entry strategies. This implementation expects closed candles and declares `preferred_timeframe="4h"`. It uses a 200-bar warm-up to match the historical harness start index and to reduce EMA warm-up sensitivity.
+The pipeline strips the forming candle before calling entry strategies. This implementation expects closed candles and declares `preferred_timeframe="4h"`. It uses a 200-bar warm-up. The signal rules are a hypothesis port only; they are not evidence of profitability.
 
-## What is deliberately not done
+## Promotion gate
+
+Do not connect this candidate to live or Zeus paper until all conditions pass:
+
+1. Replace the unverified CSVs with source-verified official exchange klines. Record exchange, contract type, symbol, interval, download time, source endpoint, and file checksum.
+2. Validate timestamp spacing, OHLC constraints, symbol-specific price scale, duplicates, missing bars, and source continuity before indicators are calculated.
+3. Reproduce the frozen backtest, including next-bar execution, stop/target precedence, max-hold exit, fees, slippage, and one-position-per-symbol constraints. Store the full trade ledger and per-symbol/per-side metrics.
+4. Evaluate on a frozen out-of-sample interval not used for parameter selection. Require a meaningful trade count, positive net expectancy after costs, PF above 1.2, and no single-symbol concentration.
+5. Run the same full execution semantics in an isolated shadow/paper runner and compare its trades to the independent backtest before any owner-reviewed promotion.
+
+## Explicit exclusions
 
 - No addition to the active Zeus pipeline.
 - No automatic activation, live entries, or changes to risk.
-- No claim that signal-level parity alone reproduces the backtest.
-- No promotion decision from the historical PF. A separate isolated paper runner must match the research exit/execution model, use fresh data, and pass an out-of-sample sample-size gate before this candidate is reconsidered.
+- No settings, stops, leverage, or VST/REAL routing changes.
+- No performance claim from the historical PF until the data-integrity and reproducibility gates above pass.
