@@ -246,7 +246,13 @@ def simulate_symbol(
         if diagnostics is None:
             return
         diagnostics[key] += 1
-        family_key = f"{key}_by_family"
+        family_key = {
+            "raw_signals": "raw_signals_by_family",
+            "risk_rejected": "risk_rejected_by_family",
+            "cost_rejected": "cost_rejected_by_family",
+            "target_rejected": "target_rejected_by_family",
+            "completed_trades": "completed_by_family",
+        }[key]
         family_counts = diagnostics[family_key]
         family_counts[family] = family_counts.get(family, 0) + 1
 
