@@ -84,6 +84,11 @@ def add_features(m15: pd.DataFrame, h1: pd.DataFrame) -> pd.DataFrame:
     return x
 
 
+def funding_cost_fraction(side: int, rates: pd.Series) -> float:
+    """Positive rate is paid by LONG and received by SHORT."""
+    return float(rates.sum()) * side
+
+
 def trade_symbol(symbol: str, x: pd.DataFrame, funding: pd.DataFrame,
                  fee_bps: float, slippage_bps: float, half_spread_bps: float) -> list[dict]:
     trades: list[dict] = []
@@ -143,7 +148,7 @@ def trade_symbol(symbol: str, x: pd.DataFrame, funding: pd.DataFrame,
         fee_cost = 2 * fee_bps / 10_000
         # Positive funding rate: longs pay, shorts receive. All crossed settlements included.
         crossed = funding[(funding["funding_time"] > entry_time) & (funding["funding_time"] <= exit_time)]
-        funding_cost = float(crossed["rate"].sum()) * side
+        funding_cost = funding_cost_fraction(side, crossed["rate"])
         net = gross - fee_cost - funding_cost
         hold_minutes = (exit_time - entry_time) / 60_000
         trades.append({
