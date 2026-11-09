@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import pandas as pd
-import pytest
-
 from scripts.research_perp_intraday_net_edge import (
     add_features,
     funding_cost_fraction,
     load_bars,
 )
+
+import pytest
 
 
 def _bars(times: list[int], interval_ms: int) -> pd.DataFrame:
