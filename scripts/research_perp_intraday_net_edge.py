@@ -173,7 +173,7 @@ def summarize(trades: pd.DataFrame) -> dict:
     wins = trades.loc[trades.net_pct > 0, "net_pct"].sum()
     losses = -trades.loc[trades.net_pct <= 0, "net_pct"].sum()
     return {
-        "trades": int(len(trades)),
+        "trades": len(trades),
         "wins": int((trades.net_pct > 0).sum()),
         "win_rate_pct": round(float((trades.net_pct > 0).mean() * 100), 2),
         "pf": round(float(wins / losses), 4) if losses else ("inf" if wins else 0.0),
