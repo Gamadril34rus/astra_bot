@@ -154,6 +154,27 @@ def choose_signal(x: pd.DataFrame, i: int) -> dict | None:
             return {"family": "COMPRESSION_BREAKOUT", "side": -1,
                     "stop": float(row["close"]) + 1.2 * atr, "target_rr": 1.5}
 
+    # False-break reversal: fade a failed 20-bar range escape only in a
+    # non-trending hourly regime. The breakout bar is prior; current close must
+    # return inside the same pre-break range.
+    if row["h1_adx14"] <= 22 and previous["volume_ratio"] >= 1.5:
+        pre_break = x.iloc[i - 21:i - 1]
+        range_high = float(pre_break["high"].max())
+        range_low = float(pre_break["low"].min())
+        range_mid = (range_high + range_low) / 2
+        if previous["close"] > range_high and row["close"] < range_high:
+            stop = max(float(previous["high"]), float(row["high"])) + 0.15 * atr
+            return {
+                "family": "FALSE_BREAK_REVERSAL", "side": -1,
+                "stop": stop, "target_price": range_mid,
+            }
+        if previous["close"] < range_low and row["close"] > range_low:
+            stop = min(float(previous["low"]), float(row["low"])) - 0.15 * atr
+            return {
+                "family": "FALSE_BREAK_REVERSAL", "side": 1,
+                "stop": stop, "target_price": range_mid,
+            }
+
     # Directional trend continuation: pullback and confirmed reclaim.
     if row["h1_adx14"] >= 20 and row["volume_ratio"] >= 1.1:
         if long_bias and bool(row["h1_ema20_rising"]):
