@@ -24,7 +24,61 @@
       "be_earned": true,
       "migrate_stop_v1": true,
       "current_regime": "WEAK_BEAR_TREND"
+    },
+    "BTC-USDT|short": {
+      "symbol": "BTC-USDT",
+      "side": "short",
+      "qty": "0.54420524",
+      "stop": "75848.61518603314",
+      "tp": "73548.7016476817730",
+      "entry": "74378.6",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|BTC-USDT|short|1794225600000",
+      "ts": 1794225781.1496923,
+      "be_moved": false,
+      "initial_stop": "75848.61518603314",
+      "opened_at_ms": 1794225781149,
+      "plan_qty": "0.54420524",
+      "qty_ratio": 1.0,
+      "tp1": "73548.7016476817730"
+    },
+    "SOL-USDT|short": {
+      "symbol": "SOL-USDT",
+      "side": "short",
+      "qty": "234.35676799",
+      "stop": "89.5547906364797",
+      "tp": "84.215365149936165",
+      "entry": "86.115",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|SOL-USDT|short|1794225600000",
+      "ts": 1794225789.3039882,
+      "be_moved": false,
+      "initial_stop": "89.5547906364797",
+      "opened_at_ms": 1794225789303,
+      "plan_qty": "234.35676799",
+      "qty_ratio": 1.0,
+      "tp1": "84.215365149936165"
+    },
+    "HYPE-USDT|short": {
+      "symbol": "HYPE-USDT",
+      "side": "short",
+      "qty": "352.85059575",
+      "stop": "75.36448373873304",
+      "tp": "71.8188839436968280",
+      "entry": "73.085",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|HYPE-USDT|short|1794225600000",
+      "ts": 1794225796.8749056,
+      "be_moved": false,
+      "initial_stop": "75.36448373873304",
+      "opened_at_ms": 1794225796874,
+      "plan_qty": "352.85059575",
+      "qty_ratio": 1.0,
+      "tp1": "71.8188839436968280"
     }
   },
-  "ts": 1794225398.5254633
+  "ts": 1794225796.8749213
 }
