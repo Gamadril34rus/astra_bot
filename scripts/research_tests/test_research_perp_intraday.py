@@ -207,6 +207,8 @@ def test_last_partial_hold_window_is_not_mislabeled_as_nine_hour_exit(monkeypatc
     monkeypatch.setattr(research, "signal_masks", lambda _: masks)
     trades = run_backtest("BTC-USDT", frame, [], "trend_pullback", 1, 0.001)
     assert trades == []
+
+
 def test_hard_hold_cap_is_nine_hours(monkeypatch):
     import research_perp_intraday as research
 
