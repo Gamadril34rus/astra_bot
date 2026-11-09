@@ -509,11 +509,12 @@ class BingXClient(ExchangeAdapter):
         timeframe: str,
         end_time_ms: int | None = None,
         limit: int = 1000,
+        start_time_ms: int | None = None,
     ) -> list[Candle]:
-        """Одна «страница» истории свечей ДО ``end_time_ms`` (без глотания
-        ошибок — для загрузчиков истории, которые делают свои retry).
+        """Fetch a bounded historical kline page without swallowing errors.
 
-        Используется историческими загрузчиками (обучение/self-play).
+        Supplying both timestamps supports deterministic forward pagination;
+        end_time_ms alone remains supported for existing backward readers.
         """
         bingx_symbol = symbol.replace("/", "-")
         params: dict[str, Any] = {
@@ -521,7 +522,9 @@ class BingXClient(ExchangeAdapter):
             "interval": self._convert_timeframe(timeframe),
             "limit": min(int(limit), _MAX_KLINES),
         }
-        if end_time_ms:
+        if start_time_ms is not None:
+            params["startTime"] = int(start_time_ms)
+        if end_time_ms is not None:
             params["endTime"] = int(end_time_ms)
         resp = await self._request("GET", BINGX_ENDPOINTS["swap"]["candles"], params=params)
         data = resp.get("data") or []
