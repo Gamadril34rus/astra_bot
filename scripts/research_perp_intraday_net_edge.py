@@ -94,8 +94,9 @@ def trade_symbol(symbol: str, x: pd.DataFrame, funding: pd.DataFrame,
     trades: list[dict] = []
     i = 205
     n = len(x)
+    max_hold_bars = 36
     # Every decision uses a fully closed 15m candle; fill proxy is next candle open.
-    while i < n - 2:
+    while i < n - max_hold_bars - 1:
         r = x.iloc[i]
         if pd.isna(r["atr14"]) or pd.isna(r["h1_ema50"]) or pd.isna(r["vol_ratio"]):
             i += 1
@@ -129,10 +130,10 @@ def trade_symbol(symbol: str, x: pd.DataFrame, funding: pd.DataFrame,
         stop = stop_ref
         target = target_ref
         entry_time = int(x.iloc[i+1]["open_time"])
-        exit_i = min(i + 1 + 36, n - 1)
+        exit_i = i + max_hold_bars
         exit_ref = float(x.iloc[exit_i]["close"])
         reason = "time"
-        for j in range(i+1, min(i+1+36, n)):
+        for j in range(i+1, i+1+max_hold_bars):
             bar = x.iloc[j]
             stop_hit = float(bar["low"]) <= stop if side == 1 else float(bar["high"]) >= stop
             target_hit = float(bar["high"]) >= target if side == 1 else float(bar["low"]) <= target
@@ -144,19 +145,21 @@ def trade_symbol(symbol: str, x: pd.DataFrame, funding: pd.DataFrame,
                 break
         exit_time = int(x.iloc[exit_i]["decision_time"])
         exit_px = exit_ref * (1 - side * (slippage_bps + half_spread_bps) / 10_000)
-        gross = side * (exit_px / entry - 1)
+        gross = side * (exit_ref / raw_entry - 1)
         fee_cost = 2 * fee_bps / 10_000
-        # Positive funding rate: longs pay, shorts receive. All crossed settlements included.
-        crossed = funding[(funding["funding_time"] > entry_time) & (funding["funding_time"] <= exit_time)]
+        spread_slippage_cost = 2 * (slippage_bps + half_spread_bps) / 10_000
+        # Positive funding rate: longs pay, shorts receive. Include a settlement
+        # exactly at entry conservatively because OHLC cannot order fills vs settlement.
+        crossed = funding[(funding["funding_time"] >= entry_time) & (funding["funding_time"] <= exit_time)]
         funding_cost = funding_cost_fraction(side, crossed["rate"])
-        net = gross - fee_cost - funding_cost
+        net = gross - fee_cost - spread_slippage_cost - funding_cost
         hold_minutes = (exit_time - entry_time) / 60_000
         trades.append({
             "symbol": symbol, "side": "LONG" if side == 1 else "SHORT",
             "entry_time": entry_time, "exit_time": exit_time,
             "hold_minutes": hold_minutes, "reason": reason,
             "entry": entry, "exit": exit_px, "gross_pct": gross * 100,
-            "fee_pct": fee_cost * 100, "spread_slippage_pct": 2 * (slippage_bps + half_spread_bps) / 100,
+            "fee_pct": fee_cost * 100, "spread_slippage_pct": spread_slippage_cost * 100,
             "funding_pct": funding_cost * 100, "net_pct": net * 100,
             "net_r": net / (risk / raw_entry),
         })
@@ -173,7 +176,7 @@ def summarize(trades: pd.DataFrame) -> dict:
         "trades": int(len(trades)),
         "wins": int((trades.net_pct > 0).sum()),
         "win_rate_pct": round(float((trades.net_pct > 0).mean() * 100), 2),
-        "pf": round(float(wins / losses), 4) if losses else (float("inf") if wins else 0.0),
+        "pf": round(float(wins / losses), 4) if losses else ("inf" if wins else 0.0),
         "net_expectancy_pct": round(float(trades.net_pct.mean()), 5),
         "net_expectancy_r": round(float(trades.net_r.mean()), 5),
         "median_hold_min": round(float(trades.hold_minutes.median()), 1),
@@ -213,6 +216,13 @@ def main() -> int:
         funding = funding_events(args.funding, symbol)
         if funding.empty:
             raise SystemExit(f"INCOMPLETE: no funding events for {symbol}")
+        candle_start = int(m15.open_time.iloc[0])
+        candle_end = int(m15.decision_time.iloc[-1])
+        funding_times = funding["funding_time"].to_numpy()
+        if funding_times[0] > candle_start or funding_times[-1] < candle_end:
+            raise SystemExit(f"INCOMPLETE: funding history does not cover candle window for {symbol}")
+        if len(funding_times) > 1 and np.diff(funding_times).max() > 9 * 60 * 60 * 1000:
+            raise SystemExit(f"INCOMPLETE: funding event gap exceeds 9h for {symbol}")
         x = add_features(m15, h1)
         coverage[symbol] = {
             "15m_first": int(m15.open_time.iloc[0]), "15m_last": int(m15.open_time.iloc[-1]),
