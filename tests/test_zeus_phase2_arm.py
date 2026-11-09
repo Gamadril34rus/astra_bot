@@ -2,11 +2,11 @@
 from __future__ import annotations
 
 import asyncio
-
-import pytest
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from astra_bot.decision.live_arm import (
     COOLDOWN_MS,
