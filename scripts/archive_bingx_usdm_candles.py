@@ -212,7 +212,7 @@ async def _download_pair(
     mode: str,
     start_ms: int,
     now_ms: int,
-    launch_ms: int,
+    launch_ms: int = 0,
 ) -> tuple[dict[str, Any], int]:
     interval_ms = TIMEFRAME_MS[timeframe]
     path = _archive_path(symbol, timeframe)
