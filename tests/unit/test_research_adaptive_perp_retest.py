@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from scripts.research_adaptive_perp_retest import choose_retest_breakout_signal
-
 import pandas as pd
+
+from scripts.research_adaptive_perp_retest import choose_retest_breakout_signal
 
 
 def _frame() -> pd.DataFrame:
