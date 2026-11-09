@@ -1,0 +1,72 @@
+name: Adaptive BingX perpetual strategy research
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - "docs/research/ADAPTIVE_PERP_REGIME_PORTFOLIO.md"
+      - "scripts/archive_bingx_funding_history.py"
+      - "scripts/research_adaptive_perp_portfolio.py"
+      - "tests/unit/test_research_adaptive_perp_portfolio.py"
+      - ".github/workflows/research-adaptive-perp.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adaptive-perp-research
+  cancel-in-progress: false
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install project dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Run research unit tests
+        run: |
+          python -m pytest tests/unit/test_research_adaptive_perp_portfolio.py -q
+      - name: Download BingX USDT-M perpetual candles
+        run: |
+          set -euo pipefail
+          python scripts/archive_bingx_usdm_candles.py \
+            --mode initial --start-date 2021-01-01 --timeframes 15m,1h
+      - name: Download historical BingX funding rates
+        run: |
+          set -euo pipefail
+          python scripts/archive_bingx_funding_history.py --start-date 2021-01-01
+      - name: Run frozen router at base execution costs
+        run: |
+          set -euo pipefail
+          python scripts/research_adaptive_perp_portfolio.py \
+            --fee-bps 5 --spread-bps 2 --slippage-bps 3 \
+            --out reports/adaptive_perp/base
+      - name: Run frozen router at 1.5x execution costs
+        run: |
+          set -euo pipefail
+          python scripts/research_adaptive_perp_portfolio.py \
+            --fee-bps 7.5 --spread-bps 3 --slippage-bps 4.5 \
+            --out reports/adaptive_perp/stress_1_5x
+      - name: Upload immutable research evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adaptive-bingx-perpetual-research
+          path: |
+            data/bingx_usdm/manifest.json
+            data/bingx_usdm/funding_manifest.json
+            data/bingx_usdm/*_15m.csv
+            data/bingx_usdm/*_1h.csv
+            data/bingx_usdm/funding_*.csv
+            reports/adaptive_perp/
+          if-no-files-found: warn
+          retention-days: 90
