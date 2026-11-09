@@ -2,9 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from decimal import Decimal
-from pathlib import Path
 from types import SimpleNamespace
 
 
@@ -82,7 +80,7 @@ def test_position_missing_with_orders_journals(tmp_path, monkeypatch):
 def test_be_catchup_sol_partial_e2e(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "models").mkdir()
-    from astra_bot.decision.live_positions import upsert_plan, load_positions
+    from astra_bot.decision.live_positions import load_positions, upsert_plan
     from scripts.zeus_live_clock import sync_partial_breakeven
 
     pos_path = tmp_path / "models" / "zeus_live_positions.json"
