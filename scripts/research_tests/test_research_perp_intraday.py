@@ -20,6 +20,7 @@ from research_perp_intraday import (
     metrics,
     net_trade_return,
     resolve_barrier_exit,
+    request_json,
     run_backtest,
     validate_market_data,
     write_report,
@@ -106,6 +107,37 @@ def test_latest_funding_segment_excludes_gaps_without_imputation():
     segment, excluded = latest_contiguous_funding_segment(funding)
     assert len(excluded) == 2
     assert [row["fundingTime"] for row in segment] == [24 * 3_600_000, 32 * 3_600_000]
+def test_bingx_100410_uses_four_attempt_cooldown(monkeypatch):
+    import research_perp_intraday as research
+
+    class FakeResponse:
+        def __init__(self, payload):
+            self.payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return json.dumps(self.payload).encode()
+
+    attempts = []
+    delays = []
+    def fake_urlopen(_request, timeout):
+        attempts.append(timeout)
+        if len(attempts) < 4:
+            return FakeResponse({"code": 100410, "msg": "retry later"})
+        return FakeResponse({"code": 0, "data": [{"ok": True}]})
+
+    monkeypatch.setattr(research.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(research.time, "monotonic", lambda: 1000.0)
+    monkeypatch.setattr(research.time, "sleep", delays.append)
+    monkeypatch.setattr(research, "API_MIN_INTERVAL_S", 0)
+    assert request_json("/test", {}) == [{"ok": True}]
+    assert len(attempts) == 4
+    assert delays == [5, 30, 60]
 def test_positive_funding_is_paid_by_long_and_received_by_short():
     assert funding_cashflow(1, 0.001, 100.0, 100.0) == -0.001
     assert funding_cashflow(-1, 0.001, 100.0, 100.0) == 0.001
