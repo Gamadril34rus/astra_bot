@@ -49,6 +49,31 @@ def test_persist_source_snapshot_writes_hash_verified_inputs(tmp_path):
     assert manifest["funding_sha256"] == hashlib.sha256(rates.read_bytes()).hexdigest()
     assert pd.read_csv(candles).shape[0] == 2
     assert pd.read_csv(rates).shape[0] == 1
+
+def test_trend_expansion_uses_candle_close_location_without_taker_flow():
+    import research_perp_intraday as research
+
+    frame = pd.DataFrame({
+        "open": [100.0] * 13,
+        "high": [101.0] * 12 + [102.8],
+        "low": [99.0] * 12 + [101.0],
+        "close": [100.2] * 12 + [102.5],
+        "ema20": [100.0] * 13,
+        "ema50": [99.0] * 13,
+        "atr": [1.0] * 13,
+        "rsi": [60.0] * 13,
+        "volume_ratio": [1.5] * 13,
+        "taker_buy_ratio": [float("nan")] * 13,
+        "close_location": [0.6] * 12 + [0.83],
+        "htf_ema20": [101.0] * 13,
+        "htf_ema50": [100.0] * 13,
+        "htf_close": [102.0] * 13,
+        "htf_adx": [25.0] * 13,
+        "bb_upper": [102.0] * 13,
+        "bb_lower": [98.0] * 13,
+    })
+    masks = research.signal_masks(frame)
+    assert masks[("trend_expansion", 1)].iloc[-1] is True or bool(masks[("trend_expansion", 1)].iloc[-1])
 def test_signal_feature_diagnostics_counts_missing_features_and_masks():
     frame = pd.DataFrame({
         "open": [100.0, 100.0, 100.0],
@@ -61,7 +86,8 @@ def test_signal_feature_diagnostics_counts_missing_features_and_masks():
         "rsi": [60.0, 60.0, 60.0],
         "volume_ratio": [1.0, 0.5, float("nan")],
         "quote_volume": [1000.0, 500.0, 0.0],
-        "taker_buy_ratio": [0.55, 0.40, float("nan")],
+        "taker_buy_ratio": [float("nan"), float("nan"), float("nan")],
+        "close_location": [0.80, 0.20, float("nan")],
         "htf_close": [101.0, 98.0, float("nan")],
         "htf_ema20": [100.0, 99.0, float("nan")],
         "htf_ema50": [99.0, 100.0, float("nan")],
@@ -75,7 +101,8 @@ def test_signal_feature_diagnostics_counts_missing_features_and_masks():
     assert counts["valid_htf_rows"] == 2
     assert counts["positive_quote_volume_rows"] == 2
     assert counts["valid_volume_ratio_rows"] == 2
-    assert counts["valid_taker_buy_ratio_rows"] == 2
+    assert counts["valid_taker_buy_ratio_rows"] == 0
+    assert counts["valid_close_location_rows"] == 2
     assert set(counts["signals"]) == {
         "trend_pullback:LONG", "trend_pullback:SHORT",
         "trend_expansion:LONG", "trend_expansion:SHORT",
@@ -147,6 +174,43 @@ def test_candle_loader_pages_1000_bar_windows_and_skips_only_leading_empty(monke
     assert len(calls) == 3
 
 
+
+def test_fetch_klines_normalizes_object_payload_quote_volume_proxy(monkeypatch):
+    import research_perp_intraday as research
+
+    start_ms = 1_700_000_000_000
+    start_ms -= start_ms % INTERVAL_MS
+    monkeypatch.setattr(research, "PAGE_KLINES", 1)
+    monkeypatch.setattr(research, "request_json", lambda *_args, **_kwargs: [{
+        "time": start_ms,
+        "open": "100",
+        "high": "103",
+        "low": "99",
+        "close": "102",
+        "volume": "2.5",
+    }])
+    rows = fetch_klines("BTC-USDT", start_ms, start_ms + INTERVAL_MS + 1)
+    assert len(rows) == 1
+    assert rows[0][7] == pytest.approx(255.0)
+    assert math.isnan(rows[0][9])
+    assert math.isnan(rows[0][10])
+    assert rows[0][11] == "estimated_base_volume_x_close"
+
+
+def test_array_kline_preserves_reported_quote_volume_and_taker_flow(monkeypatch):
+    import research_perp_intraday as research
+
+    start_ms = 1_700_000_000_000
+    start_ms -= start_ms % INTERVAL_MS
+    row = [start_ms, "100", "103", "99", "102", "2.5",
+           start_ms + INTERVAL_MS - 1, "250", 20, "1.2", "122"]
+    monkeypatch.setattr(research, "PAGE_KLINES", 1)
+    monkeypatch.setattr(research, "request_json", lambda *_args, **_kwargs: [row])
+    rows = fetch_klines("BTC-USDT", start_ms, start_ms + INTERVAL_MS + 1)
+    assert rows[0][7] == pytest.approx(250.0)
+    assert rows[0][9] == pytest.approx(1.2)
+    assert rows[0][10] == pytest.approx(122.0)
+    assert rows[0][11] == "reported_quote_volume"
 def test_mark_price_loader_pages_bounded_4h_windows(monkeypatch):
     import research_perp_intraday as research
 
