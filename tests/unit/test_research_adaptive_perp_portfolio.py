@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 import pytest
+import scripts.archive_bingx_funding_history as funding_archive
 import scripts.archive_bingx_usdm_candles as candle_archive
 import scripts.research_adaptive_perp_portfolio as research
 from scripts.archive_bingx_funding_history import _rows_from_response
@@ -82,6 +83,33 @@ def test_funding_parser_rejects_incomplete_record() -> None:
     with pytest.raises(ValueError, match="missing time/rate"):
         _rows_from_response({"code": 0, "data": [{"fundingTime": 1_700_000_000_000}]})
 
+
+@pytest.mark.asyncio
+async def test_funding_archive_retries_bingx_100410_with_cooldowns(monkeypatch) -> None:
+    delays = []
+
+    async def fake_sleep(delay):
+        delays.append(delay)
+
+    class CooldownError(RuntimeError):
+        code = 100410
+
+    class CooldownClient:
+        def __init__(self):
+            self.attempts = 0
+
+        async def call(self):
+            self.attempts += 1
+            if self.attempts < 4:
+                raise CooldownError("BingX API code 100410")
+            return {"code": 0, "data": []}
+
+    monkeypatch.setattr(funding_archive.asyncio, "sleep", fake_sleep)
+    client = CooldownClient()
+    result = await funding_archive._call_with_cooldown(client.call, label="funding test")
+    assert result == {"code": 0, "data": []}
+    assert client.attempts == 4
+    assert delays == [5.0, 30.0, 60.0]
 
 @pytest.mark.asyncio
 async def test_archive_retries_bingx_100410_with_cooldowns(monkeypatch) -> None:
