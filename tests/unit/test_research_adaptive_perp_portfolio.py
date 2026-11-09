@@ -81,6 +81,33 @@ def test_funding_parser_rejects_incomplete_record() -> None:
 
 
 @pytest.mark.asyncio
+async def test_archive_retries_bingx_100410_with_cooldowns(monkeypatch) -> None:
+    delays = []
+
+    async def fake_sleep(delay):
+        delays.append(delay)
+
+    class CooldownError(RuntimeError):
+        code = 100410
+
+    class CooldownClient:
+        def __init__(self):
+            self.attempts = 0
+
+        async def call(self):
+            self.attempts += 1
+            if self.attempts < 4:
+                raise CooldownError("BingX API code 100410")
+            return ["ok"]
+
+    monkeypatch.setattr(candle_archive.asyncio, "sleep", fake_sleep)
+    client = CooldownClient()
+    result = await candle_archive._call_with_cooldown(client.call, label="test")
+    assert result == ["ok"]
+    assert client.attempts == 4
+    assert delays == [5.0, 30.0, 60.0]
+
+@pytest.mark.asyncio
 async def test_candle_archive_uses_bounded_forward_pages(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(candle_archive, "ARCHIVE_DIR", tmp_path)
     monkeypatch.setattr(candle_archive, "PAGE_SIZE", 3)
