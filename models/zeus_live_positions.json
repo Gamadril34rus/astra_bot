@@ -16,13 +16,18 @@
       "opened_at_ms": 1794211372786,
       "plan_qty": "0.18270365",
       "qty_ratio": 1.0,
-      "tp1": "72209.79412394342"
+      "tp1": "72209.79412394342",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "73854.5",
+      "current_regime": "LOW_VOLATILITY"
     },
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
       "side": "short",
       "qty": "3.5003846",
-      "stop": "2243.5387586309516",
+      "stop": "2152.08",
       "tp": "2047.53086895833388",
       "entry": "2128.24",
       "leverage": 6,
@@ -34,7 +39,14 @@
       "opened_at_ms": 1794211380116,
       "plan_qty": "3.50038460",
       "qty_ratio": 1.0,
-      "tp1": "2047.53086895833388"
+      "tp1": "2047.53086895833388",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "2094.81",
+      "be_earned": true,
+      "migrate_stop_v1": true,
+      "current_regime": "WEAK_BEAR_TREND"
     },
     "SOL-USDT|short": {
       "symbol": "SOL-USDT",
@@ -52,8 +64,50 @@
       "opened_at_ms": 1794211387441,
       "plan_qty": "93.18421726",
       "qty_ratio": 1.0,
-      "tp1": "82.451381467559467"
+      "tp1": "82.451381467559467",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "85.675",
+      "be_earned": true,
+      "current_regime": "WEAK_BEAR_TREND"
+    },
+    "HYPE-USDT|short": {
+      "symbol": "HYPE-USDT",
+      "side": "short",
+      "qty": "130.01649445",
+      "stop": "75.69683644557821",
+      "tp": "70.413514488095253",
+      "entry": "72.565",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|HYPE-USDT|short|1794211200000",
+      "ts": 1794211695.5955756,
+      "be_moved": false,
+      "initial_stop": "75.69683644557821",
+      "opened_at_ms": 1794211695595,
+      "plan_qty": "130.01649445",
+      "qty_ratio": 1.0,
+      "tp1": "70.413514488095253"
+    },
+    "INJ-USDT|long": {
+      "symbol": "INJ-USDT",
+      "side": "long",
+      "qty": "4413.853381405003823882879930",
+      "stop": "7.87347",
+      "tp": "8.008671",
+      "entry": "7.965",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|INJ-USDT|long|1794211200000",
+      "ts": 1794211711.8885844,
+      "be_moved": false,
+      "initial_stop": "7.87347",
+      "opened_at_ms": 1794211711888,
+      "plan_qty": "5079.59260656",
+      "qty_ratio": 1.0,
+      "tp1": "8.008671"
     }
   },
-  "ts": 1794211387.4412358
+  "ts": 1794211711.8886456
 }
