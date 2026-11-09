@@ -16,7 +16,7 @@ from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
-from astra_bot.adapters.bingx.client import BINGX_API_BASE, BingXClient
+from astra_bot.adapters.bingx.client import BINGX_API_BASE, BINGX_ENDPOINTS, BingXClient
 
 LOGGER = logging.getLogger("bingx_candle_archive")
 ARCHIVE_DIR = Path("data/bingx_usdm")
@@ -165,6 +165,45 @@ def _archive_path(symbol: str, timeframe: str) -> Path:
     return ARCHIVE_DIR / f"{symbol.replace('-', '')}_{timeframe}.csv"
 
 
+async def _contract_launch_times(
+    client: BingXClient, symbols: tuple[str, ...]
+) -> dict[str, int]:
+    response = await client._request(
+        "GET", BINGX_ENDPOINTS["swap"]["instruments"], params={}
+    )
+    data = response.get("data") or []
+    if isinstance(data, dict):
+        for key in ("contracts", "symbols", "list", "data"):
+            value = data.get(key)
+            if isinstance(value, list):
+                data = value
+                break
+        else:
+            data = []
+    wanted = set(symbols)
+    found: dict[str, int] = {}
+    for item in data if isinstance(data, list) else []:
+        if not isinstance(item, dict):
+            continue
+        symbol = str(item.get("symbol") or "").upper()
+        if symbol not in wanted:
+            continue
+        if str(item.get("currency") or "").upper() != "USDT":
+            raise RuntimeError(f"{symbol}: contract is not USDT-settled")
+        if str(item.get("status") or "") != "1":
+            raise RuntimeError(f"{symbol}: BingX contract is not active")
+        if str(item.get("apiStateOpen", "true")).lower() != "true":
+            raise RuntimeError(f"{symbol}: BingX contract does not allow opening")
+        launch_ms = int(item.get("launchTime") or 0)
+        if launch_ms <= 0:
+            raise RuntimeError(f"{symbol}: contract metadata has no launchTime")
+        found[symbol] = launch_ms
+    missing = sorted(wanted - set(found))
+    if missing:
+        raise RuntimeError(f"missing active BingX USDT-M contracts: {missing}")
+    return found
+
+
 async def _download_pair(
     client: BingXClient,
     *,
@@ -173,6 +212,7 @@ async def _download_pair(
     mode: str,
     start_ms: int,
     now_ms: int,
+    launch_ms: int,
 ) -> tuple[dict[str, Any], int]:
     interval_ms = TIMEFRAME_MS[timeframe]
     path = _archive_path(symbol, timeframe)
@@ -182,35 +222,50 @@ async def _download_pair(
             f"missing initial archive for {symbol} {timeframe}; "
             "run workflow_dispatch with mode=initial first"
         )
-    existing_max = max(existing) if existing else None
     if mode == "initial":
-        floor_ms = start_ms
+        floor_ms = max(start_ms, launch_ms)
     else:
-        overlap_floor = int(existing_max or 0) - 3 * interval_ms
-        floor_ms = max(min(existing) if existing else 0, overlap_floor)
-    cursor_end = now_ms
-    previous_oldest: int | None = None
+        overlap_floor = max(existing) - 3 * interval_ms
+        floor_ms = max(min(existing), overlap_floor, launch_ms)
+
+    # BingX's endTime-only pagination repeated the same oldest page in CI.
+    # Use bounded startTime/endTime windows so every request has an explicit
+    # non-overlapping range and the expected candle count can be verified.
+    cursor_start = ((floor_ms + interval_ms - 1) // interval_ms) * interval_ms
+    last_closed_open = (now_ms // interval_ms) * interval_ms - interval_ms
     incoming: dict[int, dict[str, str]] = {}
     pages = 0
-
-    while True:
+    while cursor_start <= last_closed_open:
+        page_last_open = min(
+            cursor_start + (PAGE_SIZE - 1) * interval_ms, last_closed_open
+        )
         page = await client.fetch_kline_page(
-            symbol, timeframe, end_time_ms=cursor_end, limit=PAGE_SIZE
+            symbol,
+            timeframe,
+            end_time_ms=page_last_open + interval_ms - 1,
+            limit=PAGE_SIZE,
+            start_time_ms=cursor_start,
         )
         pages += 1
-        if not page:
-            break
-        page_times = [int(candle.open_time) for candle in page]
-        oldest = min(page_times)
-        if previous_oldest is not None and oldest >= previous_oldest:
+        expected_times = list(range(cursor_start, page_last_open + 1, interval_ms))
+        actual_times = sorted(
+            int(candle.open_time)
+            for candle in page
+            if cursor_start <= int(candle.open_time) <= page_last_open
+            and int(candle.open_time) + interval_ms <= now_ms
+        )
+        if actual_times != expected_times:
+            missing = sorted(set(expected_times) - set(actual_times))
+            duplicates = len(actual_times) != len(set(actual_times))
             raise RuntimeError(
-                f"pagination made no backward progress for {symbol} {timeframe}"
+                f"incomplete BingX candle range for {symbol} {timeframe}: "
+                f"start={cursor_start} end={page_last_open} "
+                f"expected={len(expected_times)} actual={len(actual_times)} "
+                f"missing_sample={missing[:5]} duplicates={duplicates}"
             )
         for candle in page:
             open_time = int(candle.open_time)
-            if open_time + interval_ms > now_ms:
-                continue
-            if open_time < floor_ms:
+            if open_time not in expected_times:
                 continue
             row = _row_from_candle(candle)
             previous = incoming.get(open_time)
@@ -220,29 +275,27 @@ async def _download_pair(
                     f"{timeframe} open_time={open_time}"
                 )
             incoming[open_time] = row
-
-        # BingX may return fewer than the requested limit after silently
-        # dropping malformed rows or applying endpoint-side result caps. A short
-        # page is not proof that the requested historical floor was reached.
-        # Continue backward while timestamps make progress; stop only at floor.
-        if oldest <= floor_ms:
-            break
-        previous_oldest = oldest
-        cursor_end = oldest - 1
+        cursor_start = page_last_open + interval_ms
 
     if not existing and not incoming:
         raise RuntimeError(f"BingX returned no closed candles for {symbol} {timeframe}")
-
     merged = _merge_rows(existing, incoming)
     if merged:
         _write_rows(path, merged)
     coverage = _coverage(merged, interval_ms)
+    if coverage["gap_count"]:
+        raise RuntimeError(
+            f"BingX archive contains {coverage['gap_count']} candle gaps for "
+            f"{symbol} {timeframe}; sample={coverage['gap_samples'][:3]}"
+        )
     coverage.update(
         {
             "symbol": symbol,
             "timeframe": timeframe,
             "source": "BingX USDT-M perpetual swap public klines",
             "mode": mode,
+            "contract_launch_time": launch_ms,
+            "effective_start_time": cursor_start if not incoming else min(incoming),
             "new_bars": len(set(merged) - set(existing)),
             "verified_overlap_bars": len(set(incoming) & set(existing)),
             "pages_requested": pages,
@@ -250,7 +303,6 @@ async def _download_pair(
         }
     )
     return coverage, len(incoming)
-
 
 async def run(args: argparse.Namespace) -> dict[str, Any]:
     start_date = date.fromisoformat(args.start_date)
@@ -266,6 +318,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     await client.initialize()
     results: dict[str, Any] = {}
     try:
+        launch_times = await _contract_launch_times(client, args.symbols)
         for symbol in args.symbols:
             for timeframe in args.timeframes:
                 LOGGER.info("archive %s %s mode=%s", symbol, timeframe, args.mode)
@@ -276,6 +329,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                     mode=args.mode,
                     start_ms=start_ms,
                     now_ms=now_ms,
+                    launch_ms=launch_times[symbol],
                 )
                 results[f"{symbol}:{timeframe}"] = report
     finally:
