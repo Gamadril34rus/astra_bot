@@ -12,6 +12,7 @@ from research_perp_intraday import (
     INTERVAL_MS,
     Trade,
     build_frame,
+    calculate_orderbook_costs,
     fetch_funding,
     fetch_klines,
     fetch_mark_prices,
@@ -27,6 +28,22 @@ from research_perp_intraday import (
 )
 
 
+def test_orderbook_cost_snapshot_includes_spread_depth_and_taker_fees():
+    result = calculate_orderbook_costs({
+        "T": 1_800_000_000_000,
+        "bids": [["99.9", "30"], ["99.8", "30"]],
+        "asks": [["100.1", "30"], ["100.2", "30"]],
+    })
+    assert result["top_spread_bps"] == pytest.approx(20.0)
+    small = result["notional_scenarios"]["1000"]
+    medium = result["notional_scenarios"]["5000"]
+    large = result["notional_scenarios"]["10000"]
+    assert small["complete"] is True
+    assert small["round_trip_book_cost_bps"] == pytest.approx(20.0)
+    assert small["taker_fee_round_trip_bps"] == pytest.approx(10.0)
+    assert small["total_round_trip_cost_bps"] == pytest.approx(30.0)
+    assert medium["round_trip_book_cost_bps"] > small["round_trip_book_cost_bps"]
+    assert large["complete"] is False
 def test_funding_history_uses_bounded_30_day_windows(monkeypatch):
     import research_perp_intraday as research
 
