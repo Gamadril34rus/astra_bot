@@ -56,6 +56,25 @@ def _normalize_position_side(value: Any) -> str | None:
     return side if side in {"long", "short"} else None
 
 
+def _position_leg_still_open(
+    positions: list[Any] | None, symbol: str, position_side: str
+) -> bool:
+    """Unknown side/quantity after a close is uncertainty, not proof of flatness."""
+    for position in positions or []:
+        if str(getattr(position, "symbol", "") or "") != symbol:
+            continue
+        try:
+            quantity = Decimal(str(getattr(position, "quantity", 0) or 0))
+        except Exception:
+            return True
+        if quantity <= 0:
+            continue
+        actual_side = _normalize_position_side(getattr(position, "side", None))
+        if actual_side is None or actual_side == position_side:
+            return True
+    return False
+
+
 def _expected_reducing_order_side(position_side: str) -> str:
     return "sell" if position_side == "long" else "buy"
 
@@ -1528,11 +1547,8 @@ class LiveBroker:
                 still_open = True
                 verify_reason = "закрытие отправлено, но состояние hedge-стороны не удалось проверить"
             else:
-                still_open = any(
-                    str(getattr(position, "symbol", "") or "") == symbol
-                    and _normalize_position_side(getattr(position, "side", None)) == side
-                    and Decimal(str(getattr(position, "quantity", 0) or 0)) > 0
-                    for position in positions_after_close or []
+                still_open = _position_leg_still_open(
+                    positions_after_close, symbol, side
                 )
                 verify_reason = (
                     "биржа всё ещё показывает открытую hedge-позицию после запроса закрытия"
@@ -1914,12 +1930,7 @@ class LiveBroker:
                 # Confirm only this hedge leg is flat; the opposite leg may remain.
                 try:
                     pos2 = await self.client.get_positions()
-                    still = any(
-                        (getattr(x, "symbol", "") == sym)
-                        and (_normalize_position_side(getattr(x, "side", None)) == side)
-                        and Decimal(str(getattr(x, "quantity", 0) or 0)) > 0
-                        for x in (pos2 or [])
-                    )
+                    still = _position_leg_still_open(pos2, sym, side)
                 except Exception:
                     still = True  # unknown — do not cancel stops under open pos
                 if not still:
