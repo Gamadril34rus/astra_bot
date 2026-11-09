@@ -182,8 +182,10 @@ def simulate_symbol(
         raise ValueError(f"{symbol}: no funding history; cannot assume zero")
     first_bar, last_bar = int(x.open_time.iloc[0]), int(x.decision_time.iloc[-1])
     funding_times = funding["funding_time"].to_numpy()
-    if funding_times[0] > first_bar or funding_times[-1] < last_bar:
-        raise ValueError(f"{symbol}: funding coverage does not span candle coverage")
+    if funding_times[0] > first_bar:
+        raise ValueError(f"{symbol}: candle history begins before available funding coverage")
+    if last_bar - funding_times[-1] > 12 * 60 * 60 * 1000:
+        raise ValueError(f"{symbol}: latest funding observation is stale versus candle coverage")
     if len(funding_times) > 1 and np.diff(funding_times).max() > 12 * 60 * 60 * 1000:
         raise ValueError(f"{symbol}: funding history gap exceeds 12 hours")
 
@@ -321,6 +323,14 @@ def main() -> int:
                 raise SystemExit(f"INCOMPLETE: required BingX source is missing: {path}")
         m15, h1 = load_bars(m15_path, "15m"), load_bars(h1_path, "1h")
         funding = load_funding(funding_path, symbol)
+        if funding.empty:
+            raise SystemExit(f"INCOMPLETE: {symbol} has no BingX funding history")
+        # Funding history may begin later than the contract's candle archive.
+        # Keep only bars at/after the first observed settlement; never fill missing
+        # funding with zero or backtest trades outside verified funding coverage.
+        m15 = m15[m15.open_time >= int(funding.funding_time.iloc[0])].reset_index(drop=True)
+        if m15.empty:
+            raise SystemExit(f"INCOMPLETE: {symbol} has no candles inside funding coverage")
         x = add_features(m15, h1)
         coverage[symbol] = {
             "15m_rows": len(m15), "15m_first": int(m15.open_time.iloc[0]),
