@@ -55,6 +55,7 @@ def test_migrate_ltc_from_parity_old_tp(tmp_path, monkeypatch):
                 {
                     "event": "tp_parity_failed",
                     "symbol": "LTC-USDT",
+                    "side": "short",
                     "old_tp": "56.24605216463415",
                     "ts": 1,
                 }
@@ -170,6 +171,9 @@ def test_order_cancel_on_parity(tmp_path, monkeypatch):
         async def get_open_orders(self, symbol=None):
             return [
                 SimpleNamespace(
+                    symbol="BTC-USDT",
+                    side="SELL",
+                    position_side="LONG",
                     order_type="TAKE_PROFIT_MARKET",
                     type="TAKE_PROFIT_MARKET",
                     id="old_tp",
