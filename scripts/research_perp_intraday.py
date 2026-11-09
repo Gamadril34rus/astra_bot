@@ -98,6 +98,21 @@ def request_json(path: str, params: dict[str, Any], retries: int = 5) -> list[An
         try:
             with urllib.request.urlopen(request, timeout=45) as response:
                 payload = json.loads(response.read().decode("utf-8"))
+            if isinstance(payload, dict) and str(payload.get("code")) == "100410":
+                last_error = RuntimeError(
+                    f"BingX transient code=100410 msg={payload.get('msg')}"
+                )
+                if attempt >= 3:
+                    raise RuntimeError(
+                        f"{path}: BingX returned code=100410 after 4 attempts"
+                    ) from last_error
+                delay = (5, 30, 60)[attempt]
+                print(
+                    f"{path}: BingX code=100410; retry {attempt + 2}/4 in {delay}s",
+                    flush=True,
+                )
+                time.sleep(delay)
+                continue
             return unwrap_data(payload, path)
         except urllib.error.HTTPError as exc:
             if exc.code not in (418, 429, 500, 502, 503, 504):
