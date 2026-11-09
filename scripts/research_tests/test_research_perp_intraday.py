@@ -270,6 +270,7 @@ def test_write_report_serializes_nested_strategy_trade_map(tmp_path):
     assert trades.iloc[0]["slippage_pct"] == 0.1
     report = (tmp_path / "report.md").read_text(encoding="utf-8")
     assert "Aggregate IS and OOS" in report
+    assert "Trade-sequence DD proxy" in report
     assert "mean holding <= 90 minutes" in report
     assert json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))["symbols"]["BTC-USDT"]["bars"] == 100000
 
