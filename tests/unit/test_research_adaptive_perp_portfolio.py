@@ -155,6 +155,7 @@ async def test_no_progress_exit_closes_after_30_minutes(monkeypatch) -> None:
     assert len(trades) == 1
     assert trades[0]["exit_reason"] == "no_progress_30m"
     assert trades[0]["hold_minutes"] == pytest.approx(30.0)
+    assert trades[0]["stress_cost_to_r"] == pytest.approx(0.30)
 
 
 def test_latest_funding_segment_excludes_gaps_without_imputation() -> None:
