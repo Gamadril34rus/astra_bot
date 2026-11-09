@@ -808,6 +808,7 @@ class LiveBroker:
 
         closed: list[str] = []
         pending_fill: list[str] = []
+        pending_cleanup: list[str] = []
         cancelled = 0
         now = _time.time()
 
@@ -833,6 +834,7 @@ class LiveBroker:
                 logger.warning("sync_closed: get_open_orders %s: %s", sym, type(exc).__name__)
                 # Order state is unknown. Keep the position plan and all protection.
                 continue
+            cleanup_ok = True
             for order in orders or []:
                 if (
                     not _order_is_open(order)
@@ -846,15 +848,27 @@ class LiveBroker:
                     or getattr(order, "order_id", None)
                 )
                 if not order_id:
+                    cleanup_ok = False
                     continue
                 try:
                     if await self.client.cancel_order(sym, str(order_id)):
                         cancelled += 1
+                    else:
+                        cleanup_ok = False
                 except Exception as exc:
+                    cleanup_ok = False
                     logger.warning(
                         "sync_closed: cancel %s %s %s: %s",
                         sym, side, order_id, type(exc).__name__,
                     )
+            if not cleanup_ok:
+                pending_cleanup.append(f"{sym}|{side}")
+                logger.warning(
+                    "sync_closed: %s %s protective-order cleanup incomplete; keep plan for retry",
+                    sym,
+                    side,
+                )
+                continue
 
             side_ru = "ЛОНГ" if side == "long" else "ШОРТ" if side == "short" else side.upper()
             base = (sym.split("-")[0] if "-" in sym else sym).replace("USDT", "")
@@ -1277,7 +1291,12 @@ class LiveBroker:
             "sync_closed_plans: closed=%s pending_fill=%s cancelled=%d",
             closed, pending_fill, cancelled,
         )
-        return {"closed": closed, "cancelled": cancelled, "pending_fill": pending_fill}
+        return {
+            "closed": closed,
+            "cancelled": cancelled,
+            "pending_fill": pending_fill,
+            "pending_cleanup": pending_cleanup,
+        }
 
     async def restore_missing_stops(
         self,
