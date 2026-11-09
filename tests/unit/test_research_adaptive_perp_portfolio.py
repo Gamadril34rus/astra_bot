@@ -111,6 +111,21 @@ async def test_funding_archive_retries_bingx_100410_with_cooldowns(monkeypatch) 
     assert client.attempts == 4
     assert delays == [5.0, 30.0, 60.0]
 
+def test_candle_archive_uses_latest_contiguous_funding_start(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(candle_archive, "ARCHIVE_DIR", tmp_path)
+    path = tmp_path / "funding_BTCUSDT.csv"
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=("funding_time", "rate"))
+        writer.writeheader()
+        writer.writerows([
+            {"funding_time": 0, "rate": "0.0001"},
+            {"funding_time": 8 * 3_600_000, "rate": "0.0001"},
+            {"funding_time": 100 * 3_600_000, "rate": "-0.0001"},
+            {"funding_time": 108 * 3_600_000, "rate": "0.0002"},
+        ])
+    assert candle_archive._latest_contiguous_funding_start_ms("BTC-USDT", 0) == 100 * 3_600_000
+    assert candle_archive._latest_contiguous_funding_start_ms("BTC-USDT", 200 * 3_600_000) == 200 * 3_600_000
+
 @pytest.mark.asyncio
 async def test_archive_retries_bingx_100410_with_cooldowns(monkeypatch) -> None:
     delays = []
