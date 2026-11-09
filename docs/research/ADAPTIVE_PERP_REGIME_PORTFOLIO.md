@@ -19,8 +19,8 @@ The router assigns each closed 30m decision bar to at most one family, in priori
 
 ## Frozen v0 rules
 ### Shared
-- 30m signal candle must be closed; entry proxy is the next 15m open.
-- 1h context is the latest 1h candle whose close timestamp is <= the 15m decision timestamp. No forming candles.
+- 30m signal candle must be closed; entry proxy is the next 30m open.
+- 1h context is the latest 1h candle whose close timestamp is <= the 30m decision timestamp. No forming candles.
 - ATR14 is rolling mean true range; EMA values use pandas ewm(span, adjust=False); RSI14 uses Wilder-style ewm.
 - No-progress rule: after 1 completed 30m position bar (30m), exit at that bar close if maximum favorable excursion is still below 0.35R. If the position remains open after 3 bars (90m) and MFE is still below 0.75R, exit at that close. These are invalidation rules, not forced profit targets.
 - Every trade has a 18-bar (9h) hard maximum hold.
