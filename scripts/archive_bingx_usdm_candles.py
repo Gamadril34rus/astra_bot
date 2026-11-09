@@ -172,7 +172,7 @@ async def _call_with_cooldown(
     operation: Callable[[], Awaitable[Any]], *, label: str
 ) -> Any:
     """Retry BingX HTTP-200 code 100410 after endpoint cooldown windows."""
-    delays = (5.0, 30.0, 60.0)
+    delays = (300.0, 300.0, 300.0)
     for attempt in range(4):
         try:
             return await operation()
@@ -292,10 +292,19 @@ async def _download_pair(
     # non-overlapping range and the expected candle count can be verified.
     cursor_start = ((floor_ms + interval_ms - 1) // interval_ms) * interval_ms
     if mode == "initial":
-        # A failed pre-funding archive may have left unusable earlier rows.
-        # Drop those rows from this initial dataset so the gap gate validates
-        # only the requested continuous funding-covered interval.
+        # Keep only funding-covered rows. If a prior run left a contiguous
+        # prefix from the requested floor, resume with a three-bar overlap;
+        # if the prefix is missing, restart at the floor to backfill it.
         existing = {ts: row for ts, row in existing.items() if ts >= cursor_start}
+        if existing:
+            prior_coverage = _coverage(existing, interval_ms)
+            if prior_coverage["gap_count"]:
+                raise RuntimeError(
+                    f"partial BingX archive is internally gapped for {symbol} {timeframe}; "
+                    f"sample={prior_coverage['gap_samples'][:3]}"
+                )
+            if min(existing) == cursor_start:
+                cursor_start = max(cursor_start, max(existing) - 3 * interval_ms)
     last_closed_open = (now_ms // interval_ms) * interval_ms - interval_ms
     incoming: dict[int, dict[str, str]] = {}
     pages = 0
@@ -349,6 +358,10 @@ async def _download_pair(
                     f"{timeframe} open_time={open_time}"
                 )
             incoming[open_time] = row
+        # Persist each verified page so a later API cooldown does not discard
+        # the work completed earlier in this symbol/timeframe archive.
+        if incoming:
+            _write_rows(path, _merge_rows(existing, incoming))
         cursor_start = page_last_open + interval_ms
 
     if not existing and not incoming:
@@ -386,7 +399,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     client = BingXClient(
         {
             "base_url": BINGX_API_BASE,
-            "rate_limit_qps": float(os.environ.get("BINGX_ARCHIVE_QPS", "0.8")),
+            "rate_limit_qps": float(os.environ.get("BINGX_ARCHIVE_QPS", "0.2")),
             "contract_type": "linear",
         }
     )
