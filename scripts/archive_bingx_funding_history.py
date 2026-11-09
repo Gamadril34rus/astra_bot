@@ -8,6 +8,7 @@ import csv
 import json
 import logging
 from datetime import UTC, date, datetime, time, timedelta
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -86,7 +87,7 @@ async def download_symbol(
 
     gaps = [
         (right_ts - left_ts) / 3_600_000
-        for (left_ts, _), (right_ts, _) in zip(ordered, ordered[1:])
+        for (left_ts, _), (right_ts, _) in pairwise(ordered)
     ]
     return {
         "symbol": symbol,
