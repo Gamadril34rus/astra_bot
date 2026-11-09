@@ -1,30 +1,5 @@
 {
   "positions": {
-    "ETH-USDT|short": {
-      "symbol": "ETH-USDT",
-      "side": "short",
-      "qty": "3.5003846",
-      "stop": "2150.49",
-      "tp": "2047.53086895833388",
-      "entry": "2128.24",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|ETH-USDT|short|1794211200000",
-      "ts": 1794211380.1166584,
-      "be_moved": false,
-      "initial_stop": "2243.5387586309516",
-      "opened_at_ms": 1794211380116,
-      "plan_qty": "3.50038460",
-      "qty_ratio": 1.0,
-      "tp1": "2047.53086895833388",
-      "initial_stop_v1": true,
-      "tp_parity_v1": true,
-      "early_tp1": true,
-      "peak_low": "2093.22",
-      "be_earned": true,
-      "migrate_stop_v1": true,
-      "current_regime": "WEAK_BEAR_TREND"
-    },
     "BTC-USDT|short": {
       "symbol": "BTC-USDT",
       "side": "short",
@@ -41,13 +16,18 @@
       "opened_at_ms": 1794225781149,
       "plan_qty": "0.54420524",
       "qty_ratio": 1.0,
-      "tp1": "73548.7016476817730"
+      "tp1": "73548.7016476817730",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "74525.0",
+      "current_regime": "STRONG_BEAR_TREND"
     },
     "SOL-USDT|short": {
       "symbol": "SOL-USDT",
       "side": "short",
       "qty": "234.35676799",
-      "stop": "89.5547906364797",
+      "stop": "89.14242857142857",
       "tp": "84.215365149936165",
       "entry": "86.115",
       "leverage": 6,
@@ -59,7 +39,12 @@
       "opened_at_ms": 1794225789303,
       "plan_qty": "234.35676799",
       "qty_ratio": 1.0,
-      "tp1": "84.215365149936165"
+      "tp1": "84.215365149936165",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "86.458",
+      "current_regime": "RANGE"
     },
     "HYPE-USDT|short": {
       "symbol": "HYPE-USDT",
@@ -77,8 +62,13 @@
       "opened_at_ms": 1794225796874,
       "plan_qty": "352.85059575",
       "qty_ratio": 1.0,
-      "tp1": "71.8188839436968280"
+      "tp1": "71.8188839436968280",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "73.505",
+      "current_regime": "WEAK_BEAR_TREND"
     }
   },
-  "ts": 1794225796.8749213
+  "ts": 1794226081.4283953
 }
