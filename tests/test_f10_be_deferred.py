@@ -124,7 +124,7 @@ def test_short_mark_above_entry_pending(tmp_path, monkeypatch):
 def test_move_stop_reject_no_be_catchup_no_crash(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "models").mkdir()
-    from astra_bot.decision.live_positions import upsert_plan, load_positions
+    from astra_bot.decision.live_positions import load_positions, upsert_plan
 
     pos_path = tmp_path / "models" / "zeus_live_positions.json"
     upsert_plan(
