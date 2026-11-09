@@ -6,6 +6,7 @@ from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from astra_bot.decision.live_arm import (
     COOLDOWN_MS,
     MAX_OPEN,
@@ -21,8 +22,6 @@ from astra_bot.decision.live_arm import (
 )
 from astra_bot.decision.live_broker import LiveBroker
 from astra_bot.decision.live_positions import get_plan, save_positions, upsert_plan
-
-import pytest
 
 
 class MockClient:
