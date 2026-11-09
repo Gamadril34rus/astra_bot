@@ -761,11 +761,21 @@ class LiveBroker:
         if not plans:
             return {"closed": [], "cancelled": 0, "pending_fill": []}
 
-        exchange_syms: set[str] = set()
-        for pos in await self.client.get_positions():
-            qty = getattr(pos, "quantity", None) or Decimal("0")
-            if qty and qty > 0:
-                exchange_syms.add(getattr(pos, "symbol", "") or "")
+        # Hedge mode can hold LONG and SHORT simultaneously for one symbol.
+        # A symbol-level presence check would hide a closed leg while the other
+        # leg remains open, so reconciliation is keyed by (symbol, positionSide).
+        open_position_legs: set[tuple[str, str]] = set()
+        unknown_side_symbols: set[str] = set()
+        for position in await self.client.get_positions():
+            qty = Decimal(str(getattr(position, "quantity", 0) or 0))
+            symbol = str(getattr(position, "symbol", "") or "")
+            if not symbol or qty <= 0:
+                continue
+            position_side = _normalize_position_side(getattr(position, "side", None))
+            if position_side is None:
+                unknown_side_symbols.add(symbol)
+            else:
+                open_position_legs.add((symbol, position_side))
 
         closed: list[str] = []
         pending_fill: list[str] = []
@@ -774,30 +784,49 @@ class LiveBroker:
 
         for _key, plan in list(plans.items()):
             sym = str(plan.get("symbol") or _key.split("|")[0] or "")
-            if not sym or sym in exchange_syms:
+            raw_side = plan.get("side") or (
+                _key.rsplit("|", 1)[1] if "|" in _key else None
+            )
+            side = _normalize_position_side(raw_side)
+            if not sym or side is None:
+                logger.warning(
+                    "sync_closed: skip destructive reconciliation for %s with unknown plan side",
+                    sym or _key,
+                )
+                continue
+            # If the exchange omitted the side on any live row for this symbol,
+            # do not guess which hedge leg is still open.
+            if sym in unknown_side_symbols or (sym, side) in open_position_legs:
                 continue
             try:
                 orders = await self.client.get_open_orders(sym)
             except Exception as exc:
                 logger.warning("sync_closed: get_open_orders %s: %s", sym, type(exc).__name__)
-                orders = []
-            for o in orders:
-                ot = str(getattr(o, "order_type", "") or "").upper()
-                if "STOP" not in ot and "TAKE_PROFIT" not in ot:
+                # Order state is unknown. Keep the position plan and all protection.
+                continue
+            for order in orders or []:
+                if (
+                    not _order_is_open(order)
+                    or not _order_matches_position_side(order, side)
+                    or _protective_order_kind(order) is None
+                ):
                     continue
-                oid = getattr(o, "id", None)
-                if not oid:
+                order_id = (
+                    getattr(order, "id", None)
+                    or getattr(order, "exchange_order_id", None)
+                    or getattr(order, "order_id", None)
+                )
+                if not order_id:
                     continue
                 try:
-                    if await self.client.cancel_order(sym, str(oid)):
+                    if await self.client.cancel_order(sym, str(order_id)):
                         cancelled += 1
                 except Exception as exc:
                     logger.warning(
-                        "sync_closed: cancel %s %s: %s",
-                        sym, oid, type(exc).__name__,
+                        "sync_closed: cancel %s %s %s: %s",
+                        sym, side, order_id, type(exc).__name__,
                     )
 
-            side = str(plan.get("side") or "").lower()
             side_ru = "ЛОНГ" if side == "long" else "ШОРТ" if side == "short" else side.upper()
             base = (sym.split("-")[0] if "-" in sym else sym).replace("USDT", "")
             pending = bool(plan.get("pending_verify"))
@@ -946,7 +975,7 @@ class LiveBroker:
                             await send_tg(msg)
                         except Exception:
                             pass
-                remove_plan(sym, path)
+                remove_plan(sym, path, side=side)
                 closed.append(sym)
                 continue
 
@@ -982,7 +1011,7 @@ class LiveBroker:
                     )
                 except Exception as exc:
                     logger.warning("sync_closed enqueue pending: %s", type(exc).__name__)
-                remove_plan(sym, path)
+                remove_plan(sym, path, side=side)
                 closed.append(sym)
                 try:
                     append_live_trade(
@@ -1208,7 +1237,7 @@ class LiveBroker:
             except Exception as hexc:
                 logger.warning("heat.record: %s", type(hexc).__name__)
 
-            remove_plan(sym, path)
+            remove_plan(sym, path, side=side)
             closed.append(sym)
             logger.info(
                 "sync_closed: %s pnl=%.4f exit=%s reason=%s",
