@@ -151,7 +151,7 @@ def validate_market_data(
         raise ValueError(f"{symbol}: duplicate kline open times")
     if opens != sorted(opens):
         raise ValueError(f"{symbol}: klines are not ordered")
-    if any((right - left) != INTERVAL_MS for left, right in zip(opens, opens[1:])):
+    if any((right - left) != INTERVAL_MS for left, right in zip(opens[:-1], opens[1:], strict=True)):
         raise ValueError(f"{symbol}: missing or irregular 30m intervals")
     if opens[-1] + INTERVAL_MS > end_ms:
         raise ValueError(f"{symbol}: latest bar is not fully closed")
@@ -178,7 +178,7 @@ def validate_market_data(
         raise ValueError(f"{symbol}: funding coverage starts more than 24h after candles")
     if times[-1] < opens[-1] - 24 * 60 * 60 * 1000:
         raise ValueError(f"{symbol}: funding coverage ends more than 24h before candles")
-    if any(right - left > 24 * 60 * 60 * 1000 for left, right in zip(times, times[1:])):
+    if any(right - left > 24 * 60 * 60 * 1000 for left, right in zip(times[:-1], times[1:], strict=True)):
         raise ValueError(f"{symbol}: funding history contains a gap larger than 24h")
 
 
