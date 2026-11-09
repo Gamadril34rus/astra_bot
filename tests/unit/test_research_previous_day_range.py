@@ -93,7 +93,7 @@ def test_short_first_break_is_symmetric() -> None:
 
 def test_only_first_breakout_of_day_is_eligible() -> None:
     frame = _signal_frame()
-    frame.loc[45, "close"] = 101.0
+    frame.loc[48, "close"] = 101.0
     frame.loc[49, "close"] = 99.0
     frame.loc[50, ["open", "high", "low", "close", "volume"]] = [
         100.2, 102.0, 98.8, 101.5, 200.0
