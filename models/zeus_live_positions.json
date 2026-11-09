@@ -1,28 +1,5 @@
 {
   "positions": {
-    "BTC-USDT|short": {
-      "symbol": "BTC-USDT",
-      "side": "short",
-      "qty": "0.18270365",
-      "stop": "75965.3512515094",
-      "tp": "72209.79412394342",
-      "entry": "73753.9",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|BTC-USDT|short|1794211200000",
-      "ts": 1794211372.7863727,
-      "be_moved": false,
-      "initial_stop": "75965.3512515094",
-      "opened_at_ms": 1794211372786,
-      "plan_qty": "0.18270365",
-      "qty_ratio": 1.0,
-      "tp1": "72209.79412394342",
-      "initial_stop_v1": true,
-      "tp_parity_v1": true,
-      "early_tp1": true,
-      "peak_low": "73854.5",
-      "current_regime": "LOW_VOLATILITY"
-    },
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
       "side": "short",
@@ -48,54 +25,6 @@
       "migrate_stop_v1": true,
       "current_regime": "WEAK_BEAR_TREND"
     },
-    "SOL-USDT|short": {
-      "symbol": "SOL-USDT",
-      "side": "short",
-      "qty": "93.18421726",
-      "stop": "89.81388361777219",
-      "tp": "82.451381467559467",
-      "entry": "85.498",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|SOL-USDT|short|1794211200000",
-      "ts": 1794211387.4412022,
-      "be_moved": false,
-      "initial_stop": "89.81388361777219",
-      "opened_at_ms": 1794211387441,
-      "plan_qty": "93.18421726",
-      "qty_ratio": 1.0,
-      "tp1": "82.451381467559467",
-      "initial_stop_v1": true,
-      "tp_parity_v1": true,
-      "early_tp1": true,
-      "peak_low": "85.675",
-      "be_earned": true,
-      "current_regime": "WEAK_BEAR_TREND"
-    },
-    "HYPE-USDT|short": {
-      "symbol": "HYPE-USDT",
-      "side": "short",
-      "qty": "130.01649445",
-      "stop": "75.69683644557821",
-      "tp": "70.413514488095253",
-      "entry": "72.565",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|HYPE-USDT|short|1794211200000",
-      "ts": 1794211695.5955756,
-      "be_moved": false,
-      "initial_stop": "75.69683644557821",
-      "opened_at_ms": 1794211695595,
-      "plan_qty": "130.01649445",
-      "qty_ratio": 1.0,
-      "tp1": "70.413514488095253",
-      "initial_stop_v1": true,
-      "tp_parity_v1": true,
-      "early_tp1": true,
-      "peak_low": "72.622",
-      "be_earned": true,
-      "current_regime": "WEAK_BEAR_TREND"
-    },
     "INJ-USDT|long": {
       "symbol": "INJ-USDT",
       "side": "long",
@@ -116,8 +45,11 @@
       "current_regime": "RANGE",
       "plan_qty": "5079.59260656",
       "qty_ratio": 0.398260285162911,
-      "tp1": "8.008671"
+      "tp1": "8.008671",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     }
   },
-  "ts": 1794212826.3952384
+  "ts": 1794213170.778767
 }
