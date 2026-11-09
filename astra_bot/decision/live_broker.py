@@ -87,7 +87,7 @@ def _order_is_open(order: Any) -> bool:
 
 
 def _order_matches_position_side(order: Any, position_side: str) -> bool:
-    """Match a protective order to one hedge leg, not merely to its symbol."""
+    """Require both reducing order side and explicit hedge positionSide."""
     expected = _expected_reducing_order_side(position_side)
     order_side = str(getattr(order, "side", "") or "").strip().lower()
     order_position_side = str(
@@ -95,11 +95,9 @@ def _order_matches_position_side(order: Any, position_side: str) -> bool:
         or getattr(order, "positionSide", None)
         or ""
     ).strip().lower()
-    if order_side and order_side != expected:
-        return False
-    if order_position_side and order_position_side != position_side:
-        return False
-    return bool(order_side == expected or order_position_side == position_side)
+    # BUY/SELL alone is ambiguous in Hedge Mode: it can open one leg and close
+    # the other. Missing either field is unknown, never proof of protection.
+    return order_side == expected and order_position_side == position_side
 
 
 def _protective_order_kind(order: Any) -> str | None:
@@ -135,22 +133,25 @@ def _has_unscoped_protective_order(orders: list[Any], *, kind: str) -> bool:
             or getattr(order, "positionSide", None)
             or ""
         ).strip()
-        if not order_side and not position_side:
+        if not (
+            (order_side.lower() == "sell" and position_side.lower() == "long")
+            or (order_side.lower() == "buy" and position_side.lower() == "short")
+        ):
             return True
     return False
 
 
 def _has_unscoped_open_order(orders: list[Any]) -> bool:
-    return any(
-        _order_is_open(order)
-        and not str(getattr(order, "side", "") or "").strip()
-        and not str(
-            getattr(order, "position_side", None)
-            or getattr(order, "positionSide", None)
-            or ""
-        ).strip()
-        for order in orders or []
-    )
+    """Any open order without an unambiguous hedge-leg identity is unknown."""
+    for order in orders or []:
+        if not _order_is_open(order):
+            continue
+        if not (
+            _order_matches_position_side(order, "long")
+            or _order_matches_position_side(order, "short")
+        ):
+            return True
+    return False
 
 
 async def _existing_protect(
