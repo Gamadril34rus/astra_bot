@@ -128,6 +128,62 @@ _TP_PARITY_DONE = "tp_parity_v1"
 
 _INITIAL_STOP_DONE = "initial_stop_v1"
 
+def _normalize_plan_side(value: object) -> str | None:
+    side = str(value or "").strip().lower()
+    return side if side in ("long", "short") else None
+
+
+def _positions_by_hedge_leg(positions) -> dict[tuple[str, str], object]:
+    """Index unique positive exchange legs by (symbol, positionSide)."""
+    result: dict[tuple[str, str], object] = {}
+    duplicates: set[tuple[str, str]] = set()
+    for position in positions or []:
+        symbol = str(getattr(position, "symbol", None) or getattr(position, "symbol_name", None) or "").strip()
+        side = _normalize_plan_side(getattr(position, "side", None))
+        try:
+            quantity = Decimal(str(getattr(position, "quantity", None) or getattr(position, "qty", None) or 0))
+        except Exception:
+            continue
+        if not symbol or side is None or quantity <= 0:
+            continue
+        key = (symbol, side)
+        if key in result:
+            duplicates.add(key)
+        else:
+            result[key] = position
+    for key in duplicates:
+        result.pop(key, None)
+    return result
+
+
+def _position_for_hedge_leg(positions_by_leg, symbol: str, side: str):
+    normalized = _normalize_plan_side(side)
+    if normalized is None:
+        return None
+    return positions_by_leg.get((str(symbol), normalized))
+
+
+def _order_matches_hedge_leg(order, symbol: str, side: str) -> bool:
+    if str(getattr(order, "symbol", "") or "") != str(symbol):
+        return False
+    normalized = _normalize_plan_side(side)
+    if normalized is None:
+        return False
+    from astra_bot.decision.live_broker import _order_matches_position_side
+    return _order_matches_position_side(order, normalized)
+
+
+def _open_orders_for_hedge_leg(orders, symbol: str, side: str, kind: str | None = None) -> list:
+    from astra_bot.decision.live_broker import _order_is_open, _protective_order_kind
+    return [
+        order
+        for order in orders or []
+        if _order_is_open(order)
+        and _order_matches_hedge_leg(order, symbol, side)
+        and (kind is None or _protective_order_kind(order) == kind)
+    ]
+
+
 
 def migrate_initial_stop_v1() -> dict:
     """One-shot: fill plan.initial_stop for open plans (F15b).
@@ -1445,12 +1501,8 @@ async def sync_partial_breakeven(
     if not plans:
         return {"moved": [], "skipped": []}
 
-    by_sym: dict[str, object] = {}
-    for p in positions:
-        sym = getattr(p, "symbol", "") or ""
-        qty = getattr(p, "quantity", None) or Decimal("0")
-        if sym and qty and qty > 0:
-            by_sym[sym] = p
+    by_leg = _positions_by_hedge_leg(positions)
+
 
     for _key, plan in list(plans.items()):
         sym = str(plan.get("symbol") or _key.split("|")[0] or "")
@@ -1458,17 +1510,22 @@ async def sync_partial_breakeven(
             continue
         if plan.get("be_moved"):
             continue
+        side = _normalize_plan_side(plan.get("side") or (
+            _key.rsplit("|", 1)[1] if "|" in _key else None
+        ))
+        if side is None:
+            skipped.append(f"{sym}|unknown")
+            continue
         if plan.get("entry") is None or plan.get("stop") is None:
             skipped.append(sym)
             continue
-        pos = by_sym.get(sym)
+        pos = _position_for_hedge_leg(by_leg, sym, side)
         if pos is None:
             continue
         try:
             exch_qty = Decimal(str(getattr(pos, "quantity", 0) or 0))
             entry_px = Decimal(str(plan["entry"]))
             stop_px = Decimal(str(plan["stop"]))
-            side = str(plan.get("side") or "long").lower()
             plan_qty_raw = plan.get("plan_qty") or plan.get("qty") or plan.get("quantity")
             try:
                 plan_qty = Decimal(str(plan_qty_raw)) if plan_qty_raw is not None else Decimal("0")
