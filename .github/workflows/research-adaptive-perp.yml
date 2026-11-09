@@ -6,8 +6,10 @@ on:
     paths:
       - "docs/research/ADAPTIVE_PERP_REGIME_PORTFOLIO.md"
       - "scripts/archive_bingx_funding_history.py"
+      - "scripts/archive_bingx_usdm_candles.py"
       - "scripts/research_adaptive_perp_portfolio.py"
       - "tests/unit/test_research_adaptive_perp_portfolio.py"
+      - "tests/test_bingx_usdm_candle_archive.py"
       - ".github/workflows/research-adaptive-perp.yml"
   workflow_dispatch:
 
@@ -36,7 +38,7 @@ jobs:
           python -m pip install -r requirements.txt
       - name: Run research unit tests
         run: |
-          python -m pytest tests/unit/test_research_adaptive_perp_portfolio.py -q
+          python -m pytest tests/unit/test_research_adaptive_perp_portfolio.py tests/test_bingx_usdm_candle_archive.py -q
       - name: Download historical BingX funding rates
         run: |
           set -euo pipefail
