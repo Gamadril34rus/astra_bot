@@ -10,11 +10,12 @@ import json
 import logging
 import os
 import tempfile
+from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime, time
 from decimal import Decimal, InvalidOperation
 from itertools import pairwise
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from astra_bot.adapters.bingx.client import BINGX_API_BASE, BINGX_ENDPOINTS, BingXClient
 from astra_bot.utils.retry import is_exchange_endpoint_cooldown_error
