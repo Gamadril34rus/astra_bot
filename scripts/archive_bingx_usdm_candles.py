@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import csv
+import hashlib
 import json
 import logging
 import os
@@ -126,6 +127,14 @@ def _write_rows(path: Path, rows: dict[int, dict[str, str]]) -> None:
             os.unlink(tmp_name)
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _coverage(rows: dict[int, dict[str, str]], interval_ms: int) -> dict[str, Any]:
     if not rows:
         return {
@@ -237,6 +246,7 @@ async def _download_pair(
             "new_bars": len(set(merged) - set(existing)),
             "verified_overlap_bars": len(set(incoming) & set(existing)),
             "pages_requested": pages,
+            "sha256": _sha256_file(path),
         }
     )
     return coverage, len(incoming)
