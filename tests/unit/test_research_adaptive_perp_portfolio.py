@@ -256,13 +256,18 @@ async def test_no_progress_exit_closes_after_30_minutes(monkeypatch) -> None:
         "funding_time": list(range(0, 40 * 3_600_000 + 1, 8 * 3_600_000)),
         "rate": [0.0] * 6,
     })
+    diagnostics = {}
     trades = simulate_symbol(
-        "BTC-USDT", frame, funding, fee_bps=0, spread_bps=0, slippage_bps=0
+        "BTC-USDT", frame, funding, fee_bps=0, spread_bps=0, slippage_bps=0,
+        diagnostics=diagnostics,
     )
     assert len(trades) == 1
     assert trades[0]["exit_reason"] == "no_progress_30m"
     assert trades[0]["hold_minutes"] == pytest.approx(30.0)
     assert trades[0]["stress_cost_to_r"] == pytest.approx(0.30)
+    assert diagnostics["raw_signals"] == 1
+    assert diagnostics["completed_trades"] == 1
+    assert diagnostics["completed_by_family"] == {"TEST": 1}
 
 
 def test_latest_funding_segment_excludes_gaps_without_imputation() -> None:
