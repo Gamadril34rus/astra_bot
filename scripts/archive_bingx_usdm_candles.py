@@ -245,7 +245,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     client = BingXClient(
         {
             "base_url": BINGX_API_BASE,
-            "rate_limit_qps": 3.0,
+            "rate_limit_qps": float(os.environ.get("BINGX_ARCHIVE_QPS", "0.8")),
             "contract_type": "linear",
         }
     )
