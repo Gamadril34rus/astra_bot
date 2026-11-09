@@ -217,7 +217,12 @@ def get_perpetual_contracts() -> dict[str, dict[str, Any]]:
 
 
 def fetch_klines(symbol: str, start_ms: int, end_ms: int) -> list[list[Any]]:
-    """Fetch complete bounded 30m windows, skipping only pre-history empties."""
+    """Fetch bounded 30m candles and normalize BingX array/object payloads.
+
+    Some BingX responses expose only base-asset ``volume`` in object rows,
+    without quote turnover or taker-buy fields. In that case quote turnover
+    is estimated as base volume times close; aggressor fields remain NaN.
+    """
     rows_by_time: dict[int, list[Any]] = {}
     cursor = ((start_ms + INTERVAL_MS - 1) // INTERVAL_MS) * INTERVAL_MS
     last_closed_open = (end_ms // INTERVAL_MS) * INTERVAL_MS - INTERVAL_MS
@@ -235,20 +240,52 @@ def fetch_klines(symbol: str, start_ms: int, end_ms: int) -> list[list[Any]]:
                 "limit": PAGE_KLINES,
             },
         )
-        normalized_page = []
+        normalized_page: list[list[Any]] = []
         for row in page:
             if isinstance(row, dict):
+                open_p = float(row["open"])
+                high = float(row["high"])
+                low = float(row["low"])
+                close = float(row["close"])
+                volume = float(row.get("volume") or 0.0)
+                quote_raw = row.get("quoteVolume", row.get("quoteAssetVolume"))
+                if quote_raw is None or float(quote_raw or 0.0) <= 0.0:
+                    quote_volume = volume * close
+                    quote_source = "estimated_base_volume_x_close"
+                else:
+                    quote_volume = float(quote_raw)
+                    quote_source = "reported_quote_volume"
+                taker_base = row.get("takerBuyBaseVolume")
+                taker_quote = row.get("takerBuyQuoteVolume")
                 normalized_page.append([
-                    row.get("time", row.get("openTime")), row.get("open"),
-                    row.get("high"), row.get("low"), row.get("close"),
-                    row.get("volume"), row.get("closeTime", 0),
-                    row.get("quoteVolume", 0), row.get("n", 0),
-                    row.get("takerBuyBaseVolume", 0),
-                    row.get("takerBuyQuoteVolume", 0),
+                    row.get("time", row.get("openTime")), open_p, high, low, close,
+                    volume, row.get("closeTime", 0), quote_volume,
+                    row.get("n", row.get("trades", 0)),
+                    float(taker_base) if taker_base is not None else math.nan,
+                    float(taker_quote) if taker_quote is not None else math.nan,
+                    quote_source,
                 ])
             else:
-                normalized_page.append(list(row) + [0] * max(0, 11 - len(row)))
-        normalized_page.sort(key=lambda row: int(row[0]))
+                values = list(row)
+                if len(values) < 6:
+                    raise ValueError(f"{symbol}: malformed BingX kline array: {row!r}")
+                open_p, high, low, close, volume = map(float, values[1:6])
+                quote_raw = values[7] if len(values) > 7 else None
+                if quote_raw is None or float(quote_raw or 0.0) <= 0.0:
+                    quote_volume = volume * close
+                    quote_source = "estimated_base_volume_x_close"
+                else:
+                    quote_volume = float(quote_raw)
+                    quote_source = "reported_quote_volume"
+                normalized_page.append([
+                    values[0], open_p, high, low, close, volume,
+                    values[6] if len(values) > 6 else 0, quote_volume,
+                    values[8] if len(values) > 8 else 0,
+                    float(values[9]) if len(values) > 9 and values[9] is not None else math.nan,
+                    float(values[10]) if len(values) > 10 and values[10] is not None else math.nan,
+                    quote_source,
+                ])
+        normalized_page.sort(key=lambda item: int(item[0]))
         actual_times = [
             int(row[0]) for row in normalized_page
             if cursor <= int(row[0]) <= page_last_open
@@ -262,8 +299,6 @@ def fetch_klines(symbol: str, start_ms: int, end_ms: int) -> list[list[Any]]:
                 )
             cursor = page_last_open + INTERVAL_MS
             continue
-        # The public endpoint may have a shorter retained history than the
-        # contract's launchTime. Allow only a leading pre-history prefix.
         expected_start = cursor if rows_by_time else actual_times[0]
         expected_times = list(range(expected_start, page_last_open + 1, INTERVAL_MS))
         if actual_times != expected_times:
@@ -485,8 +520,14 @@ def build_frame(klines: list[list[Any]]) -> pd.DataFrame:
     columns = [
         "open_time", "open", "high", "low", "close", "volume", "close_time",
         "quote_volume", "trade_count", "taker_buy_volume", "taker_buy_quote_volume",
+        "quote_volume_source",
     ]
-    frame = pd.DataFrame(klines, columns=columns)
+    normalized_rows = [
+        list(row) if len(row) >= len(columns)
+        else list(row) + ["unknown"]
+        for row in klines
+    ]
+    frame = pd.DataFrame(normalized_rows, columns=columns)
     frame["bar_open"] = pd.to_datetime(frame["open_time"].astype("int64"), unit="ms", utc=True)
     frame = frame.set_index("bar_open")
     numeric = ["open", "high", "low", "close", "volume", "quote_volume", "taker_buy_quote_volume"]
@@ -503,6 +544,8 @@ def build_frame(klines: list[list[Any]]) -> pd.DataFrame:
     avg_quote_volume = frame["quote_volume"].shift(1).rolling(20, min_periods=20).mean()
     frame["volume_ratio"] = frame["quote_volume"] / avg_quote_volume
     frame["taker_buy_ratio"] = frame["taker_buy_quote_volume"] / frame["quote_volume"].replace(0, np.nan)
+    candle_range = (frame["high"] - frame["low"]).replace(0, np.nan)
+    frame["close_location"] = (frame["close"] - frame["low"]) / candle_range
     delta = close.diff()
     avg_gain = delta.clip(lower=0).ewm(alpha=1 / 14, adjust=False, min_periods=14).mean()
     avg_loss = (-delta.clip(upper=0)).ewm(alpha=1 / 14, adjust=False, min_periods=14).mean()
@@ -582,6 +625,8 @@ def signal_feature_diagnostics(frame: pd.DataFrame) -> dict[str, Any]:
         "valid_volume_ratio_rows": int(frame["volume_ratio"].notna().sum()),
         "positive_quote_volume_rows": int((frame["quote_volume"] > 0).sum()),
         "valid_taker_buy_ratio_rows": int(frame["taker_buy_ratio"].notna().sum()),
+        "estimated_quote_volume_rows": int((frame["quote_volume_source"] == "estimated_base_volume_x_close").sum()),
+        "valid_close_location_rows": int(frame["close_location"].notna().sum()),
         "uptrend_rows": int(uptrend.fillna(False).sum()),
         "downtrend_rows": int(downtrend.fillna(False).sum()),
         "neutral_rows": int(neutral.fillna(False).sum()),
@@ -630,11 +675,13 @@ def signal_masks(frame: pd.DataFrame) -> dict[tuple[str, int], pd.Series]:
     prior_low = frame["low"].shift(1).rolling(12, min_periods=12).min()
     expansion_long = (
         uptrend & (frame["close"] > prior_high) & (frame["volume_ratio"] >= 1.35)
-        & (frame["taker_buy_ratio"] >= 0.52) & frame["rsi"].between(54, 75)
+        & (frame["close_location"] >= 0.65) & (frame["close"] > frame["open"])
+        & frame["rsi"].between(54, 75)
     )
     expansion_short = (
         downtrend & (frame["close"] < prior_low) & (frame["volume_ratio"] >= 1.35)
-        & (frame["taker_buy_ratio"] <= 0.48) & frame["rsi"].between(25, 46)
+        & (frame["close_location"] <= 0.35) & (frame["close"] < frame["open"])
+        & frame["rsi"].between(25, 46)
     )
     fade_long = (
         neutral & (frame["close"].shift(1) < frame["bb_lower"].shift(1))
@@ -997,6 +1044,11 @@ def main() -> None:
         "interval": INTERVAL,
         "data_cutoff_utc": datetime.fromtimestamp(end_ms / 1000, UTC).isoformat(),
         "source_endpoints": [CONTRACTS_ENDPOINT, KLINES_ENDPOINT, FUNDING_ENDPOINT, MARK_KLINES_ENDPOINT],
+        "volume_feature_provenance": {
+            "quote_volume": "reported by BingX when available; otherwise estimated as base-asset candle volume multiplied by close for relative activity only",
+            "directional_confirmation": "close location within candle range; this is price-action evidence, not taker order flow",
+            "taker_buy_ratio": "retained as diagnostic when supplied; not used as a signal gate because the observed object payload omits aggressor-volume fields",
+        },
         "cost_model": {"fee_per_side": FEE_PER_SIDE, "base_slippage_per_side": BASE_SLIPPAGE_PER_SIDE, "stress_slippage_per_side": STRESS_SLIPPAGE_PER_SIDE, "max_cost_to_r": MAX_COST_TO_R},
         "holding_model": {"no_progress_bars": NO_PROGRESS_BARS, "no_progress_mfe_r": NO_PROGRESS_MFE_R, "max_hold_bars": MAX_HOLD_BARS},
         "symbols": {},
