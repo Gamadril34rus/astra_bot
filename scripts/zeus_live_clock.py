@@ -2125,7 +2125,7 @@ async def detect_position_missing_with_orders(broker, *, positions_path: Path | 
         logger.warning("detect_position_missing: setup %s", type(exc).__name__)
         return {"missing": [], "error": type(exc).__name__}
 
-    by_sym = {getattr(p, "symbol", "") for p in positions if getattr(p, "symbol", "")}
+    by_leg = _positions_by_hedge_leg(positions)
     try:
         st = json.loads(flag.read_text(encoding="utf-8")) if flag.exists() else {}
     except Exception:
@@ -2136,35 +2136,40 @@ async def detect_position_missing_with_orders(broker, *, positions_path: Path | 
 
     for _key, plan in list(plans.items()):
         sym = str(plan.get("symbol") or _key.split("|")[0] or "")
-        if not sym or sym in by_sym:
+        side = _normalize_plan_side(plan.get("side") or (
+            _key.rsplit("|", 1)[1] if "|" in _key else None
+        ))
+        if not sym or side is None or _position_for_hedge_leg(by_leg, sym, side) is not None:
             continue
         try:
             orders = await broker.client.get_open_orders(sym)
         except Exception:
             continue
-        n_prot = 0
-        for o in orders or []:
-            ot = str(getattr(o, "order_type", "") or "").upper()
-            if "STOP" in ot or "TAKE_PROFIT" in ot:
-                n_prot += 1
+        leg_orders = _open_orders_for_hedge_leg(orders, sym, side)
+        from astra_bot.decision.live_broker import _protective_order_kind
+        n_prot = sum(
+            _protective_order_kind(order) in ("stop", "take_profit")
+            for order in leg_orders
+        )
         if n_prot <= 0:
             continue
-        last = float(st.get(sym) or 0)
+        warning_key = f"{sym}|{side}"
+        last = float(st.get(warning_key) or 0)
         if now - last < 3600:
-            missing.append(sym)
+            missing.append(f"{sym}|{side}")
             continue
         try:
             append_journal({
                 "event": "position_missing_with_open_orders",
                 "symbol": sym,
-                "side": plan.get("side"),
+                "side": side,
                 "n_protect_orders": n_prot,
                 "ts": now,
             })
         except Exception:
             pass
-        st[sym] = now
-        missing.append(sym)
+        st[warning_key] = now
+        missing.append(f"{sym}|{side}")
         logger.warning(
             "position_missing_with_open_orders: %s n_orders=%s (no TG)",
             sym, n_prot,
