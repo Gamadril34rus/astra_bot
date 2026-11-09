@@ -4,7 +4,7 @@
 Signals use closed 30m bars and completed 1h context. Entries are next-bar opens.
 The runner models taker fees, adverse slippage, realized funding, conservative
 same-bar stop-first handling, a 30m no-progress exit, and a hard 9h time stop.
-It never connects to BingX or any trading endpoint.
+It reads public BingX market-data endpoints only; it never places or manages orders.
 """
 from __future__ import annotations
 
