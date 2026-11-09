@@ -598,7 +598,9 @@ def run_backtest(
     stamps = frame.index
     results: list[Trade] = []
     signal_idx = 0
-    while signal_idx < len(frame) - 1:
+    # Do not start positions without a full 9h observation window; otherwise
+    # the end of the data set would masquerade as a time-stop exit.
+    while signal_idx < len(frame) - MAX_HOLD_BARS:
         if not signals[signal_idx] or not math.isfinite(atr[signal_idx]) or atr[signal_idx] <= 0:
             signal_idx += 1
             continue
