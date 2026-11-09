@@ -1,6 +1,8 @@
+> **INVALIDATED — DO NOT USE THESE PERFORMANCE METRICS.** A follow-up integrity check found that the archived CSVs in `research/binance-data` do not match their named markets on the stated dates. The published OOS PF 1.238 / n=81 is therefore not verified. See [RESEARCH_BREAKOUT_RETEST_4H.md](RESEARCH_BREAKOUT_RETEST_4H.md) for the audit and promotion gate.
+
 # Walk-Forward Research Results (BTC/ETH/SOL 4h, 2021–2026)
 
-**No curve-fitting.** Parameters fixed from in-sample logic + previous full-period screen; evaluated on 2024–2026 OOS.
+**Historical report retained for audit only.** The reported figures below are not validated and must not be treated as evidence of a tradable edge.
 
 **Best robust config:** `break` (breakout + retest) | RR=1.5 | vol ≥ 1.3 | ATR × 1.5
 
@@ -10,7 +12,7 @@
 | OOS 2024-2026 | 81 | **1.238** | **+0.131** | 49.4% | +5.3% | 3.2% |
 | Full 2021-2026 | 145 | 1.315 | +0.170 | 50.3% | +12.8% | 3.2% |
 
-Data: Binance USDT-M style klines from branch `research/binance-data` (BTCUSDT/ETHUSDT/SOLUSDT 4h). Costs modelled ≈ 0.18% round-trip. One position at a time per symbol. Stop 1.5×ATR, take RR×stop.
+Data was labelled as Binance USDT-M style klines in branch `research/binance-data`, but the label is not supported by the observed price series. Costs were modelled at approximately 0.18% round-trip. The source data must be replaced and the test rerun before any of these metrics can be used.
 
 ## Other configs (same walk-forward)
 
