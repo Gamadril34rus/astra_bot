@@ -243,6 +243,53 @@ async def test_archive_retries_bingx_100410_with_cooldowns(monkeypatch) -> None:
     assert delays == [300.0, 300.0, 300.0]
 
 @pytest.mark.asyncio
+async def test_archive_persists_verified_pages_before_later_cooldown_failure(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(candle_archive, "ARCHIVE_DIR", tmp_path)
+    monkeypatch.setattr(candle_archive, "PAGE_SIZE", 2)
+
+    async def fake_sleep(_delay):
+        return None
+
+    monkeypatch.setattr(candle_archive.asyncio, "sleep", fake_sleep)
+    interval = 900_000
+    bars = [
+        SimpleNamespace(
+            open_time=ts, open=100, high=102, low=99, close=101,
+            volume=10, quote_volume=1000, trades_count=1,
+        )
+        for ts in range(0, 6 * interval, interval)
+    ]
+
+    class CooldownError(RuntimeError):
+        code = 100410
+
+    class FailingSecondPageClient:
+        async def fetch_kline_page(
+            self, _symbol, _timeframe, *, start_time_ms, end_time_ms, limit
+        ):
+            if start_time_ms >= 2 * interval:
+                raise CooldownError("BingX API code 100410")
+            return [bar for bar in bars if start_time_ms <= bar.open_time <= end_time_ms][:limit]
+
+    with pytest.raises(CooldownError):
+        await candle_archive._download_pair(
+            FailingSecondPageClient(),
+            symbol="BTC-USDT",
+            timeframe="15m",
+            mode="initial",
+            start_ms=0,
+            now_ms=6 * interval + 1,
+            launch_ms=0,
+            funding_start_ms=0,
+        )
+
+    saved = candle_archive._read_rows(candle_archive._archive_path("BTC-USDT", "15m"))
+    assert list(saved) == [0, interval]
+
+
+@pytest.mark.asyncio
 async def test_candle_archive_uses_bounded_forward_pages(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(candle_archive, "ARCHIVE_DIR", tmp_path)
     monkeypatch.setattr(candle_archive, "PAGE_SIZE", 3)
