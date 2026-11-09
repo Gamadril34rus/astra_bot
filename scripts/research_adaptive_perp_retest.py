@@ -107,18 +107,22 @@ def choose_retest_breakout_signal(frame: pd.DataFrame, index: int) -> dict | Non
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--signal-timeframe", choices=("15m", "30m"), default="15m")
+    parser.add_argument("--out", type=Path, default=Path("reports/adaptive_perp"))
+    args, _ = parser.parse_known_args()
+    if args.signal_timeframe != "30m":
+        raise SystemExit("confirmed breakout/retest hypothesis requires --signal-timeframe 30m")
+
     portfolio.choose_signal = choose_retest_breakout_signal
     result = portfolio.main()
 
-    parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--out", type=Path, default=Path("reports/adaptive_perp"))
-    output_dir, _ = parser.parse_known_args()
-    summary_path = output_dir.out / "summary.json"
+    summary_path = args.out / "summary.json"
     if summary_path.exists():
         report = json.loads(summary_path.read_text(encoding="utf-8"))
         report["strategy_hypothesis"] = {
             "name": "confirmed_breakout_retest",
-            "signal_timeframe": "30m",
+            "signal_timeframe": args.signal_timeframe,
             "context_timeframe": "1h",
             "breakout_lookback_bars": 20,
             "retest_window_bars": 3,
