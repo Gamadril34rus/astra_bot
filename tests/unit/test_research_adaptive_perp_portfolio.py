@@ -111,7 +111,7 @@ async def test_funding_archive_retries_bingx_100410_with_cooldowns(monkeypatch) 
     result = await funding_archive._call_with_cooldown(client.call, label="funding test")
     assert result == {"code": 0, "data": []}
     assert client.attempts == 4
-    assert delays == [5.0, 30.0, 60.0]
+    assert delays == [300.0, 300.0, 300.0]
 
 def test_candle_archive_uses_latest_contiguous_funding_start(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(candle_archive, "ARCHIVE_DIR", tmp_path)
@@ -240,7 +240,7 @@ async def test_archive_retries_bingx_100410_with_cooldowns(monkeypatch) -> None:
     result = await candle_archive._call_with_cooldown(client.call, label="test")
     assert result == ["ok"]
     assert client.attempts == 4
-    assert delays == [5.0, 30.0, 60.0]
+    assert delays == [300.0, 300.0, 300.0]
 
 @pytest.mark.asyncio
 async def test_candle_archive_uses_bounded_forward_pages(tmp_path, monkeypatch) -> None:
@@ -357,6 +357,39 @@ async def test_no_progress_exit_closes_after_30_minutes(monkeypatch) -> None:
     assert diagnostics["raw_signals"] == 1
     assert diagnostics["completed_trades"] == 1
     assert diagnostics["completed_by_family"] == {"TEST": 1}
+
+
+@pytest.mark.asyncio
+async def test_30m_signal_uses_30m_and_90m_invalidation_windows(monkeypatch) -> None:
+    interval = 30 * 60_000
+    times = [index * interval for index in range(160)]
+    frame = pd.DataFrame({
+        "open_time": times,
+        "decision_time": [value + interval for value in times],
+        "open": [100.0] * 160,
+        "high": [100.2] * 160,
+        "low": [99.5] * 160,
+        "close": [100.1] * 160,
+        "atr14": [1.0] * 160,
+    })
+
+    def frozen_signal(_frame, index):
+        if index == 120:
+            return {"family": "TEST", "side": 1, "stop": 99.0, "target_rr": 1.5}
+        return None
+
+    monkeypatch.setattr(research, "choose_signal", frozen_signal)
+    funding = pd.DataFrame({
+        "funding_time": list(range(0, 100 * 3_600_000 + 1, 8 * 3_600_000)),
+        "rate": [0.0] * 13,
+    })
+    trades = simulate_symbol(
+        "BTC-USDT", frame, funding, fee_bps=0, spread_bps=0, slippage_bps=0,
+        bar_minutes=30,
+    )
+    assert len(trades) == 1
+    assert trades[0]["exit_reason"] == "no_progress_30m"
+    assert trades[0]["hold_minutes"] == pytest.approx(30.0)
 
 
 def test_common_15m_window_uses_overlapping_symbol_history() -> None:
