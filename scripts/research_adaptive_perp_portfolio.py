@@ -12,6 +12,8 @@ import pandas as pd
 SYMBOLS = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
 INTERVAL_MS = {"15m": 900_000, "1h": 3_600_000}
 MAX_HOLD_BARS = 36
+NO_PROGRESS_BARS = 2
+NO_PROGRESS_MFE_R = 0.35
 WARMUP_BARS = 120
 
 
@@ -247,10 +249,13 @@ def simulate_symbol(
         entry_time = int(x.iloc[i + 1]["open_time"])
         exit_i = i + MAX_HOLD_BARS
         exit_ref = float(x.iloc[exit_i]["close"])
-        reason = "time"
+        reason = "max_hold_9h"
+        best_mfe_r = 0.0
         for j in range(i + 1, i + 1 + MAX_HOLD_BARS):
             bar = x.iloc[j]
             open_px, high, low = float(bar["open"]), float(bar["high"]), float(bar["low"])
+            favorable_move = high - raw_entry if side == 1 else raw_entry - low
+            best_mfe_r = max(best_mfe_r, favorable_move / risk)
             if side == 1:
                 stop_hit, target_hit = low <= stop, high >= target
                 if stop_hit:
@@ -269,6 +274,10 @@ def simulate_symbol(
                 if target_hit:
                     exit_i, exit_ref, reason = j, target, "target"
                     break
+            held_bars = j - i
+            if held_bars >= NO_PROGRESS_BARS and best_mfe_r < NO_PROGRESS_MFE_R:
+                exit_i, exit_ref, reason = j, float(bar["close"]), "no_progress_30m"
+                break
         exit_time = int(x.iloc[exit_i]["decision_time"])
         gross = side * (exit_ref / raw_entry - 1.0)
         fee_cost = 2 * fee_bps / 10_000
