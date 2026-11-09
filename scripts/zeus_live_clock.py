@@ -1200,11 +1200,7 @@ async def scale_out_early_if_due(broker, send_tg=None) -> dict:
         positions = await broker.client.get_positions()
     except Exception as exc:
         return {**out, "error": type(exc).__name__}
-    by_sym: dict = {}
-    for p in positions or []:
-        sym = getattr(p, "symbol", None) or getattr(p, "symbol_name", None)
-        if sym:
-            by_sym[str(sym)] = p
+    by_leg = _positions_by_hedge_leg(positions)
 
     def _mark(pos):
         if pos is None:
@@ -1231,7 +1227,12 @@ async def scale_out_early_if_due(broker, send_tg=None) -> dict:
                 out["skipped"] += 1
                 continue
         sym = plan.get("symbol") or key.split("|")[0]
-        side = (plan.get("side") or "").lower()
+        side = _normalize_plan_side(plan.get("side") or (
+            key.rsplit("|", 1)[1] if "|" in key else None
+        ))
+        if side is None:
+            out["skipped"] += 1
+            continue
         entry = plan.get("entry")
         init_raw = plan.get("initial_stop") or plan.get("stop")
         tp = plan.get("tp") or plan.get("tp1")
@@ -1245,7 +1246,10 @@ async def scale_out_early_if_due(broker, send_tg=None) -> dict:
             if risk <= 0:
                 out["skipped"] += 1
                 continue
-            pos = by_sym.get(sym)
+            pos = _position_for_hedge_leg(by_leg, sym, side)
+            if pos is None:
+                out["skipped"] += 1
+                continue
             mark = _mark(pos)
             if mark is None:
                 out["skipped"] += 1
@@ -1300,12 +1304,12 @@ async def scale_out_early_if_due(broker, send_tg=None) -> dict:
                 # cancel far TP legs
                 try:
                     orders = await broker.client.get_open_orders(sym)
-                    for o in orders or []:
-                        ot = str(getattr(o, "type", "") or getattr(o, "order_type", "") or "").upper()
-                        if "TAKE_PROFIT" in ot:
-                            oid = getattr(o, "id", None) or getattr(o, "order_id", None)
-                            if oid:
-                                try:
+                    for o in _open_orders_for_hedge_leg(
+                        orders, sym, side, kind="take_profit"
+                    ):
+                        oid = getattr(o, "id", None) or getattr(o, "order_id", None)
+                        if oid:
+                            try:
                                     await broker.client.cancel_order(sym, str(oid))
                                 except Exception:
                                     pass
