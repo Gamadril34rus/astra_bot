@@ -11,9 +11,9 @@ import argparse
 import json
 from pathlib import Path
 
-import pandas as pd
-
 from scripts import research_adaptive_perp_portfolio as portfolio
+
+import pandas as pd
 
 
 def choose_retest_breakout_signal(frame: pd.DataFrame, index: int) -> dict | None:
