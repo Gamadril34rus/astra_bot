@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-
 from scripts.research_previous_day_range import (
     add_previous_day_levels,
     choose_previous_day_breakout_signal,
