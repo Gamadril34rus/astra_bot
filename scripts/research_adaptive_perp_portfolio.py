@@ -258,30 +258,48 @@ def simulate_symbol(
     return trades
 
 
-def summarize(frame: pd.DataFrame) -> dict:
+def summarize(
+    frame: pd.DataFrame,
+    calendar_start: pd.Period | None = None,
+    calendar_end: pd.Period | None = None,
+) -> dict:
     if frame.empty:
         return {"trades": 0, "pf": 0.0, "net_expectancy_pct": 0.0}
     wins = frame.loc[frame.net_pct > 0, "net_pct"].sum()
     losses = -frame.loc[frame.net_pct <= 0, "net_pct"].sum()
-    monthly = frame.assign(month=pd.to_datetime(frame.exit_time, unit="ms", utc=True).dt.to_period("M"))
+    monthly = frame.assign(
+        month=pd.to_datetime(frame.exit_time, unit="ms", utc=True).dt.to_period("M")
+    )
     month_net = monthly.groupby("month")["net_pct"].sum()
+    if calendar_start is not None and calendar_end is not None:
+        months = pd.period_range(calendar_start, calendar_end, freq="M")
+        month_net = month_net.reindex(months, fill_value=0.0)
     equity = (1 + frame.sort_values("exit_time")["net_pct"] / 100).cumprod()
-    drawdown = equity / equity.cummax() - 1
+    trade_sequence_drawdown = equity / equity.cummax() - 1
+    events = []
+    for row in frame.itertuples():
+        events.append((int(row.entry_time), 1))
+        events.append((int(row.exit_time), -1))
+    active = 0
+    max_concurrent = 0
+    for _, delta in sorted(events, key=lambda item: (item[0], item[1])):
+        active += delta
+        max_concurrent = max(max_concurrent, active)
     return {
         "trades": len(frame),
         "pf": round(float(wins / losses), 4) if losses else ("inf" if wins else 0.0),
         "win_rate_pct": round(float((frame.net_pct > 0).mean() * 100), 2),
         "net_expectancy_pct": round(float(frame.net_pct.mean()), 5),
         "net_expectancy_r": round(float(frame.net_r.mean()), 5),
-        "net_sum_pct": round(float(frame.net_pct.sum()), 4),
+        "sum_trade_net_pct": round(float(frame.net_pct.sum()), 4),
         "median_hold_min": round(float(frame.hold_minutes.median()), 1),
         "mean_hold_min": round(float(frame.hold_minutes.mean()), 1),
         "p90_hold_min": round(float(frame.hold_minutes.quantile(.9)), 1),
         "max_hold_min": round(float(frame.hold_minutes.max()), 1),
         "positive_month_share_pct": round(float((month_net > 0).mean() * 100), 2),
-        "max_drawdown_pct": round(float(drawdown.min() * 100), 2),
+        "trade_sequence_drawdown_pct": round(float(trade_sequence_drawdown.min() * 100), 2),
+        "max_concurrent_positions": max_concurrent,
     }
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -325,6 +343,12 @@ def main() -> int:
         ],
         ["IS", "VALIDATION"], default="OOS"
     )
+    calendar_start = pd.to_datetime(
+        min(item["15m_first"] for item in coverage.values()), unit="ms", utc=True
+    ).to_period("M")
+    calendar_end = pd.to_datetime(
+        max(item["15m_last"] for item in coverage.values()), unit="ms", utc=True
+    ).to_period("M")
     args.out.mkdir(parents=True, exist_ok=True)
     trades.to_csv(args.out / "trades.csv", index=False)
     report = {
@@ -335,14 +359,24 @@ def main() -> int:
             "slippage_bps_per_side": args.slippage_bps,
         },
         "coverage": coverage,
-        "by_period": {period: summarize(group) for period, group in trades.groupby("period")},
-        "by_family": {family: summarize(group) for family, group in trades.groupby("family")},
+        "by_period": {
+            period: summarize(
+                group,
+                calendar_start if period == "IS" else pd.Period("2024-01", freq="M") if period == "VALIDATION" else pd.Period("2025-01", freq="M"),
+                pd.Period("2023-12", freq="M") if period == "IS" else pd.Period("2024-12", freq="M") if period == "VALIDATION" else calendar_end,
+            )
+            for period, group in trades.groupby("period")
+        },
+        "by_family": {
+            family: summarize(group, calendar_start, calendar_end)
+            for family, group in trades.groupby("family")
+        },
         "by_symbol_side": {
-            f"{symbol}_{side}": summarize(group)
+            f"{symbol}_{side}": summarize(group, calendar_start, calendar_end)
             for (symbol, side), group in trades.groupby(["symbol", "side"])
         },
-        "combined": summarize(trades),
-        "warning": "BingX OHLC fills are conservative proxies, not confirmed exchange fills. No live/paper activation."
+        "combined": summarize(trades, calendar_start, calendar_end),
+        "warning": "OHLC trade-sequence drawdown is not portfolio equity drawdown; simultaneous symbols are not capital-constrained. Funding uses entry-notional approximation. OHLC fills are proxies, not confirmed exchange fills. No live/paper activation."
     }
     (args.out / "summary.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2))
