@@ -113,7 +113,7 @@ async def test_ensure_verify_fail_after_place_does_not_close(tmp_path):
     closed = []
     cancels = []
 
-    async def close_position(symbol, quantity=None):
+    async def close_position(symbol, quantity=None, position_side=None):
         closed.append(symbol)
         return True
 
