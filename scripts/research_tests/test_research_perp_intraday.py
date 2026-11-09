@@ -38,12 +38,13 @@ def test_funding_history_uses_bounded_30_day_windows(monkeypatch):
 
     monkeypatch.setattr(research, "request_json", fake_request)
     chunk_ms = 30 * 24 * 60 * 60 * 1000
-    rows = fetch_funding("BTC-USDT", 0, chunk_ms + 1000)
+    start_ms = 1_700_000_000_000
+    rows = fetch_funding("BTC-USDT", start_ms, start_ms + chunk_ms + 1000)
     assert len(rows) == 2
     assert len(calls) == 2
-    assert calls[0]["startTime"] == 0
-    assert calls[0]["endTime"] == chunk_ms - 1
-    assert calls[1]["startTime"] == chunk_ms
+    assert calls[0]["startTime"] == start_ms
+    assert calls[0]["endTime"] == start_ms + chunk_ms - 1
+    assert calls[1]["startTime"] == start_ms + chunk_ms
 
 
 def test_latest_funding_segment_excludes_gaps_without_imputation():
