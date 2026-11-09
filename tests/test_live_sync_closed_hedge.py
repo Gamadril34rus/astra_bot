@@ -284,3 +284,51 @@ def test_fill_without_position_side_invalidates_side_specific_batch():
     selected, ambiguous = _filter_fills_for_position_side(fills, "long")
     assert selected == []
     assert ambiguous is True
+
+
+
+def test_protective_order_requires_explicit_position_side_in_hedge_mode():
+    from astra_bot.decision.live_broker import (
+        _has_matching_protective_order,
+        _has_unscoped_open_order,
+        _has_unscoped_protective_order,
+        _order_matches_position_side,
+    )
+
+    side_only_stop = SimpleNamespace(
+        id="side-only-stop",
+        symbol="BTC-USDT",
+        order_type="STOP_MARKET",
+        side="SELL",
+        status="NEW",
+    )
+    assert _order_matches_position_side(side_only_stop, "long") is False
+    assert _has_matching_protective_order(
+        [side_only_stop], "long", kind="stop"
+    ) is False
+    assert _has_unscoped_protective_order(
+        [side_only_stop], kind="stop"
+    ) is True
+    assert _has_unscoped_open_order([side_only_stop]) is True
+
+
+def test_protective_order_with_explicit_hedge_side_is_scoped():
+    from astra_bot.decision.live_broker import (
+        _has_matching_protective_order,
+        _has_unscoped_open_order,
+        _has_unscoped_protective_order,
+    )
+
+    long_stop = SimpleNamespace(
+        id="long-stop",
+        symbol="BTC-USDT",
+        order_type="STOP_MARKET",
+        side="SELL",
+        position_side="LONG",
+        status="NEW",
+    )
+    assert _has_matching_protective_order(
+        [long_stop], "long", kind="stop"
+    ) is True
+    assert _has_unscoped_protective_order([long_stop], kind="stop") is False
+    assert _has_unscoped_open_order([long_stop]) is False
