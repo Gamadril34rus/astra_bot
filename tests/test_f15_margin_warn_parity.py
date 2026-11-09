@@ -84,6 +84,9 @@ def test_restore_tp_failed_journals_and_warns(tmp_path, monkeypatch):
                 SimpleNamespace(
                     symbol="DOT-USDT",
                     order_type="STOP_MARKET",
+                    side="sell",
+                    position_side="long",
+                    status="NEW",
                     id="s1",
                 )
             ]
