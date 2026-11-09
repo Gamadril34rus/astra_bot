@@ -4,7 +4,6 @@ from __future__ import annotations
 import asyncio
 from decimal import Decimal
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
 
 
 def test_already_exists_cancel_then_place(tmp_path, monkeypatch):
@@ -36,8 +35,8 @@ def test_already_exists_cancel_then_place(tmp_path, monkeypatch):
             self.orders = [o for o in self.orders if str(o.id) != str(order_id)]
             return True
 
-    from astra_bot.decision.live_broker import LiveBroker, LiveBrokerConfig
     from astra_bot.decision import live_arm_wiring as law
+    from astra_bot.decision.live_broker import LiveBroker, LiveBrokerConfig
 
     monkeypatch.setattr(law, "append_journal", lambda row: journal.append(row))
     broker = LiveBroker(LiveBrokerConfig())
