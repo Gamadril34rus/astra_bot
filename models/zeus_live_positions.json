@@ -49,9 +49,9 @@
     "INJ-USDT|long": {
       "symbol": "INJ-USDT",
       "side": "long",
-      "qty": "6221.22682593",
+      "qty": 4355.0,
       "stop": "7.9566300000000005",
-      "tp": "8.081203499999999725",
+      "tp": "8.16755499999999925",
       "entry": "8.041",
       "leverage": 6,
       "pending_verify": false,
@@ -61,15 +61,17 @@
       "initial_stop": "7.9566300000000005",
       "opened_at_ms": 1794226406957,
       "plan_qty": "6221.22682593",
-      "qty_ratio": 1.0,
+      "qty_ratio": 0.7000227000000083,
       "tp1": "8.081203499999999725",
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_high": "8.064",
+      "peak_high": "8.066",
       "current_regime": "RANGE",
-      "be_earned": true
+      "be_earned": true,
+      "runner_tp_rr": 1.5,
+      "runner_tp_healed_v1": true
     }
   },
-  "ts": 1794227561.892227
+  "ts": 1794227837.1662922
 }
