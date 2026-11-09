@@ -74,3 +74,8 @@ The router assigns each closed 15m decision bar to at most one family, in priori
 
 ## Safety
 This research branch must not change active strategy registration, production risk, leverage, stops, exit engine, paper/real routing, secrets, workflows unrelated to research, or live settings.
+
+
+## First completed data replay: rejected, not promoted
+
+The first full BingX replay completed at the original cost assumptions but failed the promotion gates. It produced 135 trades over the common 15m data window 2026-08-01 through 2026-11-09, less than 12 months. Base-cost combined PF was 0.6955 with net expectancy -0.19618% per trade; the 1.5x cost case PF was 0.5834 and net expectancy -0.29618%. The worst-performing families were COMPRESSION_BREAKOUT (PF 0.4373) and FALSE_BREAK_REVERSAL (PF 0.3860). TREND_PULLBACK (PF 1.0288) and RANGE_REVERSION (PF 1.0048) were close to flat, not proven edges. This result is retained as a failed baseline and is not a reason to tune parameters against the same short sample.
