@@ -202,8 +202,8 @@ def migrate_initial_stop_v1() -> dict:
         return out
     # index entry stops from journal (best-effort, last wins)
     entry_stop_by_sid: dict[str, str] = {}
-    entry_stop_by_sym: dict[str, str] = {}
-    parity_old_tp: dict[str, str] = {}
+    entry_stop_by_sym_side: dict[tuple[str, str], str] = {}
+    parity_old_tp_by_sym_side: dict[tuple[str, str], str] = {}
     jpath = Path("models/zeus_live_journal.jsonl")
     tpath = Path("models/zeus_live_trades.jsonl")
     for path in (jpath, tpath):
@@ -224,12 +224,14 @@ def migrate_initial_stop_v1() -> dict:
                         sym = str(o.get("symbol") or "")
                         if sid:
                             entry_stop_by_sid[sid] = str(o["stop"])
-                        if sym:
-                            entry_stop_by_sym[sym] = str(o["stop"])
+                        side = _normalize_plan_side(o.get("side"))
+                        if sym and side is not None:
+                            entry_stop_by_sym_side[(sym, side)] = str(o["stop"])
                     if ev in ("tp_parity_replace", "tp_parity_failed") and o.get("old_tp"):
                         sym = str(o.get("symbol") or "")
-                        if sym and sym not in parity_old_tp:
-                            parity_old_tp[sym] = str(o["old_tp"])
+                        side = _normalize_plan_side(o.get("side"))
+                        if sym and side is not None:
+                            parity_old_tp_by_sym_side[(sym, side)] = str(o["old_tp"])
         except Exception:
             pass
     changed = False
@@ -248,19 +250,22 @@ def migrate_initial_stop_v1() -> dict:
             continue
         sym = str(plan.get("symbol") or key.split("|")[0])
         sid = str(plan.get("signal_id") or "")
+        side = _normalize_plan_side(plan.get("side") or (
+            key.rsplit("|", 1)[1] if "|" in key else None
+        ))
         init = None
         src = None
         if sid and sid in entry_stop_by_sid:
             init, src = entry_stop_by_sid[sid], "journal_entry_sid"
-        elif sym in entry_stop_by_sym:
-            init, src = entry_stop_by_sym[sym], "journal_entry_sym"
-        elif sym in parity_old_tp and plan.get("entry") is not None:
+        elif side is not None and (sym, side) in entry_stop_by_sym_side:
+            init, src = entry_stop_by_sym_side[(sym, side)], "journal_entry_symbol_side"
+        elif side is not None and (sym, side) in parity_old_tp_by_sym_side and plan.get("entry") is not None:
             try:
                 entry = Decimal(str(plan["entry"]))
-                old_tp = Decimal(str(parity_old_tp[sym]))
+                old_tp = Decimal(str(parity_old_tp_by_sym_side[(sym, side)]))
                 # pre-parity TP was ~1.5R from entry with initial stop
                 risk = abs(old_tp - entry) / Decimal("1.5")
-                if plan.get("side", "").lower() == "long":
+                if side == "long":
                     init = str(entry - risk)
                 else:
                     init = str(entry + risk)
@@ -281,6 +286,7 @@ def migrate_initial_stop_v1() -> dict:
             append_journal({
                 "event": "migrate_initial_stop",
                 "symbol": sym,
+                "side": side,
                 "initial_stop": init,
                 "source": src,
                 "ts": time.time(),
@@ -314,12 +320,7 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
         positions = await broker.client.get_positions()
     except Exception as exc:
         return {**out, "error": type(exc).__name__}
-    by_sym = {}
-    for p in positions or []:
-        sym = getattr(p, "symbol", None) or getattr(p, "symbol_name", None)
-        if not sym:
-            continue
-        by_sym[str(sym)] = p
+    by_leg = _positions_by_hedge_leg(positions)
     for key, plan in list(plans.items()):
         if not isinstance(plan, dict):
             continue
@@ -327,7 +328,12 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
             out["skipped"] += 1
             continue
         sym = plan.get("symbol") or key.split("|")[0]
-        side = (plan.get("side") or "").lower()
+        side = _normalize_plan_side(plan.get("side") or (
+            key.rsplit("|", 1)[1] if "|" in key else None
+        ))
+        if side is None:
+            out["skipped"] += 1
+            continue
         entry = plan.get("entry")
         stop = plan.get("stop")
         tp = plan.get("tp") or plan.get("tp1")
@@ -380,7 +386,10 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
                 continue
             # rr > 2.3 only: clamp down to corridor
             new_tp = clamp_take_rr(entry_d, init_d, tp_d, side, 2.0, 2.3)
-            pos = by_sym.get(sym)
+            pos = _position_for_hedge_leg(by_leg, sym, side)
+            if pos is None:
+                out["skipped"] += 1
+                continue
             exch_qty = Decimal(
                 str(
                     getattr(pos, "quantity", None)
@@ -405,14 +414,12 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
             try:
                 if hasattr(broker, "client") and hasattr(broker.client, "get_open_orders"):
                     orders = await broker.client.get_open_orders(sym)
-                    for o in orders or []:
-                        ot = str(
-                            getattr(o, "type", "") or getattr(o, "order_type", "") or ""
-                        ).upper()
-                        if "TAKE_PROFIT" in ot:
-                            oid = getattr(o, "id", None) or getattr(o, "order_id", None)
-                            if oid:
-                                old_tp_ids.append(str(oid))
+                    for o in _open_orders_for_hedge_leg(
+                        orders, sym, side, kind="take_profit"
+                    ):
+                        oid = getattr(o, "id", None) or getattr(o, "order_id", None)
+                        if oid:
+                            old_tp_ids.append(str(oid))
             except Exception:
                 old_tp_ids = []
             ps = "LONG" if side == "long" else "SHORT"
