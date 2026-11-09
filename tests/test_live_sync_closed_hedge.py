@@ -140,3 +140,75 @@ async def test_restore_does_not_drop_plan_after_unconfirmed_market_close(
         (tmp_path / "models" / "zeus_orphan_protected_warn.json").read_text()
     )
     assert "ETH-USDT|long" in warning_state
+
+
+@pytest.mark.asyncio
+async def test_sync_closed_plans_retries_when_side_order_cancel_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    positions_path = tmp_path / "models" / "zeus_live_positions.json"
+    upsert_plan(
+        "BTC-USDT",
+        side="long",
+        qty="0.01",
+        entry="70000",
+        stop="71000",
+        pending_verify=True,
+        signal_id="btc-long",
+        path=positions_path,
+    )
+    upsert_plan(
+        "BTC-USDT",
+        side="short",
+        qty="0.02",
+        entry="70000",
+        stop="71000",
+        pending_verify=True,
+        signal_id="btc-short",
+        path=positions_path,
+    )
+    long_stop = SimpleNamespace(
+        id="long-stop",
+        symbol="BTC-USDT",
+        order_type="STOP_MARKET",
+        side="SELL",
+        position_side="LONG",
+        status="NEW",
+    )
+    short_stop = SimpleNamespace(
+        id="short-stop",
+        symbol="BTC-USDT",
+        order_type="STOP_MARKET",
+        side="BUY",
+        position_side="SHORT",
+        status="NEW",
+    )
+    cancel_calls: list[str] = []
+
+    async def cancel_order(symbol: str, order_id: str) -> bool:
+        cancel_calls.append(order_id)
+        return False
+
+    client = SimpleNamespace(
+        get_positions=AsyncMock(
+            return_value=[
+                SimpleNamespace(
+                    symbol="BTC-USDT",
+                    side="short",
+                    quantity=Decimal("0.02"),
+                )
+            ]
+        ),
+        get_open_orders=AsyncMock(return_value=[long_stop, short_stop]),
+        cancel_order=cancel_order,
+    )
+    broker = LiveBroker(client=client, config=LiveBrokerConfig())
+
+    result = await broker.sync_closed_plans(positions_path=positions_path)
+
+    assert result["closed"] == []
+    assert result["pending_cleanup"] == ["BTC-USDT|long"]
+    assert cancel_calls == ["long-stop"]
+    assert get_plan("BTC-USDT", positions_path, side="long") is not None
+    assert get_plan("BTC-USDT", positions_path, side="short") is not None
