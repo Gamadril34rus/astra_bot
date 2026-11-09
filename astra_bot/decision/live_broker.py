@@ -1449,7 +1449,10 @@ class LiveBroker:
                     cancel_ok = False
                     break
                 try:
-                    await self.client.cancel_order(symbol, str(order_id))
+                    canceled_ok = await self.client.cancel_order(symbol, str(order_id))
+                    if not canceled_ok:
+                        cancel_ok = False
+                        break
                     journal_order_cancel(
                         symbol=symbol,
                         order_id=str(order_id),
@@ -1648,7 +1651,7 @@ class LiveBroker:
                 still_bare.add(key)
                 continue
 
-            plan = get_plan(sym, path, side) or {};
+            plan = get_plan(sym, path, side) or {}
             entry = plan.get("entry") or getattr(p, "entry_price", None) or getattr(p, "avg_price", None)
             stop_px = plan.get("stop")
             if plan.get("be_moved") and entry is not None:
@@ -2331,12 +2334,16 @@ class LiveBroker:
                 )
                 continue
             try:
-                if await self.client.close_position(
+                close_ok = await self.client.close_position(
                     symbol,
                     quantity=qty,
                     position_side=side,
-                ):
+                )
+                if close_ok:
                     closed += 1
+                else:
+                    unresolved_symbols.add(symbol)
+                    failed += 1
             except Exception as exc:
                 unresolved_symbols.add(symbol)
                 failed += 1
