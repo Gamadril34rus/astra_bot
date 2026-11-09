@@ -6,27 +6,31 @@ This is a **research-only entry detector** based on the fixed `break` entry cond
 
 This PR ports the entry detector only. It does **not** port the historical execution harness (next-bar open, 24-bar time stop, intrabar stop/target precedence, fees/slippage, and one position per symbol). The normal paper/live exit controllers create a different strategy. No performance claim is made for this implementation.
 
-## Validation status: NOT VALIDATED
+## Validation status: INVALIDATED
 
-The previously published `docs/research/WALKFORWARD_4H_BREAKOUT.md` reported OOS PF 1.238 (n=81). That figure must **not** be used as evidence of an edge.
+The previous research report claimed OOS PF 1.238 (n=81). This positive result is not reproduced by the original Python backtest on the archived source files.
 
-An independent data-integrity check of branch `research/binance-data` found the following CSV blob inputs:
+A pinned-data GitHub Actions workflow fetched data revision `307d684174bddc0c32c22929ab5d7411fa576d6d`, verified SHA-256 checksums, and executed the original `scripts/research_bt_walkforward.py` without modifying its trading logic:
 
-| File | Blob SHA | Rows | Coverage |
-|---|---|---:|---|
-| `BTCUSDT_4h.csv` | `bf1119238982838f2ef3fd9323bc30275ac30a38` | 12,414 | 2021-01-01 to 2026-08-31 20:00 UTC |
-| `ETHUSDT_4h.csv` | `8eb0a7ee2137f9da2e787e228920447c08818587` | 12,414 | 2021-01-01 to 2026-08-31 20:00 UTC |
-| `SOLUSDT_4h.csv` | `5375a7af1298cf7c6ac88fc310a14bbb20b878f9` | 12,414 | 2021-01-01 to 2026-08-31 20:00 UTC |
+- [Original Python reproduction, run 42593168499](https://github.com/Gamadril34rus/astra_bot/actions/runs/42593168499)
+- Script commit: `8f3c2121c85f2ca112cd9ac9cf7620c69402a08d`
+- Exact archived data revision: `307d684174bddc0c32c22929ab5d7411fa576d6d`
 
-The files have continuous 4h timestamps and valid OHLC ordering, but the prices do not match the named markets on the stated dates. For example, the BTC file's 2025-01-01 00:00 UTC open is about 12,939.98 USDT, while the public historical BTC reference for 2025-01-01 is about 93,425 USDT ([StatMuse historical record](https://www.statmuse.com/money/ask/bitcoin-price-day-by-day-january-1-2025)). The SOL file records approximately 5.16 USDT at 2024-01-01 and 1.58 USDT at 2025-01-01. These are not credible Binance BTC/ETH/SOL futures histories.
+The original Python implementation returned:
 
-A direct implementation of the documented backtest logic over those archived files also fails to reproduce the published aggregate: it produces OOS n=196 and PF about 0.789, rather than n=81 and PF 1.238. Because the input prices fail symbol/date validation, **neither the old report metrics nor this diagnostic reproduction is a valid strategy-performance estimate**. This discrepancy is a data/provenance failure, not an invitation to tune parameters until a positive number appears.
+| Period | Trades | PF | Mean R | Win rate | Net at 0.5% risk | Max drawdown |
+|---|---:|---:|---:|---:|---:|---:|
+| IS 2021–2023 | 208 | 0.784 | -0.145 | 38.5% | -14.3% | 17.2% |
+| OOS 2024–2026 | 196 | 0.789 | -0.140 | 38.8% | -13.2% | 13.7% |
+| Full 2021–2026 | 413 | 0.779 | -0.148 | 38.5% | -26.9% | 29.9% |
 
-Until official, symbol-verified raw klines are obtained and the full execution harness is independently reproduced, the candidate has no validated IS/OOS evidence and must not be promoted.
+No tested configuration in the original script passed its positive OOS PF and positive mean-R selection gate. However, these output figures are **not valid real-market performance estimates**, because the archived CSVs fail symbol/date price-scale checks.
+
+The archived BTC series records about 12,940 USDT on 2025-01-01, while the named BTC market was around 93,425 USDT. The archived SOL series records about 5.16 USDT on 2024-01-01 and about 1.58 USDT on 2025-01-01. The CSV files are therefore not credible histories for the symbols they claim to represent. The positive report metrics are withdrawn, and the negative reproduction is only evidence that the archived report is not reproducible, not proof that this strategy loses on correctly sourced BTC/ETH/SOL data.
 
 ## Entry rules implemented
 
-For a closed 4h signal bar (i), with the preceding 20 bars defining the range:
+For a closed 4h signal bar, with the preceding 20 bars defining the range:
 
 - Long: prior close is within 0.2% below the 20-bar high; signal-bar low retests within 0.8% above that level; signal-bar close finishes above it; volume is at least 1.3× its 20-bar SMA; EMA20 is above EMA50.
 - Short: symmetric conditions at the 20-bar low; EMA20 is below EMA50.
