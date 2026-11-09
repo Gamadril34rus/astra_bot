@@ -279,10 +279,9 @@ async def _download_pair(
             "run workflow_dispatch with mode=initial first"
         )
     if mode == "initial":
-        floor_ms = max(
-            start_ms, launch_ms, funding_start_ms or 0,
-            min(existing) if existing else 0,
-        )
+        # Re-fetch from the required floor even when a prior initial run left
+        # a partial file; min(existing) would permanently skip its missing prefix.
+        floor_ms = max(start_ms, launch_ms, funding_start_ms or 0)
     else:
         overlap_floor = max(existing) - 3 * interval_ms
         floor_ms = max(min(existing), overlap_floor, launch_ms)
