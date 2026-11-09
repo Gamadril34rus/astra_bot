@@ -11,8 +11,8 @@ from scripts.research_adaptive_perp_portfolio import (
     add_features,
     choose_signal,
     funding_cost_fraction,
-    load_bars,
     latest_contiguous_funding_segment,
+    load_bars,
 )
 
 
