@@ -45,14 +45,13 @@ def test_long_breakout_requires_a_held_retest_and_enters_next_bar() -> None:
 
 def test_long_breakout_is_rejected_if_level_was_lost_before_retest() -> None:
     frame = _frame()
-    frame.loc[25, ["open", "high", "low", "close", "quote_volume"]] = [
+    frame.loc[24, ["open", "high", "low", "close", "quote_volume"]] = [
         100.0, 101.5, 99.8, 101.0, 200.0
     ]
+    frame.loc[25, "close"] = 99.5
     frame.loc[26, ["open", "high", "low", "close"]] = [
         100.2, 101.0, 99.9, 100.4
     ]
-    frame.loc[24, "close"] = 99.5
-    frame.loc[24, "high"] = 100.0
 
     signal = choose_retest_breakout_signal(frame, 26)
 
@@ -73,3 +72,28 @@ def test_retest_breakout_requires_higher_timeframe_direction() -> None:
     signal = choose_retest_breakout_signal(frame, 26)
 
     assert signal is None
+
+
+
+def test_short_breakout_uses_symmetric_retest_rule() -> None:
+    frame = _frame()
+    frame.loc[26, ["open", "high", "low", "close"]] = [
+        101.0, 102.0, 100.0, 101.0
+    ]
+    frame.loc[25, ["open", "high", "low", "close", "quote_volume"]] = [
+        100.0, 100.2, 98.5, 99.0, 200.0
+    ]
+    frame.loc[26, ["open", "high", "low", "close"]] = [
+        99.8, 100.1, 98.9, 99.5
+    ]
+    frame.loc[26, "h1_ema20"] = 95.0
+    frame.loc[26, "h1_ema50"] = 100.0
+    frame.loc[26, "h1_ema20_rising"] = False
+    frame.loc[26, "h1_ema20_falling"] = True
+
+    signal = choose_retest_breakout_signal(frame, 26)
+
+    assert signal is not None
+    assert signal["side"] == -1
+    assert signal["stop"] == 100.25
+    assert signal["target_rr"] == 2.0
