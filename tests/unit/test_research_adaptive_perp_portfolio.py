@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 import scripts.archive_bingx_usdm_candles as candle_archive
-from scripts.archive_bingx_funding_history import _rows_from_response
 import scripts.research_adaptive_perp_portfolio as research
+from scripts.archive_bingx_funding_history import _rows_from_response
 from scripts.research_adaptive_perp_portfolio import (
     MAX_HOLD_BARS,
     add_features,
@@ -155,6 +155,8 @@ async def test_no_progress_exit_closes_after_30_minutes(monkeypatch) -> None:
     assert len(trades) == 1
     assert trades[0]["exit_reason"] == "no_progress_30m"
     assert trades[0]["hold_minutes"] == pytest.approx(30.0)
+
+
 def test_latest_funding_segment_excludes_gaps_without_imputation() -> None:
     frame = pd.DataFrame({
         "funding_time": [0, 8 * 3_600_000, 100 * 3_600_000, 108 * 3_600_000],
@@ -180,6 +182,7 @@ def test_false_break_reversal_fades_failed_range_escape() -> None:
         "h1_ema20": [100.0] * 22,
         "h1_ema50": [100.0] * 22,
         "h1_ema20_rising": [False] * 22,
+        "h1_ema20_falling": [False] * 22,
         "bb_lower": [98.0] * 22,
         "bb_upper": [102.0] * 22,
         "rsi14": [50.0] * 22,
