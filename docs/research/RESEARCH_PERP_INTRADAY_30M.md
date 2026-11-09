@@ -55,6 +55,8 @@ The run also captures a current BingX USDT-M order-book snapshot for each symbol
 
 The manifest records feature coverage (valid 1h trend/ADX rows, ATR, RSI, quote-volume and taker-buy ratio), independent regime counts, and final signals by family and side. A zero-trade replay must therefore distinguish missing source fields from an over-restrictive strategy filter.
 
+BingX v3 Kline responses may arrive as objects containing only `time/open/high/low/close/volume`, without `quoteVolume` or taker-buy volume. For those rows, quote turnover is estimated as base volume × close and used only for a relative volume-activity ratio; the source is marked as estimated. Directional expansion confirmation uses the closed candle's close-location within its high-low range, not taker flow. This is an OHLC price-action proxy, not order-book or aggressor-flow data. Array responses preserve reported quote and taker-buy fields when present.
+
 - Signal is known only after the 30m candle closes. Entry is the next 30m bar open.
 - OHLC cannot establish the true intrabar order of stop/target touches. If both are touched in one bar, the stop wins.
 - A stop gap is filled at the adverse bar open reference; otherwise a barrier touch uses the stop/target reference. Both are conservative OHLC proxies, not exchange fill records.
