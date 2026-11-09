@@ -136,7 +136,7 @@ def add_features_with_previous_day(
 def main() -> int:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--signal-timeframe", choices=("15m", "30m"), default="15m")
-    parser.add_argument("--out", type=Path, default=Path("reports/previous_day_range"))
+    parser.add_argument("--out", type=Path, default=Path("reports/adaptive_perp"))
     args, _ = parser.parse_known_args()
     if args.signal_timeframe != "30m":
         raise SystemExit(
