@@ -811,14 +811,21 @@ def main() -> None:
         print(f"Fetching BingX {symbol} {INTERVAL} perpetual candles, funding and mark prices...", flush=True)
         klines = fetch_klines(symbol, start_ms, end_ms)
         raw_funding = fetch_funding(symbol, start_ms, end_ms)
-        mark_prices = fetch_mark_prices(symbol, start_ms, end_ms)
-        for event in raw_funding:
-            if float(event.get("markPrice") or 0) <= 0:
-                event["markPrice"] = mark_prices.get(int(event["fundingTime"]))
         funding, excluded_funding = latest_contiguous_funding_segment(raw_funding)
         if not funding:
             raise ValueError(f"{symbol}: no contiguous BingX funding segment")
         funding_start_ms = int(funding[0]["fundingTime"])
+        missing_mark_events = [
+            event for event in funding if float(event.get("markPrice") or 0) <= 0
+        ]
+        mark_prices = (
+            fetch_mark_prices(
+                symbol, min(int(event["fundingTime"]) for event in missing_mark_events), end_ms
+            )
+            if missing_mark_events else {}
+        )
+        for event in missing_mark_events:
+            event["markPrice"] = mark_prices.get(int(event["fundingTime"]))
         klines = [row for row in klines if int(row[0]) >= funding_start_ms]
         if not klines:
             raise ValueError(f"{symbol}: no candles inside latest funding segment")
