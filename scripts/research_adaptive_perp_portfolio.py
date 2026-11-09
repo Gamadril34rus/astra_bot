@@ -15,8 +15,10 @@ INTERVAL_MS = {"15m": 900_000, "1h": 3_600_000}
 MAX_HOLD_BARS = 36
 NO_PROGRESS_BARS = 2
 NO_PROGRESS_MFE_R = 0.35
-STRESS_COST_BPS_PER_SIDE = 15.0
+STRESS_COST_BPS_PER_SIDE = 11.25
 MAX_STRESS_COST_TO_R = 0.40
+MIN_PROGRESS_EXIT_BARS = 6
+MIN_PROGRESS_MFE_R = 0.75
 WARMUP_BARS = 120
 
 
@@ -324,6 +326,9 @@ def simulate_symbol(
             if held_bars >= NO_PROGRESS_BARS and best_mfe_r < NO_PROGRESS_MFE_R:
                 exit_i, exit_ref, reason = j, float(bar["close"]), "no_progress_30m"
                 break
+            if held_bars >= MIN_PROGRESS_EXIT_BARS and best_mfe_r < MIN_PROGRESS_MFE_R:
+                exit_i, exit_ref, reason = j, float(bar["close"]), "no_progress_90m"
+                break
         exit_time = int(x.iloc[exit_i]["decision_time"])
         gross = side * (exit_ref / raw_entry - 1.0)
         fee_cost = 2 * fee_bps / 10_000
@@ -511,6 +516,12 @@ def main() -> int:
         trades.to_csv(args.out / "trades.csv", index=False)
         report = {
             "status": "NO_TRADES_RESEARCH_ONLY",
+            "holding_rules": {
+                "no_progress_30m_mfe_r": NO_PROGRESS_MFE_R,
+                "no_progress_90m_bars": MIN_PROGRESS_EXIT_BARS,
+                "no_progress_90m_mfe_r": MIN_PROGRESS_MFE_R,
+                "max_hold_bars": MAX_HOLD_BARS,
+            },
             "costs": {
                 "fee_bps_per_side": args.fee_bps,
                 "spread_bps_per_side": args.spread_bps,
@@ -549,6 +560,12 @@ def main() -> int:
     trades.to_csv(args.out / "trades.csv", index=False)
     report = {
         "status": "RESEARCH_ONLY_OHLC_PROXY",
+        "holding_rules": {
+            "no_progress_30m_mfe_r": NO_PROGRESS_MFE_R,
+            "no_progress_90m_bars": MIN_PROGRESS_EXIT_BARS,
+            "no_progress_90m_mfe_r": MIN_PROGRESS_MFE_R,
+            "max_hold_bars": MAX_HOLD_BARS,
+        },
         "costs": {
             "fee_bps_per_side": args.fee_bps,
             "spread_bps_per_side": args.spread_bps,
