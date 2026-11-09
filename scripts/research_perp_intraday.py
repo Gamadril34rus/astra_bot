@@ -220,6 +220,13 @@ def fetch_funding(symbol: str, start_ms: int, end_ms: int) -> list[dict[str, Any
         normalized.sort(key=lambda row: int(row["fundingTime"]))
         rows.extend(normalized)
         oldest = int(normalized[0]["fundingTime"])
+        newest = int(normalized[-1]["fundingTime"])
+        print(
+            f"{symbol}: funding page size={len(normalized)} "
+            f"{datetime.fromtimestamp(oldest / 1000, UTC).isoformat()}.."
+            f"{datetime.fromtimestamp(newest / 1000, UTC).isoformat()}",
+            flush=True,
+        )
         if oldest <= start_ms or len(page) < PAGE_FUNDING:
             break
         next_end = oldest - 1
@@ -323,8 +330,15 @@ def validate_market_data(
         raise ValueError(f"{symbol}: funding coverage starts more than 24h after candles")
     if times[-1] < opens[-1] - 24 * 60 * 60 * 1000:
         raise ValueError(f"{symbol}: funding coverage ends more than 24h before candles")
-    if any(right - left > 24 * 60 * 60 * 1000 for left, right in zip(times[:-1], times[1:], strict=True)):
-        raise ValueError(f"{symbol}: funding history contains a gap larger than 24h")
+    gaps = [(right - left, left, right) for left, right in zip(times[:-1], times[1:], strict=True)]
+    largest_gap = max(gaps, default=(0, 0, 0))
+    if largest_gap[0] > 24 * 60 * 60 * 1000:
+        left_dt = datetime.fromtimestamp(largest_gap[1] / 1000, UTC).isoformat()
+        right_dt = datetime.fromtimestamp(largest_gap[2] / 1000, UTC).isoformat()
+        raise ValueError(
+            f"{symbol}: funding history gap {largest_gap[0] / 3_600_000:.1f}h "
+            f"between {left_dt} and {right_dt}; total events={len(times)}"
+        )
 
 def _adx(frame: pd.DataFrame, period: int = 14) -> pd.Series:
     up = frame["high"].diff()
