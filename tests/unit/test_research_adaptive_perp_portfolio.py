@@ -14,6 +14,7 @@ from scripts.research_adaptive_perp_portfolio import (
     add_features,
     choose_signal,
     common_15m_coverage_window,
+    exclude_split_crossing_trades,
     funding_cost_fraction,
     latest_contiguous_funding_segment,
     load_bars,
@@ -527,3 +528,16 @@ def test_false_break_reversal_fades_failed_range_escape() -> None:
     assert signal["family"] == "FALSE_BREAK_REVERSAL"
     assert signal["side"] == -1
     assert signal["target_price"] == pytest.approx(100.0)
+
+
+def test_trades_crossing_chronological_split_boundaries_are_excluded() -> None:
+    trades = pd.DataFrame({
+        "entry_time": [10, 20, 40, 45, 60],
+        "exit_time": [19, 35, 59, 65, 80],
+    })
+    kept, excluded = exclude_split_crossing_trades(
+        trades, validation_start_ms=30, oos_start_ms=60
+    )
+    assert kept["entry_time"].tolist() == [10, 40, 60]
+    assert excluded == 2
+\n
