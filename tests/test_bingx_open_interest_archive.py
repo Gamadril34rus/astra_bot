@@ -5,7 +5,6 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-
 from scripts.archive_bingx_open_interest import (
     _archive_path,
     _merge_rows,
