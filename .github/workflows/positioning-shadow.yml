@@ -96,7 +96,7 @@ jobs:
         if: steps.state.outputs.initialized == 'true'
         run: |
           python source/scripts/analyze_bingx_positioning_shadow.py \
-            --data-dir data/bingx_usdm --out reports/positioning_shadow
+            --data-dir data/bingx_usdm --out data/bingx_usdm/positioning_shadow
 
       - name: Persist data branch update
         if: steps.state.outputs.initialized == 'true'
@@ -104,7 +104,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/bingx_usdm reports/positioning_shadow
+          git add data/bingx_usdm
           if git diff --cached --quiet; then
             echo "No new positioning data to persist."
             exit 0
