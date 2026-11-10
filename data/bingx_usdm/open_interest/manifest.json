@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "exchange": "BingX",
+  "market": "USDT-M perpetual swaps",
+  "source_endpoint": "/openApi/swap/v2/quote/openInterest",
+  "unit": "base asset quantity as returned by BingX",
+  "generated_at_utc": "2026-11-10T09:51:43.395171+00:00",
+  "symbols": [
+    "BTC-USDT",
+    "ETH-USDT",
+    "SOL-USDT",
+    "HYPE-USDT",
+    "INJ-USDT"
+  ],
+  "snapshots": {
+    "BTC-USDT": {
+      "symbol": "BTC-USDT",
+      "path": "data/bingx_usdm/open_interest/BTCUSDT_open_interest.csv",
+      "source_time": 1794304266211,
+      "source_time_utc": "2026-11-10T09:51:06.211000+00:00",
+      "observed_at_ms": 1794304266337,
+      "open_interest_base": "1002911182.4",
+      "snapshot_count": 1,
+      "sha256": "36c39519f3a7ae3d37001136d047fa7e4958d1c541deb40598e15931f62357fa"
+    },
+    "ETH-USDT": {
+      "symbol": "ETH-USDT",
+      "path": "data/bingx_usdm/open_interest/ETHUSDT_open_interest.csv",
+      "source_time": 1794304275486,
+      "source_time_utc": "2026-11-10T09:51:15.486000+00:00",
+      "observed_at_ms": 1794304275611,
+      "open_interest_base": "269544941.55",
+      "snapshot_count": 1,
+      "sha256": "642b5d33bcdf351187a8d0fab43748428ceaa8eb4cc0a251b7457054da94f28c"
+    },
+    "SOL-USDT": {
+      "symbol": "SOL-USDT",
+      "path": "data/bingx_usdm/open_interest/SOLUSDT_open_interest.csv",
+      "source_time": 1794304284763,
+      "source_time_utc": "2026-11-10T09:51:24.763000+00:00",
+      "observed_at_ms": 1794304284879,
+      "open_interest_base": "166825779.331",
+      "snapshot_count": 1,
+      "sha256": "6fc5e2717fddf01a9681eba3565a3ce340be102ed73f0473f36dc6f9decd1e56"
+    },
+    "HYPE-USDT": {
+      "symbol": "HYPE-USDT",
+      "path": "data/bingx_usdm/open_interest/HYPEUSDT_open_interest.csv",
+      "source_time": 1794304294017,
+      "source_time_utc": "2026-11-10T09:51:34.017000+00:00",
+      "observed_at_ms": 1794304294133,
+      "open_interest_base": "41456974.528",
+      "snapshot_count": 1,
+      "sha256": "5535d469f722db2bffa3a673d25b72a57c319b5c45caeaafaf380dc766660588"
+    },
+    "INJ-USDT": {
+      "symbol": "INJ-USDT",
+      "path": "data/bingx_usdm/open_interest/INJUSDT_open_interest.csv",
+      "source_time": 1794304303268,
+      "source_time_utc": "2026-11-10T09:51:43.268000+00:00",
+      "observed_at_ms": 1794304303393,
+      "open_interest_base": "9030057.722",
+      "snapshot_count": 1,
+      "sha256": "b631f8d335aaf6081eb8dd4b7c12925bd891a854ad177fb0d42e88dd2acca9bc"
+    }
+  },
+  "warning": "BingX endpoint is a current snapshot, not historical OHLC. This archive is prospective from the first collection time."
+}

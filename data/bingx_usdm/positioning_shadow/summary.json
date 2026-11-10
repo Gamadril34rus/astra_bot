@@ -1,0 +1,19 @@
+{
+  "snapshots": 0,
+  "states": {},
+  "method": {
+    "signal_interval": "30m",
+    "oi_join": "latest fully closed 30m candle at or before local OI observation timestamp",
+    "max_candle_age_minutes": 20.0,
+    "max_oi_observation_gap_minutes": 90.0,
+    "relative_volume_source": "taker-buy quote volume where available, else base volume",
+    "forward_horizons_minutes": [
+      30,
+      60,
+      120,
+      240,
+      540
+    ],
+    "strategy_execution": "none; research-only descriptive shadow"
+  }
+}
