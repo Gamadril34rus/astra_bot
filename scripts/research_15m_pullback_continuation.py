@@ -13,7 +13,7 @@ from scripts import research_adaptive_perp_portfolio as portfolio
 
 def add_15m_features(signal_bars: pd.DataFrame, hourly_bars: pd.DataFrame) -> pd.DataFrame:
     """Add shared closed-1h context and a prior-20-bar relative-volume baseline."""
-    result = portfolio.add_features(signal_bars, hourly_bars)
+    result = _BASE_ADD_FEATURES(signal_bars, hourly_bars)
     volume = result["quote_volume"].where(
         result["quote_volume"] > 0, result["volume"]
     )
