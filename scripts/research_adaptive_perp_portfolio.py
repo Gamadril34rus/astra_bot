@@ -398,6 +398,19 @@ def exclude_split_crossing_trades(
     return trades.loc[remains_within_one_period].copy(), excluded
 
 
+def filter_max_period(trades: pd.DataFrame, max_period: str) -> pd.DataFrame:
+    """Limit reported performance to a pre-OOS screen or the requested period."""
+    if max_period == "IS":
+        return trades.loc[trades.period == "IS"].copy()
+    if max_period == "VALIDATION":
+        return trades.loc[trades.period.isin(["IS", "VALIDATION"])].copy()
+    if max_period == "OOS":
+        return trades.loc[trades.period == "OOS"].copy()
+    if max_period == "ALL":
+        return trades.copy()
+    raise ValueError(f"unsupported max_period: {max_period}")
+
+
 def summarize(
     frame: pd.DataFrame,
     calendar_start: pd.Period | None = None,
@@ -599,12 +612,7 @@ def main() -> int:
         [trades.entry_time < validation_start_ms, trades.entry_time < oos_start_ms],
         ["IS", "VALIDATION"], default="OOS"
     )
-    if args.max_period == "IS":
-        trades = trades[trades.period == "IS"].copy()
-    elif args.max_period == "VALIDATION":
-        trades = trades[trades.period.isin(["IS", "VALIDATION"])].copy()
-    elif args.max_period == "OOS":
-        trades = trades[trades.period == "OOS"].copy()
+    trades = filter_max_period(trades, args.max_period)
     calendar_start = pd.to_datetime(common_window["common_start_utc"], utc=True).to_period("M")
     calendar_end = pd.to_datetime(common_window["common_end_utc"], utc=True).to_period("M")
     validation_start_period = pd.to_datetime(validation_start_ms, unit="ms", utc=True).to_period("M")
