@@ -204,7 +204,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, default=Path("data/bingx_usdm"))
     parser.add_argument("--symbols", default=",".join(SYMBOLS))
-    parser.add_argument("--out", type=Path, default=Path("reports/positioning_shadow"))
+    parser.add_argument(
+        "--out", type=Path, default=Path("data/bingx_usdm/positioning_shadow")
+    )
     args = parser.parse_args()
     symbols = tuple(item.strip().upper() for item in args.symbols.split(",") if item.strip())
     if not symbols or set(symbols) - set(SYMBOLS):
