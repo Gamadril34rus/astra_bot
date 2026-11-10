@@ -15,6 +15,7 @@ from scripts.research_adaptive_perp_portfolio import (
     choose_signal,
     common_15m_coverage_window,
     exclude_split_crossing_trades,
+    filter_max_period,
     funding_cost_fraction,
     latest_contiguous_funding_segment,
     load_bars,
@@ -541,3 +542,12 @@ def test_trades_crossing_chronological_split_boundaries_are_excluded() -> None:
     assert kept["entry_time"].tolist() == [10, 40, 60]
     assert excluded == 2
 
+def test_validation_screen_does_not_include_oos_trades() -> None:
+    trades = pd.DataFrame({
+        "period": ["IS", "VALIDATION", "OOS"],
+        "entry_time": [10, 40, 70],
+    })
+    screened = filter_max_period(trades, "VALIDATION")
+    assert screened["period"].tolist() == ["IS", "VALIDATION"]
+    assert filter_max_period(trades, "OOS")["period"].tolist() == ["OOS"]
+\n
