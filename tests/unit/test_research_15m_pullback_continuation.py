@@ -64,6 +64,7 @@ def test_short_pullback_is_directionally_symmetric() -> None:
     frame["h1_ema20_falling"] = True
     frame["h1_adx14"] = 25.0
     frame.loc[150:153, "high"] = 100.5
+    frame.loc[150:153, "close"] = 100.5
     frame.loc[154, ["open", "high", "low", "close"]] = [100.0, 100.2, 99.0, 99.5]
     frame.loc[153, "low"] = 99.8
     signal = choose_15m_pullback_signal(frame, 154)
