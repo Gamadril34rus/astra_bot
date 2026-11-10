@@ -1,8 +1,8 @@
 name: BingX positioning-pressure shadow collection
 
 on:
-  schedule:
-    - cron: "3,33 * * * *"
+  # Schedule disabled: external cron-job.org dispatches workflow_dispatch.
+  # Former cron was: "3,33 * * * *"
   workflow_dispatch:
     inputs:
       initialize_history:
