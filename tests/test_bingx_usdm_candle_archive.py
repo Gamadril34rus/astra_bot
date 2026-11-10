@@ -177,13 +177,15 @@ async def test_refresh_optional_fields_refetches_full_existing_history(
 
     class FakeClient:
         def __init__(self) -> None:
-            self.ranges: list[int] = []
+            self.ranges: list[tuple[int, int]] = []
 
-        async def fetch_kline_page(self, _symbol, _timeframe, *, end_time_ms, limit):
-            self.ranges.append(end_time_ms)
+        async def fetch_kline_page(
+            self, _symbol, _timeframe, *, start_time_ms, end_time_ms, limit
+        ):
+            self.ranges.append((start_time_ms, end_time_ms))
             page = [
                 candle for candle in candles
-                if candle.open_time <= end_time_ms
+                if start_time_ms <= candle.open_time <= end_time_ms
             ]
             return sorted(page, key=lambda item: item.open_time, reverse=True)[:limit]
 
@@ -202,5 +204,6 @@ async def test_refresh_optional_fields_refetches_full_existing_history(
     enriched = archive._read_rows(archive._archive_path("BTC-USDT", "30m"))
     assert report["verified_overlap_bars"] == 4
     assert len(client.ranges) == 2
+    assert [start for start, _ in client.ranges] == [0, 2 * interval]
     assert all(row["taker_buy_volume"] == "6" for row in enriched.values())
     assert all(row["taker_buy_quote_volume"] == "600" for row in enriched.values())
