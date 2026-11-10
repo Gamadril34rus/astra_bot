@@ -462,12 +462,17 @@ def main() -> int:
     parser.add_argument("--spread-bps", type=float, default=2.0)
     parser.add_argument("--slippage-bps", type=float, default=3.0)
     parser.add_argument("--signal-timeframe", choices=("15m", "30m"), default="15m")
+    parser.add_argument("--symbols", default=",".join(SYMBOLS))
     parser.add_argument("--out", type=Path, default=Path("reports/adaptive_perp"))
     args = parser.parse_args()
+    args.symbols = tuple(item.strip().upper() for item in args.symbols.split(",") if item.strip())
+    unknown_symbols = sorted(set(args.symbols) - set(SYMBOLS))
+    if not args.symbols or unknown_symbols:
+        parser.error(f"symbols must be a non-empty subset of {SYMBOLS}; unknown={unknown_symbols}")
     all_trades = []
     coverage = {}
     signal_diagnostics: dict[str, dict[str, Any]] = {}
-    for symbol in SYMBOLS:
+    for symbol in args.symbols:
         stem = symbol.replace("-", "")
         signal_path = args.data_dir / f"{stem}_{args.signal_timeframe}.csv"
         h1_path = args.data_dir / f"{stem}_1h.csv"
@@ -543,6 +548,8 @@ def main() -> int:
             "coverage": coverage,
             "common_signal_window": common_window,
             "signal_timeframe": args.signal_timeframe,
+            "symbols": list(args.symbols),
+            "boundary_excluded_trades": 0,
             "signal_diagnostics": signal_diagnostics,
             "by_period": {},
             "by_family": {},
@@ -566,6 +573,17 @@ def main() -> int:
     split_span = common_end_ms - common_start_ms
     validation_start_ms = common_start_ms + int(split_span * 0.60)
     oos_start_ms = common_start_ms + int(split_span * 0.80)
+    remains_within_one_period = (
+        ((trades.entry_time < validation_start_ms) & (trades.exit_time <= validation_start_ms))
+        | (
+            (trades.entry_time >= validation_start_ms)
+            & (trades.entry_time < oos_start_ms)
+            & (trades.exit_time <= oos_start_ms)
+        )
+        | (trades.entry_time >= oos_start_ms)
+    )
+    boundary_excluded_trades = int((~remains_within_one_period).sum())
+    trades = trades.loc[remains_within_one_period].copy()
     trades["period"] = np.select(
         [trades.entry_time < validation_start_ms, trades.entry_time < oos_start_ms],
         ["IS", "VALIDATION"], default="OOS"
@@ -598,6 +616,8 @@ def main() -> int:
         "coverage": coverage,
         "common_signal_window": common_window,
         "signal_timeframe": args.signal_timeframe,
+        "symbols": list(args.symbols),
+        "boundary_excluded_trades": boundary_excluded_trades,
         "split_boundaries_utc": {
             "validation_start": pd.to_datetime(validation_start_ms, unit="ms", utc=True).isoformat(),
             "oos_start": pd.to_datetime(oos_start_ms, unit="ms", utc=True).isoformat(),
@@ -627,6 +647,16 @@ def main() -> int:
             )
             for (symbol, side), group in trades[trades.period == "OOS"].groupby(
                 ["symbol", "side"]
+            )
+        },
+        "by_family_symbol_side": {
+            f"{family}_{symbol}_{side}": summarize(group, calendar_start, calendar_end)
+            for (family, symbol, side), group in trades.groupby(["family", "symbol", "side"])
+        },
+        "oos_by_family_symbol_side": {
+            f"{family}_{symbol}_{side}": summarize(group, oos_start_period, calendar_end)
+            for (family, symbol, side), group in trades[trades.period == "OOS"].groupby(
+                ["family", "symbol", "side"]
             )
         },
         "combined": summarize(trades, calendar_start, calendar_end),
