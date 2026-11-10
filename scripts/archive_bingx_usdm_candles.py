@@ -216,6 +216,7 @@ async def _download_pair(
     now_ms: int,
     refresh_optional_fields: bool = False,
 ) -> tuple[dict[str, Any], int]:
+    """Fetch deterministic forward pages and preserve/enrich immutable candle rows."""
     interval_ms = TIMEFRAME_MS[timeframe]
     path = _archive_path(symbol, timeframe)
     existing = _read_rows(path)
@@ -224,42 +225,61 @@ async def _download_pair(
             f"missing initial archive for {symbol} {timeframe}; "
             "run workflow_dispatch with mode=initial first"
         )
-    existing_max = max(existing) if existing else None
+
     if mode == "initial":
         floor_ms = start_ms
     elif refresh_optional_fields and existing:
-        # Re-fetch all archived bars so older OHLCV-only rows can be enriched
-        # with taker-buy volume fields without altering their price data.
+        # Re-fetch the full archived window to backfill newly supported fields.
         floor_ms = min(existing)
+    elif existing:
+        overlap_floor = max(existing) - 3 * interval_ms
+        floor_ms = max(min(existing), overlap_floor)
     else:
-        overlap_floor = int(existing_max or 0) - 3 * interval_ms
-        floor_ms = max(min(existing) if existing else 0, overlap_floor)
-    cursor_end = now_ms
-    previous_oldest: int | None = None
+        floor_ms = start_ms
+
+    cursor_start = ((floor_ms + interval_ms - 1) // interval_ms) * interval_ms
+    last_closed_open = (now_ms // interval_ms) * interval_ms - interval_ms
     incoming: dict[int, dict[str, str]] = {}
     pages = 0
 
-    while True:
+    while cursor_start <= last_closed_open:
+        page_last_open = min(
+            cursor_start + (PAGE_SIZE - 1) * interval_ms,
+            last_closed_open,
+        )
         page = await _call_with_cooldown(
-            lambda cursor_end=cursor_end: client.fetch_kline_page(
-                symbol, timeframe, end_time_ms=cursor_end, limit=PAGE_SIZE
+            lambda cursor_start=cursor_start, page_last_open=page_last_open: (
+                client.fetch_kline_page(
+                    symbol,
+                    timeframe,
+                    start_time_ms=cursor_start,
+                    end_time_ms=page_last_open + interval_ms - 1,
+                    limit=PAGE_SIZE,
+                )
             ),
-            label=f"BingX {symbol} {timeframe} {cursor_end}",
+            label=f"BingX {symbol} {timeframe} {cursor_start}",
         )
         pages += 1
-        if not page:
-            break
-        page_times = [int(candle.open_time) for candle in page]
-        oldest = min(page_times)
-        if previous_oldest is not None and oldest >= previous_oldest:
+        expected_times = list(range(cursor_start, page_last_open + 1, interval_ms))
+        actual_times = sorted(
+            int(candle.open_time)
+            for candle in page
+            if cursor_start <= int(candle.open_time) <= page_last_open
+            and int(candle.open_time) + interval_ms <= now_ms
+        )
+        if actual_times != expected_times:
+            missing = sorted(set(expected_times) - set(actual_times))
+            duplicates = len(actual_times) != len(set(actual_times))
             raise RuntimeError(
-                f"pagination made no backward progress for {symbol} {timeframe}"
+                f"incomplete BingX candle range for {symbol} {timeframe}: "
+                f"start={cursor_start} end={page_last_open} "
+                f"expected={len(expected_times)} actual={len(actual_times)} "
+                f"missing_sample={missing[:5]} duplicates={duplicates}"
             )
+
         for candle in page:
             open_time = int(candle.open_time)
-            if open_time + interval_ms > now_ms:
-                continue
-            if open_time < floor_ms:
+            if open_time not in expected_times:
                 continue
             row = _row_from_candle(candle)
             previous = incoming.get(open_time)
@@ -270,10 +290,7 @@ async def _download_pair(
                 )
             incoming[open_time] = row
 
-        if oldest <= floor_ms or len(page) < PAGE_SIZE:
-            break
-        previous_oldest = oldest
-        cursor_end = oldest - 1
+        cursor_start = page_last_open + interval_ms
 
     if not existing and not incoming:
         raise RuntimeError(f"BingX returned no closed candles for {symbol} {timeframe}")
@@ -291,6 +308,7 @@ async def _download_pair(
             "new_bars": len(set(merged) - set(existing)),
             "verified_overlap_bars": len(set(incoming) & set(existing)),
             "pages_requested": pages,
+            "optional_fields_refresh": refresh_optional_fields,
         }
     )
     return coverage, len(incoming)
