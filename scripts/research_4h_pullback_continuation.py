@@ -46,6 +46,12 @@ def build_completed_4h_bars(signal_bars: pd.DataFrame) -> pd.DataFrame:
 def add_4h_regime_features(signal_bars: pd.DataFrame, hourly_bars: pd.DataFrame) -> pd.DataFrame:
     """Keep shared 30m features, then attach only the last completed 4h regime."""
     result = _BASE_ADD_FEATURES(signal_bars, hourly_bars)
+    volume = result["quote_volume"].where(
+        result["quote_volume"] > 0, result["volume"]
+    )
+    result["volume_ratio"] = volume / volume.shift(1).rolling(
+        20, min_periods=20
+    ).mean()
     h4 = build_completed_4h_bars(signal_bars)
     close = h4["close"]
     h4["h4_ema20"] = close.ewm(span=20, adjust=False).mean()
