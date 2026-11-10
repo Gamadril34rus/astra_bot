@@ -540,4 +540,4 @@ def test_trades_crossing_chronological_split_boundaries_are_excluded() -> None:
     )
     assert kept["entry_time"].tolist() == [10, 40, 60]
     assert excluded == 2
-\n
+
