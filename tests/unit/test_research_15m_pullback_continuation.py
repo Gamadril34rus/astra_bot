@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import pandas as pd
-
 from scripts.research_15m_pullback_continuation import (
     add_15m_features,
     choose_15m_pullback_signal,
 )
+
+import pandas as pd
 
 
 def _bars(count: int = 200, interval_ms: int = 15 * 60_000) -> pd.DataFrame:
