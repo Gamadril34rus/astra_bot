@@ -45,7 +45,7 @@ def build_completed_4h_bars(signal_bars: pd.DataFrame) -> pd.DataFrame:
 
 def add_4h_regime_features(signal_bars: pd.DataFrame, hourly_bars: pd.DataFrame) -> pd.DataFrame:
     """Keep shared 30m features, then attach only the last completed 4h regime."""
-    result = portfolio.add_features(signal_bars, hourly_bars)
+    result = _BASE_ADD_FEATURES(signal_bars, hourly_bars)
     h4 = build_completed_4h_bars(signal_bars)
     close = h4["close"]
     h4["h4_ema20"] = close.ewm(span=20, adjust=False).mean()
