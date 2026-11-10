@@ -1,0 +1,140 @@
+name: 15m pullback continuation research
+
+on:
+  pull_request:
+    branches: [research/adaptive-perp-regimes]
+    paths:
+      - "scripts/research_15m_pullback_continuation.py"
+      - "scripts/research_adaptive_perp_portfolio.py"
+      - "scripts/archive_bingx_funding_history.py"
+      - "scripts/archive_bingx_usdm_candles.py"
+      - "tests/unit/test_research_15m_pullback_continuation.py"
+      - "tests/unit/test_research_adaptive_perp_portfolio.py"
+      - "tests/test_bingx_usdm_candle_archive.py"
+      - "docs/research/FIFTEEN_MINUTE_PULLBACK_CONTINUATION.md"
+      - ".github/workflows/research-15m-pullback.yml"
+  push:
+    branches: [research/4h-pullback-continuation]
+    paths:
+      - "scripts/research_15m_pullback_continuation.py"
+      - "scripts/research_adaptive_perp_portfolio.py"
+      - "scripts/archive_bingx_funding_history.py"
+      - "scripts/archive_bingx_usdm_candles.py"
+      - "tests/unit/test_research_15m_pullback_continuation.py"
+      - "tests/unit/test_research_adaptive_perp_portfolio.py"
+      - "tests/test_bingx_usdm_candle_archive.py"
+      - "docs/research/FIFTEEN_MINUTE_PULLBACK_CONTINUATION.md"
+      - ".github/workflows/research-15m-pullback.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: 15m-pullback-continuation
+  cancel-in-progress: true
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      PYTHONPATH: .
+      BINGX_ARCHIVE_QPS: "0.2"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install project dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Run candidate and archive tests
+        run: |
+          python -m pytest \
+            tests/unit/test_research_15m_pullback_continuation.py \
+            tests/unit/test_research_adaptive_perp_portfolio.py \
+            tests/test_bingx_usdm_candle_archive.py -q
+      - name: Ruff
+        run: |
+          python -m ruff check --config pyproject.toml \
+            scripts/research_15m_pullback_continuation.py \
+            scripts/research_adaptive_perp_portfolio.py \
+            tests/unit/test_research_15m_pullback_continuation.py
+      - name: Download BingX historical perpetual funding
+        run: |
+          set -euo pipefail
+          python scripts/archive_bingx_funding_history.py --start-date 2021-01-01
+      - name: Download BingX USDT-M 15m and 1h candles
+        run: |
+          set -euo pipefail
+          python scripts/archive_bingx_usdm_candles.py \
+            --mode initial --start-date 2021-01-01 --timeframes 15m,1h
+      - name: Verify archive provenance, gaps and SHA-256
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          root = Path("data/bingx_usdm")
+          manifest = json.loads((root / "manifest.json").read_text())
+          funding_manifest = json.loads((root / "funding_manifest.json").read_text())
+          assert manifest["exchange"] == "BingX"
+          assert manifest["market"] == "USDT-M perpetual swaps"
+          assert set(manifest["timeframes"]) == {"15m", "1h"}
+          assert funding_manifest["exchange"] == "BingX"
+          assert funding_manifest["market"] == "USDT-M perpetual swaps"
+          assert len(manifest["archives"]) == 10
+          for key, item in manifest["archives"].items():
+              symbol, timeframe = key.split(":")
+              path = root / f"{symbol.replace('-', '')}_{timeframe}.csv"
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              assert digest == item["sha256"], f"candle checksum mismatch: {key}"
+              assert item["gap_count"] == 0, f"candle gaps: {key}"
+          for item in funding_manifest["reports"]:
+              path = Path(item["file"])
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              assert digest == item["sha256"], f"funding checksum mismatch: {item['symbol']}"
+          print("BingX USDT-M provenance, all 10 candle hashes, all funding hashes and zero-gap gate: PASS")
+          PY
+      - name: Replay four-symbol core at base costs
+        run: |
+          python scripts/research_15m_pullback_continuation.py \
+            --signal-timeframe 15m --symbols BTC-USDT,ETH-USDT,SOL-USDT,INJ-USDT \
+            --fee-bps 5 --spread-bps 1.25 --slippage-bps 2 \
+            --out reports/15m_pullback/core4/base
+      - name: Replay four-symbol core at 1.5x costs
+        run: |
+          python scripts/research_15m_pullback_continuation.py \
+            --signal-timeframe 15m --symbols BTC-USDT,ETH-USDT,SOL-USDT,INJ-USDT \
+            --fee-bps 7.5 --spread-bps 1.875 --slippage-bps 3 \
+            --out reports/15m_pullback/core4/stress_1_5x
+      - name: Replay HYPE separately at base costs
+        run: |
+          python scripts/research_15m_pullback_continuation.py \
+            --signal-timeframe 15m --symbols HYPE-USDT \
+            --fee-bps 5 --spread-bps 1.25 --slippage-bps 2 \
+            --out reports/15m_pullback/hype/base
+      - name: Replay HYPE separately at 1.5x costs
+        run: |
+          python scripts/research_15m_pullback_continuation.py \
+            --signal-timeframe 15m --symbols HYPE-USDT \
+            --fee-bps 7.5 --spread-bps 1.875 --slippage-bps 3 \
+            --out reports/15m_pullback/hype/stress_1_5x
+      - name: Upload immutable 15m research evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 15m-pullback-continuation-research
+          path: |
+            data/bingx_usdm/manifest.json
+            data/bingx_usdm/funding_manifest.json
+            data/bingx_usdm/*_15m.csv
+            data/bingx_usdm/*_1h.csv
+            data/bingx_usdm/funding_*.csv
+            reports/15m_pullback/
+          if-no-files-found: warn
+          retention-days: 90
