@@ -2,7 +2,7 @@ name: BingX positioning-pressure shadow collection
 
 on:
   schedule:
-    - cron: "0,30 * * * *"
+    - cron: "3,33 * * * *"
   workflow_dispatch:
     inputs:
       initialize_history:
