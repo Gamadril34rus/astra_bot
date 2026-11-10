@@ -381,6 +381,23 @@ def common_15m_coverage_window(
         "common_days": round(days, 2),
         "covers_12_months": days >= 365.0,
     }
+def exclude_split_crossing_trades(
+    trades: pd.DataFrame, validation_start_ms: int, oos_start_ms: int
+) -> tuple[pd.DataFrame, int]:
+    """Drop trades whose holding interval crosses a chronological split boundary."""
+    remains_within_one_period = (
+        ((trades.entry_time < validation_start_ms) & (trades.exit_time <= validation_start_ms))
+        | (
+            (trades.entry_time >= validation_start_ms)
+            & (trades.entry_time < oos_start_ms)
+            & (trades.exit_time <= oos_start_ms)
+        )
+        | (trades.entry_time >= oos_start_ms)
+    )
+    excluded = int((~remains_within_one_period).sum())
+    return trades.loc[remains_within_one_period].copy(), excluded
+
+
 def summarize(
     frame: pd.DataFrame,
     calendar_start: pd.Period | None = None,
@@ -573,17 +590,9 @@ def main() -> int:
     split_span = common_end_ms - common_start_ms
     validation_start_ms = common_start_ms + int(split_span * 0.60)
     oos_start_ms = common_start_ms + int(split_span * 0.80)
-    remains_within_one_period = (
-        ((trades.entry_time < validation_start_ms) & (trades.exit_time <= validation_start_ms))
-        | (
-            (trades.entry_time >= validation_start_ms)
-            & (trades.entry_time < oos_start_ms)
-            & (trades.exit_time <= oos_start_ms)
-        )
-        | (trades.entry_time >= oos_start_ms)
+    trades, boundary_excluded_trades = exclude_split_crossing_trades(
+        trades, validation_start_ms, oos_start_ms
     )
-    boundary_excluded_trades = int((~remains_within_one_period).sum())
-    trades = trades.loc[remains_within_one_period].copy()
     trades["period"] = np.select(
         [trades.entry_time < validation_start_ms, trades.entry_time < oos_start_ms],
         ["IS", "VALIDATION"], default="OOS"
