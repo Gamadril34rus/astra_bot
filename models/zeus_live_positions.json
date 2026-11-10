@@ -1,29 +1,5 @@
 {
   "positions": {
-    "SOL-USDT|short": {
-      "symbol": "SOL-USDT",
-      "side": "short",
-      "qty": "234.35676799",
-      "stop": "89.01842857142857",
-      "tp": "84.215365149936165",
-      "entry": "86.115",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|SOL-USDT|short|1794225600000",
-      "ts": 1794225789.3039882,
-      "be_moved": false,
-      "initial_stop": "89.5547906364797",
-      "opened_at_ms": 1794225789303,
-      "plan_qty": "234.35676799",
-      "qty_ratio": 1.0,
-      "tp1": "84.215365149936165",
-      "initial_stop_v1": true,
-      "tp_parity_v1": true,
-      "early_tp1": true,
-      "peak_low": "86.103",
-      "current_regime": "RANGE",
-      "peak_high": "87.92"
-    },
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
       "side": "short",
@@ -40,8 +16,32 @@
       "opened_at_ms": 1794268978737,
       "plan_qty": "12.00904719",
       "qty_ratio": 1.0,
-      "tp1": "2096.531483291454415"
+      "tp1": "2096.531483291454415",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "2133.43",
+      "migrate_stop_v1": true,
+      "current_regime": "STRONG_BEAR_TREND"
+    },
+    "INJ-USDT|long": {
+      "symbol": "INJ-USDT",
+      "side": "long",
+      "qty": "4904.21078552",
+      "stop": "8.04078",
+      "tp": "8.1666710",
+      "entry": "8.128",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|INJ-USDT|long|1794268800000",
+      "ts": 1794269275.402647,
+      "be_moved": false,
+      "initial_stop": "8.04078",
+      "opened_at_ms": 1794269275402,
+      "plan_qty": "4904.21078552",
+      "qty_ratio": 1.0,
+      "tp1": "8.1666710"
     }
   },
-  "ts": 1794268978.7375734
+  "ts": 1794269275.4026778
 }
