@@ -171,6 +171,14 @@ class Candle:
             "close": str(self.close),
             "volume": str(self.volume),
             "quote_volume": str(self.quote_volume),
+            "taker_buy_volume": (
+                str(self.taker_buy_volume)
+                if self.taker_buy_volume is not None else None
+            ),
+            "taker_buy_quote_volume": (
+                str(self.taker_buy_quote_volume)
+                if self.taker_buy_quote_volume is not None else None
+            ),
         }
 
 
