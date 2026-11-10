@@ -2347,3 +2347,4 @@
 {"event": "protect_place", "ts": 1794325384.1401703, "symbol": "ETH-USDT", "kind": "stop", "stop_price": "2164.667499681123", "qty": "5.53294755", "close_position": true, "order_id": "2120180445882179584"}
 {"event": "protect_place", "ts": 1794325384.5415833, "symbol": "ETH-USDT", "kind": "tp", "stop_price": "1914.2277502232139", "qty": "1.65988426", "reduce_only": false, "order_id": "2120180447744450560"}
 {"event": "entry", "signal_id": "zeus_channel_boundary|ETH-USDT|short|1794312000000", "symbol": "ETH-USDT", "side": "short", "plan_entry": "2017.35", "fill_price": "2017.88", "slip_pct": -0.026272089622534515, "slip_r": 0.0035976717032749996, "qty": "5.53294755", "stop": "2164.667499681123", "tp": "1914.2277502232139", "tp_frac": 0.3, "leverage": 6, "ts": 1794325384.5426135}
+{"event": "order_cancel", "symbol": "ETH-USDT", "order_id": "2120180445882179584", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794325655.393965}
