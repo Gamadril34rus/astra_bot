@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 from scripts.research_4h_pullback_continuation import (
@@ -103,3 +102,14 @@ def test_future_bars_do_not_change_signal_at_closed_index() -> None:
     ]
     after = choose_4h_pullback_signal(frame, 154)
     assert before == after
+
+
+
+def test_relative_volume_baseline_excludes_current_bar() -> None:
+    frame = _bars(60)
+    hourly = frame.iloc[::2].copy()
+    hourly["decision_time"] = hourly["open_time"] + 60 * 60_000
+    frame.loc[40, "volume"] = 500.0
+    enriched = add_4h_regime_features(frame, hourly)
+    expected = 500.0 / 100.0
+    assert enriched.loc[40, "volume_ratio"] == expected
