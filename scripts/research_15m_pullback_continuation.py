@@ -6,9 +6,9 @@ import argparse
 import json
 from pathlib import Path
 
-import pandas as pd
-
 from scripts import research_adaptive_perp_portfolio as portfolio
+
+import pandas as pd
 
 
 def add_15m_features(signal_bars: pd.DataFrame, hourly_bars: pd.DataFrame) -> pd.DataFrame:
