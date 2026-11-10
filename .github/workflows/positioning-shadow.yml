@@ -1,0 +1,113 @@
+name: BingX positioning-pressure shadow collection
+
+on:
+  schedule:
+    - cron: "0,30 * * * *"
+  workflow_dispatch:
+    inputs:
+      initialize_history:
+        description: "Seed existing 30m candles from completed research run #92 and enrich taker-buy fields"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: bingx-positioning-pressure-shadow
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PYTHONPATH: source
+      BINGX_ARCHIVE_QPS: "0.2"
+      BINGX_OPEN_INTEREST_QPS: "0.2"
+    steps:
+      - name: Checkout persistent data branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: research/positioning-data
+          fetch-depth: 0
+
+      - name: Checkout collection code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          path: source
+
+      - name: Set up Python
+        uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: source/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r source/requirements.txt
+
+      - name: Download completed five-symbol seed archive from Run #92
+        if: github.event_name == 'workflow_dispatch' && inputs.initialize_history
+        uses: actions/download-artifact@v4
+        with:
+          name: adaptive-bingx-perpetual-research
+          repository: ${{ github.repository }}
+          run-id: 42692378936
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: .
+
+      - name: Check whether initial history has been seeded
+        id: state
+        shell: bash
+        run: |
+          if [[ -f data/bingx_usdm/BTCUSDT_30m.csv && -f data/bingx_usdm/HYPEUSDT_30m.csv ]]; then
+            echo "initialized=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "initialized=false" >> "$GITHUB_OUTPUT"
+            echo "Positioning archive is not seeded. Use workflow_dispatch with initialize_history=true after reviewing/merging this research PR."
+          fi
+
+      - name: Refresh 30m candles and backfill taker-buy volume fields
+        if: steps.state.outputs.initialized == 'true' && github.event_name == 'workflow_dispatch' && inputs.initialize_history
+        run: |
+          python source/scripts/archive_bingx_usdm_candles.py \
+            --mode daily --start-date 2021-01-01 --timeframes 30m \
+            --refresh-optional-fields
+
+      - name: Append latest closed 30m candles
+        if: steps.state.outputs.initialized == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.initialize_history)
+        run: |
+          python source/scripts/archive_bingx_usdm_candles.py \
+            --mode daily --start-date 2021-01-01 --timeframes 30m
+
+      - name: Capture current public BingX total open interest
+        if: steps.state.outputs.initialized == 'true'
+        run: |
+          python source/scripts/archive_bingx_open_interest.py \
+            --data-dir data/bingx_usdm/open_interest
+
+      - name: Build descriptive price/OI/taker-flow shadow report
+        if: steps.state.outputs.initialized == 'true'
+        run: |
+          python source/scripts/analyze_bingx_positioning_shadow.py \
+            --data-dir data/bingx_usdm --out reports/positioning_shadow
+
+      - name: Persist data branch update
+        if: steps.state.outputs.initialized == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/bingx_usdm reports/positioning_shadow
+          if git diff --cached --quiet; then
+            echo "No new positioning data to persist."
+            exit 0
+          fi
+          git commit -m "data: append BingX positioning shadow snapshot [skip ci]"
+          git push origin research/positioning-data
