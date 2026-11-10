@@ -1,6 +1,13 @@
 name: 4h pullback continuation research
 
 on:
+  pull_request:
+    branches: [research/adaptive-perp-regimes]
+    paths:
+      - "scripts/research_4h_pullback_continuation.py"
+      - "tests/unit/test_research_4h_pullback_continuation.py"
+      - "docs/research/FOUR_HOUR_PULLBACK_CONTINUATION.md"
+      - ".github/workflows/research-4h-pullback.yml"
   push:
     branches: [research/4h-pullback-continuation]
     paths:
