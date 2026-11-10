@@ -14,7 +14,7 @@ A 30m pullback into the EMA20/EMA50 trend zone followed by a closed-bar reclaim 
 - SHORT regime: inverse EMA direction and slope, ADX14 >=18.
 - Pullback window: preceding six closed 30m bars must touch the 30m EMA20 zone while holding the EMA50 structure (within 0.25 ATR).
 - Trigger: current closed 30m bar reclaims EMA20 and closes beyond the preceding bar's high/low in the regime direction. Current candle must be directional.
-- Relative volume >=1.2x preceding 20-bar mean; quote volume when positive, otherwise base volume within the same symbol.
+- Relative volume >=1.2x the preceding 20 completed 30m bars; the signal candle is excluded from the baseline. Use quote volume when positive, otherwise base volume within the same symbol.
 - Entry proxy: next 30m open.
 - Stop: beyond the lowest/highest of the six pullback bars by 0.15 ATR; shared risk filter 0.35-1.8 ATR.
 - Target: fixed 2R.
