@@ -93,3 +93,55 @@ The first archive attempt on 2026-11-09 added 30m data but failed while download
 The research runner is being moved to 30m signals with 1h closed-candle context. Holding rules are expressed in elapsed time: invalidate after 30m if MFE <0.35R, after 90m if MFE <0.75R, and hard-exit at 9h. IS/validation/OOS use a chronological 60/20/20 split of the common 30m window. This remains an exploratory sample, not a promotion pass; common coverage with HYPE is under 12 months.
 
 Downloader hardening: lower request pace, wait a full five-minute cooldown on 100410, persist every verified page, and resume partial contiguous archives with an overlap. The next replay must complete all five symbols, both 30m and 1h, and pass gap/funding validation before any PnL is interpreted.
+
+
+## Full five-symbol 30m replay completed: current router rejected
+
+Source: GitHub Actions run #92, run ID 42692378936, artifact `adaptive-bingx-perpetual-research`, artifact SHA-256 `7fc263ac15ba4bd2058d41ca63bb41d50d70ffc12d35f90b7e4204e2e45f2fe1`. The job completed successfully, including funding download, 30m/1h candle download, base replay, 1.5x stress replay and immutable artifact upload.
+
+### Archive coverage and integrity
+
+All five BingX USDT-M perpetual symbols were present on both 30m and 1h. Each candle file reported zero gaps. Common interval is 2026-04-05 00:00 UTC through 2026-11-09 19:30 UTC: 218.81 days. HYPE is the limiting listing/history window. This is materially shorter than the required 12 months.
+
+The replay excluded earlier funding history before each symbol's latest uninterrupted segment. The included funding segments were:
+- BTC: 2025-07-09 08:00 UTC to 2026-11-09 16:00 UTC, max internal gap 8h.
+- ETH: 2025-08-29 08:00 UTC to 2026-11-09 16:00 UTC, max internal gap 8h.
+- SOL: 2025-04-12 00:00 UTC to 2026-11-09 16:00 UTC, max internal gap 8h.
+- HYPE: 2026-04-05 04:00 UTC to 2026-11-09 20:00 UTC, max internal gap 4h.
+- INJ: 2025-09-03 00:00 UTC to 2026-11-09 16:00 UTC, max internal gap 8h.
+
+Older funding holes were not replaced with zero. The 60/20/20 common-window split boundaries were validation start 2026-08-14 06:54 UTC and OOS start 2026-09-27 01:12 UTC.
+
+### Portfolio results
+
+| Period | Trades | Base PF | Base net expectancy / trade | 1.5x PF | 1.5x net expectancy / trade |
+|---|---:|---:|---:|---:|---:|
+| IS | 261 | 0.5449 | -0.23319% | 0.4515 | -0.31569% |
+| Validation | 81 | 0.6418 | -0.16717% | 0.5263 | -0.24967% |
+| OOS | 74 | 0.5406 | -0.24751% | 0.4486 | -0.33001% |
+| Combined | 416 | 0.5614 | -0.22288% | 0.4644 | -0.30538% |
+
+Combined win rate was 26.92% at base costs and 23.32% under stress. Combined equal-notional realized drawdown proxy was -24.09% base and -32.51% stress. Median hold was 30m, mean 76.2m, P90 150m, and maximum 540m (the 9h hard cap). No period had positive months: positive-month share was 0% in IS, validation and OOS.
+
+The OOS sample has 74 trades, below the >=100 promotion minimum. More importantly, all three periods have PF <1 and negative net expectancy. This is not a borderline or cost-only failure.
+
+### Family breakdown
+
+| Family | All trades | Base PF | Base net expectancy / trade | OOS trades | OOS PF | OOS net expectancy / trade |
+|---|---:|---:|---:|---:|---:|---:|
+| COMPRESSION_BREAKOUT | 124 | 0.6549 | -0.19001% | 21 | 0.5347 | -0.33677% |
+| FALSE_BREAK_REVERSAL | 57 | 0.6105 | -0.17164% | 9 | 0.5390 | -0.19455% |
+| RANGE_REVERSION | 77 | 0.4056 | -0.33304% | 18 | 0.5563 | -0.25501% |
+| TREND_PULLBACK | 158 | 0.5495 | -0.21348% | 26 | 0.5344 | -0.18856% |
+
+Every family is negative in IS/combined and OOS. No existing family is suitable for promotion based on this replay. The strongest combined family by PF is compression breakout at 0.6549, still decisively below 1.0.
+
+### Symbol and side observations
+
+Only ETH SHORT had slightly positive full-window base expectancy (+0.03809% across 36 trades, PF 1.1345); it fell to -0.04441% under stress (PF 0.8669). All other symbol/side groups were negative on the full window. This isolated subgroup is not a valid strategy: its OOS group has 9 trades, PF 0.9812 and expectancy -0.00447%.
+
+### Decision
+
+Reject the current four-family router as a candidate for VST or production. Do not tune its thresholds against this same OOS sample. The current evidence says the strategy's gross trade selection is not producing enough edge to cover execution costs and funding. The next research task should be a new, structurally distinct strategy hypothesis and longer data coverage, not cosmetic changes to this router.
+
+This remains an OHLC replay proxy, not exchange-confirmed fills. No live or VST activation is authorized by this result.
