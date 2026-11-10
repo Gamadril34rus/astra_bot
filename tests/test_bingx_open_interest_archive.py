@@ -29,6 +29,7 @@ def test_open_interest_parser_preserves_source_time_and_unit() -> None:
     assert row["symbol"] == "BTC-USDT"
     assert row["source_time"] == "1800000"
     assert row["source_time_utc"].endswith("+00:00")
+    assert row["observed_at_ms"] == "1801000"
     assert Decimal(row["open_interest_base"]) == Decimal("123.456")
 
 
@@ -52,13 +53,15 @@ def test_open_interest_parser_rejects_incomplete_or_invalid_data(
 def test_open_interest_merge_is_sorted_and_idempotent() -> None:
     first = _row("BTC-USDT", 1_800_000, "100")
     second = _row("BTC-USDT", 3_600_000, "101")
+    first_observed = 1_801_000
+    second_observed = 3_601_000
     merged = _merge_rows(
-        {3_600_000: second},
-        {1_800_000: first, 3_600_000: second},
+        {second_observed: second},
+        {first_observed: first, second_observed: second},
     )
 
-    assert list(merged) == [1_800_000, 3_600_000]
-    assert _merge_rows(merged, {3_600_000: second}) == merged
+    assert list(merged) == [first_observed, second_observed]
+    assert _merge_rows(merged, {second_observed: second}) == merged
 
 
 def test_open_interest_merge_rejects_conflicting_same_timestamp() -> None:
@@ -66,14 +69,14 @@ def test_open_interest_merge_rejects_conflicting_same_timestamp() -> None:
     revised = _row("BTC-USDT", 1_800_000, "100.1")
 
     with pytest.raises(ValueError, match="immutable open-interest conflict"):
-        _merge_rows({1_800_000: previous}, {1_800_000: revised})
+        _merge_rows({1_801_000: previous}, {1_801_000: revised})
 
 
 def test_open_interest_csv_roundtrip(tmp_path: Path) -> None:
     path = _archive_path(tmp_path, "BTC-USDT")
     rows = {
-        1_800_000: _row("BTC-USDT", 1_800_000, "100"),
-        3_600_000: _row("BTC-USDT", 3_600_000, "101"),
+        1_801_000: _row("BTC-USDT", 1_800_000, "100"),
+        3_601_000: _row("BTC-USDT", 3_600_000, "101"),
     }
     _write_rows(path, rows)
 
