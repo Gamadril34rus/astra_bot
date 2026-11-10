@@ -130,3 +130,8 @@ PR #348 was merged to master on 2026-11-10 (merge commit `630a2f8c89a6ae071c1940
 The workflow's first historical seed currently requires a `workflow_dispatch` run with `initialize_history=true`. After seeding, scheduled runs append current OI snapshots and rebuild the descriptive report. Until a successful initialization and non-empty per-symbol OI archives are verified, the research must be treated as **not yet collecting**. External cron-job.org has not been configured from this session because no supported external HTTP/API action is available here. The external trigger should call GitHub's workflow-dispatch endpoint every 30 minutes; store its GitHub Actions token and cron-job.org API key as secrets, never in repository files.
 
 Historical candle data can be enriched from existing archives, but historical OI cannot be backfilled from the current-snapshot endpoint.
+
+
+### One-time taker-buy history backfill
+
+The collector checks for the persistent marker `data/bingx_usdm/.positioning_taker_buy_backfill_v1`. If the marker is absent after the five-symbol 30m archive is seeded, the next successful collection run re-fetches the complete archived 30m candle window with `--refresh-optional-fields`, then writes the marker. The marker is committed to `research/positioning-data`, so ordinary 30m append runs do not repeatedly download the full history or accidentally re-mark the archive as unrefreshed. The marker is written only after the full five-symbol refresh command succeeds. The existing candle archive tests cover immutable OHLCV preservation and enrichment of legacy rows.
