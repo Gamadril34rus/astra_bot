@@ -150,22 +150,22 @@ jobs:
                       )
           if failures:
               raise SystemExit(
-                  "OOS HOLDOUT REMAINS CLOSED; candidate failed the IS/validation edge screen:\\n"
-                  + "\\n".join(failures)
+                  "OOS HOLDOUT REMAINS CLOSED; candidate failed the IS/validation edge screen:\n"
+                  + "\n".join(failures)
               )
           print("IS and validation are net-positive in both cost cases; frozen OOS evaluation is authorized.")
           PY
       - name: Replay four-symbol core OOS at base costs
         run: |
-          python scripts/research_15m_pullback_continuation.py \\
-            --signal-timeframe 15m --symbols BTC-USDT,ETH-USDT,SOL-USDT,INJ-USDT \\
-            --fee-bps 5 --spread-bps 1.25 --slippage-bps 2 --max-period ALL \\
+          python scripts/research_15m_pullback_continuation.py \
+            --signal-timeframe 15m --symbols BTC-USDT,ETH-USDT,SOL-USDT,INJ-USDT \
+            --fee-bps 5 --spread-bps 1.25 --slippage-bps 2 --max-period ALL \
             --out reports/15m_pullback/core4/base
       - name: Replay four-symbol core OOS at 1.5x costs
         run: |
-          python scripts/research_15m_pullback_continuation.py \\
-            --signal-timeframe 15m --symbols BTC-USDT,ETH-USDT,SOL-USDT,INJ-USDT \\
-            --fee-bps 7.5 --spread-bps 1.875 --slippage-bps 3 --max-period ALL \\
+          python scripts/research_15m_pullback_continuation.py \
+            --signal-timeframe 15m --symbols BTC-USDT,ETH-USDT,SOL-USDT,INJ-USDT \
+            --fee-bps 7.5 --spread-bps 1.875 --slippage-bps 3 --max-period ALL \
             --out reports/15m_pullback/core4/stress_1_5x
       - name: Upload immutable 15m research evidence
         if: always()
