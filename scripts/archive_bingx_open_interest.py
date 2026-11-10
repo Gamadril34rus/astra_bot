@@ -184,7 +184,6 @@ async def capture_symbol(
     symbol: str,
     data_dir: Path,
 ) -> dict[str, Any]:
-    observed_at_ms = int(datetime.now(tz=UTC).timestamp() * 1000)
     payload = await _call_with_cooldown(
         lambda: client._request(
             "GET",
@@ -193,6 +192,7 @@ async def capture_symbol(
         ),
         label=f"BingX open interest {symbol}",
     )
+    observed_at_ms = int(datetime.now(tz=UTC).timestamp() * 1000)
     row = parse_open_interest(symbol, payload, observed_at_ms)
     source_time = int(row["source_time"])
     path = _archive_path(data_dir, symbol)
