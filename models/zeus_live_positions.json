@@ -17,7 +17,7 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "peak_high": "2132.89",
-      "peak_low": "2091.06",
+      "peak_low": "2086.46",
       "current_regime": "STRONG_BEAR_TREND",
       "tp1": "2096.531483291454415",
       "migrate_stop_v1": true,
@@ -28,29 +28,23 @@
     "HYPE-USDT|short": {
       "symbol": "HYPE-USDT",
       "side": "short",
-      "qty": 193.9025,
-      "stop": "75.91653",
+      "qty": "193.9025",
+      "stop": "74.4135120",
       "tp": "72.345205",
       "entry": "74.488",
-      "leverage": 6,
+      "leverage": 5,
       "pending_verify": false,
       "signal_id": "zeus_multi_top_breakdown|HYPE-USDT|short|1794276000000",
-      "ts": 1794276179.6292877,
-      "be_moved": false,
+      "ts": 1794307337.342253,
+      "be_moved": true,
       "initial_stop": "75.91653",
       "opened_at_ms": 1794276179629,
-      "plan_qty": "277.00364330",
-      "qty_ratio": 0.6999998183778401,
-      "tp1": "73.7085085",
-      "initial_stop_v1": true,
       "tp_parity_v1": true,
-      "early_tp1": true,
-      "peak_low": "73.732",
       "be_earned": true,
+      "peak_high": "75.335",
+      "peak_low": "73.671",
       "current_regime": "WEAK_BEAR_TREND",
-      "runner_tp_rr": 1.5,
-      "runner_tp_healed_v1": true,
-      "peak_high": "75.335"
+      "tp1": "73.7085085"
     },
     "SOL-USDT|short": {
       "symbol": "SOL-USDT",
@@ -69,11 +63,14 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "peak_high": "86.593",
-      "peak_low": "84.659",
+      "peak_low": "84.431",
       "current_regime": "RANGE",
       "plan_qty": "179.75234849",
       "qty_ratio": 0.4900075061044339,
-      "tp1": "84.7837390"
+      "tp1": "84.7837390",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     },
     "INJ-USDT|short": {
       "symbol": "INJ-USDT",
@@ -101,5 +98,5 @@
       "early_tp_repair_v1": true
     }
   },
-  "ts": 1794307056.8884192
+  "ts": 1794307361.2923658
 }

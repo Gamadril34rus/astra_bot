@@ -2294,3 +2294,6 @@
 {"event": "qty_reconcile", "symbol": "SOL-USDT", "side": "short", "old_qty": 179.75234849, "new_qty": 125.82, "rel_diff": 0.300037, "signal_id": "zeus_multi_top_breakdown|SOL-USDT|short|1794276000000", "ts": 1794307003.5559225}
 {"event": "order_cancel", "symbol": "SOL-USDT", "order_id": "2119975124689575936", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794307029.7401843}
 {"event": "partial_fill", "symbol": "SOL-USDT", "side": "short", "qty": "91.67234849", "exch_qty": "88.08", "plan_qty": "179.75234849", "price": null, "ts": 1794307030.2245986, "source": "be_catchup_qty_gap"}
+{"event": "partial_fill", "symbol": "SOL-USDT", "side": null, "qty": null, "price": null, "pnl": 51.90347242, "income_type": "REALIZED_PNL", "income_id": "1794212561561284082_512_217349_PNL", "source": "income_tape", "ts": 1794307008.0}
+{"event": "partial_fill", "symbol": "SOL-USDT", "side": null, "qty": null, "price": null, "pnl": 68.83035945, "income_type": "REALIZED_PNL", "income_id": "1794212561561284082_512_217218_PNL", "source": "income_tape", "ts": 1794306762.0}
+{"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2119974065220968448", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794307336.7948003}
