@@ -550,4 +550,4 @@ def test_validation_screen_does_not_include_oos_trades() -> None:
     screened = filter_max_period(trades, "VALIDATION")
     assert screened["period"].tolist() == ["IS", "VALIDATION"]
     assert filter_max_period(trades, "OOS")["period"].tolist() == ["OOS"]
-\n
+
