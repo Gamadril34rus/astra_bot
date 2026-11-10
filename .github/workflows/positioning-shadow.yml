@@ -73,18 +73,33 @@ jobs:
             echo "Positioning archive is not seeded. Use workflow_dispatch with initialize_history=true after reviewing/merging this research PR."
           fi
 
-      - name: Refresh 30m candles and backfill taker-buy volume fields
-        if: steps.state.outputs.initialized == 'true' && github.event_name == 'workflow_dispatch' && inputs.initialize_history
-        run: |
-          python source/scripts/archive_bingx_usdm_candles.py \
-            --mode daily --start-date 2021-01-01 --timeframes 30m \
-            --refresh-optional-fields
-
       - name: Append latest closed 30m candles
         if: steps.state.outputs.initialized == 'true' && !(github.event_name == 'workflow_dispatch' && inputs.initialize_history)
         run: |
           python source/scripts/archive_bingx_usdm_candles.py \
             --mode daily --start-date 2021-01-01 --timeframes 30m
+
+      - name: Detect one-time historical taker-buy backfill
+        id: taker_backfill
+        if: steps.state.outputs.initialized == 'true'
+        shell: bash
+        run: |
+          marker="data/bingx_usdm/.positioning_taker_buy_backfill_v1"
+          if [[ -f "$marker" ]]; then
+            echo "required=false" >> "$GITHUB_OUTPUT"
+            echo "Historical taker-buy backfill already completed."
+          else
+            echo "required=true" >> "$GITHUB_OUTPUT"
+            echo "Historical taker-buy fields are not marked complete; a full one-time re-fetch is required."
+          fi
+
+      - name: Backfill historical taker-buy volume fields once
+        if: steps.state.outputs.initialized == 'true' && steps.taker_backfill.outputs.required == 'true'
+        run: |
+          python source/scripts/archive_bingx_usdm_candles.py \
+            --mode daily --start-date 2021-01-01 --timeframes 30m \
+            --refresh-optional-fields
+          touch data/bingx_usdm/.positioning_taker_buy_backfill_v1
 
       - name: Capture current public BingX total open interest
         if: steps.state.outputs.initialized == 'true'
