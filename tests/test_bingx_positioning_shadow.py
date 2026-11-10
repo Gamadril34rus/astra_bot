@@ -38,7 +38,6 @@ def _oi(times: list[int], values: list[float]) -> pd.DataFrame:
 
 
 def test_oi_join_uses_only_the_last_closed_candle() -> None:
-    interval = 30 * 60_000
     candles = _candles()
     # Observation at 2h + 2m must use the candle closed at 2h, never the one
     # that is still forming after 2h.
