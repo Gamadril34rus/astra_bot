@@ -24,7 +24,7 @@
 | `TAKE_RR_FEASIBILITY.md` | D4: достижимость тейка 2-2.3R на текущих сделках — замер и рычаги |
 | `HTF_DIRECTIONAL_FILTER_PLAN.md` | D5: входы против старшего ТФ — инвентаризация и план фильтра |
 | `RSI_DIVERGENCE_RESEARCH.md` | D6: RSI-расхождения — детектор по закрытым барам и замер на BTC 4h |
-| `ZEUS_RECONCILIATION.md` | Внешний метод vs бот: сверка правил, гейты входа `entry_gates` (default off), телеметрия входа, реплей-реванш Z3/Z4/Z6/Z7 |
+| `ZEUS_RECONCILIATION.md` | Внешний метод vs бот: сверка правил, входные гейты (default off), телеметрия входа, реплей-реванш |
 | `FUNDING_BACKTEST_VS_PAPER.md` | B11: фандинг в live и бэктесте — модели, замер влияния, решение |
 
 ## 2. Обучение и память
@@ -48,7 +48,8 @@
 |---|---|
 | `GITHUB_ACTIONS.md` | Историческая справка по прежней конфигурации Actions; актуальная схема — в `CONFIGURATION_MAP.md` |
 | `CONFIGURATION_MAP.md` | Карта общего конфига, paper Zeus, канона SETTINGS, live env и Actions Secrets |
-| `PR_HISTORY.md` | Хроника PR репозитория в обратном хронологическом порядке |
+| `PR_HISTORY.md` | Основная хроника PR репозитория |
+| `PR_HISTORY_ADDENDUM_2026-11-10.md` | Решения по PR #299, #339–#348 и состояние позиционного исследования на 10.11.2026 |
 | `LOCAL_SETUP.md` | Локальная установка и запуск (Python 3.12) |
 | `DIAGNOSTICS.md` | Диагностика типовых проблем |
 | `API_AUTH.md` | HTTP X-API-Key для /tick /status |
@@ -59,7 +60,13 @@
 | `LEGAL_OPS.md` | Дисклеймер и ответственность оператора |
 | `../deploy/INSTALL_DEMO.md` | Установка на VPS/systemd |
 
-## 5. Быстрый маршрут
+## 5. Исследования
+
+| Документ | Назначение |
+|---|---|
+| `research/MOEX_INSPIRED_POSITIONING_SHADOW.md` | Сбор BingX total OI + taker-buy flow, описательные состояния и forward-return horizons 30m–9h; без торговых команд |
+
+## 6. Быстрый маршрут
 
 ### Разработчик
 
@@ -73,10 +80,14 @@
 
 `SELF_PLAY.md` → `PROFIT_AND_TRAINING.md` → `PROJECT_REVIEW.md`.
 
+### Позиционное исследование
+
+`research/MOEX_INSPIRED_POSITIONING_SHADOW.md` → `PR_HISTORY_ADDENDUM_2026-11-10.md`.
+
 ### Переезд на VPS
 
 `LOCAL_SETUP.md` → `../deploy/INSTALL_DEMO.md`.
 
-## 6. Правило документации
+## 7. Правило документации
 
 Новые документы добавляются только если существующие нельзя логично расширить. README содержит краткую картину проекта; `docs/` содержит детали. Секреты, реальные ключи и персональные данные никогда не помещаются в документацию.
