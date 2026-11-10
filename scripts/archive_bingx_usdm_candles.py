@@ -45,8 +45,11 @@ CSV_FIELDS = (
     "volume",
     "quote_volume",
     "trades_count",
+    "taker_buy_volume",
+    "taker_buy_quote_volume",
 )
 PRICE_FIELDS = ("open", "high", "low", "close", "volume", "quote_volume")
+OPTIONAL_VOLUME_FIELDS = ("taker_buy_volume", "taker_buy_quote_volume")
 
 
 def _iso_ms(value: int) -> str:
@@ -71,6 +74,14 @@ def _row_from_candle(candle: Any) -> dict[str, str]:
         "volume": str(candle.volume),
         "quote_volume": str(candle.quote_volume),
         "trades_count": str(int(candle.trades_count or 0)),
+        "taker_buy_volume": (
+            str(candle.taker_buy_volume)
+            if getattr(candle, "taker_buy_volume", None) is not None else ""
+        ),
+        "taker_buy_quote_volume": (
+            str(candle.taker_buy_quote_volume)
+            if getattr(candle, "taker_buy_quote_volume", None) is not None else ""
+        ),
     }
 
 
@@ -90,7 +101,14 @@ def _read_rows(path: Path) -> dict[int, dict[str, str]]:
 def _same_bar(left: dict[str, str], right: dict[str, str]) -> bool:
     if int(left["open_time"]) != int(right["open_time"]):
         return False
-    return all(_decimal(left[key]) == _decimal(right[key]) for key in PRICE_FIELDS)
+    if not all(_decimal(left[key]) == _decimal(right[key]) for key in PRICE_FIELDS):
+        return False
+    # Older archives predate taker-buy fields. Treat blank optional values as
+    # unknown and enrich them from the re-fetched immutable kline page.
+    return all(
+        not left.get(key) or not right.get(key) or _decimal(left[key]) == _decimal(right[key])
+        for key in OPTIONAL_VOLUME_FIELDS
+    )
 
 
 def _merge_rows(
@@ -107,6 +125,11 @@ def _merge_rows(
                     f"immutable candle conflict at open_time={open_time}: "
                     f"existing={previous!r} incoming={row!r}"
                 )
+            enriched = dict(previous)
+            for field in OPTIONAL_VOLUME_FIELDS:
+                if not enriched.get(field) and row.get(field):
+                    enriched[field] = row[field]
+            merged[open_time] = enriched
             continue
         merged[open_time] = row
     return dict(sorted(merged.items()))
