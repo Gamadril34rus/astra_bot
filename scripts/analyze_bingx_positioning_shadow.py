@@ -173,7 +173,7 @@ def summarize_shadow(frame: pd.DataFrame) -> dict:
         return {"snapshots": 0, "states": {}}
     states: dict[str, dict] = {}
     for state, group in frame.groupby("positioning_state", sort=True):
-        metrics = {"snapshots": int(len(group))}
+        metrics = {"snapshots": len(group)}
         for horizon in FORWARD_HORIZONS_MIN:
             column = f"forward_{horizon}m_pct"
             values = group[column].dropna()
@@ -190,7 +190,7 @@ def summarize_shadow(frame: pd.DataFrame) -> dict:
             )
         states[str(state)] = metrics
     return {
-        "snapshots": int(len(frame)),
+        "snapshots": len(frame),
         "symbols": sorted(frame["symbol"].unique().tolist()),
         "first_observation_utc": str(frame["observed_at_utc"].min()),
         "last_observation_utc": str(frame["observed_at_utc"].max()),
