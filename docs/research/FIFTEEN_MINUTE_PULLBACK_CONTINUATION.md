@@ -34,6 +34,10 @@ Status: frozen research hypothesis; exploratory until the historical gate is met
 - Important provenance correction: adaptive artifact run #92 (ID 42692378936) was executed on SHA `eb1864bb6020f32c2ad31cb7788622cd8b2694f0` on branch `research/confirmed-breakout-retest`, not on PR #343 HEAD `377c83af7851e681a2cd1ab8a9f36e33b1fa62e8`. PR #343 HEAD has no associated Actions run. The raw 30m/1h candle hashes in that artifact were independently recomputed and matched its manifest, and all listed candle gap counts were zero; however, that artifact contains no 15m candles. The new candidate workflow therefore downloads fresh 15m/1h swap candles and funding from BingX rather than treating run #92 as PR #343 CI evidence.
 - The latest uninterrupted funding starts in the verified archive were BTC 2025-07-09, ETH 2025-08-29, SOL 2025-04-11, INJ 2025-09-02 and HYPE 2026-04-05. The four-symbol core has more than 12 months of common coverage; HYPE does not and is evaluated separately.
 
+## Holdout protection
+
+The workflow first publishes IS and validation only. The OOS summary is not generated unless both IS and validation have PF >=1.0 and positive net expectancy in both base and 1.5x cost cases. If this screen fails, the workflow stops with OOS unopened; the next hypothesis must be developed using IS/validation only. HYPE is screened separately and does not enter the four-symbol OOS promotion cohort because its uninterrupted funding history is shorter than 12 months.
+
 ## Historical gate
 
 A candidate can only be recommended for a separate VST forward test if OOS net PF >=1.25, net expectancy >0, at least 100 combined OOS trades, at least 25 trades per side before side-specific claims, >=70% positive OOS calendar months, acceptable drawdown and positive net expectancy under 1.5x execution costs. Insufficient history or sample size is a failure to demonstrate an edge, not a pass.
