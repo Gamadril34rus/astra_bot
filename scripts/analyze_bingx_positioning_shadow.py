@@ -124,9 +124,13 @@ def build_symbol_shadow(candles: pd.DataFrame, oi: pd.DataFrame) -> pd.DataFrame
             continue
         taker_imbalance = (2.0 * taker_share - 1.0) * 100.0
 
-        price_state = "up" if price_change_pct >= 0 else "down"
-        oi_state = "up" if oi_change_pct >= 0 else "down"
-        taker_state = "buy" if taker_imbalance >= 0 else "sell"
+        price_state = "up" if price_change_pct > 0 else "down" if price_change_pct < 0 else "flat"
+        oi_state = "up" if oi_change_pct > 0 else "down" if oi_change_pct < 0 else "flat"
+        taker_state = (
+            "buy" if taker_imbalance > 0
+            else "sell" if taker_imbalance < 0
+            else "balanced"
+        )
         state = f"price_{price_state}_oi_{oi_state}_taker_{taker_state}"
 
         record = {
