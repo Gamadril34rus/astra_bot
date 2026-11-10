@@ -1,6 +1,6 @@
 # MOEX-inspired positioning-pressure shadow for BingX USDT-M
 
-Status: research-only data and descriptive analysis. No strategy entry, exit, sizing, or risk integration.
+Status: research-only data collection and descriptive analysis. No strategy entry, exit, sizing, or risk integration.
 
 ## 1. What the video shows
 
@@ -48,7 +48,7 @@ Taker-buy volume identifies the aggressive side of executed volume, not who open
 
 ### Candle enrichment
 
-The candle parser now preserves BingX v3 kline array fields:
+The candle parser preserves BingX v3 kline array fields:
 - index 8: number of trades,
 - index 9: taker-buy base-asset volume,
 - index 10: taker-buy quote-asset volume.
@@ -57,7 +57,7 @@ The append-only archive adds optional columns:
 - `taker_buy_volume`,
 - `taker_buy_quote_volume`.
 
-Older OHLCV rows can be re-fetched and enriched with `--refresh-optional-fields`. Existing OHLCV values remain immutable. Unknown optional values remain blank, not zero. The archive retries BingX 100410 only after a five-minute cooldown, and uses a conservative request pace.
+Older OHLCV rows can be re-fetched and enriched with `--refresh-optional-fields`. Existing OHLCV values remain immutable. Unknown optional values remain blank, not zero. The archive retries BingX 100410 with bounded cooldowns and uses a conservative request pace.
 
 ### Open-interest snapshots
 
@@ -94,23 +94,27 @@ Example interpretation only:
 
 These are not unique explanations. The buyer/seller that initiated each trade may be opening or closing, and the OI endpoint does not classify them. The analysis reports conditional forward returns; it does not create a long/short signal.
 
-## 5. Evaluation protocol
+## 5. Staged evaluation protocol
 
-1. Preserve the parent five-symbol 30m candle archive, enriched with taker-buy fields.
-2. Start prospective OI collection at a 30-minute cadence, producing one snapshot sequence per symbol.
-3. Do not interpret the first several observations; collect at least 30 days before considering an initial screen.
-4. Validate data quality first: duplicate local observation times, stale snapshots, missing candle joins, impossible buy volume > total volume, OI jumps, missing 30m bars, and per-symbol coverage.
-5. Report sample count, coverage by symbol, state frequency, average/median forward return, positive-return share and dispersion for each horizon.
-6. Use chronological periods. The initial screen can describe the collected sample, but any new threshold must be frozen before a later holdout period. Do not choose thresholds using the same OOS period.
-7. Account for fees, spread, slippage and funding before any future strategy proposal. The MOEX chart's direction alone is not a trade rule.
-8. Only after a stable, cost-adjusted effect survives a fresh holdout can a separate VST shadow/forward test be proposed. No production activation follows automatically.
+The goal is to inspect useful evidence early without pretending a tiny sample proves an edge.
+
+1. Preserve the parent five-symbol 30m candle archive and enrich it with taker-buy fields.
+2. Collect prospective OI snapshots on a 30-minute cadence for BTC, ETH, SOL, HYPE and INJ.
+3. **Data-integrity check after the first 3–5 snapshots per symbol:** verify timestamps, OI units, duplicates, freshness, candle joins and missing values. Fix data-contract errors immediately.
+4. **First exploratory screen after roughly 12 snapshots (~6 hours):** inspect state frequency, direction and available forward returns. Mark the result low-confidence; use it to find obvious behavior or collection bugs, not to declare profitability.
+5. **Interim screen after 48–96 snapshots (~1–2 days):** report per-symbol and pooled sample counts, state frequency, average/median forward return, positive-return share, dispersion, unconditional baselines and conservative cost sensitivity.
+6. Continue collection. Use chronological splits; freeze any candidate threshold before evaluating later holdout data. Do not select thresholds using the same OOS period.
+7. Validate data quality continuously: duplicate local observation times, stale snapshots, missing candle joins, impossible buy volume > total volume, OI jumps, missing 30m bars and per-symbol coverage.
+8. Account for fees, spread, slippage and funding before any strategy proposal. The MOEX chart's direction alone is not a trade rule.
+9. Only after a stable, cost-adjusted effect survives a later chronological holdout can a separate VST shadow/forward test be proposed. No production activation follows automatically.
+
+Early screens are deliberately exploratory. Six hours can reveal a broken join or an interesting first pattern; it cannot establish a durable trading edge. Evidence must accumulate, but there is no reason to wait 30 days before looking at the first results.
 
 ## 6. What would count as useful evidence
 
 A candidate state must:
-- appear often enough across several symbols and months to support analysis;
+- appear often enough across several symbols and distinct market regimes to support analysis;
 - show forward-return separation from the unconditional baseline at 30m–9h;
-- retain the effect across distinct market regimes, not just one rally or liquidation event;
 - remain positive after conservative execution costs and funding;
 - avoid dependence on one symbol, one side, or a handful of outliers;
 - survive a frozen chronological holdout.
@@ -119,6 +123,10 @@ A state with attractive average returns but tiny sample size, poor dispersion, o
 
 ## 7. Safety / current status
 
-Everything in this branch is research data plumbing and a read-only descriptive analyzer. No production strategy registration, order path, stops, exits, risk percentage, leverage, position sizing, VST routing or REAL switch is modified.
+Everything here is research data plumbing and a read-only descriptive analyzer. No production strategy registration, order path, stops, exits, risk percentage, leverage, position sizing, VST routing or REAL switch is modified.
 
-Current state: collector and analyzer are implemented; no prospective OI history has been accumulated yet, so no BingX OI/price/taker-flow result is claimed. The scheduled collection workflow requires explicit owner approval/merge before it starts. The full historical candle data can be enriched from existing archives, but historical OI cannot be backfilled from this current-snapshot endpoint.
+PR #348 was merged to master on 2026-11-10 (merge commit `630a2f8c89a6ae071c19404b818f8dbbedca0ce0`). The collector workflow is now present in master at `.github/workflows/positioning-shadow.yml`. Its GitHub schedule is at minutes 03 and 33 UTC; scheduled starts are best-effort and can be delayed. The persistent data branch is `research/positioning-data`.
+
+The workflow's first historical seed currently requires a `workflow_dispatch` run with `initialize_history=true`. After seeding, scheduled runs append current OI snapshots and rebuild the descriptive report. Until a successful initialization and non-empty per-symbol OI archives are verified, the research must be treated as **not yet collecting**. External cron-job.org has not been configured from this session because no supported external HTTP/API action is available here. The external trigger should call GitHub's workflow-dispatch endpoint every 30 minutes; store its GitHub Actions token and cron-job.org API key as secrets, never in repository files.
+
+Historical candle data can be enriched from existing archives, but historical OI cannot be backfilled from the current-snapshot endpoint.
