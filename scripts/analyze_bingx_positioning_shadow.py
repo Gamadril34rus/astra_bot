@@ -148,7 +148,9 @@ def build_symbol_shadow(candles: pd.DataFrame, oi: pd.DataFrame) -> pd.DataFrame
         }
 
         for horizon in FORWARD_HORIZONS_MIN:
-            target_time = observed_at + horizon * 60_000
+            # Forward horizons are anchored to the last fully closed bar,
+            # not the later polling timestamp, so "30m" means one 30m bar.
+            target_time = candle_close_time + horizon * 60_000
             target_index = int(np.searchsorted(candle_times, target_time, side="left"))
             if target_index >= len(candles):
                 record[f"forward_{horizon}m_pct"] = np.nan
