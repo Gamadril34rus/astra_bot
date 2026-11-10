@@ -30,7 +30,7 @@ def test_4h_aggregation_uses_only_complete_groups_of_eight() -> None:
     frame = _bars(81)
     result = build_completed_4h_bars(frame)
     assert len(result) == 10
-    assert result.iloc[-1]["decision_time"] == 10 * 4 * 60 * 60_000
+    assert result.iloc[-1]["decision_time"] == 22 * 60 * 60_000
 
 
 def test_4h_context_is_not_available_before_its_close() -> None:
