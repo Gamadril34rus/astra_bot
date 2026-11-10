@@ -2288,3 +2288,6 @@
 {"event": "order_cancel", "symbol": "ETH-USDT", "order_id": "2120079633193459712", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794301930.9672768}
 {"event": "order_cancel", "symbol": "INJ-USDT", "order_id": "2120065829252456448", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794301938.8625395}
 {"event": "partial_fill", "symbol": "INJ-USDT", "side": "short", "qty": "823.52816710", "exch_qty": "791.000", "plan_qty": "1614.52816710", "price": null, "ts": 1794301939.40204, "source": "be_catchup_qty_gap"}
+{"event": "partial_fill", "symbol": "ETH-USDT", "side": null, "qty": null, "price": null, "pnl": 108.82213455, "income_type": "REALIZED_PNL", "income_id": "1794212561561284082_512_215080_PNL", "source": "income_tape", "ts": 1794301805.0}
+{"event": "partial_fill", "symbol": "INJ-USDT", "side": null, "qty": null, "price": null, "pnl": 56.42102602, "income_type": "REALIZED_PNL", "income_id": "1794212561561284082_512_215252_PNL", "source": "income_tape", "ts": 1794301919.0}
+{"event": "partial_fill", "symbol": "INJ-USDT", "side": null, "qty": null, "price": null, "pnl": 78.56291326, "income_type": "REALIZED_PNL", "income_id": "1794212561561284082_512_215210_PNL", "source": "income_tape", "ts": 1794301901.0}
