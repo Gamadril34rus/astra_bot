@@ -2258,3 +2258,4 @@
 {"event": "protect_place", "ts": 1794276432.6576374, "symbol": "SOL-USDT", "kind": "tp", "stop_price": "84.7837390", "qty": "53.92570454", "reduce_only": false, "order_id": "2119975128565112832"}
 {"event": "entry", "signal_id": "zeus_multi_top_breakdown|SOL-USDT|short|1794276000000", "symbol": "SOL-USDT", "side": "short", "plan_entry": "85.991", "fill_price": "86.027", "slip_pct": -0.04186484632112821, "slip_r": 0.01640076172426675, "qty": "179.75234849", "stop": "88.18602", "tp": "84.7837390", "tp_frac": 0.3, "leverage": 6, "ts": 1794276432.6586063}
 {"event": "partial_fill", "symbol": "SOL-USDT", "side": null, "qty": null, "price": null, "pnl": -128.30565, "income_type": "REALIZED_PNL", "income_id": "1794212561561284082_512_145369_PNL", "source": "income_tape", "ts": 1794269223.0}
+{"event": "order_cancel", "symbol": "ETH-USDT", "order_id": "2119956353199464448", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794277639.0592644}
