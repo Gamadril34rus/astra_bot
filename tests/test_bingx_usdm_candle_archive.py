@@ -26,6 +26,8 @@ def _row(open_time: int, close: str = "100") -> dict[str, str]:
         "volume": "10",
         "quote_volume": "1000",
         "trades_count": "3",
+        "taker_buy_volume": "",
+        "taker_buy_quote_volume": "",
     }
 
 def test_merge_is_sorted_and_idempotent() -> None:
@@ -70,3 +72,138 @@ def test_daily_timeframes_follow_manifest(tmp_path: Path) -> None:
 
 def test_initial_timeframes_default_to_active_zeus_set(tmp_path: Path) -> None:
     assert _resolve_timeframes(None, "initial", tmp_path / "missing.json") == DEFAULT_TIMEFRAMES
+
+
+
+def test_parse_bingx_kline_keeps_taker_buy_volumes() -> None:
+    from decimal import Decimal
+
+    from astra_bot.adapters.bingx.client import BingXClient
+
+    client = object.__new__(BingXClient)
+    candle = client._parse_candle(
+        [
+            1_800_000, "100", "102", "99", "101", "10",
+            3_599_999, "1000", 25, "6.5", "650",
+        ],
+        "BTC-USDT",
+        "30m",
+    )
+
+    assert candle is not None
+    assert candle.trades_count == 25
+    assert candle.taker_buy_volume == Decimal("6.5")
+    assert candle.taker_buy_quote_volume == Decimal("650")
+
+
+def test_parse_bingx_kline_marks_missing_taker_volumes_unknown() -> None:
+    from astra_bot.adapters.bingx.client import BingXClient
+
+    client = object.__new__(BingXClient)
+    candle = client._parse_candle(
+        [1_800_000, "100", "102", "99", "101", "10", 3_599_999, "1000"],
+        "BTC-USDT",
+        "30m",
+    )
+
+    assert candle is not None
+    assert candle.taker_buy_volume is None
+    assert candle.taker_buy_quote_volume is None
+
+
+def test_legacy_archive_can_be_enriched_with_taker_buy_fields() -> None:
+    previous = _row(60_000)
+    incoming = _row(60_000)
+    incoming["taker_buy_volume"] = "6.5"
+    incoming["taker_buy_quote_volume"] = "650"
+
+    merged = _merge_rows({60_000: previous}, {60_000: incoming})
+
+    assert merged[60_000]["taker_buy_volume"] == "6.5"
+    assert merged[60_000]["taker_buy_quote_volume"] == "650"
+
+
+def test_taker_buy_volume_conflict_is_not_silently_overwritten() -> None:
+    previous = _row(60_000)
+    previous["taker_buy_volume"] = "6.5"
+    previous["taker_buy_quote_volume"] = "650"
+    incoming = _row(60_000)
+    incoming["taker_buy_volume"] = "6.6"
+    incoming["taker_buy_quote_volume"] = "660"
+
+    with pytest.raises(ValueError, match="immutable candle conflict"):
+        _merge_rows({60_000: previous}, {60_000: incoming})
+
+
+@pytest.mark.asyncio
+async def test_refresh_optional_fields_refetches_full_existing_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from decimal import Decimal
+    from types import SimpleNamespace
+
+    import scripts.archive_bingx_usdm_candles as archive
+
+    monkeypatch.setattr(archive, "ARCHIVE_DIR", tmp_path)
+    interval = archive.TIMEFRAME_MS["30m"]
+    existing_rows = {
+        index * interval: {
+            **_row(index * interval),
+            "taker_buy_volume": "",
+            "taker_buy_quote_volume": "",
+        }
+        for index in range(4)
+    }
+    archive._write_rows(
+        archive._archive_path("BTC-USDT", "30m"),
+        existing_rows,
+    )
+
+    candles = [
+        SimpleNamespace(
+            open_time=index * interval,
+            open=Decimal("99"),
+            high=Decimal("101"),
+            low=Decimal("98"),
+            close=Decimal("100"),
+            volume=Decimal("10"),
+            quote_volume=Decimal("1000"),
+            trades_count=10,
+            taker_buy_volume=Decimal("6"),
+            taker_buy_quote_volume=Decimal("600"),
+        )
+        for index in range(4)
+    ]
+
+    class FakeClient:
+        def __init__(self) -> None:
+            self.ranges: list[tuple[int, int]] = []
+
+        async def fetch_kline_page(
+            self, _symbol, _timeframe, *, start_time_ms, end_time_ms, limit
+        ):
+            self.ranges.append((start_time_ms, end_time_ms))
+            page = [
+                candle for candle in candles
+                if start_time_ms <= candle.open_time <= end_time_ms
+            ]
+            return sorted(page, key=lambda item: item.open_time, reverse=True)[:limit]
+
+    monkeypatch.setattr(archive, "PAGE_SIZE", 2)
+    client = FakeClient()
+    report, _ = await archive._download_pair(
+        client,
+        symbol="BTC-USDT",
+        timeframe="30m",
+        mode="daily",
+        start_ms=0,
+        now_ms=4 * interval + 1,
+        refresh_optional_fields=True,
+    )
+
+    enriched = archive._read_rows(archive._archive_path("BTC-USDT", "30m"))
+    assert report["verified_overlap_bars"] == 4
+    assert len(client.ranges) == 2
+    assert [start for start, _ in client.ranges] == [0, 2 * interval]
+    assert all(row["taker_buy_volume"] == "6" for row in enriched.values())
+    assert all(row["taker_buy_quote_volume"] == "600" for row in enriched.values())

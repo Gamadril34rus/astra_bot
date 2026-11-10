@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import tempfile
+from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime, time
 from decimal import Decimal, InvalidOperation
 from itertools import pairwise
@@ -16,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from astra_bot.adapters.bingx.client import BINGX_API_BASE, BingXClient
+from astra_bot.utils.retry import is_exchange_endpoint_cooldown_error
 
 LOGGER = logging.getLogger("bingx_candle_archive")
 ARCHIVE_DIR = Path("data/bingx_usdm")
@@ -26,11 +28,13 @@ TIMEFRAME_MS = {
     "1m": 60_000,
     "5m": 5 * 60_000,
     "15m": 15 * 60_000,
+    "30m": 30 * 60_000,
     "1h": 60 * 60_000,
     "4h": 4 * 60 * 60_000,
     "1d": 24 * 60 * 60_000,
 }
 PAGE_SIZE = 500
+COOLDOWN_DELAYS = (300.0, 300.0, 300.0)
 CSV_FIELDS = (
     "open_time",
     "open_time_utc",
@@ -41,8 +45,34 @@ CSV_FIELDS = (
     "volume",
     "quote_volume",
     "trades_count",
+    "taker_buy_volume",
+    "taker_buy_quote_volume",
 )
 PRICE_FIELDS = ("open", "high", "low", "close", "volume", "quote_volume")
+OPTIONAL_VOLUME_FIELDS = ("taker_buy_volume", "taker_buy_quote_volume")
+
+
+async def _call_with_cooldown(
+    operation: Callable[[], Awaitable[Any]], *, label: str
+) -> Any:
+    """Retry BingX HTTP-200 code 100410 only after the endpoint cooldown."""
+    for attempt, delay in enumerate((*COOLDOWN_DELAYS, None), start=1):
+        try:
+            return await operation()
+        except Exception as exc:
+            if (
+                delay is None
+                or not is_exchange_endpoint_cooldown_error(exc)
+            ):
+                raise
+            LOGGER.warning(
+                "%s returned BingX 100410; retry %d/4 in %.0fs",
+                label,
+                attempt + 1,
+                delay,
+            )
+            await asyncio.sleep(delay)
+    raise RuntimeError(f"{label}: BingX cooldown retries exhausted")
 
 
 def _iso_ms(value: int) -> str:
@@ -67,6 +97,14 @@ def _row_from_candle(candle: Any) -> dict[str, str]:
         "volume": str(candle.volume),
         "quote_volume": str(candle.quote_volume),
         "trades_count": str(int(candle.trades_count or 0)),
+        "taker_buy_volume": (
+            str(candle.taker_buy_volume)
+            if getattr(candle, "taker_buy_volume", None) is not None else ""
+        ),
+        "taker_buy_quote_volume": (
+            str(candle.taker_buy_quote_volume)
+            if getattr(candle, "taker_buy_quote_volume", None) is not None else ""
+        ),
     }
 
 
@@ -86,7 +124,14 @@ def _read_rows(path: Path) -> dict[int, dict[str, str]]:
 def _same_bar(left: dict[str, str], right: dict[str, str]) -> bool:
     if int(left["open_time"]) != int(right["open_time"]):
         return False
-    return all(_decimal(left[key]) == _decimal(right[key]) for key in PRICE_FIELDS)
+    if not all(_decimal(left[key]) == _decimal(right[key]) for key in PRICE_FIELDS):
+        return False
+    # Older archives predate taker-buy fields. Blank optional values mean
+    # unknown, so a verified re-fetch may enrich them without changing OHLCV.
+    return all(
+        not left.get(key) or not right.get(key) or _decimal(left[key]) == _decimal(right[key])
+        for key in OPTIONAL_VOLUME_FIELDS
+    )
 
 
 def _merge_rows(
@@ -103,6 +148,11 @@ def _merge_rows(
                     f"immutable candle conflict at open_time={open_time}: "
                     f"existing={previous!r} incoming={row!r}"
                 )
+            enriched = dict(previous)
+            for field in OPTIONAL_VOLUME_FIELDS:
+                if not enriched.get(field) and row.get(field):
+                    enriched[field] = row[field]
+            merged[open_time] = enriched
             continue
         merged[open_time] = row
     return dict(sorted(merged.items()))
@@ -164,7 +214,9 @@ async def _download_pair(
     mode: str,
     start_ms: int,
     now_ms: int,
+    refresh_optional_fields: bool = False,
 ) -> tuple[dict[str, Any], int]:
+    """Fetch deterministic forward pages and preserve/enrich immutable candle rows."""
     interval_ms = TIMEFRAME_MS[timeframe]
     path = _archive_path(symbol, timeframe)
     existing = _read_rows(path)
@@ -173,35 +225,61 @@ async def _download_pair(
             f"missing initial archive for {symbol} {timeframe}; "
             "run workflow_dispatch with mode=initial first"
         )
-    existing_max = max(existing) if existing else None
+
     if mode == "initial":
         floor_ms = start_ms
+    elif refresh_optional_fields and existing:
+        # Re-fetch the full archived window to backfill newly supported fields.
+        floor_ms = min(existing)
+    elif existing:
+        overlap_floor = max(existing) - 3 * interval_ms
+        floor_ms = max(min(existing), overlap_floor)
     else:
-        overlap_floor = int(existing_max or 0) - 3 * interval_ms
-        floor_ms = max(min(existing) if existing else 0, overlap_floor)
-    cursor_end = now_ms
-    previous_oldest: int | None = None
+        floor_ms = start_ms
+
+    cursor_start = ((floor_ms + interval_ms - 1) // interval_ms) * interval_ms
+    last_closed_open = (now_ms // interval_ms) * interval_ms - interval_ms
     incoming: dict[int, dict[str, str]] = {}
     pages = 0
 
-    while True:
-        page = await client.fetch_kline_page(
-            symbol, timeframe, end_time_ms=cursor_end, limit=PAGE_SIZE
+    while cursor_start <= last_closed_open:
+        page_last_open = min(
+            cursor_start + (PAGE_SIZE - 1) * interval_ms,
+            last_closed_open,
+        )
+        page = await _call_with_cooldown(
+            lambda cursor_start=cursor_start, page_last_open=page_last_open: (
+                client.fetch_kline_page(
+                    symbol,
+                    timeframe,
+                    start_time_ms=cursor_start,
+                    end_time_ms=page_last_open + interval_ms - 1,
+                    limit=PAGE_SIZE,
+                )
+            ),
+            label=f"BingX {symbol} {timeframe} {cursor_start}",
         )
         pages += 1
-        if not page:
-            break
-        page_times = [int(candle.open_time) for candle in page]
-        oldest = min(page_times)
-        if previous_oldest is not None and oldest >= previous_oldest:
+        expected_times = list(range(cursor_start, page_last_open + 1, interval_ms))
+        actual_times = sorted(
+            int(candle.open_time)
+            for candle in page
+            if cursor_start <= int(candle.open_time) <= page_last_open
+            and int(candle.open_time) + interval_ms <= now_ms
+        )
+        if actual_times != expected_times:
+            missing = sorted(set(expected_times) - set(actual_times))
+            duplicates = len(actual_times) != len(set(actual_times))
             raise RuntimeError(
-                f"pagination made no backward progress for {symbol} {timeframe}"
+                f"incomplete BingX candle range for {symbol} {timeframe}: "
+                f"start={cursor_start} end={page_last_open} "
+                f"expected={len(expected_times)} actual={len(actual_times)} "
+                f"missing_sample={missing[:5]} duplicates={duplicates}"
             )
+
         for candle in page:
             open_time = int(candle.open_time)
-            if open_time + interval_ms > now_ms:
-                continue
-            if open_time < floor_ms:
+            if open_time not in expected_times:
                 continue
             row = _row_from_candle(candle)
             previous = incoming.get(open_time)
@@ -212,10 +290,7 @@ async def _download_pair(
                 )
             incoming[open_time] = row
 
-        if oldest <= floor_ms or len(page) < PAGE_SIZE:
-            break
-        previous_oldest = oldest
-        cursor_end = oldest - 1
+        cursor_start = page_last_open + interval_ms
 
     if not existing and not incoming:
         raise RuntimeError(f"BingX returned no closed candles for {symbol} {timeframe}")
@@ -233,6 +308,7 @@ async def _download_pair(
             "new_bars": len(set(merged) - set(existing)),
             "verified_overlap_bars": len(set(incoming) & set(existing)),
             "pages_requested": pages,
+            "optional_fields_refresh": refresh_optional_fields,
         }
     )
     return coverage, len(incoming)
@@ -245,7 +321,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     client = BingXClient(
         {
             "base_url": BINGX_API_BASE,
-            "rate_limit_qps": 3.0,
+            "rate_limit_qps": float(os.environ.get("BINGX_ARCHIVE_QPS", "0.2")),
             "contract_type": "linear",
         }
     )
@@ -262,6 +338,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                     mode=args.mode,
                     start_ms=start_ms,
                     now_ms=now_ms,
+                    refresh_optional_fields=args.refresh_optional_fields,
                 )
                 results[f"{symbol}:{timeframe}"] = report
     finally:
@@ -310,6 +387,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--start-date", default="2021-01-01")
     parser.add_argument("--symbols", default=",".join(SYMBOLS))
     parser.add_argument("--timeframes")
+    parser.add_argument(
+        "--refresh-optional-fields",
+        action="store_true",
+        help="re-fetch every covered candle to enrich new optional fields such as taker-buy volume",
+    )
     return parser.parse_args()
 
 

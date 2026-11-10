@@ -141,6 +141,9 @@ class Candle:
     quote_volume: Decimal = Decimal("0")
     trades_count: int = 0
     close_time: int | None = None
+    # BingX v3 kline fields [9]/[10]; None means the source did not provide them.
+    taker_buy_volume: Decimal | None = None
+    taker_buy_quote_volume: Decimal | None = None
 
     @property
     def range(self) -> Decimal:
@@ -168,6 +171,14 @@ class Candle:
             "close": str(self.close),
             "volume": str(self.volume),
             "quote_volume": str(self.quote_volume),
+            "taker_buy_volume": (
+                str(self.taker_buy_volume)
+                if self.taker_buy_volume is not None else None
+            ),
+            "taker_buy_quote_volume": (
+                str(self.taker_buy_quote_volume)
+                if self.taker_buy_quote_volume is not None else None
+            ),
         }
 
 
