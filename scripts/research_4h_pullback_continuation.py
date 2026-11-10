@@ -2,6 +2,7 @@
 """Research-only 30m pullback continuation with completed 4h regime context."""
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
@@ -151,6 +152,9 @@ _BASE_CHOOSE_SIGNAL = portfolio.choose_signal
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--out", type=Path, default=Path("reports/adaptive_perp"))
+    args, _ = parser.parse_known_args()
     portfolio.add_features = add_4h_regime_features
     portfolio.choose_signal = choose_4h_pullback_signal
     try:
@@ -159,8 +163,7 @@ def main() -> int:
         portfolio.add_features = _BASE_ADD_FEATURES
         portfolio.choose_signal = _BASE_CHOOSE_SIGNAL
 
-    output = Path("reports/adaptive_perp")
-    summary_path = output / "summary.json"
+    summary_path = args.out / "summary.json"
     if summary_path.exists():
         report = json.loads(summary_path.read_text(encoding="utf-8"))
         report["strategy_hypothesis"] = {
