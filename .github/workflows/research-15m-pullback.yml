@@ -104,26 +104,69 @@ jobs:
         run: |
           python scripts/research_15m_pullback_continuation.py \
             --signal-timeframe 15m --symbols BTC-USDT,ETH-USDT,SOL-USDT,INJ-USDT \
-            --fee-bps 5 --spread-bps 1.25 --slippage-bps 2 \
-            --out reports/15m_pullback/core4/base
+            --fee-bps 5 --spread-bps 1.25 --slippage-bps 2 --max-period VALIDATION \
+            --out reports/15m_pullback/core4/screen_base
       - name: Replay four-symbol core at 1.5x costs
         run: |
           python scripts/research_15m_pullback_continuation.py \
             --signal-timeframe 15m --symbols BTC-USDT,ETH-USDT,SOL-USDT,INJ-USDT \
-            --fee-bps 7.5 --spread-bps 1.875 --slippage-bps 3 \
-            --out reports/15m_pullback/core4/stress_1_5x
+            --fee-bps 7.5 --spread-bps 1.875 --slippage-bps 3 --max-period VALIDATION \
+            --out reports/15m_pullback/core4/screen_stress_1_5x
       - name: Replay HYPE separately at base costs
         run: |
           python scripts/research_15m_pullback_continuation.py \
             --signal-timeframe 15m --symbols HYPE-USDT \
-            --fee-bps 5 --spread-bps 1.25 --slippage-bps 2 \
-            --out reports/15m_pullback/hype/base
+            --fee-bps 5 --spread-bps 1.25 --slippage-bps 2 --max-period VALIDATION \
+            --out reports/15m_pullback/hype/screen_base
       - name: Replay HYPE separately at 1.5x costs
         run: |
           python scripts/research_15m_pullback_continuation.py \
             --signal-timeframe 15m --symbols HYPE-USDT \
-            --fee-bps 7.5 --spread-bps 1.875 --slippage-bps 3 \
-            --out reports/15m_pullback/hype/stress_1_5x
+            --fee-bps 7.5 --spread-bps 1.875 --slippage-bps 3 --max-period VALIDATION \
+            --out reports/15m_pullback/hype/screen_stress_1_5x
+      - name: Require positive IS and validation edge before opening OOS
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          cases = {
+              "base": Path("reports/15m_pullback/core4/screen_base/summary.json"),
+              "stress_1_5x": Path("reports/15m_pullback/core4/screen_stress_1_5x/summary.json"),
+          }
+          failures = []
+          for case, path in cases.items():
+              report = json.loads(path.read_text())
+              for period in ("IS", "VALIDATION"):
+                  metrics = report.get("by_period", {}).get(period)
+                  if not metrics:
+                      failures.append(f"{case}/{period}: no trades")
+                      continue
+                  pf = float(metrics["pf"])
+                  expectancy = float(metrics["net_expectancy_pct"])
+                  if pf < 1.0 or expectancy <= 0:
+                      failures.append(
+                          f"{case}/{period}: PF={pf:.3f}, net expectancy={expectancy:.5f}%"
+                      )
+          if failures:
+              raise SystemExit(
+                  "OOS HOLDOUT REMAINS CLOSED; candidate failed the IS/validation edge screen:\\n"
+                  + "\\n".join(failures)
+              )
+          print("IS and validation are net-positive in both cost cases; frozen OOS evaluation is authorized.")
+          PY
+      - name: Replay four-symbol core OOS at base costs
+        run: |
+          python scripts/research_15m_pullback_continuation.py \\
+            --signal-timeframe 15m --symbols BTC-USDT,ETH-USDT,SOL-USDT,INJ-USDT \\
+            --fee-bps 5 --spread-bps 1.25 --slippage-bps 2 --max-period ALL \\
+            --out reports/15m_pullback/core4/base
+      - name: Replay four-symbol core OOS at 1.5x costs
+        run: |
+          python scripts/research_15m_pullback_continuation.py \\
+            --signal-timeframe 15m --symbols BTC-USDT,ETH-USDT,SOL-USDT,INJ-USDT \\
+            --fee-bps 7.5 --spread-bps 1.875 --slippage-bps 3 --max-period ALL \\
+            --out reports/15m_pullback/core4/stress_1_5x
       - name: Upload immutable 15m research evidence
         if: always()
         uses: actions/upload-artifact@v4
