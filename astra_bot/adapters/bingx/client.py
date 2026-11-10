@@ -462,6 +462,14 @@ class BingXClient(ExchangeAdapter):
                 open_time = int(item[0])
                 values = [Decimal(str(item[i])) for i in range(1, 6)]
                 quote_volume = Decimal(str(item[7])) if len(item) > 7 else Decimal("0")
+                taker_buy_volume = (
+                    Decimal(str(item[9])) if len(item) > 9 and item[9] not in (None, "") else None
+                )
+                taker_buy_quote_volume = (
+                    Decimal(str(item[10]))
+                    if len(item) > 10 and item[10] not in (None, "")
+                    else None
+                )
                 return Candle(
                     exchange="bingx",
                     symbol=symbol,
@@ -470,7 +478,9 @@ class BingXClient(ExchangeAdapter):
                     open=values[0], high=values[1], low=values[2],
                     close=values[3], volume=values[4],
                     quote_volume=quote_volume,
-                    trades_count=0,
+                    trades_count=int(item[8]) if len(item) > 8 and item[8] not in (None, "") else 0,
+                    taker_buy_volume=taker_buy_volume,
+                    taker_buy_quote_volume=taker_buy_quote_volume,
                 )
             if isinstance(item, dict):
                 open_time = int(item.get("time") or item.get("openTime") or 0)
@@ -488,6 +498,16 @@ class BingXClient(ExchangeAdapter):
                     volume=Decimal(str(item.get("volume", "0"))),
                     quote_volume=Decimal(str(item.get("quoteVolume", "0"))),
                     trades_count=int(item.get("n", 0) or 0),
+                    taker_buy_volume=(
+                        Decimal(str(item.get("takerBuyVol")))
+                        if item.get("takerBuyVol") not in (None, "")
+                        else None
+                    ),
+                    taker_buy_quote_volume=(
+                        Decimal(str(item.get("takerBuyQuoteVol")))
+                        if item.get("takerBuyQuoteVol") not in (None, "")
+                        else None
+                    ),
                 )
         except Exception as exc:
             logger.debug("BingX candle parse skipped: %s", exc)
