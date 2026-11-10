@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-
 from scripts.analyze_bingx_positioning_shadow import (
     build_symbol_shadow,
     summarize_shadow,
