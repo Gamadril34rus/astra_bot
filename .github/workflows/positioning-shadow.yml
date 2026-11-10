@@ -62,15 +62,22 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: .
 
-      - name: Check whether initial history has been seeded
+      - name: Check whether all five-symbol history has been seeded
         id: state
         shell: bash
         run: |
-          if [[ -f data/bingx_usdm/BTCUSDT_30m.csv && -f data/bingx_usdm/HYPEUSDT_30m.csv ]]; then
+          missing=()
+          for symbol in BTCUSDT ETHUSDT SOLUSDT HYPEUSDT INJUSDT; do
+            if [[ ! -s "data/bingx_usdm/${symbol}_30m.csv" ]]; then
+              missing+=("$symbol")
+            fi
+          done
+          if [[ ${#missing[@]} -eq 0 ]]; then
             echo "initialized=true" >> "$GITHUB_OUTPUT"
           else
             echo "initialized=false" >> "$GITHUB_OUTPUT"
-            echo "Positioning archive is not seeded. Use workflow_dispatch with initialize_history=true after reviewing/merging this research PR."
+            echo "Positioning archive is missing 30m history for: ${missing[*]}"
+            echo "Seed the complete five-symbol archive with workflow_dispatch and initialize_history=true."
           fi
 
       - name: Append latest closed 30m candles
