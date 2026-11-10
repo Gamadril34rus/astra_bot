@@ -4,6 +4,7 @@ undefined
 async def test_refresh_optional_fields_refetches_full_existing_history(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from decimal import Decimal
     from types import SimpleNamespace
 
     import scripts.archive_bingx_usdm_candles as archive
