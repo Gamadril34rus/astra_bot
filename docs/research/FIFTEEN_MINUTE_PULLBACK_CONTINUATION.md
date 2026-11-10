@@ -34,6 +34,18 @@ Status: frozen research hypothesis; exploratory until the historical gate is met
 - Important provenance correction: adaptive artifact run #92 (ID 42692378936) was executed on SHA `eb1864bb6020f32c2ad31cb7788622cd8b2694f0` on branch `research/confirmed-breakout-retest`, not on PR #343 HEAD `377c83af7851e681a2cd1ab8a9f36e33b1fa62e8`. PR #343 HEAD has no associated Actions run. The raw 30m/1h candle hashes in that artifact were independently recomputed and matched its manifest, and all listed candle gap counts were zero; however, that artifact contains no 15m candles. The new candidate workflow therefore downloads fresh 15m/1h swap candles and funding from BingX rather than treating run #92 as PR #343 CI evidence.
 - The latest uninterrupted funding starts in the verified archive were BTC 2025-07-09, ETH 2025-08-29, SOL 2025-04-11, INJ 2025-09-02 and HYPE 2026-04-05. The four-symbol core has more than 12 months of common coverage; HYPE does not and is evaluated separately.
 
+
+### Run 34 evidence update (2026-11-10)
+
+The funding-history overlap must not be confused with candle-history coverage. Run 34 (workflow run ID `42807247099`, candidate SHA `de8269414ef2eeee8da95a19f925bfd2f67cb2f8`) verified funding archives and candle SHA-256/gap checks, but the common 15m candle window for BTC/ETH/SOL/INJ was only 2026-08-02 13:15 UTC through 2026-11-10 11:15 UTC (99.92 days). The latest contiguous funding segments begin earlier; that does not establish 12 months of 15m price history. The archive workflow skipped empty leading BingX kline windows and retained only the available later candles. Do not describe this run as a 12-month 15m backtest.
+
+- Four-symbol core, base costs: 37 completed trades; IS 29 trades, PF 0.9627, net expectancy -0.01705%; validation 8 trades, PF 0.6550, net expectancy -0.20481%; combined PF 0.8815, net expectancy -0.05765%.
+- Four-symbol core, 1.5x costs: IS PF 0.8041, validation PF 0.5617, combined PF 0.7405 and net expectancy -0.14015%.
+- HYPE was screened separately and is not part of the core cohort: only 11 completed trades (8 IS, 3 validation); validation expectancy was negative in both cost cases. Its small sample and sub-12-month funding segment prevent any promotion claim.
+- The IS/validation gate correctly failed, so no OOS results were generated. Candidate rejected for now; do not tune against OOS or register it in production.
+
+The next research step is to obtain a longer, independently verifiable 15m perpetual-futures history without mislabelling another exchange's data as BingX. A non-BingX dataset may be used for hypothesis discovery only; any candidate must still be frozen and checked against BingX data and costs before it can be considered for VST planning. No paid data source is authorized.
+
 ## Holdout protection
 
 The workflow first publishes IS and validation only. The OOS summary is not generated unless both IS and validation have PF >=1.0 and positive net expectancy in both base and 1.5x cost cases. If this screen fails, the workflow stops with OOS unopened; the next hypothesis must be developed using IS/validation only. HYPE is screened separately and does not enter the four-symbol OOS promotion cohort because its uninterrupted funding history is shorter than 12 months.
