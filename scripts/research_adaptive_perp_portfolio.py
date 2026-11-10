@@ -480,6 +480,7 @@ def main() -> int:
     parser.add_argument("--slippage-bps", type=float, default=3.0)
     parser.add_argument("--signal-timeframe", choices=("15m", "30m"), default="15m")
     parser.add_argument("--symbols", default=",".join(SYMBOLS))
+    parser.add_argument("--max-period", choices=("IS", "VALIDATION", "OOS", "ALL"), default="ALL")
     parser.add_argument("--out", type=Path, default=Path("reports/adaptive_perp"))
     args = parser.parse_args()
     args.symbols = tuple(item.strip().upper() for item in args.symbols.split(",") if item.strip())
@@ -566,6 +567,7 @@ def main() -> int:
             "common_signal_window": common_window,
             "signal_timeframe": args.signal_timeframe,
             "symbols": list(args.symbols),
+            "max_period": args.max_period,
             "boundary_excluded_trades": 0,
             "signal_diagnostics": signal_diagnostics,
             "by_period": {},
@@ -597,6 +599,12 @@ def main() -> int:
         [trades.entry_time < validation_start_ms, trades.entry_time < oos_start_ms],
         ["IS", "VALIDATION"], default="OOS"
     )
+    if args.max_period == "IS":
+        trades = trades[trades.period == "IS"].copy()
+    elif args.max_period == "VALIDATION":
+        trades = trades[trades.period.isin(["IS", "VALIDATION"])].copy()
+    elif args.max_period == "OOS":
+        trades = trades[trades.period == "OOS"].copy()
     calendar_start = pd.to_datetime(common_window["common_start_utc"], utc=True).to_period("M")
     calendar_end = pd.to_datetime(common_window["common_end_utc"], utc=True).to_period("M")
     validation_start_period = pd.to_datetime(validation_start_ms, unit="ms", utc=True).to_period("M")
@@ -606,6 +614,11 @@ def main() -> int:
         "VALIDATION": (validation_start_period, oos_start_period),
         "OOS": (oos_start_period, calendar_end),
     }
+    analysis_end_period = (
+        validation_start_period if args.max_period == "IS"
+        else oos_start_period if args.max_period == "VALIDATION"
+        else calendar_end
+    )
     args.out.mkdir(parents=True, exist_ok=True)
     trades.to_csv(args.out / "trades.csv", index=False)
     report = {
@@ -626,6 +639,7 @@ def main() -> int:
         "common_signal_window": common_window,
         "signal_timeframe": args.signal_timeframe,
         "symbols": list(args.symbols),
+        "max_period": args.max_period,
         "boundary_excluded_trades": boundary_excluded_trades,
         "split_boundaries_utc": {
             "validation_start": pd.to_datetime(validation_start_ms, unit="ms", utc=True).isoformat(),
@@ -637,38 +651,43 @@ def main() -> int:
             for period, group in trades.groupby("period")
         },
         "by_family": {
-            family: summarize(group, calendar_start, calendar_end)
+            family: summarize(group, calendar_start, analysis_end_period)
             for family, group in trades.groupby("family")
         },
         "by_symbol_side": {
-            f"{symbol}_{side}": summarize(group, calendar_start, calendar_end)
+            f"{symbol}_{side}": summarize(group, calendar_start, analysis_end_period)
             for (symbol, side), group in trades.groupby(["symbol", "side"])
         },
-        "oos_by_family": {
-            family: summarize(
-                group, oos_start_period, calendar_end
-            )
-            for family, group in trades[trades.period == "OOS"].groupby("family")
-        },
-        "oos_by_symbol_side": {
-            f"{symbol}_{side}": summarize(
-                group, oos_start_period, calendar_end
-            )
-            for (symbol, side), group in trades[trades.period == "OOS"].groupby(
-                ["symbol", "side"]
-            )
-        },
+        "oos_by_family": (
+            {
+                family: summarize(group, oos_start_period, calendar_end)
+                for family, group in trades[trades.period == "OOS"].groupby("family")
+            }
+            if args.max_period == "ALL" else {}
+        ),
+        "oos_by_symbol_side": (
+            {
+                f"{symbol}_{side}": summarize(group, oos_start_period, calendar_end)
+                for (symbol, side), group in trades[trades.period == "OOS"].groupby(
+                    ["symbol", "side"]
+                )
+            }
+            if args.max_period == "ALL" else {}
+        ),
         "by_family_symbol_side": {
-            f"{family}_{symbol}_{side}": summarize(group, calendar_start, calendar_end)
+            f"{family}_{symbol}_{side}": summarize(group, calendar_start, analysis_end_period)
             for (family, symbol, side), group in trades.groupby(["family", "symbol", "side"])
         },
-        "oos_by_family_symbol_side": {
-            f"{family}_{symbol}_{side}": summarize(group, oos_start_period, calendar_end)
-            for (family, symbol, side), group in trades[trades.period == "OOS"].groupby(
-                ["family", "symbol", "side"]
-            )
-        },
-        "combined": summarize(trades, calendar_start, calendar_end),
+        "oos_by_family_symbol_side": (
+            {
+                f"{family}_{symbol}_{side}": summarize(group, oos_start_period, calendar_end)
+                for (family, symbol, side), group in trades[trades.period == "OOS"].groupby(
+                    ["family", "symbol", "side"]
+                )
+            }
+            if args.max_period == "ALL" else {}
+        ),
+        "combined": summarize(trades, calendar_start, analysis_end_period),
         "warning": "Equal-notional drawdown is a realized-PnL proxy with each trade weighted at 1/max-concurrency of starting equity (peak gross exposure 1x); it omits intratrade mark-to-market, margin and liquidation. Trade-sequence drawdown is also shown. Funding uses entry-notional approximation. OHLC fills are proxies, not confirmed exchange fills. IS/validation/OOS are chronological 60/20/20 splits of the common signal-timeframe window. No live/paper activation." + (f" Common {args.signal_timeframe} history is shorter than 12 months; this run is insufficient for a profitability promotion claim." if not common_window["covers_12_months"] else "")
     }
     (args.out / "summary.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
