@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import tempfile
+from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime, time
 from decimal import Decimal, InvalidOperation
 from itertools import pairwise
@@ -16,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from astra_bot.adapters.bingx.client import BINGX_API_BASE, BingXClient
+from astra_bot.utils.retry import is_exchange_endpoint_cooldown_error
 
 LOGGER = logging.getLogger("bingx_candle_archive")
 ARCHIVE_DIR = Path("data/bingx_usdm")
@@ -32,6 +34,7 @@ TIMEFRAME_MS = {
     "1d": 24 * 60 * 60_000,
 }
 PAGE_SIZE = 500
+COOLDOWN_DELAYS = (300.0, 300.0, 300.0)
 CSV_FIELDS = (
     "open_time",
     "open_time_utc",
@@ -47,6 +50,29 @@ CSV_FIELDS = (
 )
 PRICE_FIELDS = ("open", "high", "low", "close", "volume", "quote_volume")
 OPTIONAL_VOLUME_FIELDS = ("taker_buy_volume", "taker_buy_quote_volume")
+
+
+async def _call_with_cooldown(
+    operation: Callable[[], Awaitable[Any]], *, label: str
+) -> Any:
+    """Retry BingX HTTP-200 code 100410 only after the endpoint cooldown."""
+    for attempt, delay in enumerate((*COOLDOWN_DELAYS, None), start=1):
+        try:
+            return await operation()
+        except Exception as exc:
+            if (
+                delay is None
+                or not is_exchange_endpoint_cooldown_error(exc)
+            ):
+                raise
+            LOGGER.warning(
+                "%s returned BingX 100410; retry %d/4 in %.0fs",
+                label,
+                attempt + 1,
+                delay,
+            )
+            await asyncio.sleep(delay)
+    raise RuntimeError(f"{label}: BingX cooldown retries exhausted")
 
 
 def _iso_ms(value: int) -> str:
@@ -214,8 +240,11 @@ async def _download_pair(
     pages = 0
 
     while True:
-        page = await client.fetch_kline_page(
-            symbol, timeframe, end_time_ms=cursor_end, limit=PAGE_SIZE
+        page = await _call_with_cooldown(
+            lambda cursor_end=cursor_end: client.fetch_kline_page(
+                symbol, timeframe, end_time_ms=cursor_end, limit=PAGE_SIZE
+            ),
+            label=f"BingX {symbol} {timeframe} {cursor_end}",
         )
         pages += 1
         if not page:
@@ -274,7 +303,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     client = BingXClient(
         {
             "base_url": BINGX_API_BASE,
-            "rate_limit_qps": 3.0,
+            "rate_limit_qps": float(os.environ.get("BINGX_ARCHIVE_QPS", "0.2")),
             "contract_type": "linear",
         }
     )
