@@ -187,6 +187,7 @@ async def _download_pair(
     mode: str,
     start_ms: int,
     now_ms: int,
+    refresh_optional_fields: bool = False,
 ) -> tuple[dict[str, Any], int]:
     interval_ms = TIMEFRAME_MS[timeframe]
     path = _archive_path(symbol, timeframe)
@@ -199,6 +200,10 @@ async def _download_pair(
     existing_max = max(existing) if existing else None
     if mode == "initial":
         floor_ms = start_ms
+    elif refresh_optional_fields and existing:
+        # Re-fetch all archived bars so older OHLCV-only rows can be enriched
+        # with taker-buy volume fields without altering their price data.
+        floor_ms = min(existing)
     else:
         overlap_floor = int(existing_max or 0) - 3 * interval_ms
         floor_ms = max(min(existing) if existing else 0, overlap_floor)
@@ -285,6 +290,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                     mode=args.mode,
                     start_ms=start_ms,
                     now_ms=now_ms,
+                    refresh_optional_fields=args.refresh_optional_fields,
                 )
                 results[f"{symbol}:{timeframe}"] = report
     finally:
