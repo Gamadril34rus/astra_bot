@@ -2247,3 +2247,4 @@
 {"event": "protect_place", "ts": 1794271047.0543034, "symbol": "HYPE-USDT", "kind": "tp", "stop_price": "74.2225185", "qty": "159.34774161", "reduce_only": false, "order_id": "2119952539645992960"}
 {"event": "entry", "signal_id": "zeus_channel_boundary|HYPE-USDT|short|1794268800000", "symbol": "HYPE-USDT", "side": "short", "plan_entry": "74.633", "fill_price": "74.606", "slip_pct": 0.03617702624844375, "slip_r": 0.03617702624844238, "qty": "531.15913871", "stop": "75.37933", "tp": "74.2225185", "tp_frac": 0.3, "leverage": 6, "ts": 1794271047.055303}
 {"event": "partial_fill", "symbol": "HYPE-USDT", "side": null, "qty": null, "price": null, "pnl": -411.5394639, "income_type": "REALIZED_PNL", "income_id": "1794212561561284082_512_89672_PNL", "source": "income_tape", "ts": 1794263841.0}
+{"event": "order_cancel", "symbol": "ETH-USDT", "order_id": "2119951438834130944", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794271652.6052992}
