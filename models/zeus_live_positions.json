@@ -17,7 +17,7 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "peak_high": "2132.89",
-      "peak_low": "2086.46",
+      "peak_low": "2085.8",
       "current_regime": "STRONG_BEAR_TREND",
       "tp1": "2096.531483291454415",
       "migrate_stop_v1": true,
@@ -42,9 +42,12 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "peak_high": "75.335",
-      "peak_low": "73.671",
+      "peak_low": "73.647",
       "current_regime": "WEAK_BEAR_TREND",
-      "tp1": "73.7085085"
+      "tp1": "73.7085085",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     },
     "SOL-USDT|short": {
       "symbol": "SOL-USDT",
@@ -98,5 +101,5 @@
       "early_tp_repair_v1": true
     }
   },
-  "ts": 1794307361.2923658
+  "ts": 1794307655.701849
 }
