@@ -1,4 +1,41 @@
 {
-  "positions": {},
-  "ts": 1794328033.2617161
+  "positions": {
+    "ETH-USDT|short": {
+      "symbol": "ETH-USDT",
+      "side": "short",
+      "qty": "9.14560922",
+      "stop": "2132.8722930697263",
+      "tp": "2003.920468118623165",
+      "entry": "2042.94",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|ETH-USDT|short|1794340800000",
+      "ts": 1794340963.206604,
+      "be_moved": false,
+      "initial_stop": "2132.8722930697263",
+      "opened_at_ms": 1794340963206,
+      "plan_qty": "9.14560922",
+      "qty_ratio": 1.0,
+      "tp1": "2003.920468118623165"
+    },
+    "SOL-USDT|short": {
+      "symbol": "SOL-USDT",
+      "side": "short",
+      "qty": "211.49498026",
+      "stop": "86.68719764477046",
+      "tp": "81.1116610598532930",
+      "entry": "82.835",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|SOL-USDT|short|1794340800000",
+      "ts": 1794340970.1915073,
+      "be_moved": false,
+      "initial_stop": "86.68719764477046",
+      "opened_at_ms": 1794340970191,
+      "plan_qty": "211.49498026",
+      "qty_ratio": 1.0,
+      "tp1": "81.1116610598532930"
+    }
+  },
+  "ts": 1794340970.191518
 }
