@@ -4,7 +4,7 @@
   "market": "USDT-M perpetual swaps",
   "source_endpoint": "/openApi/swap/v2/quote/openInterest",
   "unit": "base asset quantity as returned by BingX",
-  "generated_at_utc": "2026-11-10T13:28:07.038685+00:00",
+  "generated_at_utc": "2026-11-10T13:55:57.885447+00:00",
   "symbols": [
     "BTC-USDT",
     "ETH-USDT",
@@ -16,52 +16,52 @@
     "BTC-USDT": {
       "symbol": "BTC-USDT",
       "path": "data/bingx_usdm/open_interest/BTCUSDT_open_interest.csv",
-      "source_time": 1794317250182,
-      "source_time_utc": "2026-11-10T13:27:30.182000+00:00",
-      "observed_at_ms": 1794317250270,
-      "open_interest_base": "847049744.1",
-      "snapshot_count": 5,
-      "sha256": "ba34218a7eeac3967cb9421b41d7dec24e3d475764b1727830137255c04ff689"
+      "source_time": 1794318920779,
+      "source_time_utc": "2026-11-10T13:55:20.779000+00:00",
+      "observed_at_ms": 1794318920897,
+      "open_interest_base": "886595760.7",
+      "snapshot_count": 6,
+      "sha256": "d2b8a569ccb7c74f0ff373c3e4dce14ddea41ddb8f93896653e31c857e396806"
     },
     "ETH-USDT": {
       "symbol": "ETH-USDT",
       "path": "data/bingx_usdm/open_interest/ETHUSDT_open_interest.csv",
-      "source_time": 1794317259369,
-      "source_time_utc": "2026-11-10T13:27:39.369000+00:00",
-      "observed_at_ms": 1794317259459,
-      "open_interest_base": "287211145.11",
-      "snapshot_count": 5,
-      "sha256": "215777fbcc2427e17b4b5781d2d49f4fea299168297f0e887a2ccdc3fca93f67"
+      "source_time": 1794318930032,
+      "source_time_utc": "2026-11-10T13:55:30.032000+00:00",
+      "observed_at_ms": 1794318930148,
+      "open_interest_base": "330644276.91",
+      "snapshot_count": 6,
+      "sha256": "87c3b03a3adabe81d898163307f1406ba9f36b66ef74253c2e04bf75e0a93430"
     },
     "SOL-USDT": {
       "symbol": "SOL-USDT",
       "path": "data/bingx_usdm/open_interest/SOLUSDT_open_interest.csv",
-      "source_time": 1794317268560,
-      "source_time_utc": "2026-11-10T13:27:48.560000+00:00",
-      "observed_at_ms": 1794317268650,
-      "open_interest_base": "167780640.458",
-      "snapshot_count": 5,
-      "sha256": "063942b4c6db18bd320cc3767d12a4db0b436c134c572167fe649c7eff613f3b"
+      "source_time": 1794318939282,
+      "source_time_utc": "2026-11-10T13:55:39.282000+00:00",
+      "observed_at_ms": 1794318939403,
+      "open_interest_base": "178637610.602",
+      "snapshot_count": 6,
+      "sha256": "6c1eabb997e7d78e987694e7908fb81b5bdda2bc7a50b59976d0e9e10b1a6ee0"
     },
     "HYPE-USDT": {
       "symbol": "HYPE-USDT",
       "path": "data/bingx_usdm/open_interest/HYPEUSDT_open_interest.csv",
-      "source_time": 1794317277753,
-      "source_time_utc": "2026-11-10T13:27:57.753000+00:00",
-      "observed_at_ms": 1794317277842,
-      "open_interest_base": "40677410.997",
-      "snapshot_count": 5,
-      "sha256": "85142dc88974f96bbe97c15226e2736a9308167b52dc6c0668c996f235c31c2f"
+      "source_time": 1794318948528,
+      "source_time_utc": "2026-11-10T13:55:48.528000+00:00",
+      "observed_at_ms": 1794318948641,
+      "open_interest_base": "42201624.000",
+      "snapshot_count": 6,
+      "sha256": "a4c87ce9dd0fc73391deb2af2c4af8836c844c87999493d876c4ac516888ab22"
     },
     "INJ-USDT": {
       "symbol": "INJ-USDT",
       "path": "data/bingx_usdm/open_interest/INJUSDT_open_interest.csv",
-      "source_time": 1794317286942,
-      "source_time_utc": "2026-11-10T13:28:06.942000+00:00",
-      "observed_at_ms": 1794317287037,
-      "open_interest_base": "8511925.060",
-      "snapshot_count": 5,
-      "sha256": "4241f9c24c17f1dda437c0bb6cb666df06573efb000caf2cc23e81396bed5be4"
+      "source_time": 1794318957765,
+      "source_time_utc": "2026-11-10T13:55:57.765000+00:00",
+      "observed_at_ms": 1794318957883,
+      "open_interest_base": "8533338.288",
+      "snapshot_count": 6,
+      "sha256": "0bc701f893514795795fa891e8764a316a51f9b0be36cd2a8ff618350b6fa538"
     }
   },
   "warning": "BingX endpoint is a current snapshot, not historical OHLC. This archive is prospective from the first collection time."
