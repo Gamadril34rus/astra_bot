@@ -4,7 +4,7 @@
       "symbol": "ETH-USDT",
       "side": "short",
       "qty": "12.00904719",
-      "stop": "2199.4191212882647",
+      "stop": "2195.8885714285716",
       "tp": "2096.531483291454415",
       "entry": "2130.98",
       "leverage": 6,
@@ -20,9 +20,10 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "2131.74",
+      "peak_low": "2126.88",
       "migrate_stop_v1": true,
-      "current_regime": "STRONG_BEAR_TREND"
+      "current_regime": "STRONG_BEAR_TREND",
+      "be_earned": true
     },
     "INJ-USDT|long": {
       "symbol": "INJ-USDT",
@@ -48,5 +49,5 @@
       "current_regime": "RANGE"
     }
   },
-  "ts": 1794269808.647215
+  "ts": 1794270165.4254158
 }
