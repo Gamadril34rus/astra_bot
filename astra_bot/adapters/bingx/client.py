@@ -529,19 +529,18 @@ class BingXClient(ExchangeAdapter):
         timeframe: str,
         end_time_ms: int | None = None,
         limit: int = 1000,
+        start_time_ms: int | None = None,
     ) -> list[Candle]:
-        """Одна «страница» истории свечей ДО ``end_time_ms`` (без глотания
-        ошибок — для загрузчиков истории, которые делают свои retry).
-
-        Используется историческими загрузчиками (обучение/self-play).
-        """
+        """Fetch a bounded public kline page without swallowing errors."""
         bingx_symbol = symbol.replace("/", "-")
         params: dict[str, Any] = {
             "symbol": bingx_symbol,
             "interval": self._convert_timeframe(timeframe),
             "limit": min(int(limit), _MAX_KLINES),
         }
-        if end_time_ms:
+        if start_time_ms is not None:
+            params["startTime"] = int(start_time_ms)
+        if end_time_ms is not None:
             params["endTime"] = int(end_time_ms)
         resp = await self._request("GET", BINGX_ENDPOINTS["swap"]["candles"], params=params)
         data = resp.get("data") or []
@@ -552,7 +551,7 @@ class BingXClient(ExchangeAdapter):
             candle = self._parse_candle(item, bingx_symbol, timeframe)
             if candle is not None:
                 candles.append(candle)
-        candles.sort(key=lambda c: c.open_time)
+        candles.sort(key=lambda candle: candle.open_time)
         return candles
 
     async def get_candles_before(
