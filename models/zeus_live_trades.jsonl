@@ -2315,3 +2315,4 @@
 {"event": "qty_reconcile", "symbol": "BTC-USDT", "side": "short", "old_qty": 0.61407178, "new_qty": 0.4298, "rel_diff": 0.300082, "signal_id": "zeus_multi_top_breakdown|BTC-USDT|short|1794312000000", "ts": 1794317534.8801064}
 {"event": "order_cancel", "symbol": "ETH-USDT", "order_id": "2120082077382172672", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794317545.4243343}
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2120131298441388032", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794317577.3500748}
+{"event": "partial_fill", "symbol": "BTC-USDT", "side": null, "qty": null, "price": null, "pnl": 128.82948, "income_type": "REALIZED_PNL", "income_id": "1794212561561284082_512_226889_PNL", "source": "income_tape", "ts": 1794317428.0}
