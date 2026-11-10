@@ -26,6 +26,7 @@ FIELDS = (
     "symbol",
     "source_time",
     "source_time_utc",
+    "observed_at_ms",
     "observed_at_utc",
     "open_interest_base",
 )
@@ -82,6 +83,7 @@ def parse_open_interest(
         "symbol": symbol,
         "source_time": str(source_time_ms),
         "source_time_utc": _iso_ms(source_time_ms),
+        "observed_at_ms": str(observed_at_ms),
         "observed_at_utc": _iso_ms(observed_at_ms),
         "open_interest_base": str(open_interest),
     }
@@ -97,10 +99,12 @@ def _read_rows(path: Path) -> dict[int, dict[str, str]]:
     rows: dict[int, dict[str, str]] = {}
     with path.open("r", encoding="utf-8", newline="") as handle:
         for row in csv.DictReader(handle):
-            source_time = int(row["source_time"])
-            if source_time in rows:
-                raise ValueError(f"duplicate open-interest source time in {path}: {source_time}")
-            rows[source_time] = {field: str(row.get(field, "")) for field in FIELDS}
+            observed_at_ms = int(row["observed_at_ms"])
+            if observed_at_ms in rows:
+                raise ValueError(
+                    f"duplicate open-interest observation time in {path}: {observed_at_ms}"
+                )
+            rows[observed_at_ms] = {field: str(row.get(field, "")) for field in FIELDS}
     return rows
 
 
@@ -108,7 +112,7 @@ def _merge_rows(
     existing: dict[int, dict[str, str]],
     incoming: dict[int, dict[str, str]],
 ) -> dict[int, dict[str, str]]:
-    """Merge immutable timestamped snapshots; duplicate timestamps must agree."""
+    """Merge immutable observations; duplicate local observation times must agree."""
     merged = dict(existing)
     for source_time, row in incoming.items():
         previous = merged.get(source_time)
@@ -117,6 +121,7 @@ def _merge_rows(
             continue
         if (
             previous["symbol"] != row["symbol"]
+            or previous["source_time"] != row["source_time"]
             or Decimal(previous["open_interest_base"])
             != Decimal(row["open_interest_base"])
         ):
@@ -191,13 +196,14 @@ async def capture_symbol(
     row = parse_open_interest(symbol, payload, observed_at_ms)
     source_time = int(row["source_time"])
     path = _archive_path(data_dir, symbol)
-    rows = _merge_rows(_read_rows(path), {source_time: row})
+    rows = _merge_rows(_read_rows(path), {observed_at_ms: row})
     _write_rows(path, rows)
     return {
         "symbol": symbol,
         "path": str(path),
         "source_time": source_time,
         "source_time_utc": row["source_time_utc"],
+        "observed_at_ms": observed_at_ms,
         "open_interest_base": row["open_interest_base"],
         "snapshot_count": len(rows),
         "sha256": _sha256_file(path),
