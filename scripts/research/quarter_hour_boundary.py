@@ -553,13 +553,13 @@ def run_study(data_dir: Path, report_path: Path) -> dict[str, Any]:
     grouped = []
     keys = ["split", "variant", "symbol", "horizon"]
     for key, group in outcomes.groupby(keys, dropna=False):
-        item = dict(zip(keys, key))
+        item = dict(zip(keys, key, strict=True))
         item.update(_metrics(group))
         grouped.append(item)
 
     pooled = []
     for key, group in outcomes.groupby(["split", "variant", "horizon"]):
-        item = dict(zip(["split", "variant", "horizon"], key))
+        item = dict(zip(["split", "variant", "horizon"], key, strict=True))
         item.update(_metrics(group))
         # Daily cluster bootstrap: resample days, not overlapping trades.
         daily = group.assign(day=group["decision_time"].dt.date).groupby("day")[
