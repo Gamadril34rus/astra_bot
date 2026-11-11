@@ -59,3 +59,26 @@ OHLC fills, spread and slippage are research proxies, not exchange-confirmed fil
 ## Safety
 
 No production strategy registration, live Zeus execution, risk, leverage, sizing, production stops/exits, VST routing or REAL routing is changed. No PR merge or activation is authorized.
+
+
+
+### 2026-11-11 follow-up: holdout isolation and multi-regime screen
+
+The previous `--max-period VALIDATION` implementation filtered OOS trades from the report after simulating the complete candle series. Although it did not publish OOS metrics, OOS OHLC/funding observations were still read by the simulator. This was not a sufficiently strict untouched-holdout boundary.
+
+The research runner now:
+- calculates the common chronological boundaries from timestamps and coverage metadata first;
+- clips 15m signal candles, closed 1h context candles, and funding observations to the selected screen's exclusive cutoff before feature calculation/simulation;
+- uses pre-window candles only for indicator warm-up, and skips all entries before the requested period start;
+- runs OOS-only replay flat from the OOS boundary with `--max-period OOS`, rather than simulating earlier trades and filtering them afterward;
+- records the exact trade-start and exclusive signal-close cutoff, plus whether OOS bars were processed.
+
+Regression tests cover the cutoff, pre-OOS signal suppression, and OOS-only flat start. This is a holdout-integrity correction, not a change to the strategy rules.
+
+The next IS/validation screen runs the existing four-family regime router on 15m BingX USDT-M candles with the last closed 1h context: compression breakout, false-break reversal, trend pullback, and range reversion. BTC/ETH/SOL/INJ are evaluated as the core cohort; HYPE remains separate. Base costs are 5 bps taker fee + 1.25 bps spread + 2 bps slippage per side; stress is 1.5x each. No family is allowed to force a trade when no setup is present.
+
+A read-only public API probe tests BingX `historicalTrades` with `fromId`, 1m/5m/15m/30m/1h swap klines, and 15m mark-price klines around 2025-12-26. It uses no account key and does not treat mark-price candles as last-traded OHLCV. The probe's empirical response, not the parameter documentation alone, determines whether free older 15m trade-price history can be recovered.
+
+OOS remains closed unless the common BingX 15m candle window itself covers at least 365 days and both IS and validation are net-positive at base and 1.5x costs. Funding coverage alone cannot satisfy this condition. If OOS is eventually opened, the promotion gate also checks PF >=1.25, positive net expectancy, at least 100 OOS trades, >=70% positive OOS calendar months, positive 1.5x stress expectancy/PF, holding-time bounds, and drawdown proxies. The current workflow uses provisional research-only drawdown guardrails of no worse than -10% realized equal-notional drawdown and -20% trade-sequence drawdown; these remain OHLC/realized-PnL proxies and do not model intratrade margin/liquidation.
+
+This work is on the descendant research branch used by PR #347, based on the preserved PR #343 research branch. PR #343 remains closed and unmerged; its rejected 30m four-family results are not promoted or rewritten. No production code, VST routing, REAL routing, risk, leverage, or production exits are changed.
