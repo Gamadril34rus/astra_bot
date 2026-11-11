@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -9,6 +11,7 @@ from scripts.research.quarter_hour_boundary import (
     STRESS_ROUND_TRIP_COST_BPS,
     build_events,
     event_outcomes,
+    validate_config,
 )
 
 
@@ -103,3 +106,13 @@ def test_missing_funding_coverage_is_unknown_not_zero() -> None:
     outcomes = event_outcomes(frame, events, funding)
     assert outcomes["funded_net_bps"].isna().all()
     assert not outcomes["funding_complete"].any()
+
+
+def test_checked_in_config_matches_frozen_runner() -> None:
+    config = (
+        Path(__file__).resolve().parents[2]
+        / "config"
+        / "research"
+        / "quarter_hour_boundary.json"
+    )
+    validate_config(config)
