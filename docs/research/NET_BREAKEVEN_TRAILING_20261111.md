@@ -138,3 +138,31 @@ In the same function, `net_be` is computed and used for the mark eligibility che
 ### Current decision
 
 These source findings justify a focused exit-engine correction investigation. They do **not** justify editing production code yet: stop-market slippage cannot be guaranteed, the full exit-policy writers have not all been reconciled, and no fill-level replay has established that this exit design is profitable. Keep this PR research-only.
+
+
+## Separate diagnosis: why recent live ticks placed no new entries (2026-11-11)
+
+Inspected successful live-clock runs at 11:40, 11:45 and 11:50 UTC (run IDs 43013886468, 43014574492, 43015254805; job 130504586830 for the 11:50 run).
+
+Observed in the 11:50 job:
+- `ZEUS_ARM=1`: the entry hook was active.
+- Session profile reported `normal arm=True`; this was not an `off` session.
+- One existing position was present: BTC-USDT short. The feed correctly skipped a new BTC candidate because BTC was already open.
+- HYPE long and INJ long candidate IDs were skipped as `signal_id already seen`.
+- The channel feed wrote 0 candidates; Stage A reported `empty feed — 0 entries`.
+- The final skip counters were all zero, including `htf_gate`, `filters`, `retest_not_triggered`, `cooldown`, `max_open`, `margin`, and `same_side_guard`.
+
+Interpretation: in these inspected ticks, no new order was placed because the feed produced no fresh, unseen candidate. This is not evidence that a risk gate or PF HALT blocked entries. The current pipeline is idle upstream of the entry gates. Repeated old signal IDs are being deduplicated as designed.
+
+Separate exchange/API reliability issue: the same run hit BingX `100410` cooldown/rate-limit responses on user income and position endpoints. Position reads succeeded earlier in the tick, but later protection/income calls encountered the cooldown. This can impair reconciliation/telemetry and must be rate-budgeted; it does not explain the empty candidate feed in that run.
+
+### Immediate next diagnostic
+
+Trace the candidate producer for channel / multi-top signals over the last 24 hours and compare:
+- number of raw market structures detected per symbol;
+- number surviving closed-candle confirmation;
+- number converted to fresh signal IDs;
+- number discarded as already-seen IDs;
+- number reaching the arm feed.
+
+Do not loosen confidence, HTF, retest, or risk gates until raw candidate counts prove that a specific filter is incorrectly suppressing valid signals. The 11:50 log shows those final gates were not the cause of zero entries.
