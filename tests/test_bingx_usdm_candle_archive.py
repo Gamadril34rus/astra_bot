@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from scripts import archive_bingx_usdm_candles as candle_archive
 from scripts.archive_bingx_usdm_candles import (
     DEFAULT_TIMEFRAMES,
