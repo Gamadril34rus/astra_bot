@@ -70,7 +70,7 @@ async def test_scan_1h_fallback_when_4h_silent(monkeypatch):
     bars_1h = _candles_from_hlc(h, l, c, step_ms=3_600_000)
     # Last candle is still forming; the confirmed break is the previous bar.
     forming = SimpleNamespace(
-        open=96.8, high=97.0, low=96.0, close=96.8,
+        open=96.1, high=96.2, low=95.8, close=96.0,
         open_time=bars_1h[-1].open_time + 3_600_000,
     )
     bars_1h.append(forming)
@@ -100,7 +100,7 @@ async def test_scan_1h_fallback_when_4h_silent(monkeypatch):
     assert row.get("tf") == "1h"
     assert row.get("n_tops", 0) >= 2
     assert row["retest_ts"] == bars_1h[-2].open_time
-    assert row["entry"] == pytest.approx(96.8)
+    assert row["entry"] == pytest.approx(96.0)
 
 
 @pytest.mark.asyncio
@@ -108,7 +108,7 @@ async def test_scan_prefers_4h_when_present(monkeypatch):
     h, l, c = _series_two_flat_tops()
     bars = _candles_from_hlc(h, l, c, step_ms=14_400_000)
     forming = SimpleNamespace(
-        open=96.8, high=97.0, low=96.0, close=96.8,
+        open=96.1, high=96.2, low=95.8, close=96.0,
         open_time=bars[-1].open_time + 14_400_000,
     )
     bars.append(forming)
@@ -126,7 +126,7 @@ async def test_scan_prefers_4h_when_present(monkeypatch):
     assert row is not None
     assert row.get("tf") == "4h"
     assert row["retest_ts"] == bars[-2].open_time
-    assert row["entry"] == pytest.approx(96.8)
+    assert row["entry"] == pytest.approx(96.0)
 
 
 
@@ -184,3 +184,31 @@ async def test_channel_evaluate_receives_closed_bars_and_live_price(monkeypatch)
     row = await scan_symbol(MagicMock(), "BTC-USDT", strategy=Probe())
     assert row is None
     assert observed == [(39, 100.25)]
+
+
+
+@pytest.mark.asyncio
+async def test_confirmed_break_reclaimed_before_execution_is_rejected(monkeypatch):
+    h, l, c = _series_two_flat_tops()
+    closed_bars = _candles_from_hlc(h, l, c, step_ms=3_600_000)
+    # Confirmed candle did close below the neckline, but live price reclaimed it.
+    forming_reclaim = SimpleNamespace(
+        open=96.8, high=97.0, low=96.5, close=96.8,
+        open_time=closed_bars[-1].open_time + 3_600_000,
+    )
+    bars = closed_bars + [forming_reclaim]
+
+    async def fake_candles(client, symbol, *, timeframe="4h", limit=120):
+        return bars
+
+    class Silent:
+        async def evaluate(self, symbol, series, current_price=None):
+            return None
+
+        def diagnose(self, series, current_price=None):
+            return {"would_signal": False}
+
+    monkeypatch.setattr("astra_bot.decision.live_arm_feed.fetch_candles", fake_candles)
+    monkeypatch.setattr("astra_bot.decision.live_arm_feed._channel_strategy", lambda: Silent())
+    row = await scan_symbol(MagicMock(), "BTC-USDT", strategy=Silent())
+    assert row is None
