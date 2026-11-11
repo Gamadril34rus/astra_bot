@@ -293,7 +293,7 @@ def _zone_trade_filter_decision(
             return {"accepted": False, "state": "UNKNOWN", "reason": "invalid_zone_payload"}
         valid.append((lower, upper))
     if not valid:
-        return {"accepted": True, "state": "EMPTY_ZONES", "reason": "no_valid_zones"}
+        return {"accepted": False, "state": "UNKNOWN", "reason": "empty_or_unusable_zone_profile"}
 
     # If entry is already inside a zone, its far edge is the first obstacle.
     if side == "long":
@@ -347,7 +347,6 @@ def _apply_zone_trade_filter(
         }
     else:
         decision = _zone_trade_filter_decision(row, cached[1])
-    row["zone_trade_filter"] = decision
     try:
         from astra_bot.decision.live_arm_wiring import append_journal
         append_journal({
@@ -371,6 +370,11 @@ def _apply_zone_trade_filter(
         })
     except Exception as exc:
         logger.warning("zone trade filter journal failed %s: %s", symbol, type(exc).__name__)
+        decision = {
+            "accepted": False, "state": "UNKNOWN",
+            "reason": "zone_filter_journal_failed",
+        }
+    row["zone_trade_filter"] = decision
     if not decision["accepted"]:
         logger.info(
             "arm feed: zone filter blocked %s %s state=%s reason=%s",
