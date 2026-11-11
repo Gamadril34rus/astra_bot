@@ -8,6 +8,7 @@ on:
       - ".github/workflows/quarter-hour-boundary-research.yml"
       - "config/research/quarter_hour_boundary.json"
       - "scripts/research/quarter_hour_boundary.py"
+      - "scripts/research/run_coarse_30m_boundary.py"
 
 permissions:
   contents: read
@@ -34,13 +35,19 @@ jobs:
           curl --fail --location --retry 3 --retry-delay 2 \
             https://raw.githubusercontent.com/Gamadril34rus/astra_bot/research/positioning-data/data/bingx_usdm/manifest.json \
             --output reference-manifest.json
-      - name: Download 5m candles and historical funding, then run frozen study
+      - name: Download canonical 30m archives and run coarse event study
         run: |
-          python scripts/research/quarter_hour_boundary.py \
-            --fetch \
-            --reference-manifest reference-manifest.json \
+          mkdir -p reports/quarter_hour_boundary/data
+          for symbol in BTC ETH SOL HYPE INJ; do
+            curl --fail --location --retry 3 --retry-delay 2 \
+              "https://raw.githubusercontent.com/Gamadril34rus/astra_bot/research/positioning-data/data/bingx_usdm/${symbol}USDT_30m.csv" \
+              --output "reports/quarter_hour_boundary/data/${symbol}USDT_30m.csv"
+          done
+          python scripts/research/run_coarse_30m_boundary.py \
             --data-dir reports/quarter_hour_boundary/data \
-            --report reports/quarter_hour_boundary/report.json
+            --manifest reference-manifest.json \
+            --output-dir reports/quarter_hour_boundary/data \
+            --report reports/quarter_hour_boundary/coarse_30m_report.json
       - name: Upload reproducible dataset and report
         uses: actions/upload-artifact@v4
         with:
