@@ -208,3 +208,29 @@ def test_stop_pct_decimal_rejects_genuinely_tighter_stop():
 def test_stop_pct_decimal_rejects_invalid_entry():
     assert _stop_pct_decimal(0, 1) is None
     assert _stop_pct_decimal("nan", 1) is None
+
+
+
+def test_run_arm_entries_accepts_exact_minimum_stop(tmp_path, monkeypatch):
+    async def _():
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("ZEUS_MIN_STOP_PCT", "0.01")
+        row = {
+            "signal_id": "exact-min-stop",
+            "symbol": "HYPE-USDT",
+            "side": "short",
+            "entry": 71.985,
+            "stop": 72.70485,
+            "tp": 70.5453,
+            "ts": time.time(),
+            "confidence": 0.95,
+        }
+        client = MockClient()
+        entered, skipped = await run_arm_entries(
+            LiveBroker(client), [row], max_entries=1
+        )
+        assert skipped["stop_too_tight"] == 0
+        assert len(entered) == 1
+        assert any(order.get("symbol") == "HYPE-USDT" for order in client.placed)
+
+    asyncio.run(_())
