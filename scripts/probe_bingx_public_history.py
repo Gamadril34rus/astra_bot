@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import math
 import time
@@ -98,7 +99,7 @@ def _minute_window_summary(rows: list, start_ms: int, end_ms: int) -> dict:
             row.get("openTime") is not None if isinstance(row, dict) else row[0] is not None
         )
     })
-    diffs = [right - left for left, right in zip(times, times[1:])]
+    diffs = [right - left for left, right in itertools.pairwise(times)]
     missing_minutes = sum(max(0, delta // 60_000 - 1) for delta in diffs)
     expected = (end_ms - start_ms) // 60_000 + 1
     return {
