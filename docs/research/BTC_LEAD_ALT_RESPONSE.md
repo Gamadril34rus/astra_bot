@@ -6,7 +6,9 @@ Status: research-only, unvalidated, not registered in the live strategy engine.
 
 A fully closed BTC hourly impulse may be followed by a delayed response in an altcoin that has under-reacted to the BTC move relative to its recent hourly beta. The candidate enters in the direction of the BTC impulse only when both the BTC shock and the signed altcoin under-reaction are unusually large.
 
-This is motivated by published evidence of delayed BTC-to-altcoin price transmission, especially in less liquid assets. The source study uses one-minute data; this implementation deliberately tests a much slower and more executable 15-minute decision process. It is not assumed that the published effect survives that change of horizon.
+This is motivated by Kurihara and Matsumoto, “Price Transmission from Bitcoin to Altcoins: High-Frequency Evidence and Implications for Trading Strategy” (Asia-Pacific Financial Markets, published 10 March 2026; [open-access paper](https://link.springer.com/article/10.1007/s10690-026-09589-z)). Their Binance 1-minute study reports delayed reactions mainly among smaller-cap, less-liquid assets; large and medium-cap assets often react immediately. This implementation deliberately tests a much slower 15-minute decision process, so the published result is only motivation, not validation.
+
+There is material counter-evidence: Zhang et al., “Intraday return predictability in cryptocurrency perpetual futures” (Journal of Chinese Economic and Business Studies, published 29 October 2026; [paper](https://doi.org/10.1080/14765284.2026.2753973)), report negative out-of-sample R-squared at 1-, 4- and 8-hour horizons and that nearly all active strategies fail after realistic costs. That result raises the prior probability that this candidate will be rejected.
 
 ## Exact signal definition
 
