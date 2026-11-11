@@ -159,6 +159,109 @@ jobs:
             --signal-timeframe 15m --symbols HYPE-USDT \
             --fee-bps 7.5 --spread-bps 1.875 --slippage-bps 3 --max-period VALIDATION \
             --out reports/15m_regimes/hype/screen_stress_1_5x
+      - name: Independently replay each regime family at base and 1.5x costs
+        run: |
+          set -euo pipefail
+          for family in COMPRESSION_BREAKOUT FALSE_BREAK_REVERSAL TREND_PULLBACK RANGE_REVERSION; do
+            for cohort in core4 hype; do
+              if [ "$cohort" = "core4" ]; then
+                symbols="BTC-USDT,ETH-USDT,SOL-USDT,INJ-USDT"
+              else
+                symbols="HYPE-USDT"
+              fi
+              python scripts/research_adaptive_perp_portfolio.py \
+                --signal-timeframe 15m --symbols "$symbols" --family-only "$family" \
+                --fee-bps 5 --spread-bps 1.25 --slippage-bps 2 --max-period VALIDATION \
+                --out "reports/15m_regimes/independent/$cohort/$family/base"
+              python scripts/research_adaptive_perp_portfolio.py \
+                --signal-timeframe 15m --symbols "$symbols" --family-only "$family" \
+                --fee-bps 7.5 --spread-bps 1.875 --slippage-bps 3 --max-period VALIDATION \
+                --out "reports/15m_regimes/independent/$cohort/$family/stress_1_5x"
+            done
+          done
+      - name: Select only families with positive independent IS and validation edge
+        id: module_gate
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          families = (
+              "COMPRESSION_BREAKOUT",
+              "FALSE_BREAK_REVERSAL",
+              "TREND_PULLBACK",
+              "RANGE_REVERSION",
+          )
+          minimum_trades = {"IS": 20, "VALIDATION": 10}
+          decisions = {}
+          eligible = []
+          for family in families:
+              paths = {
+                  "base": Path(f"reports/15m_regimes/independent/core4/{family}/base/summary.json"),
+                  "stress_1_5x": Path(
+                      f"reports/15m_regimes/independent/core4/{family}/stress_1_5x/summary.json"
+                  ),
+              }
+              reports = {}
+              reasons = []
+              for cost_case, path in paths.items():
+                  if not path.exists():
+                      reasons.append(f"{cost_case}: missing independent report")
+                      continue
+                  reports[cost_case] = json.loads(path.read_text())
+              if len(reports) != 2:
+                  decisions[family] = {"eligible": False, "reasons": reasons}
+                  continue
+              for period, minimum in minimum_trades.items():
+                  for cost_case, report in reports.items():
+                      metrics = report.get("by_period", {}).get(period)
+                      if not metrics:
+                          reasons.append(f"{cost_case}/{period}: no trades")
+                          continue
+                      trades = int(metrics.get("trades", 0))
+                      pf = float(metrics.get("pf", 0))
+                      expectancy = float(metrics.get("net_expectancy_pct", 0))
+                      if trades < minimum:
+                          reasons.append(f"{cost_case}/{period}: only {trades} trades; need {minimum}")
+                      if pf < 1.0 or expectancy <= 0:
+                          reasons.append(
+                              f"{cost_case}/{period}: PF={pf:.3f}, net expectancy={expectancy:.5f}%"
+                          )
+              passed = not reasons
+              if passed:
+                  eligible.append(family)
+              decisions[family] = {"eligible": passed, "reasons": reasons}
+              print(f"{family}: {'ELIGIBLE' if passed else 'EXCLUDED'} {reasons}")
+          result = {
+              "selection_basis": "independent family-only replays; chronological IS and validation; base and 1.5x costs",
+              "minimum_trades": minimum_trades,
+              "eligible_families": eligible,
+              "decisions": decisions,
+              "router_behavior_when_empty": "NO_TRADE",
+          }
+          Path("reports/15m_regimes/module_selection.json").write_text(
+              json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"enabled_families={','.join(eligible) if eligible else 'NONE'}\n")
+          print(f"Selected router families: {eligible or ['NONE / NO_TRADE']}")
+          PY
+      - name: Replay selected-family router at base and 1.5x costs
+        env:
+          ENABLED_FAMILIES: ${{ steps.module_gate.outputs.enabled_families }}
+        run: |
+          set -euo pipefail
+          python scripts/research_adaptive_perp_portfolio.py \
+            --signal-timeframe 15m --symbols BTC-USDT,ETH-USDT,SOL-USDT,INJ-USDT \
+            --enabled-families "$ENABLED_FAMILIES" \
+            --fee-bps 5 --spread-bps 1.25 --slippage-bps 2 --max-period VALIDATION \
+            --out reports/15m_regimes/core4/screen_base_eligible
+          python scripts/research_adaptive_perp_portfolio.py \
+            --signal-timeframe 15m --symbols BTC-USDT,ETH-USDT,SOL-USDT,INJ-USDT \
+            --enabled-families "$ENABLED_FAMILIES" \
+            --fee-bps 7.5 --spread-bps 1.875 --slippage-bps 3 --max-period VALIDATION \
+            --out reports/15m_regimes/core4/screen_stress_1_5x_eligible
       - name: Require 12-month BingX history and positive IS/validation before opening OOS
         id: research_gate
         run: |
@@ -167,18 +270,23 @@ jobs:
           import os
           from pathlib import Path
 
+          selection_path = Path("reports/15m_regimes/module_selection.json")
+          selection = json.loads(selection_path.read_text()) if selection_path.exists() else {}
+          eligible_families = selection.get("eligible_families", [])
           candidates = {
               "pullback": (
                   Path("reports/15m_pullback/core4/screen_base/summary.json"),
                   Path("reports/15m_pullback/core4/screen_stress_1_5x/summary.json"),
               ),
               "regime": (
-                  Path("reports/15m_regimes/core4/screen_base/summary.json"),
-                  Path("reports/15m_regimes/core4/screen_stress_1_5x/summary.json"),
+                  Path("reports/15m_regimes/core4/screen_base_eligible/summary.json"),
+                  Path("reports/15m_regimes/core4/screen_stress_1_5x_eligible/summary.json"),
               ),
           }
 
-          def qualifies(paths):
+          def qualifies(name, paths):
+              if name == "regime" and not eligible_families:
+                  return False, "no independent family passed IS/validation at base and 1.5x costs"
               base_path, stress_path = paths
               if not base_path.exists() or not stress_path.exists():
                   return False, "missing base/stress summary"
@@ -204,7 +312,7 @@ jobs:
 
           outcomes = {}
           for name, paths in candidates.items():
-              passed, reason = qualifies(paths)
+              passed, reason = qualifies(name, paths)
               outcomes[name] = passed
               print(f"{name}: {'OOS OPEN' if passed else 'OOS CLOSED'} — {reason}")
 
@@ -226,18 +334,24 @@ jobs:
             --signal-timeframe 15m --symbols BTC-USDT,ETH-USDT,SOL-USDT,INJ-USDT \
             --fee-bps 7.5 --spread-bps 1.875 --slippage-bps 3 --max-period OOS \
             --out reports/15m_pullback/core4/oos_stress_1_5x
-      - name: Replay 15m four-family router core OOS at base costs
+      - name: Replay selected-family router core OOS at base costs
         if: steps.research_gate.outputs.regime_pass == 'true'
+        env:
+          ENABLED_FAMILIES: ${{ steps.module_gate.outputs.enabled_families }}
         run: |
           python scripts/research_adaptive_perp_portfolio.py \
             --signal-timeframe 15m --symbols BTC-USDT,ETH-USDT,SOL-USDT,INJ-USDT \
+            --enabled-families "$ENABLED_FAMILIES" \
             --fee-bps 5 --spread-bps 1.25 --slippage-bps 2 --max-period OOS \
             --out reports/15m_regimes/core4/oos_base
-      - name: Replay 15m four-family router core OOS at 1.5x costs
+      - name: Replay selected-family router core OOS at 1.5x costs
         if: steps.research_gate.outputs.regime_pass == 'true'
+        env:
+          ENABLED_FAMILIES: ${{ steps.module_gate.outputs.enabled_families }}
         run: |
           python scripts/research_adaptive_perp_portfolio.py \
             --signal-timeframe 15m --symbols BTC-USDT,ETH-USDT,SOL-USDT,INJ-USDT \
+            --enabled-families "$ENABLED_FAMILIES" \
             --fee-bps 7.5 --spread-bps 1.875 --slippage-bps 3 --max-period OOS \
             --out reports/15m_regimes/core4/oos_stress_1_5x
       - name: Evaluate OOS promotion gates
