@@ -166,3 +166,35 @@ Trace the candidate producer for channel / multi-top signals over the last 24 ho
 - number reaching the arm feed.
 
 Do not loosen confidence, HTF, retest, or risk gates until raw candidate counts prove that a specific filter is incorrectly suppressing valid signals. The 11:50 log shows those final gates were not the cause of zero entries.
+
+
+## Follow-up: active signal paths and recent trade ledger (11 Nov 2026)
+
+### Retest path is configured as shadow, not live
+
+The current `.github/workflows/zeus-live-clock.yml` explicitly sets `ZEUS_RETEST_V1: "shadow"`. In `zeus_channel_boundary.py::_retest_mode`, shadow mode records a retest observation but does not set `would_signal=True`; `live_arm_feed.scan_symbol` therefore does not emit a pending row from that retest. This is a real, deterministic configuration restriction.
+
+However, the four inspected live-clock runs (11:40, 11:45, 11:50, 11:55 UTC) did not log `channel_retest_shadow` / `shadow_retest` events. Therefore the shadow flag is a suppressed strategy path, but the available logs do not prove that a qualifying retest was present during those four ticks. Do not flip it to live on this evidence alone.
+
+### The repeated IDs were previously entered, not downstream gate failures
+
+The current `models/zeus_live_entries.jsonl` contains the exact IDs that the 11:40–11:55 feed skipped:
+- `zeus_channel_boundary|INJ-USDT|long|1794384000000`
+- `zeus_multi_top_breakdown|HYPE-USDT|long|1794380400000`
+
+The trade ledger shows these IDs had already been entered and subsequently exited. The feed uses one signal ID per symbol/strategy/bar and suppresses re-entry on that same bar. This is expected deduplication, not evidence of PF/margin/HTF blocks. The latest four ticks therefore show no fresh eligible signal; they do not show a broken order-entry gate.
+
+### Recent 24-hour ledger snapshot
+
+From the committed `models/zeus_live_trades.jsonl`, using exit rows timestamped in the last 24 hours relative to the latest ledger event:
+- 18 exits with a recognized strategy (8 channel, 10 multi-top);
+- net proxy = `pnl - fees - funding_fee`: +567.79 USDT;
+- 6 positive / 12 negative net-proxy exits;
+- gross positive net-proxy exits +1,149.86 USDT; gross negative net-proxy exits 582.08 USDT; proxy PF 1.98;
+- all 18 rows have `exit_price=null` and `exit_reason="income"`; one additional exit row has no strategy label and is excluded.
+
+This is **not** a verified strategy-performance result. It is an income-ledger proxy; missing exit prices and unknown fill types prevent independent fill reconciliation, and the PnL/fee attribution can be incomplete or delayed. The positive aggregate is dominated by a few larger wins despite a 2:1 loss count. It is enough to reject the claim that the bot has made no trades or that every recent trade is losing; it is not enough to approve a strategy change or declare stable profitability.
+
+### Pragmatic next step
+
+Do not alter the deduplication or enable retest live. First add research-only funnel telemetry to a replay/capture path: per symbol, record the channel diagnostic `stage`, `reject_reason`, `has_channel`, `bars_outside`, retest mode/hit, and multi-top detector result, plus whether a candidate was suppressed by open-position or seen-ID checks. Then capture one full 4h cycle. This directly identifies which producer branch is quiet without relaxing trading rules.
