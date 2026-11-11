@@ -717,7 +717,10 @@ def main() -> int:
     if not args.symbols or unknown_symbols:
         parser.error(f"symbols must be a non-empty subset of {SYMBOLS}; unknown={unknown_symbols}")
     requested_families = (
-        {args.family_only} if args.family_only else enabled_families
+        {args.family_only}
+        if args.family_only
+        else enabled_families if enabled_families is not None
+        else set(REGIME_FAMILIES)
     )
     if (
         "BTC_LEAD_ALT_RESPONSE" in (requested_families or set())
