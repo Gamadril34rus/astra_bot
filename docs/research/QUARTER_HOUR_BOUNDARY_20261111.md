@@ -33,7 +33,7 @@ No parameter grid or threshold tuning is permitted in this first test. Both vari
 
 Fixed horizons are 6, 12, 24 and 48 completed 5m bars after entry (30m, 1h, 2h and 4h). This is an event study, not a stop/target strategy backtest.
 
-The cost-only net return subtracts 4 bps taker fee and 2 bps slippage proxy per side (12 bps round trip). A 1.5x cost stress (18 bps round trip) is reported alongside the base proxy. Funding is deducted only when the downloaded funding history brackets the full entry-to-exit interval and has no detected large timestamp gap. Otherwise funded net return is **UNKNOWN**, not zero.
+The cost-only net return subtracts a 4 bps taker fee plus a 2 bps slippage proxy per side for BTC/ETH (12 bps round trip), and 5 bps slippage per side for SOL/HYPE/INJ (18 bps round trip). A 1.5x cost stress (18 / 27 bps round trip, respectively) is reported alongside the base proxy. Funding is deducted only when the downloaded funding history brackets the full entry-to-exit interval and has no detected large timestamp gap. Otherwise funded net return is **UNKNOWN**, not zero.
 
 There is no historical BingX BBO/depth tape in the current repository. Consequently the cost proxy is not a verified fill model. No historical spread or fill probability is fabricated. No PF/DD/Sharpe claim is made for a portfolio strategy.
 
@@ -45,7 +45,7 @@ There is no historical BingX BBO/depth tape in the current repository. Consequen
 | Validation | 2026-01-01 through 2026-05-31 |
 | OOS | 2026-06-01 through 2026-11-10 (the partial 2026-11-11 UTC day is excluded) |
 
-All symbols use the same calendar boundaries. A symbol's unavailable pre-listing dates remain absent; they are not padded with synthetic candles. The OOS period is evaluated once after the data archive and methodology are frozen.
+All symbols use the same calendar boundaries. A symbol's unavailable pre-listing dates remain absent; they are not padded with synthetic candles. Each event is assigned to a split only if its complete forward outcome stays inside that split; cross-boundary outcomes are purged. The OOS period is evaluated once after the data archive and methodology are frozen.
 
 ## Data collection
 
