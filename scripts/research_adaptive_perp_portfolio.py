@@ -219,6 +219,7 @@ def simulate_symbol(
     fee_bps: float, spread_bps: float, slippage_bps: float,
     diagnostics: dict[str, Any] | None = None,
     bar_minutes: int = 15,
+    start_time_ms: int | None = None,
 ) -> list[dict]:
     if bar_minutes not in (15, 30):
         raise ValueError(f"unsupported signal bar duration: {bar_minutes}")
@@ -267,6 +268,9 @@ def simulate_symbol(
 
     i = WARMUP_BARS
     while i < len(x) - max_hold_bars - 1:
+        if start_time_ms is not None and int(x.iloc[i]["decision_time"]) < start_time_ms:
+            i += 1
+            continue
         signal = choose_signal(x, i)
         if signal is None:
             i += 1
@@ -381,6 +385,56 @@ def common_15m_coverage_window(
         "common_days": round(days, 2),
         "covers_12_months": days >= 365.0,
     }
+
+def simulation_window_for_period(
+    max_period: str,
+    common_start_ms: int,
+    validation_start_ms: int,
+    oos_start_ms: int,
+    common_end_ms: int,
+    interval_ms: int,
+) -> tuple[int, int]:
+    """Return the allowed entry start and exclusive signal-close cutoff.
+
+    IS/validation screens never pass OOS bars to feature calculation or the
+    simulator. OOS-only replay starts flat at the OOS boundary while retaining
+    earlier bars solely as indicator warm-up.
+    """
+    if max_period == "IS":
+        return common_start_ms, validation_start_ms
+    if max_period == "VALIDATION":
+        return common_start_ms, oos_start_ms
+    if max_period == "OOS":
+        return oos_start_ms, common_end_ms + interval_ms
+    if max_period == "ALL":
+        return common_start_ms, common_end_ms + interval_ms
+    raise ValueError(f"unsupported max_period: {max_period}")
+
+
+def clip_bars_for_simulation(
+    signal_bars: pd.DataFrame,
+    hourly_bars: pd.DataFrame,
+    common_start_ms: int,
+    simulation_end_ms: int,
+    interval_ms: int,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Keep indicator warm-up plus only signal/context bars before the cutoff."""
+    if signal_bars.empty:
+        return signal_bars.copy(), hourly_bars.iloc[0:0].copy()
+    warmup_start_ms = max(
+        int(signal_bars.open_time.iloc[0]),
+        common_start_ms - WARMUP_BARS * interval_ms,
+    )
+    signals = signal_bars.loc[
+        (signal_bars.open_time >= warmup_start_ms)
+        & (signal_bars.decision_time < simulation_end_ms)
+    ].copy().reset_index(drop=True)
+    hourly = hourly_bars.loc[
+        hourly_bars.decision_time < simulation_end_ms
+    ].copy().reset_index(drop=True)
+    return signals, hourly
+
+
 def exclude_split_crossing_trades(
     trades: pd.DataFrame, validation_start_ms: int, oos_start_ms: int
 ) -> tuple[pd.DataFrame, int]:
@@ -500,9 +554,9 @@ def main() -> int:
     unknown_symbols = sorted(set(args.symbols) - set(SYMBOLS))
     if not args.symbols or unknown_symbols:
         parser.error(f"symbols must be a non-empty subset of {SYMBOLS}; unknown={unknown_symbols}")
-    all_trades = []
     coverage = {}
-    signal_diagnostics: dict[str, dict[str, Any]] = {}
+    prepared: dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]] = {}
+    interval_ms = INTERVAL_MS[args.signal_timeframe]
     for symbol in args.symbols:
         stem = symbol.replace("-", "")
         signal_path = args.data_dir / f"{stem}_{args.signal_timeframe}.csv"
@@ -511,7 +565,8 @@ def main() -> int:
         for path in (signal_path, h1_path, funding_path):
             if not path.exists():
                 raise SystemExit(f"INCOMPLETE: required BingX source is missing: {path}")
-        signal_bars, h1 = load_bars(signal_path, args.signal_timeframe), load_bars(h1_path, "1h")
+        signal_bars = load_bars(signal_path, args.signal_timeframe)
+        h1 = load_bars(h1_path, "1h")
         funding = load_funding(funding_path, symbol)
         if funding.empty:
             raise SystemExit(f"INCOMPLETE: {symbol} has no BingX funding history")
@@ -526,33 +581,86 @@ def main() -> int:
         )
         if funding.empty:
             raise SystemExit(f"INCOMPLETE: {symbol} has no contiguous BingX funding segment")
-        # Earlier funding history contains multi-day/month holes. Use only the
-        # latest uninterrupted segment, selected solely on data integrity, never PnL.
-        # Trim candles to that segment; do not impute missing funding as zero.
-        signal_bars = signal_bars[signal_bars.open_time >= int(funding.funding_time.iloc[0])].reset_index(drop=True)
+        signal_bars = signal_bars[
+            signal_bars.open_time >= int(funding.funding_time.iloc[0])
+        ].reset_index(drop=True)
         if signal_bars.empty:
-            raise SystemExit(f"INCOMPLETE: {symbol} has no {args.signal_timeframe} candles inside funding coverage")
-        x = add_features(signal_bars, h1)
+            raise SystemExit(
+                f"INCOMPLETE: {symbol} has no {args.signal_timeframe} candles inside funding coverage"
+            )
         coverage[symbol] = {
             f"{args.signal_timeframe}_rows": len(signal_bars),
             f"{args.signal_timeframe}_first": int(signal_bars.open_time.iloc[0]),
-            f"{args.signal_timeframe}_last": int(signal_bars.open_time.iloc[-1]), "1h_rows": len(h1),
-            "1h_first": int(h1.open_time.iloc[0]), "1h_last": int(h1.open_time.iloc[-1]),
+            f"{args.signal_timeframe}_last": int(signal_bars.open_time.iloc[-1]),
+            "1h_rows": len(h1),
+            "1h_first": int(h1.open_time.iloc[0]),
+            "1h_last": int(h1.open_time.iloc[-1]),
             "funding_events": len(funding),
             "funding_events_excluded_before_latest_contiguous_segment": excluded_funding_events,
             "excluded_funding_first": excluded_funding_first,
             "excluded_funding_last": excluded_funding_last,
-            "funding_first": int(funding.funding_time.iloc[0]) if not funding.empty else None,
-            "funding_last": int(funding.funding_time.iloc[-1]) if not funding.empty else None,
+            "funding_first": int(funding.funding_time.iloc[0]),
+            "funding_last": int(funding.funding_time.iloc[-1]),
         }
+        prepared[symbol] = (signal_bars, h1, funding)
+
+    common_window = common_15m_coverage_window(coverage, args.signal_timeframe)
+    common_start_ms = int(
+        pd.Timestamp(common_window["common_start_utc"]).timestamp() * 1000
+    )
+    common_end_ms = int(
+        pd.Timestamp(common_window["common_end_utc"]).timestamp() * 1000
+    )
+    split_span = common_end_ms - common_start_ms
+    validation_start_ms = common_start_ms + int(split_span * 0.60)
+    oos_start_ms = common_start_ms + int(split_span * 0.80)
+    trade_start_ms, simulation_end_ms = simulation_window_for_period(
+        args.max_period,
+        common_start_ms,
+        validation_start_ms,
+        oos_start_ms,
+        common_end_ms,
+        interval_ms,
+    )
+    simulation_window = {
+        "trade_start_utc": pd.to_datetime(
+            trade_start_ms, unit="ms", utc=True
+        ).isoformat(),
+        "exclusive_signal_close_cutoff_utc": pd.to_datetime(
+            simulation_end_ms, unit="ms", utc=True
+        ).isoformat(),
+        "oos_bars_processed": args.max_period in ("OOS", "ALL"),
+    }
+
+    all_trades = []
+    signal_diagnostics: dict[str, dict[str, Any]] = {}
+    for symbol in args.symbols:
+        signal_bars, h1, funding = prepared[symbol]
+        signal_bars, h1 = clip_bars_for_simulation(
+            signal_bars,
+            h1,
+            common_start_ms,
+            simulation_end_ms,
+            interval_ms,
+        )
+        if signal_bars.empty:
+            raise SystemExit(
+                f"INCOMPLETE: {symbol} has no signal bars before the {args.max_period} cutoff"
+            )
+        x = add_features(signal_bars, h1)
         symbol_diagnostics: dict[str, Any] = {}
         all_trades.extend(simulate_symbol(
-            symbol, x, funding, args.fee_bps, args.spread_bps, args.slippage_bps,
+            symbol,
+            x,
+            funding,
+            args.fee_bps,
+            args.spread_bps,
+            args.slippage_bps,
             diagnostics=symbol_diagnostics,
-            bar_minutes=INTERVAL_MS[args.signal_timeframe] // 60_000,
+            bar_minutes=interval_ms // 60_000,
+            start_time_ms=trade_start_ms,
         ))
         signal_diagnostics[symbol] = symbol_diagnostics
-    common_window = common_15m_coverage_window(coverage, args.signal_timeframe)
     trade_columns = [
         "symbol", "family", "side", "entry_time", "exit_time", "hold_minutes",
         "exit_reason", "gross_pct", "fee_pct", "spread_pct", "slippage_pct",
@@ -581,6 +689,11 @@ def main() -> int:
             "signal_timeframe": args.signal_timeframe,
             "symbols": list(args.symbols),
             "max_period": args.max_period,
+            "simulation_window": simulation_window,
+            "split_boundaries_utc": {
+                "validation_start": pd.to_datetime(validation_start_ms, unit="ms", utc=True).isoformat(),
+                "oos_start": pd.to_datetime(oos_start_ms, unit="ms", utc=True).isoformat(),
+            },
             "boundary_excluded_trades": 0,
             "signal_diagnostics": signal_diagnostics,
             "by_period": {},
@@ -596,15 +709,10 @@ def main() -> int:
         )
         print(json.dumps(report, indent=2))
         return 0
-    common_start_ms = int(pd.Timestamp(common_window["common_start_utc"]).timestamp() * 1000)
-    common_end_ms = int(pd.Timestamp(common_window["common_end_utc"]).timestamp() * 1000)
     trades = trades[
         (trades.entry_time >= common_start_ms)
         & (trades.exit_time <= common_end_ms)
     ].copy()
-    split_span = common_end_ms - common_start_ms
-    validation_start_ms = common_start_ms + int(split_span * 0.60)
-    oos_start_ms = common_start_ms + int(split_span * 0.80)
     trades, boundary_excluded_trades = exclude_split_crossing_trades(
         trades, validation_start_ms, oos_start_ms
     )
@@ -648,6 +756,7 @@ def main() -> int:
         "signal_timeframe": args.signal_timeframe,
         "symbols": list(args.symbols),
         "max_period": args.max_period,
+        "simulation_window": simulation_window,
         "boundary_excluded_trades": boundary_excluded_trades,
         "split_boundaries_utc": {
             "validation_start": pd.to_datetime(validation_start_ms, unit="ms", utc=True).isoformat(),
@@ -671,7 +780,7 @@ def main() -> int:
                 family: summarize(group, oos_start_period, calendar_end)
                 for family, group in trades[trades.period == "OOS"].groupby("family")
             }
-            if args.max_period == "ALL" else {}
+            if args.max_period in ("ALL", "OOS") else {}
         ),
         "oos_by_symbol_side": (
             {
@@ -680,7 +789,7 @@ def main() -> int:
                     ["symbol", "side"]
                 )
             }
-            if args.max_period == "ALL" else {}
+            if args.max_period in ("ALL", "OOS") else {}
         ),
         "by_family_symbol_side": {
             f"{family}_{symbol}_{side}": summarize(group, calendar_start, analysis_end_period)
@@ -693,7 +802,7 @@ def main() -> int:
                     ["family", "symbol", "side"]
                 )
             }
-            if args.max_period == "ALL" else {}
+            if args.max_period in ("ALL", "OOS") else {}
         ),
         "combined": summarize(trades, calendar_start, analysis_end_period),
         "warning": "Equal-notional drawdown is a realized-PnL proxy with each trade weighted at 1/max-concurrency of starting equity (peak gross exposure 1x); it omits intratrade mark-to-market, margin and liquidation. Trade-sequence drawdown is also shown. Funding uses entry-notional approximation. OHLC fills are proxies, not confirmed exchange fills. IS/validation/OOS are chronological 60/20/20 splits of the common signal-timeframe window. No live/paper activation." + (f" Common {args.signal_timeframe} history is shorter than 12 months; this run is insufficient for a profitability promotion claim." if not common_window["covers_12_months"] else "")
