@@ -117,44 +117,74 @@ def test_stale_not_fresh():
     assert not is_fresh(row, max_sec=600)
 
 
-def test_zone_trade_filter_vetoes_only_near_opposing_boundary():
+def test_zone_trade_filter_uses_candidate_risk_for_long_and_short():
     from astra_bot.decision.live_arm_feed import _zone_trade_filter_decision
 
-    near_long = _zone_trade_filter_decision(
-        "long", 100.0, [{"lower": 100.8, "upper": 102.0}]
+    long_row = {"side": "long", "entry": 100.0, "stop": 95.0, "tp": 120.0}
+    blocked_long = _zone_trade_filter_decision(
+        long_row, [{"lower": 104.0, "upper": 106.0}]
     )
-    assert not near_long["accepted"]
-    assert near_long["state"] == "OUTSIDE_NEAR"
-    assert near_long["distance_pct"] == 0.8
+    assert not blocked_long["accepted"]
+    assert blocked_long["state"] == "ROOM_TOO_SMALL"
+    assert blocked_long["room_r"] == 0.8
+    assert blocked_long["required_room_r"] == 2.0
 
-    far_long = _zone_trade_filter_decision(
-        "long", 100.0, [{"lower": 102.0, "upper": 103.0}]
+    clear_long = _zone_trade_filter_decision(
+        long_row, [{"lower": 112.0, "upper": 114.0}]
     )
-    assert far_long["accepted"]
-    assert far_long["state"] == "OUTSIDE_FAR"
+    assert clear_long["accepted"]
+    assert clear_long["state"] == "ROOM_OK"
 
-    near_short = _zone_trade_filter_decision(
-        "short", 100.0, [{"lower": 98.0, "upper": 99.2}]
+    short_row = {"side": "short", "entry": 100.0, "stop": 105.0, "tp": 80.0}
+    blocked_short = _zone_trade_filter_decision(
+        short_row, [{"lower": 94.0, "upper": 96.0}]
     )
-    assert not near_short["accepted"]
-    assert near_short["boundary"] == 99.2
+    assert not blocked_short["accepted"]
+    assert blocked_short["boundary"] == 96.0
+    assert blocked_short["room_r"] == 0.8
 
 
-def test_zone_trade_filter_keeps_in_zone_and_empty_zone_cases():
+def test_zone_trade_filter_uses_far_edge_when_entry_is_inside_zone():
     from astra_bot.decision.live_arm_feed import _zone_trade_filter_decision
 
-    inside = _zone_trade_filter_decision(
-        "long", 100.0, [{"lower": 99.0, "upper": 101.0}]
+    row = {"side": "long", "entry": 100.0, "stop": 95.0, "tp": 120.0}
+    decision = _zone_trade_filter_decision(
+        row, [{"lower": 98.0, "upper": 103.0}]
     )
-    assert inside["accepted"] and inside["state"] == "IN_ZONE"
+    assert not decision["accepted"]
+    assert decision["boundary"] == 103.0
+    assert decision["room_r"] == 0.6
 
-    empty = _zone_trade_filter_decision("short", 100.0, [])
-    assert empty["accepted"] and empty["state"] == "EMPTY_ZONES"
 
-
-def test_zone_trade_filter_fails_closed_on_unknown_zone_data():
+def test_zone_trade_filter_does_not_veto_zone_beyond_target_or_empty_data():
     from astra_bot.decision.live_arm_feed import _zone_trade_filter_decision
 
-    missing = _zone_trade_filter_decision("long", 100.0, None)
+    row = {"side": "long", "entry": 100.0, "stop": 95.0, "tp": 110.0}
+    beyond = _zone_trade_filter_decision(
+        row, [{"lower": 112.0, "upper": 114.0}]
+    )
+    assert beyond["accepted"]
+    assert beyond["state"] == "ZONE_BEYOND_TARGET"
+
+    empty = _zone_trade_filter_decision(row, [])
+    assert empty["accepted"]
+    assert empty["state"] == "EMPTY_ZONES"
+
+
+def test_zone_trade_filter_fails_closed_on_unknown_or_invalid_candidate():
+    from astra_bot.decision.live_arm_feed import _zone_trade_filter_decision
+
+    row = {"side": "long", "entry": 100.0, "stop": 95.0, "tp": 120.0}
+    missing = _zone_trade_filter_decision(row, None)
     assert not missing["accepted"]
     assert missing["state"] == "UNKNOWN"
+
+    malformed = _zone_trade_filter_decision(row, [{"lower": 102.0}])
+    assert not malformed["accepted"]
+    assert malformed["state"] == "UNKNOWN"
+
+    invalid = _zone_trade_filter_decision(
+        {"side": "long", "entry": 100.0, "stop": 105.0, "tp": 120.0}, []
+    )
+    assert not invalid["accepted"]
+    assert invalid["state"] == "UNKNOWN"
