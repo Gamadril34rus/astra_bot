@@ -31,8 +31,9 @@ jobs:
         run: python -m pip install aiohttp numpy pandas
       - name: Read the canonical per-symbol history start times
         run: |
-          git fetch --no-tags origin research/positioning-data
-          git show FETCH_HEAD:data/bingx_usdm/manifest.json > reference-manifest.json
+          curl --fail --location --retry 3 --retry-delay 2 \
+            https://raw.githubusercontent.com/Gamadril34rus/astra_bot/research/positioning-data/data/bingx_usdm/manifest.json \
+            --output reference-manifest.json
       - name: Download 5m candles and historical funding, then run frozen study
         run: |
           python scripts/research/quarter_hour_boundary.py \
