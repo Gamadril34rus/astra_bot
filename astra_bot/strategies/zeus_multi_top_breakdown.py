@@ -60,6 +60,7 @@ def detect_multi_top_breakdown(
     stop_buffer_pct: float = 0.002,
     tp1_rr: float = 0.6,
     require_close_break: bool = True,
+    entry_price: float | None = None,
 ) -> BreakdownSignal | None:
     """Short after 2-3 flat swing highs + close below neckline.
 
@@ -97,14 +98,15 @@ def detect_multi_top_breakdown(
         if i >= 1 and float(closes[i - 1]) < neck:
             continue
         stop = max(top_px) * (1.0 + stop_buffer_pct)
-        risk = stop - close
+        entry = float(entry_price) if entry_price is not None else close
+        risk = stop - entry
         if risk <= 0:
             continue
-        tp = close - risk * tp1_rr
+        tp = entry - risk * tp1_rr
         conf = min(0.55 + 0.08 * (len(use) - 2) + 0.05, 0.85)
         return BreakdownSignal(
             side="short",
-            entry=close,
+            entry=entry,
             stop=stop,
             take_profit=tp,
             confidence=conf,
@@ -134,6 +136,7 @@ def detect_multi_bottom_breakout(
     stop_buffer_pct: float = 0.002,
     tp1_rr: float = 0.6,
     require_close_break: bool = True,
+    entry_price: float | None = None,
 ) -> BreakdownSignal | None:
     """Long mirror: 2-3 flat swing lows + close above neckline."""
     n = len(closes)
@@ -163,14 +166,15 @@ def detect_multi_bottom_breakout(
         if i >= 1 and float(closes[i - 1]) > neck:
             continue
         stop = min(bot_px) * (1.0 - stop_buffer_pct)
-        risk = close - stop
+        entry = float(entry_price) if entry_price is not None else close
+        risk = entry - stop
         if risk <= 0:
             continue
-        tp = close + risk * tp1_rr
+        tp = entry + risk * tp1_rr
         conf = min(0.55 + 0.08 * (len(use) - 2) + 0.05, 0.85)
         return BreakdownSignal(
             side="long",
-            entry=close,
+            entry=entry,
             stop=stop,
             take_profit=tp,
             confidence=conf,
