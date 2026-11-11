@@ -438,6 +438,7 @@ def event_outcomes(
                 {
                     "symbol": event.symbol,
                     "decision_time": event.decision_time,
+                    "exit_time": pd.to_datetime(exit_ms, unit="ms", utc=True),
                     "variant": event.variant,
                     "horizon": horizon,
                     "side": side,
@@ -461,17 +462,21 @@ def event_outcomes(
     return pd.DataFrame(
         rows,
         columns=[
-            "symbol", "decision_time", "variant", "horizon", "side",
+            "symbol", "decision_time", "exit_time", "variant", "horizon", "side",
             "gross_bps", "cost_only_net_bps", "stress_net_bps", "funding_bps",
             "funded_net_bps", "funded_stress_net_bps", "funding_complete",
         ],
     )
 
 
-def _split_for_time(value: pd.Timestamp) -> str | None:
-    day = value.date().isoformat()
+def _split_for_interval(
+    decision_time: pd.Timestamp, exit_time: pd.Timestamp
+) -> str | None:
+    """Assign an event only if its complete outcome stays inside one split."""
     for name, start, end in SPLITS:
-        if start <= day <= end:
+        period_start = pd.Timestamp(start, tz="UTC")
+        period_end = pd.Timestamp(end, tz="UTC") + pd.Timedelta(days=1)
+        if period_start <= decision_time < period_end and exit_time <= period_end:
             return name
     return None
 
@@ -548,7 +553,11 @@ def run_study(data_dir: Path, report_path: Path) -> dict[str, Any]:
 
     outcomes = pd.concat(all_outcomes, ignore_index=True)
     outcomes["decision_time"] = pd.to_datetime(outcomes["decision_time"], utc=True)
-    outcomes["split"] = outcomes["decision_time"].map(_split_for_time)
+    outcomes["exit_time"] = pd.to_datetime(outcomes["exit_time"], utc=True)
+    outcomes["split"] = outcomes.apply(
+        lambda row: _split_for_interval(row["decision_time"], row["exit_time"]),
+        axis=1,
+    )
     outcomes = outcomes.loc[outcomes["split"].notna()].copy()
     grouped = []
     keys = ["split", "variant", "symbol", "horizon"]
