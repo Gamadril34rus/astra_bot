@@ -1,0 +1,38 @@
+{
+  "study": "quarter_hour_boundary",
+  "exchange": "BingX",
+  "market": "USDT-M perpetual",
+  "symbols": ["BTC-USDT", "ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT"],
+  "signal_timeframe": "5m",
+  "event_boundaries_utc_minutes": [0, 15, 30, 45],
+  "impulse_return_abs_min": 0.003,
+  "impulse_return_abs_max": 0.015,
+  "volume_multiple_vs_prior_20_bar_median": 1.5,
+  "trend_filter": "last fully closed 4h candle: EMA20 vs EMA50 and close vs EMA20",
+  "entry_proxy": "open of next 5m candle",
+  "variants": {
+    "REVERSAL": "fade impulse only when completed 4h trend opposes it",
+    "CONTINUATION": "follow impulse only when completed 4h trend confirms it"
+  },
+  "horizons_bars": {
+    "30m": 6,
+    "1h": 12,
+    "2h": 24,
+    "4h": 48
+  },
+  "costs_bps_per_side": {
+    "taker_fee": 4,
+    "slippage_proxy": 2
+  },
+  "splits_utc_inclusive": {
+    "IS": ["2025-07-09", "2025-12-31"],
+    "VALIDATION": ["2026-01-01", "2026-05-31"],
+    "OOS": ["2026-06-01", "2026-11-11"]
+  },
+  "bootstrap": {
+    "method": "UTC-day cluster bootstrap",
+    "replicates": 2000,
+    "seed": 20261111
+  },
+  "important": "Event study only; not a strategy backtest or executable fill simulation."
+}
