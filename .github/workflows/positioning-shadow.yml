@@ -32,7 +32,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: research/positioning-data
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Checkout collection code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -86,35 +86,13 @@ jobs:
           python source/scripts/archive_bingx_usdm_candles.py \
             --mode daily --start-date 2021-01-01 --timeframes 30m
 
-      - name: Detect one-time historical taker-buy backfill
-        id: taker_backfill
-        if: steps.state.outputs.initialized == 'true'
-        shell: bash
-        run: |
-          marker="data/bingx_usdm/.positioning_taker_buy_backfill_v1"
-          if [[ -f "$marker" ]]; then
-            echo "required=false" >> "$GITHUB_OUTPUT"
-            echo "Historical taker-buy backfill already completed."
-          else
-            echo "required=true" >> "$GITHUB_OUTPUT"
-            echo "Historical taker-buy fields are not marked complete; a full one-time re-fetch is required."
-          fi
-
-      - name: Backfill historical taker-buy volume fields once
-        if: steps.state.outputs.initialized == 'true' && steps.taker_backfill.outputs.required == 'true'
-        run: |
-          python source/scripts/archive_bingx_usdm_candles.py \
-            --mode daily --start-date 2021-01-01 --timeframes 30m \
-            --refresh-optional-fields
-          touch data/bingx_usdm/.positioning_taker_buy_backfill_v1
-
       - name: Capture current public BingX total open interest
         if: steps.state.outputs.initialized == 'true'
         run: |
           python source/scripts/archive_bingx_open_interest.py \
             --data-dir data/bingx_usdm/open_interest
 
-      - name: Build descriptive price/OI/taker-flow shadow report
+      - name: Build descriptive price/OI shadow report (taker flow optional)
         if: steps.state.outputs.initialized == 'true'
         run: |
           python source/scripts/analyze_bingx_positioning_shadow.py \
