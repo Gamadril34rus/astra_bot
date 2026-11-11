@@ -83,9 +83,9 @@ def test_event_study_enters_next_bar_and_charges_round_trip_cost() -> None:
     row = outcomes.loc[outcomes["horizon"] == "30m"].iloc[0]
     assert np.isclose(row["gross_bps"], 100.0)
     assert np.isclose(
-        row["cost_only_net_bps"], 100.0 - ROUND_TRIP_COST_BPS
+        row["cost_only_net_bps"], 100.0 - ROUND_TRIP_COST_BPS["BTC-USDT"]
     )
-    assert np.isclose(row["stress_net_bps"], 100.0 - STRESS_ROUND_TRIP_COST_BPS)
+    assert np.isclose(row["stress_net_bps"], 100.0 - STRESS_ROUND_TRIP_COST_BPS["BTC-USDT"])
     assert bool(row["funding_complete"])
 
 
@@ -127,3 +127,9 @@ def test_outcomes_crossing_split_boundary_are_purged() -> None:
         pd.Timestamp("2025-12-31T18:00:00Z"),
         pd.Timestamp("2025-12-31T22:00:00Z"),
     ) == "IS"
+
+
+def test_altcoin_slippage_is_not_understated() -> None:
+    assert ROUND_TRIP_COST_BPS["BTC-USDT"] == 12.0
+    assert ROUND_TRIP_COST_BPS["SOL-USDT"] == 18.0
+    assert STRESS_ROUND_TRIP_COST_BPS["SOL-USDT"] == 27.0
