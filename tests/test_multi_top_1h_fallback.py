@@ -117,7 +117,7 @@ async def test_scan_prefers_4h_when_present(monkeypatch):
         return bars
 
     class Silent:
-        async def evaluate(self, symbol, series):
+        async def evaluate(self, symbol, series, current_price=None):
             return None
 
     monkeypatch.setattr("astra_bot.decision.live_arm_feed.fetch_candles", fake_candles)
@@ -146,7 +146,7 @@ async def test_intrabar_break_without_closed_break_is_not_a_signal(monkeypatch):
         return bars
 
     class Silent:
-        async def evaluate(self, symbol, series):
+        async def evaluate(self, symbol, series, current_price=None):
             return None
 
     monkeypatch.setattr("astra_bot.decision.live_arm_feed.fetch_candles", fake_candles)
