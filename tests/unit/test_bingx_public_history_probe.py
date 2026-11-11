@@ -36,3 +36,15 @@ def test_kline_probe_summary_handles_mark_price_objects() -> None:
     assert summary["rows"] == 2
     assert summary["first_open_utc"] is not None
     assert summary["last_open_utc"] is not None
+
+
+
+def test_kline_probe_summary_handles_bingx_object_rows() -> None:
+    rows = [
+        {"openTime": 1_700_000_000_000},
+        {"openTime": 1_700_000_900_000},
+    ]
+    summary = _kline_summary(rows)
+    assert summary["rows"] == 2
+    assert summary["first_open_utc"] is not None
+    assert summary["last_open_utc"] is not None
