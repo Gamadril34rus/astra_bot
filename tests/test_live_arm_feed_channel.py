@@ -156,13 +156,13 @@ def test_zone_trade_filter_uses_far_edge_when_entry_is_inside_zone():
     assert decision["room_r"] == 0.6
 
 
-def test_zone_trade_filter_does_not_veto_empty_or_missing_opposing_zones():
+def test_zone_trade_filter_fails_closed_on_empty_but_passes_when_no_zone_ahead():
     from astra_bot.decision.live_arm_feed import _zone_trade_filter_decision
 
     row = {"side": "long", "entry": 100.0, "stop": 95.0, "tp": 110.0}
     empty = _zone_trade_filter_decision(row, [])
-    assert empty["accepted"]
-    assert empty["state"] == "EMPTY_ZONES"
+    assert not empty["accepted"]
+    assert empty["state"] == "UNKNOWN"
 
     behind = _zone_trade_filter_decision(
         row, [{"lower": 90.0, "upper": 95.0}]
