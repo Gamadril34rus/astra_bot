@@ -10,7 +10,7 @@ ASTRA BOT движется от бумажного симулятора к уп�
 
 | № PR | дата (МСК) | заголовок | что сделано — одной строкой |
 |---:|:---:|---|---|
-| [#359](https://github.com/Gamadril34rus/astra_bot/pull/359) | 2026-11-12 00:15 | fix(live): persist compact zone filter decisions | Открыт: отдельный `models/zone_trade_filter.jsonl` для решений фильтра; оба журнала обязательны (fail-closed), добавлены state-size cap и rotation registry. CI проверяется. |
+| [#359](https://github.com/Gamadril34rus/astra_bot/pull/359) | 2026-11-12 00:26 | fix(live): persist compact zone filter decisions | Влит: отдельный `models/zone_trade_filter.jsonl` для каждого решения; оба журнала обязательны (fail-closed), добавлены state-size cap и rotation registry; тесты и все quality gates зелёные. |
 | [#358](https://github.com/Gamadril34rus/astra_bot/pull/358) | 2026-11-12 00:12 | feat(live): apply volume-zone veto to Zeus entries | VST-only эксперимент: LONG/SHORT блокируются, если ближайшая объёмная зона лежит между плановым entry и TP; подтверждение сигналов только по закрытым 4h/1h свечам, REAL off. |
 | [#355](https://github.com/Gamadril34rus/astra_bot/pull/355) | 2026-11-12 00:23 | fix(live-feed): use closed bars for entry signals | Закрыт без merge как superseded: закрыто-свечная логика 4h/1h перенесена в merged PR #358. |
 | [#356](https://github.com/Gamadril34rus/astra_bot/pull/356) | 2026-11-11 15:22 | fix(live): apply session BE threshold before stop sync | Открыт draft: порядок применения session BE threshold перед stop sync; независим от зонального фильтра, не слит. |
