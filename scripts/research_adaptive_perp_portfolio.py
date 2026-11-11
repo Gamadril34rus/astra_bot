@@ -720,7 +720,7 @@ def main() -> int:
         {args.family_only}
         if args.family_only
         else enabled_families if enabled_families is not None
-        else set(REGIME_FAMILIES)
+        else set()
     )
     if (
         "BTC_LEAD_ALT_RESPONSE" in (requested_families or set())
@@ -846,7 +846,7 @@ def main() -> int:
         x = add_features(
             signal_bars,
             h1,
-            btc_h1=btc_h1_context,
+            btc_h1=btc_h1_context if interval_ms == 900_000 else None,
             is_btc=(symbol == "BTC-USDT"),
         )
         symbol_diagnostics: dict[str, Any] = {}
