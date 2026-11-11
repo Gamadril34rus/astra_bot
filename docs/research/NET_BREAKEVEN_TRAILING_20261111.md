@@ -235,3 +235,14 @@ Run on archived 1h/4h OHLCV with costs and report per-symbol, per-strategy resul
 A separate draft PR was opened: [#355](https://github.com/Gamadril34rus/astra_bot/pull/355). It applies closed-candle confirmation only to the multi-top/multi-bottom fallback, retains the current forming candle solely as the execution-price reference, and stamps the signal with the confirmed bar timestamp. It adds tests for both timeframe paths and an intrabar-only false break. The channel strategy is deliberately untouched because its execution-price semantics need a separate design.
 
 PR #355 is draft-only and unmerged. Its CI is pending at the time of this update. No production or master change has been made.
+
+
+### New live-clock tick after the quiet window (12:00 UTC)
+
+The next master live-clock run, `43016677831` (job `130509402713`), no longer had an empty feed. It generated one `zeus_channel_boundary` candidate for INJ-USDT short and opened it in VST at approximately 12:03:09 UTC:
+- signal ID: `zeus_channel_boundary|INJ-USDT|short|1794398400000` (12:00 UTC 4h bar);
+- recorded fill: 7.896; quantity 783.88617651; leverage 6;
+- initial stop: 8.40397623; TP1: 7.62281307;
+- both stop and TP protection placement events were written; `pending_verify=false` in the committed position snapshot.
+
+This confirms the 11:40–11:55 empty-feed finding was a time-bounded quiet interval, not a persistent dead scanner. The new entry came from the channel strategy, not the multi-top fallback, so it neither validates nor invalidates the multi-top closed-candle correction. Monitor this VST trade through its exit; do not infer profitability from an open position.
