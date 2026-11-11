@@ -30,7 +30,6 @@ IMPULSE_MIN = 0.003
 IMPULSE_MAX = 0.015
 VOLUME_MULTIPLE = 1.5
 HORIZONS = {"30m": 1, "1h": 2, "2h": 4, "4h": 8}
-SPLIT_END_MS = int(pd.Timestamp("2026-11-11T00:00:00Z").timestamp() * 1000)
 LOG = logging.getLogger("quarter_hour_boundary_coarse")
 
 
@@ -59,11 +58,17 @@ def _load_30m(path: Path, expected: dict[str, Any]) -> pd.DataFrame:
         "bars": len(frame),
         "gaps": gaps,
     }
-    for key in ("first_open_time", "last_open_time", "bars", "gaps"):
-        expected_value = expected.get(key)
+    manifest_keys = {
+        "first_open_time": "first_open_time",
+        "last_open_time": "last_open_time",
+        "bars": "bar_count",
+        "gaps": "gap_count",
+    }
+    for key, manifest_key in manifest_keys.items():
+        expected_value = expected.get(manifest_key)
         if expected_value is not None and checks[key] != int(expected_value):
             raise ValueError(
-                f"{path.name} manifest mismatch {key}: "
+                f"{path.name} manifest mismatch {manifest_key}: "
                 f"csv={checks[key]} manifest={expected_value}"
             )
     if gaps:
