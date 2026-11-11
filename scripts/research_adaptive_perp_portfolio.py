@@ -643,6 +643,13 @@ def main() -> int:
             simulation_end_ms,
             interval_ms,
         )
+        funding = funding.loc[
+            funding.funding_time < simulation_end_ms
+        ].copy().reset_index(drop=True)
+        if funding.empty:
+            raise SystemExit(
+                f"INCOMPLETE: {symbol} has no BingX funding events before the simulation cutoff"
+            )
         if signal_bars.empty:
             raise SystemExit(
                 f"INCOMPLETE: {symbol} has no signal bars before the {args.max_period} cutoff"
