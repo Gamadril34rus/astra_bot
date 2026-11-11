@@ -166,7 +166,7 @@ def detect_multi_bottom_breakout(
         if i >= 1 and float(closes[i - 1]) > neck:
             continue
         stop = min(bot_px) * (1.0 - stop_buffer_pct)
-        entry = float(entry_price) if entry_price is not None else close
+        entry = float(entry_price) if entry_price is not None and float(entry_price) > 0 else close
         risk = entry - stop
         if risk <= 0:
             continue
