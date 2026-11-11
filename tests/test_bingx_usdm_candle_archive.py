@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
-
-from scripts import archive_bingx_usdm_candles as candle_archive
 from pathlib import Path
 
 import pytest
+
+from scripts import archive_bingx_usdm_candles as candle_archive
 from scripts.archive_bingx_usdm_candles import (
     DEFAULT_TIMEFRAMES,
     TIMEFRAME_MS,
