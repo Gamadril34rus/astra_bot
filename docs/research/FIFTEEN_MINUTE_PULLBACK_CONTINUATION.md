@@ -97,3 +97,8 @@ The research router now supports --enabled-families and explicit NONE. The workf
 The public-history probe now samples 500-minute windows of actual BingX USDT-M 1m swap candles at seven dates from 2025-08-08 through 2026-11-10. This is only a depth test for a possible exact OHLCV aggregation into 15m bars; it does not authorize 1m/5m signals or minute trading. Aggregation will be considered only if every source minute is present, unique, correctly aligned and sourced from the same BingX swap contract. No incomplete window may be silently filled.
 
 The previous router's by_family values must not be treated as independent module evidence. The new independent reports supersede those breakdowns for future selection. The PR #347 research branch remains Draft and unmerged; no production, VST or REAL settings are changed.
+
+
+### 2026-11-11 relative-volume unit correction
+
+A code review found that the previous quote-volume fallback selected quote volume on positive rows and base volume on zero rows. Those quantities have different units, so a single missing/zero quote-volume observation could distort the rolling relative-volume ratio and therefore alter signal eligibility. The research feature path now selects quote volume only when it is complete and internally consistent across the symbol history; otherwise it uses base volume for the entire symbol history. It never mixes the two units row by row. Regression tests cover both the shared regime screen and the dedicated 15m pullback feature path. This is a data-integrity correction, not a strategy-rule change.
