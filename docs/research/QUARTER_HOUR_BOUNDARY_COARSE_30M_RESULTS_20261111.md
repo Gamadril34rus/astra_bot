@@ -13,7 +13,7 @@ This does **not** falsify the original 5m/15m hypothesis. Historical 5m and 15m 
 
 ## Data feasibility and quality
 
-A BingX public-kline probe returned 100 latest 5m candles but 0 rows at the IS, Validation and OOS sample dates. The same result held for 15m. Historical 30m data was available at all sample dates.
+A BingX public-kline probe for BTC-USDT returned 100 latest 5m candles but 0 rows at the IS, Validation and OOS sample dates. The same BTC-USDT probe returned 0 historical 15m rows. It returned 100 historical 30m candles at all three sample dates. The 30m archive itself was verified for all five symbols; 5m/15m availability was not probed separately for every symbol.
 
 The canonical 30m archives below were verified against the positioning-data manifest. All have zero gaps and zero populated taker-buy-volume rows.
 
