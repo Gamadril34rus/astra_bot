@@ -421,18 +421,19 @@ async def scan_symbol(
             zone_ctx = zone_context(price_now, cached[1])
     except Exception as exc:
         logger.warning("zone shadow context failed %s: %s", symbol, type(exc).__name__)
-    # Live parity with paper: feed sees the SAME candle the paper engine uses
-    # (including the forming bar). bar_ts = open_time of that last candle.
+    # Entry decisions use confirmed candles only. The forming candle is
+    # retained solely as the current execution-price reference.
     series = list(candles)
-    if len(series) < 30:
+    live_price = _candle_value(series[-1], "close")
+    closed_series = series[:-1] if len(series) > 1 else series
+    if len(closed_series) < 30 or live_price <= 0:
         return None
-    last = series[-1]
-    bar_ts = int(getattr(last, "open_time", 0) or 0)
+    bar_ts = int(getattr(closed_series[-1], "open_time", 0) or 0)
     if bar_ts <= 0:
-        logger.warning("arm feed: %s bar missing open_time - skip", symbol)
+        logger.warning("arm feed: %s closed bar/live price missing - skip", symbol)
         return None
     try:
-        sig = await strat.evaluate(symbol, series)
+        sig = await strat.evaluate(symbol, closed_series, current_price=live_price)
     except Exception as exc:
         logger.warning("arm feed: %s evaluate failed: %s", symbol, type(exc).__name__)
         sig = None
@@ -451,7 +452,7 @@ async def scan_symbol(
             return None
     # Proxy v1: ZEUS_RETEST_V1=shadow → journal only (no pending row / no live entry).
     try:
-        diag = strat.diagnose(series)
+        diag = strat.diagnose(closed_series, current_price=live_price)
         shadow = (diag or {}).get("shadow_retest")
         if shadow:
             logger.info(
@@ -484,20 +485,27 @@ async def scan_symbol(
     br = None
     src_tf = "4h"
     try:
-        highs, lows, closes = series_from_candles(series)
-        br = detect_breakdown_from_ohlc(highs, lows, closes)
+        if len(closed_series) >= 30:
+            highs, lows, closes = series_from_candles(closed_series)
+            br = detect_breakdown_from_ohlc(
+                highs, lows, closes, entry_price=live_price,
+            )
     except Exception as exc:
         logger.warning("arm feed: %s breakdown 4h failed: %s", symbol, type(exc).__name__)
     if br is None:
         try:
             c1h = await fetch_candles(client, symbol, timeframe="1h", limit=120)
             if c1h and len(c1h) >= 30:
-                h1, l1, cl1 = series_from_candles(list(c1h))
-                br = detect_breakdown_from_ohlc(h1, l1, cl1)
-                if br is not None:
-                    src_tf = "1h"
-                    last1 = c1h[-1]
-                    bar_ts = int(getattr(last1, "open_time", 0) or bar_ts)
+                closed_1h = list(c1h[:-1]) if len(c1h) > 1 else list(c1h)
+                if len(closed_1h) >= 30:
+                    h1, l1, cl1 = series_from_candles(closed_1h)
+                    br = detect_breakdown_from_ohlc(
+                        h1, l1, cl1,
+                        entry_price=_candle_value(c1h[-1], "close"),
+                    )
+                    if br is not None:
+                        src_tf = "1h"
+                        bar_ts = int(getattr(closed_1h[-1], "open_time", 0) or bar_ts)
         except Exception as exc:
             logger.warning("arm feed: %s breakdown 1h failed: %s", symbol, type(exc).__name__)
     if br is None:
