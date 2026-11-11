@@ -573,7 +573,7 @@ def test_validation_screen_clips_signal_and_hourly_bars_before_oos() -> None:
     assert trade_start == common_start
     assert clipped_signal["decision_time"].max() < cutoff
     assert clipped_hourly["decision_time"].max() < cutoff
-    assert clipped_signal["open_time"].min() == common_start - 120 * interval
+    assert clipped_signal["open_time"].min() == max(0, common_start - 120 * interval)
 
 
 def test_oos_only_window_starts_flat_at_oos_boundary() -> None:
