@@ -22,7 +22,8 @@
   },
   "costs_bps_per_side": {
     "taker_fee": 4,
-    "slippage_proxy": 2
+    "slippage_proxy": 2,
+    "stress_multiplier": 1.5
   },
   "splits_utc_inclusive": {
     "IS": ["2025-07-09", "2025-12-31"],
