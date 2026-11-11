@@ -13,6 +13,7 @@ from scripts.research_adaptive_perp_portfolio import (
     MAX_HOLD_BARS,
     add_features,
     choose_signal,
+    choose_signals,
     clip_bars_for_simulation,
     common_15m_coverage_window,
     exclude_split_crossing_trades,
@@ -613,3 +614,76 @@ def test_simulator_skips_signals_before_requested_oos_start(monkeypatch) -> None
     )
     assert len(trades) == 1
     assert trades[0]["entry_time"] == times[131]
+
+
+def test_adaptive_volume_ratio_excludes_current_signal_candle() -> None:
+    interval = 15 * 60_000
+    m15 = _bars([index * interval for index in range(30)], interval)
+    m15.loc[20, "quote_volume"] = 1_000.0
+    hourly = _bars([index * 60 * 60_000 for index in range(12)], 60 * 60_000)
+    featured = add_features(m15, hourly)
+    assert featured.loc[20, "volume_ratio"] == pytest.approx(10.0)
+
+
+def test_independent_regime_signals_are_not_hidden_by_router_priority() -> None:
+    frame = pd.DataFrame({
+        "open": [100.0] * 22,
+        "high": [100.5] * 22,
+        "low": [99.0] * 22,
+        "close": [100.0] * 22,
+        "ema20": [100.0] * 22,
+        "ema50": [100.0] * 22,
+        "atr14": [1.0] * 22,
+        "bb_width_pct": [0.10] * 22,
+        "volume_ratio": [2.0] * 22,
+        "h1_adx14": [15.0] * 22,
+        "h1_ema20": [100.0] * 22,
+        "h1_ema50": [100.0] * 22,
+        "h1_ema20_rising": [False] * 22,
+        "h1_ema20_falling": [False] * 22,
+        "bb_lower": [101.0] * 22,
+        "bb_upper": [102.0] * 22,
+        "rsi14": [30.0] * 22,
+    })
+    frame.loc[20, ["high", "close", "bb_lower"]] = [101.0, 100.0, 100.5]
+    frame.loc[21, ["high", "low", "close"]] = [102.5, 99.5, 102.0]
+
+    signals = choose_signals(frame, 21)
+    families = {signal["family"] for signal in signals}
+    assert families == {"COMPRESSION_BREAKOUT", "RANGE_REVERSION"}
+    # Router priority is retained for actual routed simulation, but family
+    # reports can now evaluate both hypotheses independently.
+    assert choose_signal(frame, 21)["family"] == "COMPRESSION_BREAKOUT"
+
+
+def test_family_filter_selects_requested_signal_for_independent_replay(monkeypatch) -> None:
+    times = [index * 900_000 for index in range(160)]
+    frame = pd.DataFrame({
+        "open_time": times,
+        "decision_time": [value + 900_000 for value in times],
+        "open": [100.0] * 160,
+        "high": [100.5] * 160,
+        "low": [99.5] * 160,
+        "close": [100.2] * 160,
+        "atr14": [1.0] * 160,
+    })
+
+    def frozen_signals(_frame, index):
+        if index == 120:
+            return [
+                {"family": "COMPRESSION_BREAKOUT", "side": 1, "stop": 99.0, "target_rr": 1.5},
+                {"family": "RANGE_REVERSION", "side": 1, "stop": 99.0, "target_rr": 1.5},
+            ]
+        return []
+
+    monkeypatch.setattr(research, "choose_signals", frozen_signals)
+    funding = pd.DataFrame({
+        "funding_time": list(range(0, 40 * 3_600_000 + 1, 8 * 3_600_000)),
+        "rate": [0.0] * 6,
+    })
+    trades = simulate_symbol(
+        "BTC-USDT", frame, funding, fee_bps=0, spread_bps=0, slippage_bps=0,
+        family_filter="RANGE_REVERSION",
+    )
+    assert len(trades) == 1
+    assert trades[0]["family"] == "RANGE_REVERSION"
