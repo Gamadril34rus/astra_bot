@@ -198,3 +198,33 @@ This is **not** a verified strategy-performance result. It is an income-ledger p
 ### Pragmatic next step
 
 Do not alter the deduplication or enable retest live. First add research-only funnel telemetry to a replay/capture path: per symbol, record the channel diagnostic `stage`, `reject_reason`, `has_channel`, `bars_outside`, retest mode/hit, and multi-top detector result, plus whether a candidate was suppressed by open-position or seen-ID checks. Then capture one full 4h cycle. This directly identifies which producer branch is quiet without relaxing trading rules.
+
+
+## Follow-up: candidate confirmation semantics and ledger concentration (11 Nov 2026)
+
+### Confirmed-close mismatch in multi-top / multi-bottom live feed
+
+`live_arm_feed.scan_symbol()` fetches 4h candles and passes the complete returned series to the channel strategy, with an explicit comment that the last (forming) candle is included. If channel returns no signal, it passes the same 4h series to `detect_breakdown_from_ohlc()`; if that is silent, it fetches 1h and passes the complete 1h series to the same detector. The detector evaluates `closes[-1]` as the breakout candle and documents the condition as a close below/above the neckline. It has no closed-candle exclusion or close-time validation.
+
+Therefore the live multi-top/bottom path can treat an **in-progress candle's current price** as a confirmed close-break. The candidate ID is still stamped with that candle's open time. This is a concrete semantic mismatch between the detector's stated rule ("close break") and the live data passed to it. It can create transient intrabar breakouts and early entries that would disappear by candle close. The same forming-bar exposure exists in channel strategy by deliberate paper parity; it needs separate evaluation, not an automatic global change.
+
+Two recent HYPE multi-top long entries were stamped with 1h/4h bar IDs at 10:00 and 11:00 UTC on 11 Nov and were exited about 10 and 19 minutes after entry. This timing is consistent with an intrabar candidate, but without the historical candle snapshots it does **not** prove that either signal reversed before close. Treat as a high-priority testable defect hypothesis, not a proven cause of those losses.
+
+### Correct 24h ledger interpretation
+
+The ledger contains 19 exit rows in the 24h window. Eighteen carry a recognized strategy (10 multi-top, 8 channel); one additional ETH exit is missing its strategy label and has `exit_reason=no_fills`, a negative fee value, and no matching entry in the 24h entry set. Excluding that unattributed row:
+- recognized-strategy net proxy: +567.79 USDT;
+- 6 positive / 12 negative exits;
+- channel: +313.02 USDT across 8 exits (2 positive / 6 negative);
+- multi-top: +254.76 USDT across 10 exits (4 positive / 6 negative).
+
+The positive net is highly concentrated: channel's +571.04 HYPE short and multi-top's +154.00 SOL short / +155.96 BTC short dominate their respective totals; many smaller exits are net negative. This is still an income-ledger proxy: all 18 recognized exit rows have no exit price, so it cannot establish actual exit fills or exact holding periods. Some entry-to-exit fee/notional ratios are near 0.10%, which warrants a separate fee-attribution audit before using these numbers for parameter selection.
+
+### Next research action
+
+Build a replay test that feeds the detector a candle sequence where the current forming candle pierces the neckline but later closes back above/below it. Assert that no live-eligible signal is produced until that candle is finalized. Then compare:
+1. current forming-candle behavior;
+2. closed-candle-only confirmation with execution on the next available price;
+3. closed-candle confirmation plus a retest entry.
+
+Run on archived 1h/4h OHLCV with costs and report per-symbol, per-strategy results. Do not change live settings or merge a fix until this replay quantifies the trade-off.
