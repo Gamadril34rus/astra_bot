@@ -115,3 +115,46 @@ def test_produce_dedup_seen_ids(tmp_path, monkeypatch):
 def test_stale_not_fresh():
     row = signal_to_row(_sig(), bar_ts=1, now=time.time() - 3600)
     assert not is_fresh(row, max_sec=600)
+
+
+def test_zone_trade_filter_vetoes_only_near_opposing_boundary():
+    from astra_bot.decision.live_arm_feed import _zone_trade_filter_decision
+
+    near_long = _zone_trade_filter_decision(
+        "long", 100.0, [{"lower": 100.8, "upper": 102.0}]
+    )
+    assert not near_long["accepted"]
+    assert near_long["state"] == "OUTSIDE_NEAR"
+    assert near_long["distance_pct"] == 0.8
+
+    far_long = _zone_trade_filter_decision(
+        "long", 100.0, [{"lower": 102.0, "upper": 103.0}]
+    )
+    assert far_long["accepted"]
+    assert far_long["state"] == "OUTSIDE_FAR"
+
+    near_short = _zone_trade_filter_decision(
+        "short", 100.0, [{"lower": 98.0, "upper": 99.2}]
+    )
+    assert not near_short["accepted"]
+    assert near_short["boundary"] == 99.2
+
+
+def test_zone_trade_filter_keeps_in_zone_and_empty_zone_cases():
+    from astra_bot.decision.live_arm_feed import _zone_trade_filter_decision
+
+    inside = _zone_trade_filter_decision(
+        "long", 100.0, [{"lower": 99.0, "upper": 101.0}]
+    )
+    assert inside["accepted"] and inside["state"] == "IN_ZONE"
+
+    empty = _zone_trade_filter_decision("short", 100.0, [])
+    assert empty["accepted"] and empty["state"] == "EMPTY_ZONES"
+
+
+def test_zone_trade_filter_fails_closed_on_unknown_zone_data():
+    from astra_bot.decision.live_arm_feed import _zone_trade_filter_decision
+
+    missing = _zone_trade_filter_decision("long", 100.0, None)
+    assert not missing["accepted"]
+    assert missing["state"] == "UNKNOWN"
