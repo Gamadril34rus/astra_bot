@@ -9,10 +9,10 @@ from scripts.research.quarter_hour_boundary import (
     INTERVAL_MS,
     ROUND_TRIP_COST_BPS,
     STRESS_ROUND_TRIP_COST_BPS,
+    _split_for_interval,
     build_events,
     event_outcomes,
     validate_config,
-    _split_for_interval,
 )
 
 
