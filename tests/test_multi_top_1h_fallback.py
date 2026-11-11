@@ -171,7 +171,14 @@ async def test_channel_evaluate_receives_closed_bars_and_live_price(monkeypatch)
     class Probe:
         async def evaluate(self, symbol, series, current_price=None):
             observed.append((len(series), current_price))
-            return None
+            return SimpleNamespace(
+                symbol=symbol,
+                direction=SimpleNamespace(value="short"),
+                entry_price=100.25,
+                stop_loss=101.0,
+                take_profit=98.75,
+                confidence=0.55,
+            )
 
         def diagnose(self, series, current_price=None):
             return {"would_signal": False}
@@ -182,7 +189,13 @@ async def test_channel_evaluate_receives_closed_bars_and_live_price(monkeypatch)
     monkeypatch.setattr("astra_bot.decision.live_arm_feed.fetch_candles", fake_candles)
     monkeypatch.setattr("astra_bot.decision.live_arm_feed._channel_strategy", lambda: Probe())
     row = await scan_symbol(MagicMock(), "BTC-USDT", strategy=Probe())
-    assert row is None
+    assert row is not None
+    assert row["strategy"] == "zeus_channel_boundary"
+    assert row["retest_ts"] == bars[-2].open_time
+    assert row["signal_id"] == (
+        f"zeus_channel_boundary|BTC-USDT|short|{bars[-2].open_time}"
+    )
+    assert row["entry"] == pytest.approx(100.25)
     assert observed == [(39, 100.25)]
 
 
