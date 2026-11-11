@@ -104,6 +104,17 @@ def test_1h_context_is_not_visible_before_its_close() -> None:
     assert pd.notna(at_first_hour_close["h1_ema20"])
 
 
+def test_pullback_relative_volume_uses_consistent_base_volume_fallback() -> None:
+    signal_bars = _bars(60)
+    hourly = _bars(20, interval_ms=60 * 60_000)
+    signal_bars["volume"] = 100.0
+    signal_bars["quote_volume"] = 1_000.0
+    signal_bars.loc[40, "volume"] = 500.0
+    signal_bars.loc[40, "quote_volume"] = 0.0
+    enriched = add_15m_features(signal_bars, hourly)
+    assert enriched.loc[40, "volume_ratio"] == 5.0
+
+
 def test_relative_volume_baseline_excludes_current_signal_bar() -> None:
     signal_bars = _bars(60)
     hourly = _bars(20, interval_ms=60 * 60_000)
