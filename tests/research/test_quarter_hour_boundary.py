@@ -12,6 +12,7 @@ from scripts.research.quarter_hour_boundary import (
     build_events,
     event_outcomes,
     validate_config,
+    _split_for_interval,
 )
 
 
@@ -116,3 +117,13 @@ def test_checked_in_config_matches_frozen_runner() -> None:
         / "quarter_hour_boundary.json"
     )
     validate_config(config)
+
+
+def test_outcomes_crossing_split_boundary_are_purged() -> None:
+    decision = pd.Timestamp("2025-12-31T23:50:00Z")
+    exit_inside_next_split = pd.Timestamp("2026-01-01T00:20:00Z")
+    assert _split_for_interval(decision, exit_inside_next_split) is None
+    assert _split_for_interval(
+        pd.Timestamp("2025-12-31T18:00:00Z"),
+        pd.Timestamp("2025-12-31T22:00:00Z"),
+    ) == "IS"
