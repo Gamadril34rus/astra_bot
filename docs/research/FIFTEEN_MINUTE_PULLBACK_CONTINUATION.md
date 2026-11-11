@@ -82,3 +82,18 @@ A read-only public API probe tests BingX `historicalTrades` with `fromId`, 1m/5m
 OOS remains closed unless the common BingX 15m candle window itself covers at least 365 days and both IS and validation are net-positive at base and 1.5x costs. Funding coverage alone cannot satisfy this condition. If OOS is eventually opened, the promotion gate also checks PF >=1.25, positive net expectancy, at least 100 OOS trades, >=70% positive OOS calendar months, positive 1.5x stress expectancy/PF, holding-time bounds, and drawdown proxies. The current workflow uses provisional research-only drawdown guardrails of no worse than -10% realized equal-notional drawdown and -20% trade-sequence drawdown; these remain OHLC/realized-PnL proxies and do not model intratrade margin/liquidation.
 
 This work is on the descendant research branch used by PR #347, based on the preserved PR #343 research branch. PR #343 remains closed and unmerged; its rejected 30m four-family results are not promoted or rewritten. No production code, VST routing, REAL routing, risk, leverage, or production exits are changed.
+
+## 2026-11-11 research hardening
+
+The 15m archive currently provides only 99.91 days of common last-traded-price swap candles for the BTC/ETH/SOL/INJ core (2026-08-03 through 2026-11-11), despite a deeper uninterrupted 1h archive and longer funding records. The OOS gate therefore remains closed. Do not infer 15m availability from 1h or funding coverage.
+
+The adaptive four-family script had two analysis limitations that are now corrected on the PR #347 research branch:
+
+- Its relative-volume baseline previously included the signal candle in the rolling 20-bar mean. It now divides current closed-candle volume by the mean of the prior 20 closed candles (volume.shift(1).rolling(20)).
+- Its original choose_signal returned the first match in fixed priority order (compression, false-break, trend pullback, range reversion). The resulting by_family tables were router-selected cohorts, not independent module tests. choose_signals now emits every matching family, and --family-only runs each family independently by symbol and side. The original fixed-priority router remains available for diagnostic comparison.
+
+The research router now supports --enabled-families and explicit NONE. The workflow first evaluates each family independently on IS and validation at base and 1.5x costs. A family is eligible for the research router only if it has at least 20 IS trades and 10 validation trades and positive net expectancy with PF >=1.0 in all four period/cost combinations. If no family qualifies, the filtered router is forced to NO_TRADE. This is a research-only allowlist and does not register or activate any production strategy.
+
+The public-history probe now samples 500-minute windows of actual BingX USDT-M 1m swap candles at seven dates from 2025-08-08 through 2026-11-10. This is only a depth test for a possible exact OHLCV aggregation into 15m bars; it does not authorize 1m/5m signals or minute trading. Aggregation will be considered only if every source minute is present, unique, correctly aligned and sourced from the same BingX swap contract. No incomplete window may be silently filled.
+
+The previous router's by_family values must not be treated as independent module evidence. The new independent reports supersede those breakdowns for future selection. The PR #347 research branch remains Draft and unmerged; no production, VST or REAL settings are changed.
