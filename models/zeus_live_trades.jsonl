@@ -2381,3 +2381,4 @@
 {"event": "protect_place", "ts": 1794363761.1207354, "symbol": "BTC-USDT", "kind": "tp", "stop_price": "71544.372460", "qty": "0.07836722", "reduce_only": false, "order_id": "2120341410628067328"}
 {"event": "entry", "signal_id": "zeus_multi_top_breakdown|BTC-USDT|short|1794355200000", "symbol": "BTC-USDT", "side": "short", "plan_entry": "73254.5", "fill_price": "73279.6", "slip_pct": -0.03426410664192073, "slip_r": 0.008072497329643612, "qty": "0.26122408", "stop": "76363.8228", "tp": "71544.372460", "tp_frac": 0.3, "leverage": 6, "ts": 1794363761.12194}
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2120341408405086208", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794364058.3560205}
+{"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2120342658517393408", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794364364.2122705}
