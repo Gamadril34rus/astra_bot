@@ -184,3 +184,62 @@ def test_short_spike_latches(tmp_path, monkeypatch):
     assert out.get("moved") == []
     assert broker.move_stop.await_count == 0
     assert any(j.get("event") == "be_earned_5m" for j in journals)
+
+
+
+def test_explicit_session_trigger_controls_be_move(tmp_path, monkeypatch):
+    """A 0.40R session profile must move BE at 0.45R, not wait for 0.50R."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "models").mkdir()
+    journals: list[dict] = []
+    monkeypatch.setattr(
+        "astra_bot.decision.live_arm_wiring.append_journal",
+        lambda row: journals.append(row),
+    )
+    monkeypatch.setattr(
+        "astra_bot.decision.live_margin_budget.only_tighter_stop",
+        lambda side, cur, tgt: tgt,
+    )
+    monkeypatch.setattr(
+        "astra_bot.decision.live_stop_telemetry.record_stop_change",
+        lambda **kw: None,
+    )
+    _F17_5M_CACHE.clear()
+
+    plans = {
+        "INJ-USDT|short": {
+            "symbol": "INJ-USDT",
+            "side": "short",
+            "entry": "100",
+            "stop": "110",
+            "initial_stop": "110",
+            "qty": "10",
+            "plan_qty": "10",
+            "ts": 1_700_000_000,
+        }
+    }
+    Path("models/zeus_live_positions.json").write_text(
+        json.dumps({"positions": plans, "ts": 1}), encoding="utf-8"
+    )
+    pos = SimpleNamespace(
+        symbol="INJ-USDT",
+        quantity=Decimal("10"),
+        side="short",
+        mark_price=Decimal("95.5"),  # MFE = 0.45R on initial 10-point risk
+    )
+    client = MagicMock()
+    client.get_positions = AsyncMock(return_value=[pos])
+    client.get_candles = AsyncMock(return_value=[])
+    broker = MagicMock()
+    broker.client = client
+    broker.net_breakeven_price = lambda position: Decimal("100.1")
+    broker.move_stop = AsyncMock(return_value=True)
+
+    out = asyncio.run(
+        sync_partial_breakeven(broker, send_tg=None, trigger_r=0.40)
+    )
+    assert "INJ-USDT" in out.get("moved", [])
+    assert broker.move_stop.await_count == 1
+    event = next(j for j in journals if j.get("event") == "price_breakeven")
+    assert event["trigger_r"] == 0.40
+    assert event["mfe_r"] == 0.45
