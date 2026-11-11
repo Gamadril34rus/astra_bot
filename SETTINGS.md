@@ -31,6 +31,7 @@
 | VOL_EXPANSION | `exit_plan.py` / exit manager | ratio 2.0 | 2.0 |
 | D1 structural tighten | `exit_plan.py` | buffer_pct 0.003; только подтягивание | 0.003; только подтягивание |
 | Zone shadow | `zone_shadow.py` | `ZONE_SHADOW=0` (выключен) | `ZONE_SHADOW=1` |
+| Zone entry veto | `live_arm_feed.py` | `ZONE_TRADE_FILTER=0` (выключен) | VST-only эксперимент: `1`; требует совпадения закрытой 4h anchor-свечи; блокирует сигнал только если ближайшая зона по направлению цели оставляет менее 2R до границы зоны (R = расстояние entry–initial stop) |
 | Session profile | `live_session.py` | `ZEUS_SESSION_PROFILE=0` (выключен) | `ZEUS_SESSION_PROFILE=1` |
 | Session BE / TP1 (static) | `live_session.py` | BE 0.5R / TP1 0.6R, если профиль выключен | В workflow заданы 0.5 / 0.6, но при профиле = 1 профиль сессии их переопределяет |
 | ZEUS_PF_SKIP_SCRATCHED | `live_risk.py` | 1 (игнорировать scratched exits) | 1 |
@@ -66,7 +67,7 @@
 | `BINGX_API_KEY`, `BINGX_API_SECRET` | GitHub Actions Secrets | Передаются в процесс; не печатать и не сохранять в git |
 | `TELEGRAM_LIVE_BOT_TOKEN`, `TELEGRAM_ADMIN_ID`, `TELEGRAM_CHAT_ID` | GitHub Actions Secrets | Telegram-команды и уведомления |
 | `TG_TEST` | GitHub Actions Secret | Передаётся live clock |
-| `ZEUS_RETEST_V1`, `ZONE_SHADOW` | YAML | `shadow`, `1` |
+| `ZEUS_RETEST_V1`, `ZONE_SHADOW`, `ZONE_TRADE_FILTER` | YAML | `shadow`, `1`, `1` (последний флаг только в PR #358 до merge) |
 | `ZEUS_LIVE_FORCE_LEVERAGE`, `ZEUS_LIVE_MAX_LEVERAGE` | YAML | `6`, `10` |
 | `ZEUS_KILL_PF_WINDOW` | YAML | `20` |
 | `ZEUS_LIVE_EXIT_ENGINE`, `ZEUS_LIVE_TRAIL_POLICY` | YAML | `on`, `atr` |
