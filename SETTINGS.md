@@ -31,7 +31,7 @@
 | VOL_EXPANSION | `exit_plan.py` / exit manager | ratio 2.0 | 2.0 |
 | D1 structural tighten | `exit_plan.py` | buffer_pct 0.003; только подтягивание | 0.003; только подтягивание |
 | Zone shadow | `zone_shadow.py` | `ZONE_SHADOW=0` (выключен) | `ZONE_SHADOW=1` |
-| Zone entry veto | `live_arm_feed.py` | `ZONE_TRADE_FILTER=0` (выключен) | VST-only эксперимент: `1`; требует совпадения закрытой 4h anchor-свечи; блокирует сигнал только если ближайшая зона по направлению сделки лежит между плановым entry и TP; граница зоны должна быть пройдена до достижения цели |
+| Zone entry veto | `live_arm_feed.py` | `ZONE_TRADE_FILTER=0` (выключен) | VST-only эксперимент: `1`; требует совпадения закрытой 4h anchor-свечи; блокирует сигнал только если ближайшая зона по направлению сделки лежит между плановым entry и TP; граница зоны должна быть пройдена до достижения цели; пустой/непригодный профиль или сбой журнала блокирует вход |
 | Session profile | `live_session.py` | `ZEUS_SESSION_PROFILE=0` (выключен) | `ZEUS_SESSION_PROFILE=1` |
 | Session BE / TP1 (static) | `live_session.py` | BE 0.5R / TP1 0.6R, если профиль выключен | В workflow заданы 0.5 / 0.6, но при профиле = 1 профиль сессии их переопределяет |
 | ZEUS_PF_SKIP_SCRATCHED | `live_risk.py` | 1 (игнорировать scratched exits) | 1 |
