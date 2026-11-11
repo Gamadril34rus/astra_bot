@@ -1,4 +1,4 @@
-"""Volume-profile horizontal zones for observation only (never a signal source)."""
+"""Volume-profile zones shared by shadow observation and optional live entry gating."""
 from __future__ import annotations
 
 import math

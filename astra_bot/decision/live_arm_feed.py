@@ -259,6 +259,131 @@ async def scan_zone_shadow(client: Any, symbols: list[str] | tuple[str, ...] = F
                 pass
     return out
 
+
+def _zone_trade_filter_decision(
+    row: dict[str, Any], zones: list[dict[str, float]] | None,
+) -> dict[str, Any]:
+    """Veto a candidate only when a volume zone lies before its planned target."""
+    import math
+
+    side = str(row.get("side") or "").lower()
+    try:
+        entry = float(row["entry"])
+        stop = float(row["stop"])
+        target = float(row["tp"])
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return {"accepted": False, "state": "UNKNOWN", "reason": "invalid_candidate_prices"}
+    if (
+        side not in {"long", "short"}
+        or not all(math.isfinite(v) and v > 0 for v in (entry, stop, target))
+        or (side == "long" and not stop < entry < target)
+        or (side == "short" and not target < entry < stop)
+    ):
+        return {"accepted": False, "state": "UNKNOWN", "reason": "invalid_candidate_geometry"}
+    if zones is None:
+        return {"accepted": False, "state": "UNKNOWN", "reason": "zones_unavailable"}
+
+    valid: list[tuple[float, float]] = []
+    for zone in zones:
+        try:
+            lower, upper = float(zone["lower"]), float(zone["upper"])
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return {"accepted": False, "state": "UNKNOWN", "reason": "invalid_zone_payload"}
+        if not (math.isfinite(lower) and math.isfinite(upper) and 0 < lower <= upper):
+            return {"accepted": False, "state": "UNKNOWN", "reason": "invalid_zone_payload"}
+        valid.append((lower, upper))
+    if not valid:
+        return {"accepted": False, "state": "UNKNOWN", "reason": "empty_or_unusable_zone_profile"}
+
+    # If entry is already inside a zone, its far edge is the first obstacle.
+    if side == "long":
+        edges = [
+            lower if lower > entry else upper
+            for lower, upper in valid
+            if lower > entry or lower <= entry <= upper
+        ]
+        boundary = min(edges) if edges else None
+        if boundary is None:
+            return {"accepted": True, "state": "NO_OPPOSING_ZONE", "reason": "no_zone_ahead"}
+        room_r = (boundary - entry) / abs(entry - stop)
+        target_r = (target - entry) / abs(entry - stop)
+        blocked = boundary <= target
+    else:
+        edges = [
+            upper if upper < entry else lower
+            for lower, upper in valid
+            if upper < entry or lower <= entry <= upper
+        ]
+        boundary = max(edges) if edges else None
+        if boundary is None:
+            return {"accepted": True, "state": "NO_OPPOSING_ZONE", "reason": "no_zone_ahead"}
+        room_r = (entry - boundary) / abs(entry - stop)
+        target_r = (entry - target) / abs(entry - stop)
+        blocked = boundary >= target
+
+    return {
+        "accepted": not blocked,
+        "state": "ZONE_BEFORE_TARGET" if blocked else "TARGET_BEFORE_ZONE",
+        "reason": "opposing_zone_intersects_reward_path" if blocked else "planned_target_precedes_zone",
+        "boundary": boundary,
+        "room_r": round(room_r, 6),
+        "target_r": round(target_r, 6),
+    }
+
+
+def _apply_zone_trade_filter(
+    row: dict[str, Any], *, symbol: str, price: float, expected_bar_ts: int,
+) -> dict[str, Any] | None:
+    import os
+
+    if str(os.environ.get("ZONE_TRADE_FILTER", "0")).strip().lower() not in {
+        "1", "true", "yes", "on"
+    }:
+        return row
+    cached = _ZONE_CACHE.get(symbol)
+    if cached is None or int(cached[0]) != int(expected_bar_ts):
+        decision = {
+            "accepted": False, "state": "UNKNOWN",
+            "reason": "zone_cache_missing_or_stale",
+        }
+    else:
+        decision = _zone_trade_filter_decision(row, cached[1])
+    try:
+        from astra_bot.decision.live_arm_wiring import append_journal
+        append_journal({
+            "event": "zone_trade_filter",
+            "signal_id": row.get("signal_id"),
+            "symbol": symbol,
+            "side": row.get("side"),
+            "strategy": row.get("strategy"),
+            "accepted": decision["accepted"],
+            "state": decision["state"],
+            "reason": decision["reason"],
+            "boundary": decision.get("boundary"),
+            "room_r": decision.get("room_r"),
+            "target_r": decision.get("target_r"),
+            "entry": row.get("entry"),
+            "stop": row.get("stop"),
+            "target": row.get("tp"),
+            "price": price,
+            "zone_bar_ts": int(expected_bar_ts),
+            "ts": time.time(),
+        })
+    except Exception as exc:
+        logger.warning("zone trade filter journal failed %s: %s", symbol, type(exc).__name__)
+        decision = {
+            "accepted": False, "state": "UNKNOWN",
+            "reason": "zone_filter_journal_failed",
+        }
+    row["zone_trade_filter"] = decision
+    if not decision["accepted"]:
+        logger.info(
+            "arm feed: zone filter blocked %s %s state=%s reason=%s",
+            symbol, row.get("side"), decision["state"], decision["reason"],
+        )
+        return None
+    return row
+
 async def scan_symbol(
     client: Any,
     symbol: str,
@@ -281,18 +406,19 @@ async def scan_symbol(
             zone_ctx = zone_context(price_now, cached[1])
     except Exception as exc:
         logger.warning("zone shadow context failed %s: %s", symbol, type(exc).__name__)
-    # Live parity with paper: feed sees the SAME candle the paper engine uses
-    # (including the forming bar). bar_ts = open_time of that last candle.
+    # Entry decisions use confirmed candles only. The forming candle is
+    # retained solely as the current execution-price reference.
     series = list(candles)
-    if len(series) < 30:
+    live_price = _candle_value(series[-1], "close")
+    closed_series = series[:-1] if len(series) > 1 else series
+    if len(closed_series) < 30 or live_price <= 0:
         return None
-    last = series[-1]
-    bar_ts = int(getattr(last, "open_time", 0) or 0)
+    bar_ts = int(getattr(closed_series[-1], "open_time", 0) or 0)
     if bar_ts <= 0:
-        logger.warning("arm feed: %s bar missing open_time - skip", symbol)
+        logger.warning("arm feed: %s closed bar/live price missing - skip", symbol)
         return None
     try:
-        sig = await strat.evaluate(symbol, series)
+        sig = await strat.evaluate(symbol, closed_series, current_price=live_price)
     except Exception as exc:
         logger.warning("arm feed: %s evaluate failed: %s", symbol, type(exc).__name__)
         sig = None
@@ -301,13 +427,17 @@ async def scan_symbol(
             row = signal_to_row(sig, bar_ts=bar_ts)
             if zone_ctx is not None:
                 row["zone_shadow"] = zone_ctx
-            return row
+            expected_zone_bar = int(_candle_value(candles[-2], "open_time") or 0)
+            return _apply_zone_trade_filter(
+                row, symbol=symbol, price=_candle_value(candles[-1], "close"),
+                expected_bar_ts=expected_zone_bar,
+            )
         except Exception as exc:
             logger.warning("arm feed: %s row map failed: %s", symbol, type(exc).__name__)
             return None
     # Proxy v1: ZEUS_RETEST_V1=shadow → journal only (no pending row / no live entry).
     try:
-        diag = strat.diagnose(series)
+        diag = strat.diagnose(closed_series, current_price=live_price)
         shadow = (diag or {}).get("shadow_retest")
         if shadow:
             logger.info(
@@ -340,26 +470,33 @@ async def scan_symbol(
     br = None
     src_tf = "4h"
     try:
-        highs, lows, closes = series_from_candles(series)
-        br = detect_breakdown_from_ohlc(highs, lows, closes)
+        if len(closed_series) >= 30:
+            highs, lows, closes = series_from_candles(closed_series)
+            br = detect_breakdown_from_ohlc(
+                highs, lows, closes, entry_price=live_price,
+            )
     except Exception as exc:
         logger.warning("arm feed: %s breakdown 4h failed: %s", symbol, type(exc).__name__)
     if br is None:
         try:
             c1h = await fetch_candles(client, symbol, timeframe="1h", limit=120)
             if c1h and len(c1h) >= 30:
-                h1, l1, cl1 = series_from_candles(list(c1h))
-                br = detect_breakdown_from_ohlc(h1, l1, cl1)
-                if br is not None:
-                    src_tf = "1h"
-                    last1 = c1h[-1]
-                    bar_ts = int(getattr(last1, "open_time", 0) or bar_ts)
+                closed_1h = list(c1h[:-1]) if len(c1h) > 1 else list(c1h)
+                if len(closed_1h) >= 30:
+                    h1, l1, cl1 = series_from_candles(closed_1h)
+                    br = detect_breakdown_from_ohlc(
+                        h1, l1, cl1,
+                        entry_price=_candle_value(c1h[-1], "close"),
+                    )
+                    if br is not None:
+                        src_tf = "1h"
+                        bar_ts = int(getattr(closed_1h[-1], "open_time", 0) or bar_ts)
         except Exception as exc:
             logger.warning("arm feed: %s breakdown 1h failed: %s", symbol, type(exc).__name__)
     if br is None:
         return None
     now = time.time()
-    return {
+    row = {
         "signal_id": make_signal_id(symbol, br.side, bar_ts, strategy="zeus_multi_top_breakdown"),
         "symbol": symbol,
         "side": br.side,
@@ -376,6 +513,11 @@ async def scan_symbol(
         "tf": src_tf,
         "zone_shadow": zone_ctx,
     }
+    expected_zone_bar = int(_candle_value(candles[-2], "open_time") or 0)
+    return _apply_zone_trade_filter(
+        row, symbol=symbol, price=_candle_value(candles[-1], "close"),
+        expected_bar_ts=expected_zone_bar,
+    )
 
 
 async def produce_pending(
