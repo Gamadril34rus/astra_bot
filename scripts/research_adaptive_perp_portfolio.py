@@ -758,8 +758,6 @@ def main() -> int:
             "signal_timeframe": args.signal_timeframe,
             "symbols": list(args.symbols),
             "max_period": args.max_period,
-        "family_filter": args.family_only,
-        "enabled_families": sorted(enabled_families) if enabled_families is not None else None,
             "family_filter": args.family_only,
             "enabled_families": sorted(enabled_families) if enabled_families is not None else None,
             "simulation_window": simulation_window,
