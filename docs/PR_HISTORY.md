@@ -2,7 +2,7 @@
 
 ASTRA BOT движется от бумажного симулятора к управляемому демо-контуру Zeus. Сначала проект получил воспроизводимые paper-тики, затем отдельный live VST-цикл с защитой позиций и ручным управлением через Telegram. Реальный счёт не является рабочим торговым контуром: его включение остаётся закрытым решением владельца.
 
-Следующий слой — улучшение качества наблюдений, а не безусловное добавление новых входов: channel+wedge, фильтры ложных пробоев, профили торговых сессий и volume-zone shadow записывают контекст и помогают оценивать поведение цены у важных уровней. Зоны и тени сами по себе не являются торговой командой; накопленные наблюдения нужны для будущего обучения.
+Следующий слой — улучшение качества наблюдений, а не безусловное добавление новых входов: channel+wedge, фильтры ложных пробоев, профили торговых сессий и volume-zone shadow записывают контекст. После PR #358 зоны получили экспериментальное применение как VST-only veto: кандидат отклоняется, если ближайшая зона по направлению сделки лежит до планового TP. Это проверяемая гипотеза, а не доказанное торговое преимущество; shadow-наблюдения продолжаются.
 
 Затем проект получил визуальную отчётность — EXIT-карточки на арте владельца и ENTRY/EXIT-графики — и отдельный COPY_ZEUS этап 1: зашифрованный read-only архив данных реального счёта. Это подготовка инфраструктуры для возможного копитрейдинга, но само копирование сделок пока не включено.
 
@@ -10,6 +10,10 @@ ASTRA BOT движется от бумажного симулятора к уп�
 
 | № PR | дата (МСК) | заголовок | что сделано — одной строкой |
 |---:|:---:|---|---|
+| [#359](https://github.com/Gamadril34rus/astra_bot/pull/359) | 2026-11-12 00:15 | fix(live): persist compact zone filter decisions | Открыт: отдельный `models/zone_trade_filter.jsonl` для решений фильтра; оба журнала обязательны (fail-closed), добавлены state-size cap и rotation registry. CI проверяется. |
+| [#358](https://github.com/Gamadril34rus/astra_bot/pull/358) | 2026-11-12 00:12 | feat(live): apply volume-zone veto to Zeus entries | VST-only эксперимент: LONG/SHORT блокируются, если ближайшая объёмная зона лежит между плановым entry и TP; подтверждение сигналов только по закрытым 4h/1h свечам, REAL off. |
+| [#355](https://github.com/Gamadril34rus/astra_bot/pull/355) | 2026-11-12 00:23 | fix(live-feed): use closed bars for entry signals | Закрыт без merge как superseded: закрыто-свечная логика 4h/1h перенесена в merged PR #358. |
+| [#356](https://github.com/Gamadril34rus/astra_bot/pull/356) | 2026-11-11 15:22 | fix(live): apply session BE threshold before stop sync | Открыт draft: порядок применения session BE threshold перед stop sync; независим от зонального фильтра, не слит. |
 | [#322](https://github.com/Gamadril34rus/astra_bot/pull/322) | 2026-11-05 17:23 | docs: establish Zeus configuration canon and repository showcase | Разделены общий конфиг, paper Zeus и live Zeus; обновлены SETTINGS, карта конфигурации, исторические пометки, роли, cron и обложка на owner art. |
 | [#321](https://github.com/Gamadril34rus/astra_bot/pull/321) | 2026-11-05 13:48 | docs: refresh repository showcase and PR history (2026-11-05) | Обновлена главная витрина проекта: контуры, стратегия, zone/session shadow, EXIT-карточки и синтетический ENTRY/EXIT-график. |
 | [#320](https://github.com/Gamadril34rus/astra_bot/pull/320) | 2026-11-05 13:23 | fix(copy-zeus): extend 100410 cooldown to four attempts | CopyZeusClient: four attempts, retry delays 5/30/60 seconds; default and upper clamp are 4. |

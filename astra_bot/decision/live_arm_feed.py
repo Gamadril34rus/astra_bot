@@ -23,6 +23,7 @@ from astra_bot.strategies.zeus_multi_top_breakdown import (
 )
 
 logger = logging.getLogger(__name__)
+ZONE_FILTER_JOURNAL_PATH = Path("models/zone_trade_filter.jsonl")
 _ZONE_CACHE: dict[str, tuple[int, list[dict[str, float]]]] = {}
 
 TIMEFRAME = "4h"
@@ -260,6 +261,14 @@ async def scan_zone_shadow(client: Any, symbols: list[str] | tuple[str, ...] = F
     return out
 
 
+def _append_zone_trade_filter_event(event: dict[str, Any]) -> None:
+    """Persist the compact, independently readable zone-gate audit stream."""
+    path = ZONE_FILTER_JOURNAL_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, ensure_ascii=False, default=str) + "\n")
+
+
 def _zone_trade_filter_decision(
     row: dict[str, Any], zones: list[dict[str, float]] | None,
 ) -> dict[str, Any]:
@@ -348,27 +357,29 @@ def _apply_zone_trade_filter(
         }
     else:
         decision = _zone_trade_filter_decision(row, cached[1])
+    event = {
+        "event": "zone_trade_filter",
+        "signal_id": row.get("signal_id"),
+        "symbol": symbol,
+        "side": row.get("side"),
+        "strategy": row.get("strategy"),
+        "accepted": decision["accepted"],
+        "state": decision["state"],
+        "reason": decision["reason"],
+        "boundary": decision.get("boundary"),
+        "room_r": decision.get("room_r"),
+        "target_r": decision.get("target_r"),
+        "entry": row.get("entry"),
+        "stop": row.get("stop"),
+        "target": row.get("tp"),
+        "price": price,
+        "zone_bar_ts": int(expected_bar_ts),
+        "ts": time.time(),
+    }
     try:
         from astra_bot.decision.live_arm_wiring import append_journal
-        append_journal({
-            "event": "zone_trade_filter",
-            "signal_id": row.get("signal_id"),
-            "symbol": symbol,
-            "side": row.get("side"),
-            "strategy": row.get("strategy"),
-            "accepted": decision["accepted"],
-            "state": decision["state"],
-            "reason": decision["reason"],
-            "boundary": decision.get("boundary"),
-            "room_r": decision.get("room_r"),
-            "target_r": decision.get("target_r"),
-            "entry": row.get("entry"),
-            "stop": row.get("stop"),
-            "target": row.get("tp"),
-            "price": price,
-            "zone_bar_ts": int(expected_bar_ts),
-            "ts": time.time(),
-        })
+        append_journal(event)
+        _append_zone_trade_filter_event(event)
     except Exception as exc:
         logger.warning("zone trade filter journal failed %s: %s", symbol, type(exc).__name__)
         decision = {

@@ -42,6 +42,7 @@ LIVE_JSONL_LIMITS: dict[str, int] = {
     "zeus_paper_trades.jsonl": 24_000,
     "zeus_live_entries.jsonl": 24_000,
     "zeus_live_trades.jsonl": 24_000,
+    "zone_trade_filter.jsonl": 24_000,
     "zeus_arm_pending.jsonl": 5_000,
 }
 

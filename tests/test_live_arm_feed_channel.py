@@ -204,6 +204,10 @@ def test_zone_trade_filter_rejects_stale_cache(monkeypatch):
         "astra_bot.decision.live_arm_wiring.append_journal",
         lambda event: events.append(event),
     )
+    monkeypatch.setattr(
+        feed, "_append_zone_trade_filter_event",
+        lambda event: events.append(event),
+    )
     row = {
         "signal_id": "zone-test", "side": "long", "entry": 100.0,
         "stop": 95.0, "tp": 120.0, "strategy": "test",
@@ -257,6 +261,10 @@ def test_zone_trade_filter_allows_audited_candidate_with_matching_anchor(monkeyp
         "astra_bot.decision.live_arm_wiring.append_journal",
         lambda event: events.append(event),
     )
+    monkeypatch.setattr(
+        feed, "_append_zone_trade_filter_event",
+        lambda event: events.append(event),
+    )
     row = {
         "signal_id": "zone-test", "side": "long", "entry": 100.0,
         "stop": 95.0, "tp": 120.0, "strategy": "test",
@@ -269,3 +277,30 @@ def test_zone_trade_filter_allows_audited_candidate_with_matching_anchor(monkeyp
     assert row["zone_trade_filter"]["state"] == "TARGET_BEFORE_ZONE"
     assert events[0]["accepted"] is True
     assert events[0]["zone_bar_ts"] == 100
+
+
+def test_zone_trade_filter_blocks_when_compact_audit_stream_fails(monkeypatch):
+    import astra_bot.decision.live_arm_feed as feed
+
+    monkeypatch.setenv("ZONE_TRADE_FILTER", "1")
+    monkeypatch.setattr(
+        feed, "_ZONE_CACHE",
+        {"BTC-USDT": (100, [{"lower": 122.0, "upper": 124.0}])},
+    )
+    monkeypatch.setattr(
+        "astra_bot.decision.live_arm_wiring.append_journal", lambda _event: None,
+    )
+
+    def fail_compact_log(_event):
+        raise OSError("compact log unavailable")
+
+    monkeypatch.setattr(feed, "_append_zone_trade_filter_event", fail_compact_log)
+    row = {
+        "signal_id": "zone-test", "side": "long", "entry": 100.0,
+        "stop": 95.0, "tp": 120.0, "strategy": "test",
+    }
+    result = feed._apply_zone_trade_filter(
+        row, symbol="BTC-USDT", price=100.5, expected_bar_ts=100,
+    )
+    assert result is None
+    assert row["zone_trade_filter"]["reason"] == "zone_filter_journal_failed"

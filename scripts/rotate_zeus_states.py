@@ -58,6 +58,7 @@ STATE_FILES = (
     "models/zeus_no_trade_observations.jsonl",
     "models/zeus_no_trade_outcomes.jsonl",
     "models/zeus_pattern_exit_shadow.jsonl",  # тень паттерн-выходов (инвариант)
+    "models/zone_trade_filter.jsonl",  # compact VST zone-entry audit stream
 )
 
 MAX_BYTES = 20 * 1024 * 1024
