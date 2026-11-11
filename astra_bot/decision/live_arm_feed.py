@@ -262,14 +262,8 @@ async def scan_zone_shadow(client: Any, symbols: list[str] | tuple[str, ...] = F
 
 def _zone_trade_filter_decision(
     row: dict[str, Any], zones: list[dict[str, float]] | None,
-    *, min_room_r: float = 2.0,
 ) -> dict[str, Any]:
-    """Veto entries whose planned reward is obstructed by a nearby volume zone.
-
-    The required room is expressed in the candidate's own stop-risk units,
-    not as a fixed percentage of price. 2R matches the channel strategy's
-    existing minimum reward/risk requirement.
-    """
+    """Veto a candidate only when a volume zone lies before its planned target."""
     import math
 
     side = str(row.get("side") or "").lower()
@@ -282,8 +276,6 @@ def _zone_trade_filter_decision(
     if (
         side not in {"long", "short"}
         or not all(math.isfinite(v) and v > 0 for v in (entry, stop, target))
-        or not math.isfinite(min_room_r)
-        or min_room_r <= 0
         or (side == "long" and not stop < entry < target)
         or (side == "short" and not target < entry < stop)
     ):
@@ -303,8 +295,7 @@ def _zone_trade_filter_decision(
     if not valid:
         return {"accepted": True, "state": "EMPTY_ZONES", "reason": "no_valid_zones"}
 
-    # A zone is an obstacle only when it lies between the planned entry and
-    # target. If entry starts inside a zone, use its far edge in trade direction.
+    # If entry is already inside a zone, its far edge is the first obstacle.
     if side == "long":
         edges = [
             lower if lower > entry else upper
@@ -314,11 +305,9 @@ def _zone_trade_filter_decision(
         boundary = min(edges) if edges else None
         if boundary is None:
             return {"accepted": True, "state": "NO_OPPOSING_ZONE", "reason": "no_zone_ahead"}
-        if boundary >= target:
-            return {
-                "accepted": True, "state": "ZONE_BEYOND_TARGET",
-                "reason": "target_before_opposing_zone", "boundary": boundary,
-            }
+        room_r = (boundary - entry) / abs(entry - stop)
+        target_r = (target - entry) / abs(entry - stop)
+        blocked = boundary <= target
     else:
         edges = [
             upper if upper < entry else lower
@@ -328,27 +317,18 @@ def _zone_trade_filter_decision(
         boundary = max(edges) if edges else None
         if boundary is None:
             return {"accepted": True, "state": "NO_OPPOSING_ZONE", "reason": "no_zone_ahead"}
-        if boundary <= target:
-            return {
-                "accepted": True, "state": "ZONE_BEYOND_TARGET",
-                "reason": "target_before_opposing_zone", "boundary": boundary,
-            }
+        room_r = (entry - boundary) / abs(entry - stop)
+        target_r = (entry - target) / abs(entry - stop)
+        blocked = boundary >= target
 
-    risk = abs(entry - stop)
-    room_r = abs(boundary - entry) / risk
-    accepted = room_r >= min_room_r
     return {
-        "accepted": accepted,
-        "state": "ROOM_OK" if accepted else "ROOM_TOO_SMALL",
-        "reason": "zone_room_meets_minimum" if accepted else "zone_blocks_required_reward",
+        "accepted": not blocked,
+        "state": "ZONE_BEFORE_TARGET" if blocked else "TARGET_BEFORE_ZONE",
+        "reason": "opposing_zone_intersects_reward_path" if blocked else "planned_target_precedes_zone",
         "boundary": boundary,
         "room_r": round(room_r, 6),
-        "required_room_r": min_room_r,
-        "risk": risk,
-        "entry": entry,
-        "target": target,
+        "target_r": round(target_r, 6),
     }
-
 
 def _apply_zone_trade_filter(
     row: dict[str, Any], *, symbol: str, price: float, expected_bar_ts: int,
@@ -381,7 +361,7 @@ def _apply_zone_trade_filter(
             "reason": decision["reason"],
             "boundary": decision.get("boundary"),
             "room_r": decision.get("room_r"),
-            "required_room_r": decision.get("required_room_r"),
+            "target_r": decision.get("target_r"),
             "entry": row.get("entry"),
             "stop": row.get("stop"),
             "target": row.get("tp"),
