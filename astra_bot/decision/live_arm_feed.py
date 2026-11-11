@@ -266,7 +266,7 @@ def _append_zone_trade_filter_event(event: dict[str, Any]) -> None:
     path = ZONE_FILTER_JOURNAL_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(event, ensure_ascii=False, default=str) + "\\n")
+        handle.write(json.dumps(event, ensure_ascii=False, default=str) + "\n")
 
 
 def _zone_trade_filter_decision(
