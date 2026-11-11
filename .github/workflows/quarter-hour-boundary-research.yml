@@ -2,6 +2,12 @@ name: Quarter-hour boundary research
 
 on:
   workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - ".github/workflows/quarter-hour-boundary-research.yml"
+      - "config/research/quarter_hour_boundary.json"
+      - "scripts/research/quarter_hour_boundary.py"
 
 permissions:
   contents: read
