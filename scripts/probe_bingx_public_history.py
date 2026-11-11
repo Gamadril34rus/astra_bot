@@ -101,6 +101,7 @@ def _minute_window_summary(rows: list, start_ms: int, end_ms: int) -> dict:
     })
     diffs = [right - left for left, right in itertools.pairwise(times)]
     missing_minutes = sum(max(0, delta // 60_000 - 1) for delta in diffs)
+    non_minute_intervals = sum(delta % 60_000 != 0 for delta in diffs)
     expected = (end_ms - start_ms) // 60_000 + 1
     return {
         "requested_start_utc": _iso_ms(start_ms),
@@ -111,12 +112,13 @@ def _minute_window_summary(rows: list, start_ms: int, end_ms: int) -> dict:
         "first_open_utc": _iso_ms(times[0]) if times else None,
         "last_open_utc": _iso_ms(times[-1]) if times else None,
         "missing_minutes_between_returned_rows": missing_minutes,
+        "non_minute_intervals": non_minute_intervals,
         "duplicate_timestamps": len(rows) - len(times),
         "full_contiguous_window": (
             len(times) == expected
             and times[0] == start_ms
             and times[-1] == end_ms - 59_999
-            and missing_minutes == 0
+            and all(delta == 60_000 for delta in diffs)
             and len(rows) == len(times)
         ),
     }
