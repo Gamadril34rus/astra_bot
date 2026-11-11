@@ -68,3 +68,17 @@ def test_minute_window_summary_requires_exact_contiguous_coverage() -> None:
     summary = _minute_window_summary([complete[0], complete[2]], start, end)
     assert summary["full_contiguous_window"] is False
     assert summary["missing_minutes_between_returned_rows"] == 1
+
+
+def test_minute_window_rejects_non_minute_aligned_intervals() -> None:
+    start = 1_700_000_000_000
+    end = start + 2 * 60_000 + 59_999
+    rows = [
+        [start, "1", "2", "0.5", "1.5", "10"],
+        [start + 30_000, "1.5", "2", "1", "1.8", "12"],
+        [start + 120_000, "1.8", "2", "1", "1.9", "14"],
+    ]
+    summary = _minute_window_summary(rows, start, end)
+    assert summary["missing_minutes_between_returned_rows"] == 0
+    assert summary["non_minute_intervals"] == 2
+    assert summary["full_contiguous_window"] is False
