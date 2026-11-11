@@ -228,3 +228,10 @@ Build a replay test that feeds the detector a candle sequence where the current 
 3. closed-candle confirmation plus a retest entry.
 
 Run on archived 1h/4h OHLCV with costs and report per-symbol, per-strategy results. Do not change live settings or merge a fix until this replay quantifies the trade-off.
+
+
+### Isolated corrective draft
+
+A separate draft PR was opened: [#355](https://github.com/Gamadril34rus/astra_bot/pull/355). It applies closed-candle confirmation only to the multi-top/multi-bottom fallback, retains the current forming candle solely as the execution-price reference, and stamps the signal with the confirmed bar timestamp. It adds tests for both timeframe paths and an intrabar-only false break. The channel strategy is deliberately untouched because its execution-price semantics need a separate design.
+
+PR #355 is draft-only and unmerged. Its CI is pending at the time of this update. No production or master change has been made.
