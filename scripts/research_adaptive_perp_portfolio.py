@@ -233,10 +233,16 @@ def choose_signals(x: pd.DataFrame, i: int) -> list[dict]:
     return signals
 
 
-def choose_signal(x: pd.DataFrame, i: int) -> dict | None:
-    """Backward-compatible router: preserve fixed priority, but not for family replay."""
-    signals = choose_signals(x, i)
-    return signals[0] if signals else None
+def choose_signal(
+    x: pd.DataFrame,
+    i: int,
+    enabled_families: set[str] | None = None,
+) -> dict | None:
+    """Route only to an explicitly eligible family; None preserves diagnostic all-family routing."""
+    for signal in choose_signals(x, i):
+        if enabled_families is None or signal["family"] in enabled_families:
+            return signal
+    return None
 
 def funding_cost_fraction(side: int, rates: pd.Series) -> float:
     """Positive funding rate is paid by LONG and received by SHORT."""
@@ -250,6 +256,7 @@ def simulate_symbol(
     bar_minutes: int = 15,
     start_time_ms: int | None = None,
     family_filter: str | None = None,
+    enabled_families: set[str] | None = None,
 ) -> list[dict]:
     if bar_minutes not in (15, 30):
         raise ValueError(f"unsupported signal bar duration: {bar_minutes}")
@@ -302,7 +309,7 @@ def simulate_symbol(
             i += 1
             continue
         if family_filter is None:
-            signal = choose_signal(x, i)
+            signal = choose_signal(x, i, enabled_families=enabled_families)
         else:
             signal = next(
                 (item for item in choose_signals(x, i) if item["family"] == family_filter),
@@ -585,8 +592,20 @@ def main() -> int:
     parser.add_argument("--symbols", default=",".join(SYMBOLS))
     parser.add_argument("--max-period", choices=("IS", "VALIDATION", "OOS", "ALL"), default="ALL")
     parser.add_argument("--family-only", choices=REGIME_FAMILIES)
+    parser.add_argument("--enabled-families", help="comma-separated eligible families, or NONE to force NO_TRADE")
     parser.add_argument("--out", type=Path, default=Path("reports/adaptive_perp"))
     args = parser.parse_args()
+    enabled_families = None
+    if args.enabled_families is not None:
+        enabled_families = (
+            set() if args.enabled_families.strip().upper() == "NONE"
+            else {item.strip().upper() for item in args.enabled_families.split(",") if item.strip()}
+        )
+        unknown_families = sorted(enabled_families - set(REGIME_FAMILIES))
+        if unknown_families:
+            parser.error(f"unknown enabled families: {unknown_families}")
+    if args.family_only and enabled_families is not None:
+        parser.error("--family-only and --enabled-families are mutually exclusive")
     args.symbols = tuple(item.strip().upper() for item in args.symbols.split(",") if item.strip())
     unknown_symbols = sorted(set(args.symbols) - set(SYMBOLS))
     if not args.symbols or unknown_symbols:
@@ -704,6 +723,7 @@ def main() -> int:
             bar_minutes=interval_ms // 60_000,
             start_time_ms=trade_start_ms,
             family_filter=args.family_only,
+            enabled_families=enabled_families,
         ))
         signal_diagnostics[symbol] = symbol_diagnostics
     trade_columns = [
@@ -735,7 +755,9 @@ def main() -> int:
             "symbols": list(args.symbols),
             "max_period": args.max_period,
         "family_filter": args.family_only,
+        "enabled_families": sorted(enabled_families) if enabled_families is not None else None,
             "family_filter": args.family_only,
+            "enabled_families": sorted(enabled_families) if enabled_families is not None else None,
             "simulation_window": simulation_window,
             "split_boundaries_utc": {
                 "validation_start": pd.to_datetime(validation_start_ms, unit="ms", utc=True).isoformat(),
