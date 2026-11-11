@@ -8,7 +8,6 @@ from scripts.research_adaptive_perp_portfolio import (
     choose_signals,
 )
 
-
 HOUR_MS = 3_600_000
 
 
