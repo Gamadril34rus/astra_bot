@@ -102,6 +102,19 @@ def _adx(frame: pd.DataFrame, period: int = 14) -> pd.Series:
     return dx.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
 
 
+def volume_for_ratio(frame: pd.DataFrame) -> pd.Series:
+    """Choose one volume unit for the entire symbol history, never row by row."""
+    base = pd.to_numeric(frame["volume"], errors="coerce")
+    quote = pd.to_numeric(frame["quote_volume"], errors="coerce")
+    quote_is_consistent = (
+        quote.notna().all()
+        and (quote >= 0).all()
+        and ((base <= 0) | (quote > 0)).all()
+        and (quote > 0).any()
+    )
+    return quote if quote_is_consistent else base
+
+
 def add_features(m15: pd.DataFrame, h1: pd.DataFrame) -> pd.DataFrame:
     x = m15.copy()
     close = x["close"]
@@ -126,7 +139,7 @@ def add_features(m15: pd.DataFrame, h1: pd.DataFrame) -> pd.DataFrame:
     x["bb_width_pct"] = x["bb_width"].rolling(96, min_periods=48).apply(
         lambda values: float(np.mean(values <= values[-1])), raw=True
     ).shift(1)
-    volume = x["quote_volume"].where(x["quote_volume"] > 0, x["volume"])
+    volume = volume_for_ratio(x)
     x["volume_ratio"] = volume / volume.shift(1).rolling(20, min_periods=20).mean()
 
     h = h1.copy()
