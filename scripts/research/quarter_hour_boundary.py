@@ -168,7 +168,7 @@ class BingXPublicDownloader:
                 return payload
             code = str(payload.get("code"))
             if code == "100410" and attempt < 3:
-                wait = (300, 300, 300)[attempt]
+                wait = (5, 30, 60)[attempt]
                 LOG.warning("BingX 100410; cooling down %ss before retry", wait)
                 await asyncio.sleep(wait)
                 continue
