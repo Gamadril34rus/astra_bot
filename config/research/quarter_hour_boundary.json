@@ -22,7 +22,13 @@
   },
   "costs_bps_per_side": {
     "taker_fee": 4,
-    "slippage_proxy": 2,
+    "slippage_proxy_by_symbol": {
+      "BTC-USDT": 2,
+      "ETH-USDT": 2,
+      "SOL-USDT": 5,
+      "HYPE-USDT": 5,
+      "INJ-USDT": 5
+    },
     "stress_multiplier": 1.5
   },
   "splits_utc_inclusive": {
