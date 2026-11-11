@@ -309,7 +309,11 @@ def simulate_symbol(
             i += 1
             continue
         if family_filter is None:
-            signal = choose_signal(x, i, enabled_families=enabled_families)
+            signal = (
+                choose_signal(x, i)
+                if enabled_families is None
+                else choose_signal(x, i, enabled_families=enabled_families)
+            )
         else:
             signal = next(
                 (item for item in choose_signals(x, i) if item["family"] == family_filter),
