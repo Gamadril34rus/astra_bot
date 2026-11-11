@@ -2476,3 +2476,7 @@
 {"event": "partial_fill", "symbol": "HYPE-USDT", "side": null, "qty": null, "price": null, "pnl": 51.548494, "income_type": "REALIZED_PNL", "income_id": "1794212561561284082_512_526469_PNL", "source": "income_tape", "ts": 1794437314.0}
 {"event": "order_cancel", "symbol": "INJ-USDT", "order_id": "2120649775719735296", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794437842.4863174}
 {"event": "order_cancel", "symbol": "ETH-USDT", "order_id": "2120648211105931264", "type": "TAKE_PROFIT", "reason": "tp_heal_replace", "path": "tp_heal", "ts": 1794438162.9707024}
+{"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2120560320312860672", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794438419.4645646}
+{"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2120647099493736448", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794438428.7195668}
+{"event": "partial_fill", "symbol": "HYPE-USDT", "side": "short", "qty": "284.76789966", "exch_qty": "273.6004", "plan_qty": "558.36829966", "price": null, "ts": 1794438429.303975, "source": "be_catchup_qty_gap"}
+{"event": "order_cancel", "symbol": "INJ-USDT", "order_id": "2120652131492519936", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794438439.368454}
