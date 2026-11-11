@@ -117,7 +117,7 @@ def test_stale_not_fresh():
     assert not is_fresh(row, max_sec=600)
 
 
-def test_zone_trade_filter_uses_candidate_risk_for_long_and_short():
+def test_zone_trade_filter_blocks_only_zones_before_planned_target():
     from astra_bot.decision.live_arm_feed import _zone_trade_filter_decision
 
     long_row = {"side": "long", "entry": 100.0, "stop": 95.0, "tp": 120.0}
@@ -125,15 +125,15 @@ def test_zone_trade_filter_uses_candidate_risk_for_long_and_short():
         long_row, [{"lower": 104.0, "upper": 106.0}]
     )
     assert not blocked_long["accepted"]
-    assert blocked_long["state"] == "ROOM_TOO_SMALL"
+    assert blocked_long["state"] == "ZONE_BEFORE_TARGET"
     assert blocked_long["room_r"] == 0.8
-    assert blocked_long["required_room_r"] == 2.0
+    assert blocked_long["target_r"] == 4.0
 
     clear_long = _zone_trade_filter_decision(
-        long_row, [{"lower": 112.0, "upper": 114.0}]
+        long_row, [{"lower": 122.0, "upper": 124.0}]
     )
     assert clear_long["accepted"]
-    assert clear_long["state"] == "ROOM_OK"
+    assert clear_long["state"] == "TARGET_BEFORE_ZONE"
 
     short_row = {"side": "short", "entry": 100.0, "stop": 105.0, "tp": 80.0}
     blocked_short = _zone_trade_filter_decision(
@@ -156,19 +156,19 @@ def test_zone_trade_filter_uses_far_edge_when_entry_is_inside_zone():
     assert decision["room_r"] == 0.6
 
 
-def test_zone_trade_filter_does_not_veto_zone_beyond_target_or_empty_data():
+def test_zone_trade_filter_does_not_veto_empty_or_missing_opposing_zones():
     from astra_bot.decision.live_arm_feed import _zone_trade_filter_decision
 
     row = {"side": "long", "entry": 100.0, "stop": 95.0, "tp": 110.0}
-    beyond = _zone_trade_filter_decision(
-        row, [{"lower": 112.0, "upper": 114.0}]
-    )
-    assert beyond["accepted"]
-    assert beyond["state"] == "ZONE_BEYOND_TARGET"
-
     empty = _zone_trade_filter_decision(row, [])
     assert empty["accepted"]
     assert empty["state"] == "EMPTY_ZONES"
+
+    behind = _zone_trade_filter_decision(
+        row, [{"lower": 90.0, "upper": 95.0}]
+    )
+    assert behind["accepted"]
+    assert behind["state"] == "NO_OPPOSING_ZONE"
 
 
 def test_zone_trade_filter_fails_closed_on_unknown_or_invalid_candidate():
