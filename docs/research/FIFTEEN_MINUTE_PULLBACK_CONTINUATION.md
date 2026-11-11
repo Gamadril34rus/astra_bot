@@ -102,3 +102,8 @@ The previous router's by_family values must not be treated as independent module
 ### 2026-11-11 relative-volume unit correction
 
 A code review found that the previous quote-volume fallback selected quote volume on positive rows and base volume on zero rows. Those quantities have different units, so a single missing/zero quote-volume observation could distort the rolling relative-volume ratio and therefore alter signal eligibility. The research feature path now selects quote volume only when it is complete and internally consistent across the symbol history; otherwise it uses base volume for the entire symbol history. It never mixes the two units row by row. Regression tests cover both the shared regime screen and the dedicated 15m pullback feature path. This is a data-integrity correction, not a strategy-rule change.
+
+
+### 2026-11-11 candle-archive cooldown correction
+
+A review of the live research workflow found that the candle archive used three 300-second waits for BingX HTTP-200 code 100410, while the funding archive already used bounded 5/30/60-second backoff. The candle archive now uses the same 5/30/60-second schedule (four total attempts), with a regression test asserting the exact wait sequence. This avoids a 15-minute stall for one page without removing cooldown handling or increasing request rate. The archive remains sequential at 0.2 requests/second.
