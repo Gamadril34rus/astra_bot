@@ -5,7 +5,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-
 from astra_bot.decision.live_arm_feed import scan_symbol
 from astra_bot.strategies.zeus_multi_top_breakdown import detect_multi_top_breakdown
 
@@ -43,7 +42,7 @@ def _series_two_flat_tops():
 def _candles_from_hlc(h, l, c, step_ms=3_600_000):
     bars = []
     ts0 = 1_700_000_000_000
-    for i, (hi, lo, cl) in enumerate(zip(h, l, c)):
+    for i, (hi, lo, cl) in enumerate(zip(h, l, c, strict=True)):
         bars.append(
             SimpleNamespace(
                 open=cl,
@@ -140,7 +139,7 @@ async def test_intrabar_break_without_closed_break_is_not_a_signal(monkeypatch):
         open=97.0, high=97.0, low=94.0, close=94.5,
         open_time=closed_bars[-1].open_time + 3_600_000,
     )
-    bars = closed_bars + [forming_break]
+    bars = [*closed_bars, forming_break]
 
     async def fake_candles(client, symbol, *, timeframe="4h", limit=120):
         return bars
@@ -209,7 +208,7 @@ async def test_confirmed_break_reclaimed_before_execution_is_rejected(monkeypatc
         open=96.8, high=97.0, low=96.5, close=96.8,
         open_time=closed_bars[-1].open_time + 3_600_000,
     )
-    bars = closed_bars + [forming_reclaim]
+    bars = [*closed_bars, forming_reclaim]
 
     async def fake_candles(client, symbol, *, timeframe="4h", limit=120):
         return bars
