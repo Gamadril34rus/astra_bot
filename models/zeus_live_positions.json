@@ -45,7 +45,7 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "74070.8",
+      "peak_low": "73938.2",
       "be_earned": true,
       "current_regime": "STRONG_BEAR_TREND"
     },
@@ -65,7 +65,7 @@
       "opened_at_ms": 1794424021425,
       "tp_parity_v1": true,
       "be_earned": true,
-      "peak_low": "2058.56",
+      "peak_low": "2055.85",
       "current_regime": "STRONG_BEAR_TREND",
       "tp1": "2059.659224999999835",
       "migrate_stop_v1": true,
@@ -76,9 +76,9 @@
     "HYPE-USDT|short": {
       "symbol": "HYPE-USDT",
       "side": "short",
-      "qty": "558.36829966",
+      "qty": 390.8577,
       "stop": "72.69374",
-      "tp": "71.6501170",
+      "tp": "70.819390",
       "entry": "71.944",
       "leverage": 6,
       "pending_verify": false,
@@ -88,15 +88,17 @@
       "initial_stop": "72.69374",
       "opened_at_ms": 1794436643509,
       "plan_qty": "558.36829966",
-      "qty_ratio": 1.0,
+      "qty_ratio": 0.6999998034236541,
       "tp1": "71.6501170",
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "71.837",
+      "peak_low": "71.600",
       "current_regime": "WEAK_BEAR_TREND",
-      "be_earned": true
+      "be_earned": true,
+      "runner_tp_rr": 1.5,
+      "runner_tp_healed_v1": true
     }
   },
-  "ts": 1794437282.0843496
+  "ts": 1794437553.2303042
 }
