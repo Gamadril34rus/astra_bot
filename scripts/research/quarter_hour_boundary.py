@@ -28,9 +28,20 @@ IMPULSE_RETURN_MAX = 0.015
 VOLUME_MULTIPLE = 1.5
 HORIZONS = {"30m": 6, "1h": 12, "2h": 24, "4h": 48}
 FEE_BPS_PER_SIDE = 4.0
-SLIPPAGE_BPS_PER_SIDE = 2.0
-ROUND_TRIP_COST_BPS = 2 * (FEE_BPS_PER_SIDE + SLIPPAGE_BPS_PER_SIDE)
-STRESS_ROUND_TRIP_COST_BPS = ROUND_TRIP_COST_BPS * 1.5
+SLIPPAGE_BPS_BY_SYMBOL = {
+    "BTC-USDT": 2.0,
+    "ETH-USDT": 2.0,
+    "SOL-USDT": 5.0,
+    "HYPE-USDT": 5.0,
+    "INJ-USDT": 5.0,
+}
+ROUND_TRIP_COST_BPS = {
+    symbol: 2 * (FEE_BPS_PER_SIDE + slippage)
+    for symbol, slippage in SLIPPAGE_BPS_BY_SYMBOL.items()
+}
+STRESS_ROUND_TRIP_COST_BPS = {
+    symbol: cost * 1.5 for symbol, cost in ROUND_TRIP_COST_BPS.items()
+}
 SPLITS = (
     ("IS", "2025-07-09", "2025-12-31"),
     ("VALIDATION", "2026-01-01", "2026-05-31"),
@@ -70,7 +81,7 @@ def validate_config(path: Path) -> None:
     costs = config.get("costs_bps_per_side", {})
     if costs != {
         "taker_fee": FEE_BPS_PER_SIDE,
-        "slippage_proxy": SLIPPAGE_BPS_PER_SIDE,
+        "slippage_proxy_by_symbol": SLIPPAGE_BPS_BY_SYMBOL,
         "stress_multiplier": 1.5,
     }:
         raise ValueError(f"frozen research cost config mismatch: {costs!r}")
@@ -434,6 +445,8 @@ def event_outcomes(
                 if funding_complete
                 else np.nan
             )
+            round_trip_cost = ROUND_TRIP_COST_BPS[event.symbol]
+            stress_round_trip_cost = STRESS_ROUND_TRIP_COST_BPS[event.symbol]
             rows.append(
                 {
                     "symbol": event.symbol,
@@ -443,16 +456,16 @@ def event_outcomes(
                     "horizon": horizon,
                     "side": side,
                     "gross_bps": gross_bps,
-                    "cost_only_net_bps": gross_bps - ROUND_TRIP_COST_BPS,
-                    "stress_net_bps": gross_bps - STRESS_ROUND_TRIP_COST_BPS,
+                    "cost_only_net_bps": gross_bps - round_trip_cost,
+                    "stress_net_bps": gross_bps - stress_round_trip_cost,
                     "funding_bps": funding_bps,
                     "funded_net_bps": (
-                        gross_bps - ROUND_TRIP_COST_BPS + funding_bps
+                        gross_bps - round_trip_cost + funding_bps
                         if funding_complete
                         else np.nan
                     ),
                     "funded_stress_net_bps": (
-                        gross_bps - STRESS_ROUND_TRIP_COST_BPS + funding_bps
+                        gross_bps - stress_round_trip_cost + funding_bps
                         if funding_complete
                         else np.nan
                     ),
@@ -606,9 +619,9 @@ def run_study(data_dir: Path, report_path: Path) -> dict[str, Any]:
         "entry_proxy": "open of next 5m candle; no BBO/size history, not an executable fill",
         "costs": {
             "fee_bps_per_side": FEE_BPS_PER_SIDE,
-            "slippage_bps_per_side": SLIPPAGE_BPS_PER_SIDE,
-            "round_trip_bps": ROUND_TRIP_COST_BPS,
-            "round_trip_stress_1_5x_bps": STRESS_ROUND_TRIP_COST_BPS,
+            "slippage_bps_per_side_by_symbol": SLIPPAGE_BPS_BY_SYMBOL,
+            "round_trip_bps_by_symbol": ROUND_TRIP_COST_BPS,
+            "round_trip_stress_1_5x_bps_by_symbol": STRESS_ROUND_TRIP_COST_BPS,
         },
         "funding": "actual archived settlements when coverage brackets the whole event; otherwise UNKNOWN",
         "horizons": HORIZONS,
