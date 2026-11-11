@@ -3,27 +3,23 @@
     "INJ-USDT|short": {
       "symbol": "INJ-USDT",
       "side": "short",
-      "qty": "783.88617651",
-      "stop": "8.314142857142857",
-      "tp": "7.62281307349064835",
+      "qty": "548.000",
+      "stop": "7.8881040",
+      "tp": "7.1340356549744955",
       "entry": "7.896",
-      "leverage": 6,
+      "leverage": 5,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|INJ-USDT|short|1794398400000",
-      "ts": 1794398589.5494874,
-      "be_moved": false,
+      "ts": 1794439037.7281828,
+      "be_moved": true,
       "initial_stop": "8.403976230017003",
       "opened_at_ms": 1794398589549,
-      "plan_qty": "783.88617651",
-      "qty_ratio": 1.0,
-      "tp1": "7.62281307349064835",
-      "initial_stop_v1": true,
       "tp_parity_v1": true,
-      "early_tp1": true,
-      "peak_low": "7.673",
       "be_earned": true,
+      "peak_high": "8.1",
+      "peak_low": "7.646",
       "current_regime": "RANGE",
-      "peak_high": "8.1"
+      "tp1": "7.62281307349064835"
     },
     "BTC-USDT|short": {
       "symbol": "BTC-USDT",
@@ -76,5 +72,5 @@
       "early_tp_repair_v1": true
     }
   },
-  "ts": 1794438785.793345
+  "ts": 1794439079.7096996
 }
