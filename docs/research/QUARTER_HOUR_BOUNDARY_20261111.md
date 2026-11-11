@@ -1,8 +1,16 @@
 # Quarter-hour boundary: isolated event-study protocol
 
-**Status: IMPLEMENTATION ONLY — NO DATA RUN OR PROFITABILITY CLAIM.**
+**Status: exact 5m/15m hypothesis is data-blocked; coarse 30m proxy is being tested. No profitability claim.**
 
 This experiment tests two competing explanations of a price impulse on UTC quarter-hour boundaries. It does not modify Zeus, production configuration, VST, risk controls, or order routing.
+
+## Data feasibility result (11 Nov 2026)
+
+A live public-API probe returned 0 historical 5m and 15m candles at the IS, Validation and OOS start dates, while 100 recent candles were returned. The same probe returned 100 historical 30m candles at all three period starts and for the latest window. Therefore the exact 5m/15m event definition below cannot currently be tested historically from BingX's public kline endpoint.
+
+The current workflow therefore runs a **separate coarse 30m proxy** from the existing `research/positioning-data` archive. It observes only bars opening at UTC `:00` and `:30`, uses the full 30m candle return, and tests horizons of 30m, 1h, 2h and 4h. It does not observe `:15` or `:45`, and it is not a replication of the paper or the original 5m hypothesis. The report is explicitly labeled `COARSE_PROXY_ONLY_NOT_THE_15M_OR_5M_HYPOTHESIS`.
+
+The original 5m protocol remains documented below for a future archive if the exchange later exposes adequate historical depth or if a sufficiently long prospective 5m archive is collected.
 
 ## Research question
 
@@ -49,14 +57,9 @@ All symbols use the same calendar boundaries. A symbol's unavailable pre-listing
 
 ## Data collection
 
-The one-shot GitHub Actions workflow downloads 5m candles and historical funding from BingX public endpoints:
+The current one-shot workflow retrieves the canonical 30m CSVs and manifest from the `research/positioning-data` branch, verifies first/last timestamps, bar counts, duplicates and gaps, then downloads historical funding from `/openApi/swap/v2/quote/fundingRate`. It saves SHA-256 hashes and uploads the dataset and report as an artifact; it does not commit raw data to master or production branches.
 
-- `/openApi/swap/v3/quote/klines`
-- `/openApi/swap/v2/quote/fundingRate`
-
-It uses each symbol's first timestamp from the existing `research/positioning-data` 30m manifest, respects a conservative request rate, verifies contiguous 5m candles page-by-page, and saves SHA-256 hashes in `download_manifest.json`. The workflow uploads data and report as an artifact; it does not commit raw data to master or production branches.
-
-If BingX does not return the requested history, the run must fail with a coverage error. It must not fill gaps, silently drop duplicates, or replace missing funding with a fixed assumed rate.
+The 5m/15m feasibility probe uses `/openApi/swap/v3/quote/klines`. It found no historical 5m/15m rows for the frozen IS, Validation or OOS windows. Missing intraday data is not reconstructed from 30m OHLCV. If funding history does not bracket an event window, funded net return remains UNKNOWN.
 
 ## Inference and reporting
 
@@ -66,7 +69,7 @@ This stage is a screening experiment only. A positive event-study result is not 
 
 ## Run
 
-After the research PR is reviewed and merged, the master push trigger starts one data download and event-study run. The workflow also remains manually dispatchable. It uploads `quarter-hour-boundary-research` containing raw CSVs, SHA-256 manifest and `report.json`.
+The master push trigger starts the coarse 30m archive study; the workflow also remains manually dispatchable. It uploads `quarter-hour-boundary-research` containing raw 30m CSVs, funding CSVs, SHA-256 manifest and `coarse_30m_report.json`.
 
 ## Safety boundary
 
