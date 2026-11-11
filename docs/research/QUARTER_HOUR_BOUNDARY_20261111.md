@@ -66,7 +66,7 @@ This stage is a screening experiment only. A positive event-study result is not 
 
 ## Run
 
-After the research PR is reviewed and merged, manually run **Quarter-hour boundary research** from GitHub Actions. It downloads the current available history and uploads `quarter-hour-boundary-research` containing raw CSVs, SHA-256 manifest and `report.json`.
+After the research PR is reviewed and merged, the master push trigger starts one data download and event-study run. The workflow also remains manually dispatchable. It uploads `quarter-hour-boundary-research` containing raw CSVs, SHA-256 manifest and `report.json`.
 
 ## Safety boundary
 
