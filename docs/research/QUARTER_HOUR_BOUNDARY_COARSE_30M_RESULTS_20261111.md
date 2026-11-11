@@ -85,4 +85,4 @@ Mean cost-only event return in bps. Each symbol is negative at every horizon for
 3. **Do not claim the original 5m/15m hypothesis failed.** Its required historical data was unavailable; the test was not performed.
 4. The next valid route for the exact hypothesis is a prospective 5m archive (and preferably trade-level data for the paper's 10-second signed flow). It needs enough untouched history before any OOS claim. No synthetic reconstruction from 30m candles is acceptable.
 
-No production files, `SETTINGS.md`, Zeus strategy, risk settings, VST arming or real order paths were changed by this research.
+No production strategy code, `SETTINGS.md`, Zeus strategy, risk settings, VST arming or real order paths were changed by this research. The only master-side changes are isolated research scripts, documentation and the manual/one-shot research workflow.
