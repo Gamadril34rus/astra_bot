@@ -188,3 +188,56 @@ def test_zone_trade_filter_fails_closed_on_unknown_or_invalid_candidate():
     )
     assert not invalid["accepted"]
     assert invalid["state"] == "UNKNOWN"
+
+
+
+def test_zone_trade_filter_rejects_stale_cache(monkeypatch):
+    import astra_bot.decision.live_arm_feed as feed
+
+    events = []
+    monkeypatch.setenv("ZONE_TRADE_FILTER", "1")
+    monkeypatch.setattr(
+        feed, "_ZONE_CACHE",
+        {"BTC-USDT": (100, [{"lower": 104.0, "upper": 106.0}]),
+    )
+    monkeypatch.setattr(
+        "astra_bot.decision.live_arm_wiring.append_journal",
+        lambda event: events.append(event),
+    )
+    row = {
+        "signal_id": "zone-test", "side": "long", "entry": 100.0,
+        "stop": 95.0, "tp": 120.0, "strategy": "test",
+    }
+    result = feed._apply_zone_trade_filter(
+        row, symbol="BTC-USDT", price=100.5, expected_bar_ts=101,
+    )
+    assert result is None
+    assert events[0]["state"] == "UNKNOWN"
+    assert events[0]["reason"] == "zone_cache_missing_or_stale"
+
+
+def test_zone_trade_filter_blocks_when_decision_cannot_be_journaled(monkeypatch):
+    import astra_bot.decision.live_arm_feed as feed
+
+    monkeypatch.setenv("ZONE_TRADE_FILTER", "1")
+    monkeypatch.setattr(
+        feed, "_ZONE_CACHE",
+        {"BTC-USDT": (100, [{"lower": 122.0, "upper": 124.0}]),
+    )
+
+    def fail_journal(_event):
+        raise OSError("journal unavailable")
+
+    monkeypatch.setattr(
+        "astra_bot.decision.live_arm_wiring.append_journal", fail_journal,
+    )
+    row = {
+        "signal_id": "zone-test", "side": "long", "entry": 100.0,
+        "stop": 95.0, "tp": 120.0, "strategy": "test",
+    }
+    result = feed._apply_zone_trade_filter(
+        row, symbol="BTC-USDT", price=100.5, expected_bar_ts=100,
+    )
+    assert result is None
+    assert row["zone_trade_filter"]["state"] == "UNKNOWN"
+    assert row["zone_trade_filter"]["reason"] == "zone_filter_journal_failed"
