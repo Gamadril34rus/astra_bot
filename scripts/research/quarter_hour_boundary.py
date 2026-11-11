@@ -229,20 +229,17 @@ async def fetch_dataset(
                 funding,
                 columns=["symbol", "funding_time_ms", "funding_rate"],
             ).to_csv(funding_path, index=False)
+            candle_times = sorted(int(row["open_time"]) for row in candles)
+            gap_count = sum(
+                1
+                for index in range(1, len(candle_times))
+                if candle_times[index] - candle_times[index - 1] != INTERVAL_MS
+            )
             result[symbol] = {
-                "first_open_time": min(row["open_time"] for row in candles),
-                "last_open_time": max(row["open_time"] for row in candles),
+                "first_open_time": candle_times[0],
+                "last_open_time": candle_times[-1],
                 "bars": len(candles),
-                "gaps": int(
-                    sum(
-                        1
-                        for left, right in zip(
-                            sorted(row["open_time"] for row in candles),
-                            sorted(row["open_time"] for row in candles)[1:],
-                        )
-                        if right - left != INTERVAL_MS
-                    )
-                ),
+                "gaps": gap_count,
                 "funding_rows": len(funding),
                 "funding_first_ms": min(
                     (row["funding_time_ms"] for row in funding), default=None
