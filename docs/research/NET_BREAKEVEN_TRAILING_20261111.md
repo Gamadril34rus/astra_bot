@@ -95,3 +95,46 @@ Use adverse intrabar ordering where 1m still leaves ambiguity, and report per-sy
 - No changes to SETTINGS.md, Zeus production code, live arming, risk limits, or REAL flags.
 - No exchange orders.
 - No claim of profitability based on this preliminary replay.
+
+
+## Follow-up source audit: concrete live-code mismatches (2026-11-11)
+
+This section records source-level findings from the current `master` snapshot. These are code-path facts, not claims that a particular live trade has already hit each path.
+
+### 1. The early scale-out is an independent 30% market reduction
+
+`scripts/zeus_live_clock.py::scale_out_early_if_due`:
+- reads `ZEUS_TP1_RR` (default 0.6; session profile writes 0.45/0.55/0.70);
+- when mark MFE reaches that R threshold and the stored TP is far (RR >= 1.5), submits a MARKET order for `tp_frac` (default 0.3);
+- records `early_scaled=true` and installs a runner TP at 1.5R.
+
+It is invoked from the live clock every tick. Therefore full-size holding is explicitly not the current behavior. The call path must be gated/removed in a separately approved change, not merely by adjusting the BE threshold.
+
+### 2. The normal BE path is gated by MFE in R before net-BE is calculated
+
+`sync_partial_breakeven` computes `mfe_r` from `initial_stop` and returns until `mfe_r >= trigger_r`. The live session profile controls this at 0.30R / 0.40R / 0.50R. Net-BE is calculated only after this gate. This does not implement activation as soon as net costs are covered.
+
+### 3. The deferred partial-fill recovery path calculates net BE, then places the stop at gross entry
+
+In the same function, `net_be` is computed and used for the mark eligibility check. But when `partial_gap or is_pending` is true and the mark is eligible, the subsequent recovery branch sets `target = entry_px` and calls `move_stop(..., target)`. It does not use `net_be`. This is a concrete inconsistency: the path can mark `be_moved=true` while the stop is only gross entry.
+
+### 4. Live net-BE calculation is missing two cost inputs in the current caller
+
+`LiveBroker.net_breakeven_price` reads `funding_accum` from the supplied position object and its own docstring explicitly says exit slippage is not applied. The `sync_partial_breakeven` caller constructs a synthetic position with entry, side, quantity and symbol, but does not pass `funding_accum`. Consequently funding defaults to zero in this calculation even though the function supports funding when supplied. It also cannot cover estimated stop-market slippage.
+
+### 5. This code is not yet the whole exit policy
+
+`SETTINGS.md` states the live workflow has `ZEUS_LIVE_EXIT_ENGINE=on`, ATR trail policy, and 30/70 TP fractions. The clock's early scale-out repair is another path. Any future change must audit all writers of stop/TP/quantity and prove that the exit engine, protection repair, and clock do not overwrite one another. Do not infer that disabling one helper disables all partial exits.
+
+### Minimal safe correction scope for a future owner-approved implementation
+
+- Define one canonical net-cost/stop-price calculator whose inputs are actual entry fills, current remaining quantity, accumulated funding, configured actual fee tier, and a conservative slippage allowance.
+- Pass real accumulated funding into the calculator; fail closed (do not label gross entry as net BE) if required cost inputs are unavailable.
+- In every BE placement path, use the same canonical target. In particular, remove the gross-entry target from the deferred partial-fill recovery path.
+- Ensure only-tighten semantics and verify exchange order state after replacement; do not mark `be_moved` until the exchange stop is confirmed at the intended target.
+- Treat 30% scale-out removal as a separate policy change. Audit `live_exit_engine`, initial TP order placement, repair helpers, and this scale-out function together.
+- Add tests for long/short, nonzero funding paid/received, fee tiers, slippage, partial-fill recovery, exchange rejection, stale/missing funding, duplicate ticks, and restart recovery.
+
+### Current decision
+
+These source findings justify a focused exit-engine correction investigation. They do **not** justify editing production code yet: stop-market slippage cannot be guaranteed, the full exit-policy writers have not all been reconciled, and no fill-level replay has established that this exit design is profitable. Keep this PR research-only.
