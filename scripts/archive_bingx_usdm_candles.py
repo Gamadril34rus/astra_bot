@@ -172,7 +172,7 @@ async def _call_with_cooldown(
     operation: Callable[[], Awaitable[Any]], *, label: str
 ) -> Any:
     """Retry BingX HTTP-200 code 100410 after endpoint cooldown windows."""
-    delays = (300.0, 300.0, 300.0)
+    delays = (5.0, 30.0, 60.0)
     for attempt in range(4):
         try:
             return await operation()
