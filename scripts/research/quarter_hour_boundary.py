@@ -175,6 +175,55 @@ class BingXPublicDownloader:
             raise RuntimeError(f"BingX {path} code={code}: {payload.get('msg')}")
         raise RuntimeError(f"BingX {path}: retry budget exhausted")
 
+    async def probe_candle_ranges(
+        self, symbol: str, symbol_start_ms: int, last_closed_ms: int
+    ) -> dict[str, int]:
+        """Diagnose historical availability without fabricating missing bars."""
+        probe_starts = {
+            "IS": max(
+                symbol_start_ms,
+                int(pd.Timestamp("2025-07-09T00:00:00Z").timestamp() * 1000),
+            ),
+            "VALIDATION": max(
+                symbol_start_ms,
+                int(pd.Timestamp("2026-01-01T00:00:00Z").timestamp() * 1000),
+            ),
+            "OOS": max(
+                symbol_start_ms,
+                int(pd.Timestamp("2026-06-01T00:00:00Z").timestamp() * 1000),
+            ),
+            "LATEST": max(
+                symbol_start_ms, last_closed_ms - 99 * INTERVAL_MS
+            ),
+        }
+        counts: dict[str, int] = {}
+        for label, probe_start in probe_starts.items():
+            probe_start = (
+                (probe_start + INTERVAL_MS - 1) // INTERVAL_MS
+            ) * INTERVAL_MS
+            probe_end = min(
+                probe_start + 99 * INTERVAL_MS,
+                last_closed_ms,
+            )
+            if probe_start > probe_end:
+                counts[label] = 0
+                continue
+            payload = await self.get(
+                KLINE_PATH,
+                {
+                    "symbol": symbol,
+                    "interval": "5m",
+                    "startTime": probe_start,
+                    "endTime": probe_end + INTERVAL_MS - 1,
+                    "limit": 100,
+                },
+            )
+            data = payload.get("data") or []
+            if isinstance(data, dict):
+                data = data.get("klines", data.get("data", [])) or []
+            counts[label] = len(_rows_from_kline(data, symbol))
+        return counts
+
     async def candles(
         self, symbol: str, start_ms: int, end_ms: int
     ) -> list[dict[str, Any]]:
@@ -204,9 +253,13 @@ class BingXPublicDownloader:
             actual = sorted(int(row["open_time"]) for row in page)
             if actual != expected:
                 missing = sorted(set(expected) - set(actual))
+                probes = await self.probe_candle_ranges(
+                    symbol, start_ms, last_closed
+                )
                 raise RuntimeError(
                     f"{symbol} 5m coverage mismatch: expected={len(expected)} "
-                    f"actual={len(actual)} missing={missing[:5]}"
+                    f"actual={len(actual)} missing={missing[:5]}; "
+                    f"historical availability probes={probes}"
                 )
             rows.extend(page)
             cursor = page_end + INTERVAL_MS
