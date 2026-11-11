@@ -24,6 +24,19 @@ from astra_bot.decision.live_tg_flags import try_claim
 
 logger = logging.getLogger(__name__)
 
+
+def _stop_pct_decimal(entry: Any, stop: Any) -> Decimal | None:
+    """Exact stop/entry distance; None means invalid entry or price data."""
+    try:
+        entry_d = Decimal(str(entry))
+        stop_d = Decimal(str(stop))
+        if not entry_d.is_finite() or not stop_d.is_finite() or entry_d <= 0:
+            return None
+        return abs(entry_d - stop_d) / entry_d
+    except Exception:
+        return None
+
+
 # Owner 28.10: hard notional cap (BingX demo rejects ~100k USDT position value).
 # Risk% unchanged — only clips oversized qty before place. ENV override allowed.
 def max_position_value_usdt() -> float:
@@ -533,13 +546,12 @@ async def run_arm_entries(
             _min_stop_pct = float((_os2.environ.get("ZEUS_MIN_STOP_PCT") or "0.01").strip() or "0.01")
         except ValueError:
             _min_stop_pct = 0.01
-        try:
-            _ent = float(cand.entry)
-            _stp = float(cand.stop)
-            _stop_pct = abs(_ent - _stp) / _ent if _ent else 0.0
-        except Exception:
-            _stop_pct = 0.0
-        if _min_stop_pct > 0 and _stop_pct < _min_stop_pct:
+        _stop_pct_d = _stop_pct_decimal(cand.entry, cand.stop)
+        _stop_pct = float(_stop_pct_d) if _stop_pct_d is not None else 0.0
+        _min_stop_pct_d = Decimal(str(_min_stop_pct))
+        if _min_stop_pct > 0 and (
+            _stop_pct_d is None or _stop_pct_d < _min_stop_pct_d
+        ):
             logger.info(
                 "arm: skip %s — stop_pct %.4f < min %.4f",
                 cand.symbol, _stop_pct, _min_stop_pct,
