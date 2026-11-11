@@ -17,3 +17,11 @@ def test_zone_filter_audit_stream_writes_jsonl(tmp_path, monkeypatch):
     assert len(lines) == 1
     assert json.loads(lines[0]) == event
     assert raw.endswith("\n")
+
+
+def test_zone_filter_journal_has_state_size_and_rotation_caps():
+    from astra_bot.core.state_rotation import LIVE_JSONL_LIMITS
+    from scripts.rotate_zeus_states import STATE_FILES
+
+    assert LIVE_JSONL_LIMITS["zone_trade_filter.jsonl"] == 24_000
+    assert "models/zone_trade_filter.jsonl" in STATE_FILES
