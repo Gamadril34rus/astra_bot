@@ -619,6 +619,7 @@ def test_simulator_skips_signals_before_requested_oos_start(monkeypatch) -> None
 def test_adaptive_volume_ratio_excludes_current_signal_candle() -> None:
     interval = 15 * 60_000
     m15 = _bars([index * interval for index in range(30)], interval)
+    m15["quote_volume"] = 100.0
     m15.loc[20, "quote_volume"] = 1_000.0
     hourly = _bars([index * 60 * 60_000 for index in range(12)], 60 * 60_000)
     featured = add_features(m15, hourly)
@@ -654,6 +655,8 @@ def test_independent_regime_signals_are_not_hidden_by_router_priority() -> None:
     # Router priority is retained for actual routed simulation, but family
     # reports can now evaluate both hypotheses independently.
     assert choose_signal(frame, 21)["family"] == "COMPRESSION_BREAKOUT"
+    assert choose_signal(frame, 21, enabled_families={"RANGE_REVERSION"})["family"] == "RANGE_REVERSION"
+    assert choose_signal(frame, 21, enabled_families=set()) is None
 
 
 def test_family_filter_selects_requested_signal_for_independent_replay(monkeypatch) -> None:
