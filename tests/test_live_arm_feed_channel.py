@@ -198,7 +198,7 @@ def test_zone_trade_filter_rejects_stale_cache(monkeypatch):
     monkeypatch.setenv("ZONE_TRADE_FILTER", "1")
     monkeypatch.setattr(
         feed, "_ZONE_CACHE",
-        {"BTC-USDT": (100, [{"lower": 104.0, "upper": 106.0}]),
+        {"BTC-USDT": (100, [{"lower": 104.0, "upper": 106.0}])},
     )
     monkeypatch.setattr(
         "astra_bot.decision.live_arm_wiring.append_journal",
@@ -222,7 +222,7 @@ def test_zone_trade_filter_blocks_when_decision_cannot_be_journaled(monkeypatch)
     monkeypatch.setenv("ZONE_TRADE_FILTER", "1")
     monkeypatch.setattr(
         feed, "_ZONE_CACHE",
-        {"BTC-USDT": (100, [{"lower": 122.0, "upper": 124.0}]),
+        {"BTC-USDT": (100, [{"lower": 122.0, "upper": 124.0}])},
     )
 
     def fail_journal(_event):
