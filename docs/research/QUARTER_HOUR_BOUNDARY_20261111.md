@@ -8,7 +8,7 @@ This experiment tests two competing explanations of a price impulse on UTC quart
 
 A live public-API probe returned 0 historical 5m and 15m candles at the IS, Validation and OOS start dates, while 100 recent candles were returned. The same probe returned 100 historical 30m candles at all three period starts and for the latest window. Therefore the exact 5m/15m event definition below cannot currently be tested historically from BingX's public kline endpoint.
 
-The current workflow therefore runs a **separate coarse 30m proxy** from the existing `research/positioning-data` archive. It observes only bars opening at UTC `:00` and `:30`, uses the full 30m candle return, and tests horizons of 30m, 1h, 2h and 4h. It does not observe `:15` or `:45`, and it is not a replication of the paper or the original 5m hypothesis. The report is explicitly labeled `COARSE_PROXY_ONLY_NOT_THE_15M_OR_5M_HYPOTHESIS`.
+The current workflow therefore runs a **separate coarse 30m proxy** from the existing `research/positioning-data` archive. Its measured negative OOS result is recorded in [QUARTER_HOUR_BOUNDARY_COARSE_30M_RESULTS_20261111.md](QUARTER_HOUR_BOUNDARY_COARSE_30M_RESULTS_20261111.md). It observes only bars opening at UTC `:00` and `:30`, uses the full 30m candle return, and tests horizons of 30m, 1h, 2h and 4h. It does not observe `:15` or `:45`, and it is not a replication of the paper or the original 5m hypothesis. The report is explicitly labeled `COARSE_PROXY_ONLY_NOT_THE_15M_OR_5M_HYPOTHESIS`.
 
 The original 5m protocol remains documented below for a future archive if the exchange later exposes adequate historical depth or if a sufficiently long prospective 5m archive is collected.
 
