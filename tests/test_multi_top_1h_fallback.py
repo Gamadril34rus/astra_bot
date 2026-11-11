@@ -88,7 +88,7 @@ async def test_scan_1h_fallback_when_4h_silent(monkeypatch):
         return []
 
     class Silent:
-        async def evaluate(self, symbol, series):
+        async def evaluate(self, symbol, series, current_price=None):
             return None
 
     monkeypatch.setattr("astra_bot.decision.live_arm_feed.fetch_candles", fake_candles)
@@ -153,3 +153,34 @@ async def test_intrabar_break_without_closed_break_is_not_a_signal(monkeypatch):
     monkeypatch.setattr("astra_bot.decision.live_arm_feed._channel_strategy", lambda: Silent())
     row = await scan_symbol(MagicMock(), "BTC-USDT", strategy=Silent())
     assert row is None
+
+
+
+@pytest.mark.asyncio
+async def test_channel_evaluate_receives_closed_bars_and_live_price(monkeypatch):
+    bars = [
+        SimpleNamespace(
+            open=100.0, high=101.0, low=99.0, close=100.0,
+            open_time=1_700_000_000_000 + i * 14_400_000,
+        )
+        for i in range(40)
+    ]
+    bars[-1].close = 100.25
+    observed = []
+
+    class Probe:
+        async def evaluate(self, symbol, series, current_price=None):
+            observed.append((len(series), current_price))
+            return None
+
+        def diagnose(self, series, current_price=None):
+            return {"would_signal": False}
+
+    async def fake_candles(client, symbol, *, timeframe="4h", limit=120):
+        return bars
+
+    monkeypatch.setattr("astra_bot.decision.live_arm_feed.fetch_candles", fake_candles)
+    monkeypatch.setattr("astra_bot.decision.live_arm_feed._channel_strategy", lambda: Probe())
+    row = await scan_symbol(MagicMock(), "BTC-USDT", strategy=Probe())
+    assert row is None
+    assert observed == [(39, 100.25)]
