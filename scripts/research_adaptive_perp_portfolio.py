@@ -20,6 +20,12 @@ MAX_STRESS_COST_TO_R = 0.40
 MIN_PROGRESS_EXIT_BARS = 6
 MIN_PROGRESS_MFE_R = 0.75
 WARMUP_BARS = 120
+REGIME_FAMILIES = (
+    "COMPRESSION_BREAKOUT",
+    "FALSE_BREAK_REVERSAL",
+    "TREND_PULLBACK",
+    "RANGE_REVERSION",
+)
 
 
 def load_bars(path: Path, interval: str) -> pd.DataFrame:
@@ -121,7 +127,7 @@ def add_features(m15: pd.DataFrame, h1: pd.DataFrame) -> pd.DataFrame:
         lambda values: float(np.mean(values <= values[-1])), raw=True
     ).shift(1)
     volume = x["quote_volume"].where(x["quote_volume"] > 0, x["volume"])
-    x["volume_ratio"] = volume / volume.rolling(20, min_periods=20).mean()
+    x["volume_ratio"] = volume / volume.shift(1).rolling(20, min_periods=20).mean()
 
     h = h1.copy()
     hc = h["close"]
@@ -137,34 +143,40 @@ def add_features(m15: pd.DataFrame, h1: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def choose_signal(x: pd.DataFrame, i: int) -> dict | None:
+def choose_signals(x: pd.DataFrame, i: int) -> list[dict]:
+    """Return every independently valid regime signal at a closed 15m decision."""
     row = x.iloc[i]
-    if pd.isna(row["atr14"]) or pd.isna(row["h1_adx14"]) or pd.isna(row["bb_width_pct"]):
-        return None
+    required = ("atr14", "h1_adx14", "bb_width_pct", "volume_ratio")
+    if any(pd.isna(row[column]) for column in required):
+        return []
     atr = float(row["atr14"])
     if atr <= 0:
-        return None
+        return []
     prior = x.iloc[i - 20:i]
     prior4 = x.iloc[i - 4:i]
     prior3 = x.iloc[i - 3:i]
     previous = x.iloc[i - 1]
     long_bias = row["h1_ema20"] > row["h1_ema50"]
     short_bias = row["h1_ema20"] < row["h1_ema50"]
+    signals: list[dict] = []
 
-    # Compression breakout has first priority; it is a regime transition, not scalping.
+    # Compression breakout: evaluate independently of every other family.
     if row["bb_width_pct"] <= 0.25 and row["volume_ratio"] >= 1.5:
         high = float(prior["high"].max())
         low = float(prior["low"].min())
         if row["close"] > high and not short_bias:
-            return {"family": "COMPRESSION_BREAKOUT", "side": 1,
-                    "stop": float(row["close"]) - 1.2 * atr, "target_rr": 1.5}
+            signals.append({
+                "family": "COMPRESSION_BREAKOUT", "side": 1,
+                "stop": float(row["close"]) - 1.2 * atr, "target_rr": 1.5,
+            })
         if row["close"] < low and not long_bias:
-            return {"family": "COMPRESSION_BREAKOUT", "side": -1,
-                    "stop": float(row["close"]) + 1.2 * atr, "target_rr": 1.5}
+            signals.append({
+                "family": "COMPRESSION_BREAKOUT", "side": -1,
+                "stop": float(row["close"]) + 1.2 * atr, "target_rr": 1.5,
+            })
 
-    # False-break reversal: fade a failed 20-bar range escape only in a
-    # non-trending hourly regime. The breakout bar is prior; current close must
-    # return inside the same pre-break range.
+    # False-break reversal: prior breakout bar must close back inside its
+    # pre-break 20-bar range on the current closed bar.
     if row["h1_adx14"] <= 22 and previous["volume_ratio"] >= 1.5:
         pre_break = x.iloc[i - 21:i - 1]
         range_high = float(pre_break["high"].max())
@@ -172,16 +184,16 @@ def choose_signal(x: pd.DataFrame, i: int) -> dict | None:
         range_mid = (range_high + range_low) / 2
         if previous["close"] > range_high and row["close"] < range_high:
             stop = max(float(previous["high"]), float(row["high"])) + 0.15 * atr
-            return {
+            signals.append({
                 "family": "FALSE_BREAK_REVERSAL", "side": -1,
                 "stop": stop, "target_price": range_mid,
-            }
+            })
         if previous["close"] < range_low and row["close"] > range_low:
             stop = min(float(previous["low"]), float(row["low"])) - 0.15 * atr
-            return {
+            signals.append({
                 "family": "FALSE_BREAK_REVERSAL", "side": 1,
                 "stop": stop, "target_price": range_mid,
-            }
+            })
 
     # Directional trend continuation: pullback and confirmed reclaim.
     if row["h1_adx14"] >= 20 and row["volume_ratio"] >= 1.1:
@@ -190,24 +202,41 @@ def choose_signal(x: pd.DataFrame, i: int) -> dict | None:
             held = (prior4["close"] > prior4["ema50"]).all()
             if touched and held and row["close"] > row["ema20"] and row["close"] > previous["high"]:
                 stop = float(prior4["low"].min()) - 0.15 * atr
-                return {"family": "TREND_PULLBACK", "side": 1, "stop": stop, "target_rr": 1.5}
+                signals.append({
+                    "family": "TREND_PULLBACK", "side": 1,
+                    "stop": stop, "target_rr": 1.5,
+                })
         if short_bias and bool(row["h1_ema20_falling"]):
             touched = (prior4["high"] >= prior4["ema20"]).any()
             held = (prior4["close"] < prior4["ema50"]).all()
             if touched and held and row["close"] < row["ema20"] and row["close"] < previous["low"]:
                 stop = float(prior4["high"].max()) + 0.15 * atr
-                return {"family": "TREND_PULLBACK", "side": -1, "stop": stop, "target_rr": 1.5}
+                signals.append({
+                    "family": "TREND_PULLBACK", "side": -1,
+                    "stop": stop, "target_rr": 1.5,
+                })
 
     # Range reversion is allowed only when the hourly trend is weak.
     if row["h1_adx14"] <= 18:
         if previous["close"] < previous["bb_lower"] and row["close"] > row["bb_lower"] and row["rsi14"] <= 40:
             stop = float(prior3["low"].min()) - 0.15 * atr
-            return {"family": "RANGE_REVERSION", "side": 1, "stop": stop, "target_price": float(row["ema20"])}
+            signals.append({
+                "family": "RANGE_REVERSION", "side": 1,
+                "stop": stop, "target_price": float(row["ema20"]),
+            })
         if previous["close"] > previous["bb_upper"] and row["close"] < row["bb_upper"] and row["rsi14"] >= 60:
             stop = float(prior3["high"].max()) + 0.15 * atr
-            return {"family": "RANGE_REVERSION", "side": -1, "stop": stop, "target_price": float(row["ema20"])}
-    return None
+            signals.append({
+                "family": "RANGE_REVERSION", "side": -1,
+                "stop": stop, "target_price": float(row["ema20"]),
+            })
+    return signals
 
+
+def choose_signal(x: pd.DataFrame, i: int) -> dict | None:
+    """Backward-compatible router: preserve fixed priority, but not for family replay."""
+    signals = choose_signals(x, i)
+    return signals[0] if signals else None
 
 def funding_cost_fraction(side: int, rates: pd.Series) -> float:
     """Positive funding rate is paid by LONG and received by SHORT."""
@@ -220,6 +249,7 @@ def simulate_symbol(
     diagnostics: dict[str, Any] | None = None,
     bar_minutes: int = 15,
     start_time_ms: int | None = None,
+    family_filter: str | None = None,
 ) -> list[dict]:
     if bar_minutes not in (15, 30):
         raise ValueError(f"unsupported signal bar duration: {bar_minutes}")
@@ -271,7 +301,13 @@ def simulate_symbol(
         if start_time_ms is not None and int(x.iloc[i]["decision_time"]) < start_time_ms:
             i += 1
             continue
-        signal = choose_signal(x, i)
+        if family_filter is None:
+            signal = choose_signal(x, i)
+        else:
+            signal = next(
+                (item for item in choose_signals(x, i) if item["family"] == family_filter),
+                None,
+            )
         if signal is None:
             i += 1
             continue
@@ -548,6 +584,7 @@ def main() -> int:
     parser.add_argument("--signal-timeframe", choices=("15m", "30m"), default="15m")
     parser.add_argument("--symbols", default=",".join(SYMBOLS))
     parser.add_argument("--max-period", choices=("IS", "VALIDATION", "OOS", "ALL"), default="ALL")
+    parser.add_argument("--family-only", choices=REGIME_FAMILIES)
     parser.add_argument("--out", type=Path, default=Path("reports/adaptive_perp"))
     args = parser.parse_args()
     args.symbols = tuple(item.strip().upper() for item in args.symbols.split(",") if item.strip())
@@ -666,6 +703,7 @@ def main() -> int:
             diagnostics=symbol_diagnostics,
             bar_minutes=interval_ms // 60_000,
             start_time_ms=trade_start_ms,
+            family_filter=args.family_only,
         ))
         signal_diagnostics[symbol] = symbol_diagnostics
     trade_columns = [
@@ -696,6 +734,8 @@ def main() -> int:
             "signal_timeframe": args.signal_timeframe,
             "symbols": list(args.symbols),
             "max_period": args.max_period,
+        "family_filter": args.family_only,
+            "family_filter": args.family_only,
             "simulation_window": simulation_window,
             "split_boundaries_utc": {
                 "validation_start": pd.to_datetime(validation_start_ms, unit="ms", utc=True).isoformat(),
