@@ -27,6 +27,7 @@ HORIZONS = {"30m": 6, "1h": 12, "2h": 24, "4h": 48}
 FEE_BPS_PER_SIDE = 4.0
 SLIPPAGE_BPS_PER_SIDE = 2.0
 ROUND_TRIP_COST_BPS = 2 * (FEE_BPS_PER_SIDE + SLIPPAGE_BPS_PER_SIDE)
+STRESS_ROUND_TRIP_COST_BPS = ROUND_TRIP_COST_BPS * 1.5
 SPLITS = (
     ("IS", "2025-07-09", "2025-12-31"),
     ("VALIDATION", "2026-01-01", "2026-05-31"),
@@ -402,9 +403,15 @@ def event_outcomes(
                     "side": side,
                     "gross_bps": gross_bps,
                     "cost_only_net_bps": gross_bps - ROUND_TRIP_COST_BPS,
+                    "stress_net_bps": gross_bps - STRESS_ROUND_TRIP_COST_BPS,
                     "funding_bps": funding_bps,
                     "funded_net_bps": (
                         gross_bps - ROUND_TRIP_COST_BPS + funding_bps
+                        if funding_complete
+                        else np.nan
+                    ),
+                    "funded_stress_net_bps": (
+                        gross_bps - STRESS_ROUND_TRIP_COST_BPS + funding_bps
                         if funding_complete
                         else np.nan
                     ),
@@ -415,8 +422,8 @@ def event_outcomes(
         rows,
         columns=[
             "symbol", "decision_time", "variant", "horizon", "side",
-            "gross_bps", "cost_only_net_bps", "funding_bps",
-            "funded_net_bps", "funding_complete",
+            "gross_bps", "cost_only_net_bps", "stress_net_bps", "funding_bps",
+            "funded_net_bps", "funded_stress_net_bps", "funding_complete",
         ],
     )
 
@@ -432,6 +439,8 @@ def _split_for_time(value: pd.Timestamp) -> str | None:
 def _metrics(frame: pd.DataFrame) -> dict[str, Any]:
     values = frame["cost_only_net_bps"].dropna().to_numpy(dtype=float)
     funded = frame["funded_net_bps"].dropna().to_numpy(dtype=float)
+    funded_stress = frame["funded_stress_net_bps"].dropna().to_numpy(dtype=float)
+    stress = frame["stress_net_bps"].dropna().to_numpy(dtype=float)
     if len(values) == 0:
         return {"n": 0}
     wins = values[values > 0]
@@ -445,8 +454,12 @@ def _metrics(frame: pd.DataFrame) -> dict[str, Any]:
         "pf_cost_only": (
             float(wins.sum() / abs(losses.sum())) if len(losses) else None
         ),
+        "mean_stress_net_bps": float(np.mean(stress)) if len(stress) else None,
         "mean_funded_bps": float(np.mean(funded)) if len(funded) else None,
         "median_funded_bps": float(np.median(funded)) if len(funded) else None,
+        "mean_funded_stress_bps": (
+            float(np.mean(funded_stress)) if len(funded_stress) else None
+        ),
     }
 
 
@@ -546,6 +559,7 @@ def run_study(data_dir: Path, report_path: Path) -> dict[str, Any]:
             "fee_bps_per_side": FEE_BPS_PER_SIDE,
             "slippage_bps_per_side": SLIPPAGE_BPS_PER_SIDE,
             "round_trip_bps": ROUND_TRIP_COST_BPS,
+            "round_trip_stress_1_5x_bps": STRESS_ROUND_TRIP_COST_BPS,
         },
         "funding": "actual archived settlements when coverage brackets the whole event; otherwise UNKNOWN",
         "horizons": HORIZONS,
