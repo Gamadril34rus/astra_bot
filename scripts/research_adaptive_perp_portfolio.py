@@ -25,6 +25,7 @@ REGIME_FAMILIES = (
     "FALSE_BREAK_REVERSAL",
     "TREND_PULLBACK",
     "RANGE_REVERSION",
+    "BTC_LEAD_ALT_RESPONSE",
 )
 
 
@@ -115,7 +116,12 @@ def volume_for_ratio(frame: pd.DataFrame) -> pd.Series:
     return quote if quote_is_consistent else base
 
 
-def add_features(m15: pd.DataFrame, h1: pd.DataFrame) -> pd.DataFrame:
+def add_features(
+    m15: pd.DataFrame,
+    h1: pd.DataFrame,
+    btc_h1: pd.DataFrame | None = None,
+    is_btc: bool = False,
+) -> pd.DataFrame:
     x = m15.copy()
     close = x["close"]
     x["ema20"] = close.ewm(span=20, adjust=False).mean()
@@ -150,10 +156,72 @@ def add_features(m15: pd.DataFrame, h1: pd.DataFrame) -> pd.DataFrame:
     h["h1_ema20_falling"] = h["h1_ema20"] < h["h1_ema20"].shift(3)
     h["h1_adx14"] = _adx(h)
     h = h[["decision_time", "h1_ema20", "h1_ema50", "h1_ema20_rising", "h1_ema20_falling", "h1_adx14"]]
-    return pd.merge_asof(
+    merged = pd.merge_asof(
         x.sort_values("decision_time"), h.sort_values("decision_time"),
         on="decision_time", direction="backward", allow_exact_matches=True
     )
+    return add_btc_lead_features(merged, h1, btc_h1, is_btc=is_btc)
+
+
+def add_btc_lead_features(
+    signal_bars: pd.DataFrame,
+    hourly_bars: pd.DataFrame,
+    btc_hourly_bars: pd.DataFrame | None,
+    *,
+    is_btc: bool = False,
+) -> pd.DataFrame:
+    """Attach causal BTC-shock/altcoin-underreaction features to closed bars."""
+    result = signal_bars.copy()
+    feature_names = (
+        "btc_h1_decision_time", "btc_return_1h", "btc_shock_z",
+        "btc_beta_168h", "btc_lag_z",
+    )
+    if is_btc or btc_hourly_bars is None or btc_hourly_bars.empty:
+        for name in feature_names:
+            result[name] = np.nan
+        result["btc_lead_event"] = False
+        return result
+
+    alt = hourly_bars[["decision_time", "close"]].copy()
+    btc = btc_hourly_bars[["decision_time", "close"]].copy()
+    alt = alt.rename(columns={"close": "alt_close"})
+    btc = btc.rename(columns={"close": "btc_close"})
+    aligned = alt.merge(btc, on="decision_time", how="inner", validate="one_to_one")
+    if aligned.empty:
+        for name in feature_names:
+            result[name] = np.nan
+        result["btc_lead_event"] = False
+        return result
+
+    alt_return = np.log(aligned["alt_close"]).diff()
+    btc_return = np.log(aligned["btc_close"]).diff()
+    prior_alt = alt_return.shift(1)
+    prior_btc = btc_return.shift(1)
+    beta = prior_alt.rolling(168, min_periods=120).cov(prior_btc) / prior_btc.rolling(
+        168, min_periods=120
+    ).var()
+    residual = beta * btc_return - alt_return
+    residual_std = residual.shift(1).rolling(168, min_periods=120).std()
+    btc_std = prior_btc.rolling(168, min_periods=120).std()
+    context = pd.DataFrame({
+        "decision_time": aligned["decision_time"],
+        "btc_h1_decision_time": aligned["decision_time"],
+        "btc_return_1h": btc_return,
+        "btc_shock_z": btc_return.abs() / btc_std.replace(0, np.nan),
+        "btc_beta_168h": beta,
+        "btc_lag_z": np.sign(btc_return) * residual / residual_std.replace(0, np.nan),
+    }).dropna(subset=["btc_return_1h"])
+    merged = pd.merge_asof(
+        result.sort_values("decision_time"),
+        context.sort_values("decision_time"),
+        on="decision_time",
+        direction="backward",
+        allow_exact_matches=True,
+    )
+    merged["btc_lead_event"] = (
+        merged["decision_time"] == merged["btc_h1_decision_time"]
+    )
+    return merged
 
 
 def choose_signals(x: pd.DataFrame, i: int) -> list[dict]:
@@ -228,6 +296,27 @@ def choose_signals(x: pd.DataFrame, i: int) -> list[dict]:
                     "family": "TREND_PULLBACK", "side": -1,
                     "stop": stop, "target_rr": 1.5,
                 })
+
+    # BTC-led delayed response: trade only at the first 15m close that
+    # coincides with a fully closed H1 BTC candle. Beta and residual volatility
+    # are estimated from prior hourly observations only.
+    if (
+        bool(row.get("btc_lead_event", False))
+        and pd.notna(row.get("btc_return_1h"))
+        and pd.notna(row.get("btc_shock_z"))
+        and pd.notna(row.get("btc_beta_168h"))
+        and pd.notna(row.get("btc_lag_z"))
+        and float(row["btc_shock_z"]) >= 1.5
+        and float(row["btc_beta_168h"]) >= 0.20
+        and float(row["btc_lag_z"]) >= 0.75
+    ):
+        side = 1 if float(row["btc_return_1h"]) > 0 else -1
+        signals.append({
+            "family": "BTC_LEAD_ALT_RESPONSE",
+            "side": side,
+            "stop": float(row["close"]) - side * 1.2 * atr,
+            "target_rr": 1.5,
+        })
 
     # Range reversion is allowed only when the hourly trend is weak.
     if row["h1_adx14"] <= 18:
@@ -627,6 +716,19 @@ def main() -> int:
     unknown_symbols = sorted(set(args.symbols) - set(SYMBOLS))
     if not args.symbols or unknown_symbols:
         parser.error(f"symbols must be a non-empty subset of {SYMBOLS}; unknown={unknown_symbols}")
+    requested_families = (
+        {args.family_only} if args.family_only else enabled_families
+    )
+    if (
+        "BTC_LEAD_ALT_RESPONSE" in (requested_families or set())
+        and args.signal_timeframe != "15m"
+    ):
+        parser.error("BTC_LEAD_ALT_RESPONSE is defined only for 15m signal bars")
+    if (
+        "BTC_LEAD_ALT_RESPONSE" in (requested_families or set())
+        and "BTC-USDT" not in args.symbols
+    ):
+        parser.error("BTC_LEAD_ALT_RESPONSE requires BTC-USDT in --symbols as the leader series")
     coverage = {}
     prepared: dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]] = {}
     interval_ms = INTERVAL_MS[args.signal_timeframe]
@@ -705,6 +807,17 @@ def main() -> int:
         "oos_bars_processed": args.max_period in ("OOS", "ALL"),
     }
 
+    btc_h1_context = None
+    if "BTC-USDT" in prepared:
+        btc_signal_bars, btc_hourly = prepared["BTC-USDT"][0], prepared["BTC-USDT"][1]
+        _, btc_h1_context = clip_bars_for_simulation(
+            btc_signal_bars,
+            btc_hourly,
+            common_start_ms,
+            simulation_end_ms,
+            interval_ms,
+        )
+
     all_trades = []
     signal_diagnostics: dict[str, dict[str, Any]] = {}
     for symbol in args.symbols:
@@ -727,7 +840,12 @@ def main() -> int:
             raise SystemExit(
                 f"INCOMPLETE: {symbol} has no signal bars before the {args.max_period} cutoff"
             )
-        x = add_features(signal_bars, h1)
+        x = add_features(
+            signal_bars,
+            h1,
+            btc_h1=btc_h1_context,
+            is_btc=(symbol == "BTC-USDT"),
+        )
         symbol_diagnostics: dict[str, Any] = {}
         all_trades.extend(simulate_symbol(
             symbol,
