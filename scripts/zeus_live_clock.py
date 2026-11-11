@@ -117,6 +117,8 @@ async def _send_live_tg(msg: str) -> None:
 # F15: margin-reject warn + tp_parity_v1 (imports after sys.path insert above)
 from astra_bot.decision.live_margin_warn import (
     maybe_warn_margin_reject as _maybe_warn_margin_reject,
+)
+from astra_bot.decision.live_margin_warn import (
     set_send_tg as _set_margin_warn_tg,
 )
 
@@ -620,6 +622,7 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
                 side=side,
                 exch_qty=exch_qty,
                 entry_d=entry_d,
+                risk=risk,
                 plan=plan,
                 key=key,
                 new_tp=new_tp,
@@ -2854,8 +2857,8 @@ async def one_tick(*, dry: bool = False) -> int:
     _sp = None
     # Session profile (MSK): fat/normal/thin/off → BE, TP1, arm gate
     try:
-        from astra_bot.decision.live_session import apply_session_to_environ
         from astra_bot.decision.live_arm_wiring import append_journal as _aj_sess
+        from astra_bot.decision.live_session import apply_session_to_environ
         _sp = apply_session_to_environ()
         logger.info(
             "session_profile: %s arm=%s BE=%.2fR TP1=%.2fR (%s)",
