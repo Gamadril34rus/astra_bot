@@ -281,18 +281,21 @@ async def scan_symbol(
             zone_ctx = zone_context(price_now, cached[1])
     except Exception as exc:
         logger.warning("zone shadow context failed %s: %s", symbol, type(exc).__name__)
-    # Live parity with paper: feed sees the SAME candle the paper engine uses
-    # (including the forming bar). bar_ts = open_time of that last candle.
+    # Entry decisions must use closed klines (same A5 rule as DecisionPipeline).
+    # Keep the forming candle only as the live execution-price reference.
     series = list(candles)
     if len(series) < 30:
         return None
-    last = series[-1]
-    bar_ts = int(getattr(last, "open_time", 0) or 0)
-    if bar_ts <= 0:
-        logger.warning("arm feed: %s bar missing open_time - skip", symbol)
+    live_price = _candle_value(series[-1], "close")
+    closed_series = series[:-1] if len(series) > 1 else series
+    if len(closed_series) < 30:
+        return None
+    bar_ts = int(getattr(closed_series[-1], "open_time", 0) or 0)
+    if bar_ts <= 0 or live_price <= 0:
+        logger.warning("arm feed: %s closed bar/live price missing - skip", symbol)
         return None
     try:
-        sig = await strat.evaluate(symbol, series)
+        sig = await strat.evaluate(symbol, closed_series, current_price=live_price)
     except Exception as exc:
         logger.warning("arm feed: %s evaluate failed: %s", symbol, type(exc).__name__)
         sig = None
@@ -307,7 +310,7 @@ async def scan_symbol(
             return None
     # Proxy v1: ZEUS_RETEST_V1=shadow → journal only (no pending row / no live entry).
     try:
-        diag = strat.diagnose(series)
+        diag = strat.diagnose(closed_series, current_price=live_price)
         shadow = (diag or {}).get("shadow_retest")
         if shadow:
             logger.info(
@@ -341,7 +344,7 @@ async def scan_symbol(
     src_tf = "4h"
     # Multi-top/bottom requires a CONFIRMED close. BingX klines include the
     # forming candle last; use it only as the live execution-price reference.
-    closed_4h = series[:-1] if len(series) > 1 else series
+    closed_4h = closed_series
     try:
         if len(closed_4h) >= 30:
             highs, lows, closes = series_from_candles(closed_4h)
