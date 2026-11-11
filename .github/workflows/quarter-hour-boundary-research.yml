@@ -43,7 +43,7 @@ jobs:
               "https://raw.githubusercontent.com/Gamadril34rus/astra_bot/research/positioning-data/data/bingx_usdm/${symbol}USDT_30m.csv" \
               --output "reports/quarter_hour_boundary/data/${symbol}USDT_30m.csv"
           done
-          python scripts/research/run_coarse_30m_boundary.py \
+          PYTHONPATH=. python scripts/research/run_coarse_30m_boundary.py \
             --data-dir reports/quarter_hour_boundary/data \
             --manifest reference-manifest.json \
             --output-dir reports/quarter_hour_boundary/data \
