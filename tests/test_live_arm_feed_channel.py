@@ -241,3 +241,31 @@ def test_zone_trade_filter_blocks_when_decision_cannot_be_journaled(monkeypatch)
     assert result is None
     assert row["zone_trade_filter"]["state"] == "UNKNOWN"
     assert row["zone_trade_filter"]["reason"] == "zone_filter_journal_failed"
+
+
+
+def test_zone_trade_filter_allows_audited_candidate_with_matching_anchor(monkeypatch):
+    import astra_bot.decision.live_arm_feed as feed
+
+    events = []
+    monkeypatch.setenv("ZONE_TRADE_FILTER", "1")
+    monkeypatch.setattr(
+        feed, "_ZONE_CACHE",
+        {"BTC-USDT": (100, [{"lower": 122.0, "upper": 124.0}])},
+    )
+    monkeypatch.setattr(
+        "astra_bot.decision.live_arm_wiring.append_journal",
+        lambda event: events.append(event),
+    )
+    row = {
+        "signal_id": "zone-test", "side": "long", "entry": 100.0,
+        "stop": 95.0, "tp": 120.0, "strategy": "test",
+    }
+    result = feed._apply_zone_trade_filter(
+        row, symbol="BTC-USDT", price=100.5, expected_bar_ts=100,
+    )
+    assert result is row
+    assert row["zone_trade_filter"]["accepted"]
+    assert row["zone_trade_filter"]["state"] == "TARGET_BEFORE_ZONE"
+    assert events[0]["accepted"] is True
+    assert events[0]["zone_bar_ts"] == 100
