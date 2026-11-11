@@ -115,10 +115,8 @@ async def _send_live_tg(msg: str) -> None:
 
 
 # F15: margin-reject warn + tp_parity_v1 (imports after sys.path insert above)
-from astra_bot.decision.live_margin_warn import (  # noqa: E402
+from astra_bot.decision.live_margin_warn import (
     maybe_warn_margin_reject as _maybe_warn_margin_reject,
-)
-from astra_bot.decision.live_margin_warn import (  # noqa: E402
     set_send_tg as _set_margin_warn_tg,
 )
 
@@ -584,7 +582,7 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
             ps = "LONG" if side == "long" else "SHORT"
             stop_side = "SELL" if side == "long" else "BUY"
 
-            async def _cancel_old_tps() -> None:
+            async def _cancel_old_tps(sym=sym) -> None:
                 try:
                     if not (hasattr(broker, "client") and hasattr(broker.client, "get_open_orders")):
                         return
@@ -613,7 +611,21 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
                 except Exception:
                     pass
 
-            async def _past_level_market() -> bool:
+            async def _past_level_market(
+                *,
+                sym=sym,
+                stop_side=stop_side,
+                q_tp=q_tp,
+                ps=ps,
+                side=side,
+                exch_qty=exch_qty,
+                entry_d=entry_d,
+                plan=plan,
+                key=key,
+                new_tp=new_tp,
+                old_tp=old_tp,
+                mark=mark,
+            ) -> bool:
                 """Market-close frac leg + BE stop; always marks repair done."""
                 market_ok = False
                 be_ok = False
@@ -2850,8 +2862,8 @@ async def one_tick(*, dry: bool = False) -> int:
             _sp.name, _sp.arm, _sp.be_trigger_r, _sp.tp1_rr, _sp.note,
         )
         try:
-            from pathlib import Path as _P
             import json as _json
+            from pathlib import Path as _P
             _sf = _P("models/zeus_session_state.json")
             _prev = None
             if _sf.exists():
