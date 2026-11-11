@@ -504,8 +504,8 @@ def _metrics(frame: pd.DataFrame) -> dict[str, Any]:
     wins = values[values > 0]
     losses = values[values < 0]
     return {
-        "n": int(len(values)),
-        "n_funding_complete": int(len(funded)),
+        "n": len(values),
+        "n_funding_complete": len(funded),
         "mean_cost_only_bps": float(np.mean(values)),
         "median_cost_only_bps": float(np.median(values)),
         "hit_rate_cost_only": float(np.mean(values > 0)),
@@ -544,7 +544,7 @@ def run_study(data_dir: Path, report_path: Path) -> dict[str, Any]:
         outcomes = event_outcomes(candles, events, funding)
         all_outcomes.append(outcomes)
         coverage[symbol] = {
-            "bars_5m": int(len(candles)),
+            "bars_5m": len(candles),
             "first_utc": pd.to_datetime(
                 candles["open_time"].min(), unit="ms", utc=True
             ).isoformat(),
@@ -561,7 +561,7 @@ def run_study(data_dir: Path, report_path: Path) -> dict[str, Any]:
             )
             if "taker_buy_volume" in candles
             else 0,
-            "events": int(len(events)),
+            "events": len(events),
         }
 
     outcomes = pd.concat(all_outcomes, ignore_index=True)
