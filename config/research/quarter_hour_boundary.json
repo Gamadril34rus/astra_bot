@@ -28,7 +28,7 @@
   "splits_utc_inclusive": {
     "IS": ["2025-07-09", "2025-12-31"],
     "VALIDATION": ["2026-01-01", "2026-05-31"],
-    "OOS": ["2026-06-01", "2026-11-11"]
+    "OOS": ["2026-06-01", "2026-11-10"]
   },
   "bootstrap": {
     "method": "UTC-day cluster bootstrap",
