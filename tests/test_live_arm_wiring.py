@@ -7,6 +7,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 from astra_bot.decision.live_arm_wiring import (
+    _stop_pct_decimal,
     candidate_from_signal_dict,
     is_fresh,
     run_arm_entries,
@@ -187,3 +188,23 @@ def test_freshness_first_45min_window():
     now = time.time()
     assert is_fresh({"ts": now - 40 * 60}, max_sec=2700)
     assert not is_fresh({"ts": now - 50 * 60}, max_sec=2700)
+
+
+
+def test_stop_pct_decimal_accepts_exact_minimum_boundary():
+    # This exact channel candidate produced 0.009999999999999915 in float
+    # arithmetic, which incorrectly compared below the configured 0.01.
+    ratio = _stop_pct_decimal(71.985, 72.70485)
+    assert ratio == Decimal("0.01")
+    assert ratio is not None and ratio >= Decimal("0.01")
+
+
+def test_stop_pct_decimal_rejects_genuinely_tighter_stop():
+    ratio = _stop_pct_decimal(71.985, 72.70484)
+    assert ratio is not None
+    assert ratio < Decimal("0.01")
+
+
+def test_stop_pct_decimal_rejects_invalid_entry():
+    assert _stop_pct_decimal(0, 1) is None
+    assert _stop_pct_decimal("nan", 1) is None
