@@ -31,7 +31,7 @@ STRESS_ROUND_TRIP_COST_BPS = ROUND_TRIP_COST_BPS * 1.5
 SPLITS = (
     ("IS", "2025-07-09", "2025-12-31"),
     ("VALIDATION", "2026-01-01", "2026-05-31"),
-    ("OOS", "2026-06-01", "2026-11-11"),
+    ("OOS", "2026-06-01", "2026-11-10"),
 )
 LOG = logging.getLogger("quarter_hour_boundary")
 
