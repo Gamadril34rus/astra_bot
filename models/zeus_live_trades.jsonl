@@ -2433,3 +2433,7 @@
 {"event": "protect_place", "ts": 1794403347.5975666, "symbol": "SOL-USDT", "kind": "tp", "stop_price": "83.736711", "qty": "140.52794478", "reduce_only": false, "order_id": "2120507448363671552"}
 {"event": "entry", "signal_id": "zeus_channel_boundary|SOL-USDT|short|1794398400000", "symbol": "SOL-USDT", "side": "short", "plan_entry": "84.327", "fill_price": "84.316", "slip_pct": 0.013044457884183808, "slip_r": 0.013044457884188931, "qty": "468.42648262", "stop": "85.17027", "tp": "83.736711", "tp_frac": 0.3, "leverage": 6, "ts": 1794403347.5986745}
 {"event": "partial_fill", "symbol": "SOL-USDT", "side": null, "qty": null, "price": null, "pnl": -519.07224, "income_type": "REALIZED_PNL", "income_id": "1794212561561284082_512_435932_PNL", "source": "income_tape", "ts": 1794392531.0}
+{"event": "qty_reconcile", "symbol": "SOL-USDT", "side": "short", "old_qty": 468.42648262, "new_qty": 327.89, "rel_diff": 0.300018, "signal_id": "zeus_channel_boundary|SOL-USDT|short|1794398400000", "ts": 1794403926.7316504}
+{"event": "restore_tp_failed", "symbol": "SOL-USDT", "error": "ExchangeError: BingX API error: Take Profit price should be lower than the current price", "ts": 1794403939.09021}
+{"event": "order_cancel", "symbol": "SOL-USDT", "order_id": "2120507446182633472", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794403949.3249366}
+{"event": "order_cancel", "symbol": "SOL-USDT", "order_id": "2120509973313708032", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794403984.0737693}
