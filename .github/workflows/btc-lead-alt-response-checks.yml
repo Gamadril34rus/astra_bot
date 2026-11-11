@@ -1,0 +1,44 @@
+name: BTC lead alt response research checks
+
+on:
+  push:
+    branches: [research/btc-led-alt-response]
+    paths:
+      - "scripts/research_adaptive_perp_portfolio.py"
+      - "tests/unit/test_btc_lead_alt_response.py"
+      - ".github/workflows/btc-lead-alt-response-checks.yml"
+      - "docs/research/BTC_LEAD_ALT_RESPONSE.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: btc-lead-alt-response-checks
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install project dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Run isolated candidate tests and shared-engine regression tests
+        run: |
+          python -m pytest \
+            tests/unit/test_btc_lead_alt_response.py \
+            tests/unit/test_research_adaptive_perp_portfolio.py -q
+      - name: Ruff
+        run: |
+          python -m ruff check --config pyproject.toml \
+            scripts/research_adaptive_perp_portfolio.py \
+            tests/unit/test_btc_lead_alt_response.py
