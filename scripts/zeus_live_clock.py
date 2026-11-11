@@ -2636,6 +2636,48 @@ async def one_tick(*, dry: bool = False) -> int:
         config=LiveBrokerConfig(max_leverage=_max_lev),
     )
 
+    _sp = None
+    # Session profile (MSK): fat/normal/thin/off → BE, TP1, arm gate
+    try:
+        from astra_bot.decision.live_arm_wiring import append_journal as _aj_sess
+        from astra_bot.decision.live_session import apply_session_to_environ
+        _sp = apply_session_to_environ()
+        logger.info(
+            "session_profile: %s arm=%s BE=%.2fR TP1=%.2fR (%s)",
+            _sp.name, _sp.arm, _sp.be_trigger_r, _sp.tp1_rr, _sp.note,
+        )
+        try:
+            import json as _json
+            from pathlib import Path as _P
+            _sf = _P("models/zeus_session_state.json")
+            _prev = None
+            if _sf.exists():
+                try:
+                    _prev = _json.loads(_sf.read_text()).get("name")
+                except Exception:
+                    _prev = None
+            if _prev != _sp.name:
+                _aj_sess({
+                    "event": "session_profile",
+                    "name": _sp.name,
+                    "arm": _sp.arm,
+                    "be_trigger_r": _sp.be_trigger_r,
+                    "tp1_rr": _sp.tp1_rr,
+                    "ts": __import__("time").time(),
+                })
+                _sf.write_text(_json.dumps({
+                    "name": _sp.name,
+                    "arm": _sp.arm,
+                    "be_trigger_r": _sp.be_trigger_r,
+                    "tp1_rr": _sp.tp1_rr,
+                    "ts": __import__("time").time(),
+                }) + "\n")
+        except Exception:
+            pass
+    except Exception as _sess_exc:
+        logger.warning("session_profile failed: %s", type(_sess_exc).__name__)
+
+
     try:
         from astra_bot.decision.vol_cd_hooks import apply_live_sync_hook
 
@@ -2854,47 +2896,6 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception as _ghost_exc:
         logger.warning("detect_ghost_positions failed: %s", type(_ghost_exc).__name__)
 
-    _sp = None
-    # Session profile (MSK): fat/normal/thin/off → BE, TP1, arm gate
-    try:
-        from astra_bot.decision.live_arm_wiring import append_journal as _aj_sess
-        from astra_bot.decision.live_session import apply_session_to_environ
-        _sp = apply_session_to_environ()
-        logger.info(
-            "session_profile: %s arm=%s BE=%.2fR TP1=%.2fR (%s)",
-            _sp.name, _sp.arm, _sp.be_trigger_r, _sp.tp1_rr, _sp.note,
-        )
-        try:
-            import json as _json
-            from pathlib import Path as _P
-            _sf = _P("models/zeus_session_state.json")
-            _prev = None
-            if _sf.exists():
-                try:
-                    _prev = _json.loads(_sf.read_text()).get("name")
-                except Exception:
-                    _prev = None
-            if _prev != _sp.name:
-                _aj_sess({
-                    "event": "session_profile",
-                    "name": _sp.name,
-                    "arm": _sp.arm,
-                    "be_trigger_r": _sp.be_trigger_r,
-                    "tp1_rr": _sp.tp1_rr,
-                    "ts": __import__("time").time(),
-                })
-                _sf.write_text(_json.dumps({
-                    "name": _sp.name,
-                    "arm": _sp.arm,
-                    "be_trigger_r": _sp.be_trigger_r,
-                    "tp1_rr": _sp.tp1_rr,
-                    "ts": __import__("time").time(),
-                }) + "\n")
-        except Exception:
-            pass
-    except Exception as _sess_exc:
-        logger.warning("session_profile failed: %s", type(_sess_exc).__name__)
-
     # C: partial TP1 → BE — EVERY tick (owner rule), after restore so stop is present
     try:
         _F17_5M_CACHE.clear()
@@ -2977,7 +2978,7 @@ async def one_tick(*, dry: bool = False) -> int:
         logger.error("risk_check_failed: %s", type(exc).__name__)
         broker.set_halt("risk_check_failed")
 
-    # Session profile is applied before BE sync so per-session trigger is honored.
+    # The profile is applied before all exit-management steps in this tick.
     # PR-B exit engine (shadow default) — after kill/risk, before arm
     try:
         from astra_bot.decision.live_exit_engine import engine_mode, run_exit_pass
