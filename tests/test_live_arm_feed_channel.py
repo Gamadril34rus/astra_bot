@@ -261,6 +261,10 @@ def test_zone_trade_filter_allows_audited_candidate_with_matching_anchor(monkeyp
         "astra_bot.decision.live_arm_wiring.append_journal",
         lambda event: events.append(event),
     )
+    monkeypatch.setattr(
+        feed, "_append_zone_trade_filter_event",
+        lambda event: events.append(event),
+    )
     row = {
         "signal_id": "zone-test", "side": "long", "entry": 100.0,
         "stop": 95.0, "tp": 120.0, "strategy": "test",
