@@ -248,3 +248,28 @@ The next master live-clock run, `43016677831` (job `130509402713`), no longer ha
 - both stop and TP protection placement events were written; `pending_verify=false` in the committed position snapshot.
 
 This confirms the 11:40–11:55 empty-feed finding was a time-bounded quiet interval, not a persistent dead scanner. The new entry came from the channel strategy, not the multi-top fallback, so it neither validates nor invalidates the multi-top closed-candle correction. Monitor this VST trade through its exit; do not infer profitability from an open position.
+
+
+## Follow-up: session BE threshold is not reaching live BE sync (11 Nov 2026)
+
+### Runtime proof
+
+The 12:12:02 UTC live journal has:
+- BTC short: `mfe_r=-0.2181`, `trigger_r=0.50`;
+- INJ short: `mfe_r=0.0079`, `trigger_r=0.50`.
+
+At 12:12:33 UTC the same tick records `session_profile=normal`, `be_trigger_r=0.40`, `tp1_rr=0.55`. Thus the effective session profile and the trigger actually consumed by `sync_partial_breakeven` disagree in the same cycle.
+
+### Source cause
+
+In `scripts/zeus_live_clock.py`, `sync_partial_breakeven()` is called before `apply_session_to_environ()`. The BE function reads `ZEUS_BE_TRIGGER_R` from the process environment (workflow default 0.5) when no explicit argument is supplied. Each GitHub Actions tick is a fresh process, so the session helper's environment mutation at the end of one tick does not survive into the next tick. Consequently, the BE sync keeps using 0.5 even when normal/thin/off profiles specify 0.4/0.3.
+
+This is a real configuration-wiring defect, not a parameter-performance conclusion. It has not yet moved the current INJ stop because its observed MFE was only 0.0079R, below both 0.4R and 0.5R. BTC was negative MFE at the sample. Therefore no immediate stop adjustment was warranted based on these snapshots.
+
+### Corrective proposal
+
+Draft PR [#356](https://github.com/Gamadril34rus/astra_bot/pull/356) moves session-profile application before BE sync and passes the selected `be_trigger_r` explicitly. It adds a regression test: with a 0.40R profile, BE must trigger at 0.45R. Draft only; do not merge until its full quality gates pass and owner reviews the behavior change.
+
+### Current live-state check at 12:12 UTC
+
+Two VST positions remained open: BTC-USDT short and INJ-USDT short. The clock reconciled 4 protective orders with `missing_stops=0`; feed skipped both already-open symbols, produced zero candidates, and reported no downstream gate skips. This is an expected no-entry tick, not evidence of a dead scanner.
