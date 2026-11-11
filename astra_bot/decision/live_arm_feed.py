@@ -330,6 +330,7 @@ def _zone_trade_filter_decision(
         "target_r": round(target_r, 6),
     }
 
+
 def _apply_zone_trade_filter(
     row: dict[str, Any], *, symbol: str, price: float, expected_bar_ts: int,
 ) -> dict[str, Any] | None:
