@@ -43,7 +43,7 @@ There is no historical BingX BBO/depth tape in the current repository. Consequen
 |---|---|
 | IS | 2025-07-09 through 2025-12-31 |
 | Validation | 2026-01-01 through 2026-05-31 |
-| OOS | 2026-06-01 through 2026-11-11 |
+| OOS | 2026-06-01 through 2026-11-10 (the partial 2026-11-11 UTC day is excluded) |
 
 All symbols use the same calendar boundaries. A symbol's unavailable pre-listing dates remain absent; they are not padded with synthetic candles. The OOS period is evaluated once after the data archive and methodology are frozen.
 
