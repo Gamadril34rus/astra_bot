@@ -17,9 +17,12 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "peak_high": "8.1",
-      "peak_low": "7.646",
+      "peak_low": "7.558",
       "current_regime": "RANGE",
-      "tp1": "7.62281307349064835"
+      "tp1": "7.62281307349064835",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     },
     "BTC-USDT|short": {
       "symbol": "BTC-USDT",
@@ -37,7 +40,7 @@
       "opened_at_ms": 1794415954001,
       "tp_parity_v1": true,
       "be_earned": true,
-      "peak_low": "73641.3",
+      "peak_low": "73598.3",
       "current_regime": "STRONG_BEAR_TREND",
       "tp1": "73736.803799999993",
       "initial_stop_v1": true,
@@ -45,32 +48,7 @@
       "early_tp_repair_v1": true,
       "runner_tp_rr": 1.5,
       "runner_tp_healed_v1": true
-    },
-    "HYPE-USDT|short": {
-      "symbol": "HYPE-USDT",
-      "side": "short",
-      "qty": "273.6004",
-      "stop": "71.569130",
-      "tp": "70.819390",
-      "entry": "71.944",
-      "leverage": 5,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|HYPE-USDT|short|1794412800000",
-      "ts": 1794438429.3031995,
-      "be_moved": true,
-      "initial_stop": "72.69374",
-      "opened_at_ms": 1794436643509,
-      "tp_parity_v1": true,
-      "be_earned": true,
-      "peak_low": "71.106",
-      "current_regime": "WEAK_BEAR_TREND",
-      "plan_qty": "558.36829966",
-      "qty_ratio": 0.48999988030588404,
-      "tp1": "71.6501170",
-      "initial_stop_v1": true,
-      "early_tp1": true,
-      "early_tp_repair_v1": true
     }
   },
-  "ts": 1794439079.7096996
+  "ts": 1794439339.5604215
 }
