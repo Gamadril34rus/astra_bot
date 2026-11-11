@@ -15,6 +15,15 @@ BASE_URL = "https://open-api.bingx.com"
 SYMBOL = "BTC-USDT"
 PROBE_START = datetime(2025, 12, 26, 0, 0, tzinfo=UTC)
 PROBE_END = PROBE_START + timedelta(hours=3) - timedelta(milliseconds=1)
+PROBE_1M_DATES = (
+    "2025-08-08",
+    "2025-12-26",
+    "2026-03-01",
+    "2026-06-01",
+    "2026-08-03",
+    "2026-10-01",
+    "2026-11-10",
+)
 
 
 def _iso_ms(value: int | None) -> str | None:
@@ -78,6 +87,68 @@ def _kline_summary(rows: list, *, object_rows: bool = False) -> dict:
         "last_open_utc": _iso_ms(max(times)) if times else None,
     }
 
+
+
+
+def _minute_window_summary(rows: list, start_ms: int, end_ms: int) -> dict:
+    times = sorted({
+        int(row["openTime"] if isinstance(row, dict) else row[0])
+        for row in rows
+        if row and (
+            row.get("openTime") is not None if isinstance(row, dict) else row[0] is not None
+        )
+    })
+    diffs = [right - left for left, right in zip(times, times[1:])]
+    missing_minutes = sum(max(0, delta // 60_000 - 1) for delta in diffs)
+    expected = (end_ms - start_ms) // 60_000 + 1
+    return {
+        "requested_start_utc": _iso_ms(start_ms),
+        "requested_end_utc": _iso_ms(end_ms),
+        "expected_rows": expected,
+        "rows": len(rows),
+        "unique_timestamps": len(times),
+        "first_open_utc": _iso_ms(times[0]) if times else None,
+        "last_open_utc": _iso_ms(times[-1]) if times else None,
+        "missing_minutes_between_returned_rows": missing_minutes,
+        "duplicate_timestamps": len(rows) - len(times),
+        "full_contiguous_window": (
+            len(times) == expected
+            and times[0] == start_ms
+            and times[-1] == end_ms - 59_999
+            and missing_minutes == 0
+            and len(rows) == len(times)
+        ),
+    }
+
+
+def _probe_historical_1m_windows(symbol: str) -> dict:
+    """Sample actual 1m swap candles across dates before attempting bulk recovery."""
+    result = {}
+    for day in PROBE_1M_DATES:
+        start = datetime.fromisoformat(f"{day}T00:00:00+00:00")
+        start_ms = int(start.timestamp() * 1000)
+        end_ms = start_ms + 499 * 60_000 + 59_999
+        time.sleep(0.35)
+        payload = _request_json(
+            "/openApi/swap/v3/quote/klines",
+            {
+                "symbol": symbol,
+                "interval": "1m",
+                "startTime": start_ms,
+                "endTime": end_ms,
+                "limit": 500,
+            },
+        )
+        result[day] = _minute_window_summary(payload.get("data") or [], start_ms, end_ms)
+    return {
+        "source": "BingX USDT-M perpetual swap /openApi/swap/v3/quote/klines",
+        "interval": "1m; raw observations sampled only for possible exact 15m aggregation",
+        "samples": result,
+        "full_sample_windows": sum(
+            bool(item["full_contiguous_window"]) for item in result.values()
+        ),
+        "sample_window_count": len(result),
+    }
 
 def run_probe(symbol: str = SYMBOL) -> dict:
     start_ms = int(PROBE_START.timestamp() * 1000)
@@ -148,6 +219,7 @@ def run_probe(symbol: str = SYMBOL) -> dict:
     result["mark_price_klines"]["15m"] = _kline_summary(
         mark_payload.get("data") or [], object_rows=True
     )
+    result["historical_1m_depth_samples"] = _probe_historical_1m_windows(symbol)
     return result
 
 
