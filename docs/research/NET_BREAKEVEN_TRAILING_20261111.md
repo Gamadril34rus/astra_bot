@@ -232,9 +232,11 @@ Run on archived 1h/4h OHLCV with costs and report per-symbol, per-strategy resul
 
 ### Isolated corrective draft
 
-A separate draft PR was opened: [#355](https://github.com/Gamadril34rus/astra_bot/pull/355). It applies closed-candle confirmation only to the multi-top/multi-bottom fallback, retains the current forming candle solely as the execution-price reference, and stamps the signal with the confirmed bar timestamp. It adds tests for both timeframe paths and an intrabar-only false break. The channel strategy is deliberately untouched because its execution-price semantics need a separate design.
+A separate draft PR was opened: [#355](https://github.com/Gamadril34rus/astra_bot/pull/355). It applies closed-candle confirmation only to the multi-top/multi-bottom fallback, retains the current forming candle solely as the execution-price reference, and stamps the signal with the confirmed bar timestamp. It now also brings the channel strategy into parity with the existing A5 rule: evaluate closed candles while passing the current forming-candle close separately as `current_price`. The same behavior is applied to the multi-top 4h/1h fallback. It adds tests for channel inputs, both fallback timeframe paths, and an intrabar-only false break.
 
-PR #355 is draft-only and unmerged. Its CI is pending at the time of this update. No production or master change has been made.
+The INJ short opened in the 12:00 UTC VST tick used a signal ID stamped with the 12:00 4h candle, and the feed evaluated that forming candle at 12:03 UTC. Under the proposed closed-bar rule, that entry would not have been eligible until the 4h candle closed. This does not prove the trade was wrong; it shows why the rule matters and why the draft must be replay-tested before merging.
+
+PR #355 is draft-only and unmerged. CI is pending. No production or master code/config change has been made.
 
 
 ### New live-clock tick after the quiet window (12:00 UTC)
