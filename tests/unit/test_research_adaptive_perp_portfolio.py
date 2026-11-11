@@ -13,6 +13,7 @@ from scripts.research_adaptive_perp_portfolio import (
     MAX_HOLD_BARS,
     add_features,
     choose_signal,
+    clip_bars_for_simulation,
     common_15m_coverage_window,
     exclude_split_crossing_trades,
     filter_max_period,
@@ -20,6 +21,7 @@ from scripts.research_adaptive_perp_portfolio import (
     latest_contiguous_funding_segment,
     load_bars,
     simulate_symbol,
+    simulation_window_for_period,
 )
 
 
@@ -551,3 +553,63 @@ def test_validation_screen_does_not_include_oos_trades() -> None:
     assert screened["period"].tolist() == ["IS", "VALIDATION"]
     assert filter_max_period(trades, "OOS")["period"].tolist() == ["OOS"]
 
+
+
+
+def test_validation_screen_clips_signal_and_hourly_bars_before_oos() -> None:
+    interval = 15 * 60_000
+    signal = _bars([index * interval for index in range(240)], interval)
+    hourly = _bars([index * 60 * 60_000 for index in range(80)], 60 * 60_000)
+    common_start = 30 * interval
+    validation_start = 150 * interval
+    oos_start = 190 * interval
+    common_end = 239 * interval
+    trade_start, cutoff = simulation_window_for_period(
+        "VALIDATION", common_start, validation_start, oos_start, common_end, interval
+    )
+    clipped_signal, clipped_hourly = clip_bars_for_simulation(
+        signal, hourly, common_start, cutoff, interval
+    )
+    assert trade_start == common_start
+    assert clipped_signal["decision_time"].max() < cutoff
+    assert clipped_hourly["decision_time"].max() < cutoff
+    assert clipped_signal["open_time"].min() == common_start - 120 * interval
+
+
+def test_oos_only_window_starts_flat_at_oos_boundary() -> None:
+    start, cutoff = simulation_window_for_period(
+        "OOS", 100, 200, 260, 400, 900_000
+    )
+    assert start == 260
+    assert cutoff == 400 + 900_000
+
+
+def test_simulator_skips_signals_before_requested_oos_start(monkeypatch) -> None:
+    times = [index * 900_000 for index in range(170)]
+    frame = pd.DataFrame({
+        "open_time": times,
+        "decision_time": [value + 900_000 for value in times],
+        "open": [100.0] * 170,
+        "high": [100.2] * 170,
+        "low": [99.5] * 170,
+        "close": [100.1] * 170,
+        "atr14": [1.0] * 170,
+    })
+
+    def frozen_signal(_frame, index):
+        if index in (120, 130):
+            return {"family": "TEST", "side": 1, "stop": 99.0, "target_rr": 1.5}
+        return None
+
+    monkeypatch.setattr(research, "choose_signal", frozen_signal)
+    funding = pd.DataFrame({
+        "funding_time": list(range(0, 48 * 3_600_000 + 1, 8 * 3_600_000)),
+        "rate": [0.0] * 7,
+    })
+    start_time = int(frame.loc[130, "decision_time"])
+    trades = simulate_symbol(
+        "BTC-USDT", frame, funding, fee_bps=0, spread_bps=0, slippage_bps=0,
+        start_time_ms=start_time,
+    )
+    assert len(trades) == 1
+    assert trades[0]["entry_time"] == times[131]
