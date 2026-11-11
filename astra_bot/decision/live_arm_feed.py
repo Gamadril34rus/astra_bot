@@ -259,6 +259,98 @@ async def scan_zone_shadow(client: Any, symbols: list[str] | tuple[str, ...] = F
                 pass
     return out
 
+
+def _zone_trade_filter_decision(
+    side: str, price: float, zones: list[dict[str, float]] | None,
+    *, threshold_pct: float = 1.0,
+) -> dict[str, Any]:
+    """C-style veto: block only a known opposing boundary within threshold."""
+    import math
+
+    if side not in {"long", "short"} or not math.isfinite(price) or price <= 0:
+        return {"accepted": False, "state": "UNKNOWN", "reason": "invalid_side_or_price"}
+    if zones is None:
+        return {"accepted": False, "state": "UNKNOWN", "reason": "zones_unavailable"}
+    valid: list[tuple[float, float]] = []
+    for zone in zones:
+        try:
+            lower, upper = float(zone["lower"]), float(zone["upper"])
+        except (KeyError, TypeError, ValueError):
+            return {"accepted": False, "state": "UNKNOWN", "reason": "invalid_zone_payload"}
+        if not (math.isfinite(lower) and math.isfinite(upper) and 0 < lower <= upper):
+            return {"accepted": False, "state": "UNKNOWN", "reason": "invalid_zone_payload"}
+        valid.append((lower, upper))
+    if not valid:
+        return {"accepted": True, "state": "EMPTY_ZONES", "reason": "no_valid_zones"}
+    if any(lower <= price <= upper for lower, upper in valid):
+        return {"accepted": True, "state": "IN_ZONE", "reason": "price_inside_zone"}
+    if side == "long":
+        opposing = [lower for lower, _ in valid if lower > price]
+        boundary = min(opposing) if opposing else None
+    else:
+        opposing = [upper for _, upper in valid if upper < price]
+        boundary = max(opposing) if opposing else None
+    if boundary is None:
+        return {"accepted": True, "state": "NO_OPPOSING_ZONE", "reason": "no_opposing_zone"}
+    distance = 100.0 * abs(boundary - price) / price
+    near = distance <= threshold_pct
+    return {
+        "accepted": not near,
+        "state": "OUTSIDE_NEAR" if near else "OUTSIDE_FAR",
+        "reason": "opposing_zone_within_threshold" if near else "opposing_zone_clear",
+        "boundary": boundary,
+        "distance_pct": round(distance, 6),
+        "threshold_pct": threshold_pct,
+    }
+
+
+def _apply_zone_trade_filter(
+    row: dict[str, Any], *, symbol: str, price: float, expected_bar_ts: int,
+) -> dict[str, Any] | None:
+    import os
+
+    if str(os.environ.get("ZONE_TRADE_FILTER", "0")).strip().lower() not in {
+        "1", "true", "yes", "on"
+    }:
+        return row
+    cached = _ZONE_CACHE.get(symbol)
+    if cached is None or int(cached[0]) != int(expected_bar_ts):
+        decision = {
+            "accepted": False, "state": "UNKNOWN",
+            "reason": "zone_cache_missing_or_stale",
+        }
+    else:
+        decision = _zone_trade_filter_decision(row.get("side", ""), price, cached[1])
+    row["zone_trade_filter"] = decision
+    try:
+        from astra_bot.decision.live_arm_wiring import append_journal
+        append_journal({
+            "event": "zone_trade_filter",
+            "signal_id": row.get("signal_id"),
+            "symbol": symbol,
+            "side": row.get("side"),
+            "strategy": row.get("strategy"),
+            "accepted": decision["accepted"],
+            "state": decision["state"],
+            "reason": decision["reason"],
+            "boundary": decision.get("boundary"),
+            "distance_pct": decision.get("distance_pct"),
+            "threshold_pct": decision.get("threshold_pct", 1.0),
+            "price": price,
+            "zone_bar_ts": int(expected_bar_ts),
+            "ts": time.time(),
+        })
+    except Exception as exc:
+        logger.warning("zone trade filter journal failed %s: %s", symbol, type(exc).__name__)
+    if not decision["accepted"]:
+        logger.info(
+            "arm feed: zone filter blocked %s %s state=%s reason=%s",
+            symbol, row.get("side"), decision["state"], decision["reason"],
+        )
+        return None
+    return row
+
+
 async def scan_symbol(
     client: Any,
     symbol: str,
@@ -301,7 +393,11 @@ async def scan_symbol(
             row = signal_to_row(sig, bar_ts=bar_ts)
             if zone_ctx is not None:
                 row["zone_shadow"] = zone_ctx
-            return row
+            expected_zone_bar = int(_candle_value(candles[-2], "open_time") or 0)
+            return _apply_zone_trade_filter(
+                row, symbol=symbol, price=_candle_value(candles[-1], "close"),
+                expected_bar_ts=expected_zone_bar,
+            )
         except Exception as exc:
             logger.warning("arm feed: %s row map failed: %s", symbol, type(exc).__name__)
             return None
@@ -359,7 +455,7 @@ async def scan_symbol(
     if br is None:
         return None
     now = time.time()
-    return {
+    row = {
         "signal_id": make_signal_id(symbol, br.side, bar_ts, strategy="zeus_multi_top_breakdown"),
         "symbol": symbol,
         "side": br.side,
@@ -376,6 +472,11 @@ async def scan_symbol(
         "tf": src_tf,
         "zone_shadow": zone_ctx,
     }
+    expected_zone_bar = int(_candle_value(candles[-2], "open_time") or 0)
+    return _apply_zone_trade_filter(
+        row, symbol=symbol, price=_candle_value(candles[-1], "close"),
+        expected_bar_ts=expected_zone_bar,
+    )
 
 
 async def produce_pending(
