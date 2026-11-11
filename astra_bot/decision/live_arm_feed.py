@@ -339,21 +339,34 @@ async def scan_symbol(
     # Prefer 4h structure; if silent, 1h fallback catches intra-4h continuations.
     br = None
     src_tf = "4h"
+    # Multi-top/bottom requires a CONFIRMED close. BingX klines include the
+    # forming candle last; use it only as the live execution-price reference.
+    closed_4h = series[:-1] if len(series) > 1 else series
     try:
-        highs, lows, closes = series_from_candles(series)
-        br = detect_breakdown_from_ohlc(highs, lows, closes)
+        if len(closed_4h) >= 30:
+            highs, lows, closes = series_from_candles(closed_4h)
+            br = detect_breakdown_from_ohlc(
+                highs, lows, closes,
+                entry_price=_candle_value(series[-1], "close"),
+            )
+            if br is not None:
+                bar_ts = int(getattr(closed_4h[-1], "open_time", 0) or bar_ts)
     except Exception as exc:
         logger.warning("arm feed: %s breakdown 4h failed: %s", symbol, type(exc).__name__)
     if br is None:
         try:
             c1h = await fetch_candles(client, symbol, timeframe="1h", limit=120)
             if c1h and len(c1h) >= 30:
-                h1, l1, cl1 = series_from_candles(list(c1h))
-                br = detect_breakdown_from_ohlc(h1, l1, cl1)
-                if br is not None:
-                    src_tf = "1h"
-                    last1 = c1h[-1]
-                    bar_ts = int(getattr(last1, "open_time", 0) or bar_ts)
+                closed_1h = list(c1h[:-1]) if len(c1h) > 1 else list(c1h)
+                if len(closed_1h) >= 30:
+                    h1, l1, cl1 = series_from_candles(closed_1h)
+                    br = detect_breakdown_from_ohlc(
+                        h1, l1, cl1,
+                        entry_price=_candle_value(c1h[-1], "close"),
+                    )
+                    if br is not None:
+                        src_tf = "1h"
+                        bar_ts = int(getattr(closed_1h[-1], "open_time", 0) or bar_ts)
         except Exception as exc:
             logger.warning("arm feed: %s breakdown 1h failed: %s", symbol, type(exc).__name__)
     if br is None:
