@@ -131,17 +131,38 @@ def _probe_historical_1m_windows(symbol: str) -> dict:
         start = datetime.fromisoformat(f"{day}T00:00:00+00:00")
         start_ms = int(start.timestamp() * 1000)
         end_ms = start_ms + 499 * 60_000 + 59_999
-        time.sleep(0.35)
-        payload = _request_json(
-            "/openApi/swap/v3/quote/klines",
-            {
-                "symbol": symbol,
-                "interval": "1m",
-                "startTime": start_ms,
-                "endTime": end_ms,
-                "limit": 500,
-            },
-        )
+        payload = None
+        last_error = None
+        for attempt, cooldown in enumerate((0, 5, 30, 60)):
+            if cooldown:
+                time.sleep(cooldown)
+            else:
+                time.sleep(0.35)
+            try:
+                payload = _request_json(
+                    "/openApi/swap/v3/quote/klines",
+                    {
+                        "symbol": symbol,
+                        "interval": "1m",
+                        "startTime": start_ms,
+                        "endTime": end_ms,
+                        "limit": 500,
+                    },
+                )
+                break
+            except RuntimeError as exc:
+                last_error = str(exc)
+                if "code=100410" not in last_error or attempt == 3:
+                    break
+        if payload is None:
+            result[day] = {
+                "requested_start_utc": _iso_ms(start_ms),
+                "requested_end_utc": _iso_ms(end_ms),
+                "error": last_error,
+                "rows": 0,
+                "full_contiguous_window": False,
+            }
+            continue
         result[day] = _minute_window_summary(payload.get("data") or [], start_ms, end_ms)
     return {
         "source": "BingX USDT-M perpetual swap /openApi/swap/v3/quote/klines",
