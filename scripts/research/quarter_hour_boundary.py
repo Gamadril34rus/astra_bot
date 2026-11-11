@@ -23,6 +23,9 @@ SYMBOLS = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
 INTERVAL_MS = 300_000
 BOUNDARY_MS = 900_000
 PAGE_LIMIT = 1_440
+IMPULSE_RETURN_MIN = 0.003
+IMPULSE_RETURN_MAX = 0.015
+VOLUME_MULTIPLE = 1.5
 HORIZONS = {"30m": 6, "1h": 12, "2h": 24, "4h": 48}
 FEE_BPS_PER_SIDE = 4.0
 SLIPPAGE_BPS_PER_SIDE = 2.0
@@ -34,6 +37,43 @@ SPLITS = (
     ("OOS", "2026-06-01", "2026-11-10"),
 )
 LOG = logging.getLogger("quarter_hour_boundary")
+
+
+def validate_config(path: Path) -> None:
+    """Fail closed if the checked-in frozen protocol drifts from the runner."""
+    config = json.loads(path.read_text(encoding="utf-8"))
+    expected = {
+        "exchange": "BingX",
+        "market": "USDT-M perpetual",
+        "symbols": list(SYMBOLS),
+        "signal_timeframe": "5m",
+        "event_boundaries_utc_minutes": [0, 15, 30, 45],
+        "impulse_return_abs_min": IMPULSE_RETURN_MIN,
+        "impulse_return_abs_max": IMPULSE_RETURN_MAX,
+        "volume_multiple_vs_prior_20_bar_median": VOLUME_MULTIPLE,
+        "horizons_bars": HORIZONS,
+        "splits_utc_inclusive": {
+            name: [start, end] for name, start, end in SPLITS
+        },
+        "bootstrap": {
+            "method": "UTC-day cluster bootstrap",
+            "replicates": 2000,
+            "seed": 20261111,
+        },
+    }
+    for key, value in expected.items():
+        if config.get(key) != value:
+            raise ValueError(
+                f"frozen research config mismatch for {key}: "
+                f"expected {value!r}, got {config.get(key)!r}"
+            )
+    costs = config.get("costs_bps_per_side", {})
+    if costs != {
+        "taker_fee": FEE_BPS_PER_SIDE,
+        "slippage_proxy": SLIPPAGE_BPS_PER_SIDE,
+        "stress_multiplier": 1.5,
+    }:
+        raise ValueError(f"frozen research cost config mismatch: {costs!r}")
 
 
 def _sha256(path: Path) -> str:
@@ -319,9 +359,9 @@ def build_events(frame: pd.DataFrame) -> pd.DataFrame:
     magnitude = data["bar_return"].abs()
     selected = (
         boundary
-        & (magnitude >= 0.003)
-        & (magnitude <= 0.015)
-        & (data["volume_ratio"] >= 1.5)
+        & (magnitude >= IMPULSE_RETURN_MIN)
+        & (magnitude <= IMPULSE_RETURN_MAX)
+        & (data["volume_ratio"] >= VOLUME_MULTIPLE)
         & data["trend"].isin((-1, 1))
     )
     events = data.loc[selected].copy()
@@ -585,12 +625,16 @@ def run_study(data_dir: Path, report_path: Path) -> dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fetch", action="store_true")
+    parser.add_argument(
+        "--config", type=Path, default=Path("config/research/quarter_hour_boundary.json")
+    )
     parser.add_argument("--reference-manifest", type=Path)
     parser.add_argument("--data-dir", type=Path, default=Path("reports/quarter_hour_boundary/data"))
     parser.add_argument("--report", type=Path, default=Path("reports/quarter_hour_boundary/report.json"))
     parser.add_argument("--end-utc", default="2026-11-12T00:00:00Z")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    validate_config(args.config)
     if args.fetch:
         if args.reference_manifest is None:
             parser.error("--reference-manifest is required with --fetch")
