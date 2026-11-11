@@ -63,7 +63,12 @@ def _trade_summary(rows: list[dict], requested_from_id: int | None) -> dict:
 
 
 def _kline_summary(rows: list, *, object_rows: bool = False) -> dict:
-    if object_rows:
+    if rows and isinstance(rows[0], dict):
+        time_key = "openTime" if "openTime" in rows[0] else "time"
+        times = [
+            int(row[time_key]) for row in rows if row.get(time_key) is not None
+        ]
+    elif object_rows:
         times = [int(row["openTime"]) for row in rows if row.get("openTime") is not None]
     else:
         times = [int(row[0]) for row in rows if row]
