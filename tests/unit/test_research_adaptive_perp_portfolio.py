@@ -616,6 +616,20 @@ def test_simulator_skips_signals_before_requested_oos_start(monkeypatch) -> None
     assert trades[0]["entry_time"] == times[131]
 
 
+def test_relative_volume_uses_one_unit_when_quote_volume_is_incomplete() -> None:
+    interval = 15 * 60_000
+    m15 = _bars([index * interval for index in range(30)], interval)
+    m15["volume"] = 100.0
+    m15["quote_volume"] = 1_000.0
+    m15.loc[20, "volume"] = 500.0
+    m15.loc[20, "quote_volume"] = 0.0
+    hourly = _bars([index * 60 * 60_000 for index in range(12)], 60 * 60_000)
+    featured = add_features(m15, hourly)
+    # A single missing quote-volume observation selects base volume for the
+    # entire symbol history; row-wise quote/base mixing would corrupt the ratio.
+    assert featured.loc[20, "volume_ratio"] == pytest.approx(5.0)
+
+
 def test_adaptive_volume_ratio_excludes_current_signal_candle() -> None:
     interval = 15 * 60_000
     m15 = _bars([index * interval for index in range(30)], interval)
