@@ -97,8 +97,12 @@ def detect_multi_top_breakdown(
             continue
         if i >= 1 and float(closes[i - 1]) < neck:
             continue
-        stop = max(top_px) * (1.0 + stop_buffer_pct)
+        # A confirmed close-break is stale if price has already reclaimed
+        # the neckline before execution. Do not enter a short above the level.
         entry = float(entry_price) if entry_price is not None and float(entry_price) > 0 else close
+        if entry >= neck:
+            continue
+        stop = max(top_px) * (1.0 + stop_buffer_pct)
         risk = stop - entry
         if risk <= 0:
             continue
@@ -165,8 +169,12 @@ def detect_multi_bottom_breakout(
             continue
         if i >= 1 and float(closes[i - 1]) > neck:
             continue
-        stop = min(bot_px) * (1.0 - stop_buffer_pct)
+        # A confirmed close-break is stale if price has already lost
+        # the reclaimed neckline before execution. Do not enter a long below it.
         entry = float(entry_price) if entry_price is not None and float(entry_price) > 0 else close
+        if entry <= neck:
+            continue
+        stop = min(bot_px) * (1.0 - stop_buffer_pct)
         risk = entry - stop
         if risk <= 0:
             continue
