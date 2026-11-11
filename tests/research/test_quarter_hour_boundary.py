@@ -6,6 +6,7 @@ import pandas as pd
 from scripts.research.quarter_hour_boundary import (
     INTERVAL_MS,
     ROUND_TRIP_COST_BPS,
+    STRESS_ROUND_TRIP_COST_BPS,
     build_events,
     event_outcomes,
 )
@@ -80,6 +81,7 @@ def test_event_study_enters_next_bar_and_charges_round_trip_cost() -> None:
     assert np.isclose(
         row["cost_only_net_bps"], 100.0 - ROUND_TRIP_COST_BPS
     )
+    assert np.isclose(row["stress_net_bps"], 100.0 - STRESS_ROUND_TRIP_COST_BPS)
     assert bool(row["funding_complete"])
 
 
