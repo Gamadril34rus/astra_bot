@@ -33,7 +33,7 @@ No parameter grid or threshold tuning is permitted in this first test. Both vari
 
 Fixed horizons are 6, 12, 24 and 48 completed 5m bars after entry (30m, 1h, 2h and 4h). This is an event study, not a stop/target strategy backtest.
 
-The cost-only net return subtracts 4 bps taker fee and 2 bps slippage proxy per side (12 bps round trip). Funding is deducted only when the downloaded funding history brackets the full entry-to-exit interval and has no detected large timestamp gap. Otherwise funded net return is **UNKNOWN**, not zero.
+The cost-only net return subtracts 4 bps taker fee and 2 bps slippage proxy per side (12 bps round trip). A 1.5x cost stress (18 bps round trip) is reported alongside the base proxy. Funding is deducted only when the downloaded funding history brackets the full entry-to-exit interval and has no detected large timestamp gap. Otherwise funded net return is **UNKNOWN**, not zero.
 
 There is no historical BingX BBO/depth tape in the current repository. Consequently the cost proxy is not a verified fill model. No historical spread or fill probability is fabricated. No PF/DD/Sharpe claim is made for a portfolio strategy.
 
