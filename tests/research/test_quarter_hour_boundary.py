@@ -4,7 +4,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
 from scripts.research.quarter_hour_boundary import (
     INTERVAL_MS,
     ROUND_TRIP_COST_BPS,
