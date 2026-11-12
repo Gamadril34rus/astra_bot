@@ -275,6 +275,22 @@ By the next snapshot around 14:22 UTC, ETH OI had increased further to 377.66m (
 
 This is a useful early indication that positioning response was not uniform across assets. However, the capture is only 105 points deep and the raw BingX `openInterest` unit has not been independently reconciled with contract size; the archive currently labels it as base quantity, but absolute magnitudes do not look like literal BTC/ETH coin amounts. **Use within-symbol percentage changes only; do not use absolute OI notional or cross-symbol level comparisons until units are verified.** The API's public response and contract metadata need a dedicated unit audit before the archive is treated as a calibrated OI series.
 
+
+### First BingX OI-only event test (exploratory, not a strategy result)
+
+I aligned the 106 CSV snapshots per symbol with BingX 5m closes (last closed candle at each snapshot), then classified each consecutive snapshot interval by price direction and raw OI percentage change. I kept `|price move| ≥0.05%`, `|OI move| ≥0.25%`, and gaps ≤90 minutes. The manifest still says 105 rows, so it is one snapshot behind the CSVs.
+
+| State | Events | Next 30m avg | Next 1h avg | Next 2h avg | Next 4h avg | Next 9h avg |
+|---|---:|---:|---:|---:|---:|---:|
+| Price up, OI up | 71 | −0.14% | −0.26% | −0.13% | −0.09% | −0.05% |
+| Price down, OI up | 63 | +0.02% | +0.06% | −0.43% | −0.30% | −0.01% |
+| Price up, OI down | 121 | −0.07% | −0.15% | −0.20% | −0.33% | −0.69% |
+| Price down, OI down | 127 | +0.04% | +0.08% | +0.03% | −0.26% | −0.36% |
+
+At a stricter 1% OI-change threshold, the price-down/OI-up group had 38 observations: mean +0.02% at +30m, +0.04% at +1h, −0.54% at +2h and −0.35% at +4h. That superficially resembles an initial bounce followed by continuation, but the per-symbol breakdown is inconsistent and sample sizes fall to 2–14 events per symbol. Price-up/OI-up did not show continuation; the other states were mixed.
+
+**Verdict:** OI direction alone does not yet produce a robust, cross-symbol 30m–9h signal. These events overlap, span only about 2.3 days, omit taker delta, and have no fees/funding adjustment. The raw OI unit is unresolved. This is a useful data-acquisition pilot, not a profitable strategy result. We need a longer archive and a taker-flow measure before drawing a trading conclusion.
+
 ## 9. Candidate ASTRA translation to test (not a live rule)
 
 The evidence suggests the first strategy candidate should be a **position-build versus position-exit classifier**, not a raw whale-following signal.
