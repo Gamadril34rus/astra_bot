@@ -255,6 +255,7 @@ def reconstruct(
         SELECT
             f.wallet,
             f.market,
+            max(CASE WHEN a.wallet IS NOT NULL THEN 1 ELSE 0 END) AS anchor_present,
             coalesce(max(a.anchor_size), 0.0) AS anchor_size,
             max(a.anchor_entry_price) AS anchor_entry_price,
             max(a.anchor_liquidation_price) AS anchor_liquidation_price,
