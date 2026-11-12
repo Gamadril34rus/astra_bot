@@ -43,6 +43,24 @@ def test_archive_listing_requires_filename_to_match_url_and_all_families() -> No
     assert set(result) == {"BTC-USDT", "ETH-USDT"}
 
 
+def test_archive_listing_flattens_okx_data_list_with_nested_details() -> None:
+    symbols = ("BTC", "ETH")
+    details = []
+    for symbol in symbols:
+        family = f"{symbol}-USDT"
+        filename = f"{family}-SWAP-candlesticks-2026-10.zip"
+        details.append({
+            "instFamily": family,
+            "groupDetails": [{"filename": filename, "url": f"https://static.okx.com/{filename}?v=1001"}],
+        })
+    result = probe._archive_files(
+        {"data": [{"dateAggrType": "monthly", "details": details}]},
+        "2026-10",
+        symbols,
+    )
+    assert set(result) == {"BTC-USDT", "ETH-USDT"}
+
+
 def test_archive_listing_rejects_foreign_url_filename() -> None:
     details = [{
         "instFamily": "BTC-USDT",
