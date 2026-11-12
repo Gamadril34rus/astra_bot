@@ -270,7 +270,7 @@ def patch_month_gaps(
         writer = csv.DictWriter(handle, fieldnames=list(ordered[0]))
         writer.writeheader()
         writer.writerows(ordered)
-    times = [bar["open_time"] for bar in ordered]
+    times = [int(bar["open_time"]) for bar in ordered]
     gaps = [
         {"after": left, "before": right, "missing_minutes": (right - left) // 60_000 - 1}
         for left, right in itertools.pairwise(times)
