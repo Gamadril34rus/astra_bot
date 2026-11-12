@@ -104,3 +104,62 @@ For each module, symbol, side and cohort:
 - chronological IS/validation/OOS boundaries and no-lookahead assertions.
 
 Promotion remains blocked until the existing gate is met: OOS net PF >= 1.25, positive net expectancy, >=100 combined OOS trades, >=25 per side before side-specific claims, >=70% positive OOS calendar months, acceptable drawdown, and positive net expectancy at 1.5x costs. A pass permits owner review and separate VST planning only.
+
+
+## 2026-11-12 execution update
+
+### Hyperliquid public-wallet API pilot
+
+A frozen stratified cohort of 100 public leaderboard addresses was captured in workflow run `43221654045`. The snapshot included 49 positive, 37 negative and 14 flat current-month PnL labels. These are current leaderboard labels, not historical point-in-time labels; comparisons remain descriptive.
+
+A 10-wallet, 24-hour API pilot completed in run `43237604563` (artifact `13952299450`):
+- 4/10 wallets had fills; 6/10 had no fills in the 24h window.
+- All 4 active wallets hit the 10,000 normal-fill endpoint cap; their windows are left-censored. No TWAP slice fills were returned for these 10 wallets.
+- Two active wallets' captured native-perp fills were dominated by `Close Short` (86.1% and 79.8%); no complete flat-to-flat episode was observed in that window.
+- One wallet produced 157 flat-to-flat episodes, median hold about 0.66 minutes and p90 about 4.7 minutes. This is scalping-like and outside the ASTRA BOT holding-time target.
+- One wallet had 10,000 total fills but only 394 native-perp fills; the remainder were HIP-3/other market identifiers.
+- No account in this small pilot produced a complete, usable 30m–9h behavioural sample. Partial `closedPnl-fee` sums were not ranked; funding was not available in this endpoint sample.
+
+Decision: do not derive a strategy from the pilot. The endpoint cap and incomplete windows are explicit exclusions.
+
+### Historical public trade archive
+
+Ironflow's public Hyperliquid trade archive exposes buyer, seller, taker side, market, size, price, notional, timestamp and liquidation interaction. The available files from 2026-10-03 through 2026-11-08 are 37 daily Parquet files (about 210m matched trades / 5.3 GB). Only these pre-2026-11-10 files are used under the provider-stated CC BY 4.0 terms; later files are excluded because their license changed to CC BY-NC 4.0.
+
+The new isolated collector downloads one day at a time and filters the frozen 100-wallet cohort to native perps only (`market_class=perp`, `dex` empty/null), excluding spot and HIP-3. It writes one wallet-side row per cohort buyer/seller, deriving maker/taker from `taker_side`. Source file SHA-256, row counts, license attribution and wallet-level summaries are retained. Workflow run `43241607162` is collecting this panel; its result is not yet available.
+
+Important limitation: the public trade archive does **not** contain per-wallet `startPosition`, `dir`, fee, `closedPnl`, `twapId` or current position state. It can establish side, size, aggression, market selection, activity bursts and time-of-day behaviour, but cannot by itself establish exact holding times or realized wallet PnL. Current leaderboard PnL groups are not historical labels. No direct-copy signals will be derived.
+
+### Independent OKX market-data history
+
+The official OKX archive passed a full 365-day common-window gate for BTC, ETH, SOL, HYPE and INJ USDT perpetuals:
+- 2025-11-01 00:00 through 2026-11-01 00:00 UTC+8;
+- 525,600 confirmed 1m bars per symbol, zero remaining minute gaps;
+- 35,040 complete 15m bars and 8,760 complete 1h bars per symbol;
+- settled funding maximum interval 8h; 1,095 events for BTC/ETH/SOL/INJ and 1,590 for HYPE;
+- 246 overlapping REST `realizedRate` events per symbol matched the archive exactly, with zero mismatches.
+
+One SOL minute at 2026-09-01 10:33 UTC was absent from the monthly archive and was recovered from the official `market/history-candles` endpoint. The patched row is explicitly marked `okx_rest_history_candles_gap_patch`; no synthetic price was inserted. Raw evidence is artifact `13952069656` from run `43237764108`.
+
+A strict builder produced portfolio-compatible 15m/1h/funding files; artifact `13955310244` from run `43240467525` contains the data and SHA-256 manifest.
+
+### First cross-venue strategy result
+
+The frozen `15M_PULLBACK_CONTINUATION` candidate was replayed on the full OKX year with 15m signals, closed 1h context and a 9h maximum hold. This is an OHLC proxy with assumed costs, not tick-level fills.
+
+Base costs were 5 bps fee + 2 bps spread + 3 bps slippage per side:
+- IS: 141 trades, net PF 0.5088, net expectancy -0.31322%;
+- validation: 32 trades, net PF 0.5415, net expectancy -0.27946%;
+- OOS: 36 trades, net PF 0.8509, net expectancy -0.08606%, 33.33% positive OOS months;
+- combined: 209 trades, net PF 0.5683, net expectancy -0.26893%.
+
+At 1.5x execution costs (7.5 + 3 + 4.5 bps per side), OOS PF fell to 0.7113 and net expectancy to -0.18606%, with zero positive OOS months. The candidate fails the gate and is rejected for promotion. Small positive symbol/side PF spikes are only 2–3 trades and are not credible.
+
+The fixed eligibility stress cost was corrected from 12.375 to 15 bps/side, matching 1.5x the declared 10 bps/side base. The coverage report now measures through the final candle close, so the exact archive is correctly reported as 365.0 days.
+
+### Current execution state
+
+- BingX 15m workflow `43240975536` passed the initial historical kline/trade probe and is downloading funding; it will independently screen the four regime families and open OOS only if the 12-month and IS/validation gates pass.
+- OKX workflow `43240965020` is running the four regime families independently at base and 1.5x costs on the same 365-day dataset.
+- Hyperliquid wallet archive workflow `43241607162` is filtering the 37-day public trade tape for the frozen 100-wallet cohort.
+- No merge, no strategy registration, no VST/REAL activation, no production runtime, risk, leverage or exit-engine changes.
