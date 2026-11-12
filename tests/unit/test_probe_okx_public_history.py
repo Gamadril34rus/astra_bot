@@ -4,9 +4,8 @@ import csv
 import io
 import zipfile
 
-from scripts import probe_okx_public_history as probe
-
 import pytest
+from scripts import probe_okx_public_history as probe
 
 
 def _zip_csv(rows: list[list[str]]) -> bytes:
