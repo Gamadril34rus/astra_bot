@@ -78,6 +78,11 @@ def query_orders(address: str, market: str, start: datetime, end: datetime,
         if delay:
             time.sleep(delay)
         data = post_query(sql, api_key)
+        actual_history = data.get("limits", {}).get("history_days")
+        if actual_history is not None and a < datetime.now(timezone.utc) - timedelta(days=int(actual_history)):
+            raise RuntimeError(
+                f"API reports only {actual_history} days of history; refusing a potentially truncated result."
+            )
         rows = data.get("rows", [])
         truncated = bool(data.get("truncated")) or len(rows) >= 1000
         if truncated:
