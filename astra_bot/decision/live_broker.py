@@ -519,7 +519,7 @@ class LiveBroker:
         positions_path: Path | None = None,
         threshold: float = 0.005,
     ) -> dict[str, Any]:
-        """F13: |exch_qty-plan.qty|/plan.qty > 0.5% → upsert qty + journal qty_reconcile."""
+        """Reconcile plan quantity and any leverage explicitly reported by BingX."""
         from astra_bot.decision.live_arm_wiring import append_journal
         from astra_bot.decision.live_positions import load_positions, plan_key, save_positions
 
