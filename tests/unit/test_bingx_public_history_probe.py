@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+import pytest
 from scripts.probe_bingx_public_history import (
     _kline_summary,
     _minute_window_summary,
     _trade_summary,
 )
-
-import pytest
 
 
 def test_trade_probe_summary_reports_id_and_time_span() -> None:
