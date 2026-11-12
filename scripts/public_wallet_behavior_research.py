@@ -24,6 +24,7 @@ USER_AGENT = "ASTRA-BOT-public-wallet-research/1.0"
 MAX_WALLETS = 100
 MAX_FILLS_PER_WALLET = 10_000
 PAGE_SIZE = 2_000
+DEFAULT_PAUSE_SECONDS = 6.2
 
 
 def _get_json(url: str) -> dict[str, Any]:
@@ -37,21 +38,36 @@ def _get_json(url: str) -> dict[str, Any]:
 
 def _post_json(payload: dict[str, Any]) -> list[dict[str, Any]]:
     body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    request = Request(
-        INFO_URL,
-        data=body,
-        headers={
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "User-Agent": USER_AGENT,
-        },
-        method="POST",
-    )
-    with urlopen(request, timeout=30) as response:
-        result = json.loads(response.read().decode("utf-8"))
-    if not isinstance(result, list):
-        raise ValueError(f"Hyperliquid info response is not a list: {type(result).__name__}")
-    return result
+    delays = (10.0, 30.0, 60.0)
+    for attempt in range(len(delays) + 1):
+        request = Request(
+            INFO_URL,
+            data=body,
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "User-Agent": USER_AGENT,
+            },
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=30) as response:
+                result = json.loads(response.read().decode("utf-8"))
+            if not isinstance(result, list):
+                raise ValueError(
+                    f"Hyperliquid info response is not a list: {type(result).__name__}"
+                )
+            return result
+        except HTTPError as exc:
+            if exc.code != 429 or attempt == len(delays):
+                raise
+            retry_after = exc.headers.get("Retry-After") if exc.headers else None
+            try:
+                wait = max(delays[attempt], float(retry_after or 0))
+            except ValueError:
+                wait = delays[attempt]
+            time.sleep(wait)
+    raise RuntimeError("Hyperliquid request retry loop exhausted")
 
 
 def _metric(row: dict[str, Any], window: str, key: str) -> float:
@@ -100,11 +116,14 @@ def select_cohort(rows: list[dict[str, Any]], limit: int = MAX_WALLETS) -> list[
     return list(picked.values())[:limit]
 
 
-def fetch_wallet_fills(address: str, now_ms: int, pause_s: float = 0.25) -> dict[str, Any]:
+def fetch_wallet_fills(
+    address: str, now_ms: int, pause_s: float = DEFAULT_PAUSE_SECONDS
+) -> dict[str, Any]:
     """Fetch the documented 10k recent-fill window with timestamp pagination."""
     cursor = 0
     fills: dict[tuple[Any, ...], dict[str, Any]] = {}
     pages = 0
+    rate_limit_weight = 0
     errors: list[str] = []
     while cursor <= now_ms and len(fills) < MAX_FILLS_PER_WALLET:
         try:
@@ -119,27 +138,35 @@ def fetch_wallet_fills(address: str, now_ms: int, pause_s: float = 0.25) -> dict
             errors.append(f"{type(exc).__name__}: {exc}")
             break
         pages += 1
-        if not batch:
-            break
-        for fill in batch:
-            key = (
-                fill.get("coin"), fill.get("time"), fill.get("tid"),
-                fill.get("oid"), fill.get("side"), fill.get("px"), fill.get("sz"),
-            )
-            fills[key] = fill
-        times = [int(item.get("time", 0)) for item in batch if item.get("time") is not None]
-        if not times:
-            errors.append("response page had no fill timestamps")
-            break
-        next_cursor = max(times) + 1
-        if next_cursor <= cursor:
-            errors.append("pagination cursor did not advance")
-            break
-        cursor = next_cursor
-        if len(batch) < PAGE_SIZE:
-            break
+        rate_limit_weight += 20 + math.ceil(len(batch) / 20)
+        if batch:
+            for fill in batch:
+                key = (
+                    fill.get("coin"), fill.get("time"), fill.get("tid"),
+                    fill.get("oid"), fill.get("side"), fill.get("px"), fill.get("sz"),
+                )
+                fills[key] = fill
+            times = [
+                int(item.get("time", 0))
+                for item in batch if item.get("time") is not None
+            ]
+            if not times:
+                errors.append("response page had no fill timestamps")
+                time.sleep(pause_s)
+                break
+            next_cursor = max(times) + 1
+            if next_cursor <= cursor:
+                errors.append("pagination cursor did not advance")
+                time.sleep(pause_s)
+                break
+            cursor = next_cursor
         time.sleep(pause_s)
-    ordered = sorted(fills.values(), key=lambda item: (int(item.get("time", 0)), int(item.get("tid", 0))))
+        if not batch or len(batch) < PAGE_SIZE:
+            break
+    ordered = sorted(
+        fills.values(),
+        key=lambda item: (int(item.get("time", 0)), int(item.get("tid", 0))),
+    )
     times = [int(item["time"]) for item in ordered if item.get("time") is not None]
     return {
         "address": address,
@@ -148,6 +175,7 @@ def fetch_wallet_fills(address: str, now_ms: int, pause_s: float = 0.25) -> dict
         "first_fill_time_ms": min(times) if times else None,
         "last_fill_time_ms": max(times) if times else None,
         "pages": pages,
+        "estimated_rate_limit_weight": rate_limit_weight,
         "at_api_cap": len(ordered) >= MAX_FILLS_PER_WALLET,
         "errors": errors,
         "coverage_note": (
@@ -188,15 +216,26 @@ def classify_fill(fill: dict[str, Any]) -> str:
     return "unknown"
 
 
+def market_class(coin: str) -> str:
+    """Separate native crypto perps from builder-deployed/spot-like markets."""
+    normalized = str(coin or "").strip()
+    if not normalized or normalized.startswith("@") or ":" in normalized or "/" in normalized:
+        return "non_native_crypto_perp"
+    return "native_crypto_perp"
+
+
 def summarize_fills(fills: list[dict[str, Any]]) -> dict[str, Any]:
     actions: dict[str, int] = defaultdict(int)
     coins: dict[str, int] = defaultdict(int)
+    market_classes: dict[str, int] = defaultdict(int)
     crossed = 0
     fees = 0.0
     closed_pnl = 0.0
     for fill in fills:
         actions[classify_fill(fill)] += 1
-        coins[str(fill.get("coin") or "UNKNOWN")] += 1
+        coin = str(fill.get("coin") or "UNKNOWN")
+        coins[coin] += 1
+        market_classes[market_class(coin)] += 1
         crossed += int(bool(fill.get("crossed")))
         try:
             fees += float(fill.get("fee") or 0)
@@ -206,6 +245,7 @@ def summarize_fills(fills: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "actions": dict(sorted(actions.items())),
         "fills_by_coin": dict(sorted(coins.items())),
+        "fills_by_market_class": dict(sorted(market_classes.items())),
         "taker_fill_share": crossed / len(fills) if fills else None,
         "reported_fill_fees": fees,
         "reported_closed_pnl": closed_pnl,
@@ -220,7 +260,7 @@ def _write_json(path: Path, payload: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def run(out_dir: Path, limit: int = MAX_WALLETS, pause_s: float = 0.25) -> dict[str, Any]:
+def run(out_dir: Path, limit: int = MAX_WALLETS, pause_s: float = DEFAULT_PAUSE_SECONDS) -> dict[str, Any]:
     generated = datetime.now(UTC)
     now_ms = int(generated.timestamp() * 1000)
     leaderboard = _get_json(LEADERBOARD_URL)
@@ -267,6 +307,9 @@ def run(out_dir: Path, limit: int = MAX_WALLETS, pause_s: float = 0.25) -> dict[
             "Wallet addresses are pseudonymous accounts, not verified funds or legal institutions.",
             "Leaderboard selection is a current snapshot and is not survivorship-free historical sampling.",
             "The Info API exposes only the latest 10,000 fills per wallet through userFillsByTime.",
+            "The documented REST IP limit is 1,200 weighted units/minute; a 2,000-fill page costs about 120 units, so requests are paced at 6.2 seconds.",
+            "A 429 is retried with exponential backoff; any remaining 429 is preserved as an explicit collection error.",
+            "Builder-deployed markets and spot-like coin identifiers are separated from native crypto perpetual fills in summaries.",
             "TWAP slice fills require separate userTwapSliceFills endpoints and are not included in this first pass.",
             "Funding, deposits, withdrawals and transfers are not included in fill-level PnL summaries.",
             "Hyperliquid behaviour is a hypothesis source only; final validation must use BingX-native data.",
@@ -283,7 +326,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out-dir", type=Path, default=Path("reports/public_wallet_panel"))
     parser.add_argument("--limit", type=int, default=MAX_WALLETS)
-    parser.add_argument("--pause-seconds", type=float, default=0.25)
+    parser.add_argument("--pause-seconds", type=float, default=DEFAULT_PAUSE_SECONDS)
     args = parser.parse_args()
     if not 1 <= args.limit <= MAX_WALLETS:
         raise SystemExit(f"--limit must be between 1 and {MAX_WALLETS}")
