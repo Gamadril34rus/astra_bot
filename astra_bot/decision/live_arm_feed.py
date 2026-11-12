@@ -25,6 +25,7 @@ from astra_bot.strategies.zeus_multi_top_breakdown import (
 logger = logging.getLogger(__name__)
 ZONE_FILTER_JOURNAL_PATH = Path("models/zone_trade_filter.jsonl")
 _ZONE_CACHE: dict[str, tuple[int, list[dict[str, float]]]] = {}
+_ZONE_SHADOW_CACHE: dict[str, tuple[int, list[dict[str, float]]]] = {}
 _ZONE_PROFILE_META: dict[str, dict[str, Any]] = {}
 
 TIMEFRAME = "4h"
@@ -205,20 +206,49 @@ async def scan_zone_shadow(client: Any, symbols: list[str] | tuple[str, ...] = F
                 raise ValueError("closed_candle_missing_close")
             cached = _ZONE_CACHE.get(symbol)
             if cached is None or cached[0] != closed_ts:
-                zones, profile_meta = build_volume_zones_with_fallback(
+                shadow_zones, shadow_meta = build_volume_zones_with_fallback(
                     list(zone_candles), price=closed_price, fallback_lookback=120,
                 )
-                _ZONE_CACHE[symbol] = (closed_ts, zones)
+                # HYPE's recent-window fallback is observational only until at
+                # least 100 unique candidates have been measured. Keep the live
+                # filter on its original full-window result (empty = fail-closed).
+                if symbol == "HYPE-USDT" and shadow_meta.get("source") == "recent_fallback":
+                    filter_zones: list[dict[str, float]] = []
+                    profile_meta = {
+                        "source": "empty_full_window_shadow_only",
+                        "lookback_bars": shadow_meta.get("full_lookback_bars"),
+                        "shadow_source": "recent_fallback",
+                        "shadow_lookback_bars": shadow_meta.get("lookback_bars"),
+                        "shadow_only": True,
+                    }
+                else:
+                    filter_zones = shadow_zones
+                    profile_meta = {
+                        "source": shadow_meta.get("source"),
+                        "lookback_bars": shadow_meta.get("lookback_bars"),
+                        "shadow_source": shadow_meta.get("source"),
+                        "shadow_lookback_bars": shadow_meta.get("lookback_bars"),
+                        "shadow_only": False,
+                    }
+                _ZONE_CACHE[symbol] = (closed_ts, filter_zones)
+                _ZONE_SHADOW_CACHE[symbol] = (closed_ts, shadow_zones)
                 _ZONE_PROFILE_META[symbol] = profile_meta
             else:
-                zones = cached[1]
+                filter_zones = cached[1]
+                shadow_cached = _ZONE_SHADOW_CACHE.get(symbol)
+                shadow_zones = (
+                    shadow_cached[1]
+                    if shadow_cached is not None and shadow_cached[0] == closed_ts
+                    else filter_zones
+                )
                 profile_meta = _ZONE_PROFILE_META.get(
                     symbol, {"source": "cached", "lookback_bars": max(0, len(zone_candles) - 1)}
                 )
             price_now = _candle_value(zone_candles[-1], "close") or closed_price
-            context = zone_context(price_now, zones)
-            context["profile_source"] = profile_meta.get("source")
-            context["profile_lookback_bars"] = profile_meta.get("lookback_bars")
+            context = zone_context(price_now, shadow_zones)
+            context["profile_source"] = profile_meta.get("shadow_source") or profile_meta.get("source")
+            context["profile_lookback_bars"] = profile_meta.get("shadow_lookback_bars") or profile_meta.get("lookback_bars")
+            context["filter_profile_source"] = profile_meta.get("source")
             out[symbol] = context
             previous = approach_state.get(symbol)
             previous = previous if isinstance(previous, dict) else {}
@@ -252,8 +282,8 @@ async def scan_zone_shadow(client: Any, symbols: list[str] | tuple[str, ...] = F
             else:
                 minima = {}
             zone_rows = []
-            if zones and price_now > 0:
-                for zone in zones:
+            if shadow_zones and price_now > 0:
+                for zone in shadow_zones:
                     try:
                         center = float(zone["center"])
                         key = str(center)
@@ -267,8 +297,9 @@ async def scan_zone_shadow(client: Any, symbols: list[str] | tuple[str, ...] = F
                         continue
             approach_state[symbol] = {
                 "bar_ts": closed_ts, "zones": minima,
-                "profile_source": profile_meta.get("source"),
-                "profile_lookback_bars": profile_meta.get("lookback_bars"),
+                "profile_source": profile_meta.get("shadow_source") or profile_meta.get("source"),
+                "profile_lookback_bars": profile_meta.get("shadow_lookback_bars") or profile_meta.get("lookback_bars"),
+                "filter_profile_source": profile_meta.get("source"),
             }
             _save_zone_approach_state(approach_state)
             try:
@@ -277,8 +308,9 @@ async def scan_zone_shadow(client: Any, symbols: list[str] | tuple[str, ...] = F
                     "nearest_above": context.get("above"),
                     "nearest_below": context.get("below"),
                     "in_zone": context.get("in_zone"), "zones": zone_rows,
-                    "profile_source": profile_meta.get("source"),
-                    "profile_lookback_bars": profile_meta.get("lookback_bars"),
+                    "profile_source": profile_meta.get("shadow_source") or profile_meta.get("source"),
+                    "profile_lookback_bars": profile_meta.get("shadow_lookback_bars") or profile_meta.get("lookback_bars"),
+                    "filter_profile_source": profile_meta.get("source"),
                     "bar_ts": closed_ts, "ts": time.time(),
                 })
             except Exception as exc:
@@ -407,8 +439,35 @@ def _apply_zone_trade_filter(
         "zone_bar_ts": int(expected_bar_ts),
         "zone_profile_source": _ZONE_PROFILE_META.get(symbol, {}).get("source"),
         "zone_profile_lookback_bars": _ZONE_PROFILE_META.get(symbol, {}).get("lookback_bars"),
+        "zone_shadow_source": _ZONE_PROFILE_META.get(symbol, {}).get("shadow_source"),
         "ts": time.time(),
     }
+    shadow_cached = _ZONE_SHADOW_CACHE.get(symbol)
+    profile_meta = _ZONE_PROFILE_META.get(symbol, {})
+    if (
+        profile_meta.get("shadow_only")
+        and shadow_cached is not None
+        and int(shadow_cached[0]) == int(expected_bar_ts)
+    ):
+        shadow_decision = _zone_trade_filter_decision(row, shadow_cached[1])
+        try:
+            from astra_bot.decision.live_arm_wiring import append_journal
+            append_journal({
+                "event": "zone_filter_shadow_counterfactual",
+                "signal_id": row.get("signal_id"),
+                "symbol": symbol,
+                "side": row.get("side"),
+                "actual_accepted": decision["accepted"],
+                "actual_reason": decision["reason"],
+                "shadow_accepted": shadow_decision["accepted"],
+                "shadow_reason": shadow_decision["reason"],
+                "shadow_source": profile_meta.get("shadow_source"),
+                "shadow_lookback_bars": profile_meta.get("shadow_lookback_bars"),
+                "zone_bar_ts": int(expected_bar_ts),
+                "ts": time.time(),
+            })
+        except Exception as exc:
+            logger.warning("zone shadow counterfactual journal failed %s: %s", symbol, type(exc).__name__)
     try:
         from astra_bot.decision.live_arm_wiring import append_journal
         append_journal(event)
