@@ -91,14 +91,22 @@ def _kline_summary(rows: list, *, object_rows: bool = False) -> dict:
 
 
 
+def _minute_open_time(row: Any) -> int:
+    """Read BingX swap kline timestamps from array, time or openTime rows."""
+    if isinstance(row, dict):
+        raw_time = row.get("time", row.get("openTime"))
+    elif isinstance(row, (list, tuple)) and row:
+        raw_time = row[0]
+    else:
+        raw_time = None
+    if raw_time is None:
+        raise ValueError(f"BingX 1m candle row has no supported timestamp: {row!r}")
+    return int(raw_time)
+
+
 def _minute_window_summary(rows: list, start_ms: int, end_ms: int) -> dict:
-    times = sorted({
-        int(row["openTime"] if isinstance(row, dict) else row[0])
-        for row in rows
-        if row and (
-            row.get("openTime") is not None if isinstance(row, dict) else row[0] is not None
-        )
-    })
+    observed_times = [_minute_open_time(row) for row in rows]
+    times = sorted(set(observed_times))
     diffs = [right - left for left, right in itertools.pairwise(times)]
     missing_minutes = sum(max(0, delta // 60_000 - 1) for delta in diffs)
     non_minute_intervals = sum(delta % 60_000 != 0 for delta in diffs)
@@ -113,13 +121,13 @@ def _minute_window_summary(rows: list, start_ms: int, end_ms: int) -> dict:
         "last_open_utc": _iso_ms(times[-1]) if times else None,
         "missing_minutes_between_returned_rows": missing_minutes,
         "non_minute_intervals": non_minute_intervals,
-        "duplicate_timestamps": len(rows) - len(times),
+        "duplicate_timestamps": len(observed_times) - len(times),
         "full_contiguous_window": (
             len(times) == expected
             and times[0] == start_ms
             and times[-1] == end_ms - 59_999
             and all(delta == 60_000 for delta in diffs)
-            and len(rows) == len(times)
+            and len(observed_times) == len(times)
         ),
     }
 
