@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-01T20:23:57.863618+00:00",
+  "updated": "2026-11-12T08:03:44.795572+00:00",
   "buckets": {
     "scalp5m|UNKNOWN|": {
       "sample_size": 1,
@@ -2616,6 +2616,42 @@
       "sum_mae_r": 1.43124668747696,
       "sum_fees": 0.8424581820297143,
       "last_updated": "2026-10-01T20:23:57.863588+00:00"
+    },
+    "maicross|T:RANGE/V:VERY_LOW/L:STRESSED|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -0.5004421248025946,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -0.5004421248025946,
+      "sum_mfe_r": 0.598360769798088,
+      "sum_mae_r": 3.353603384217191,
+      "sum_fees": 0.8404469203311337,
+      "last_updated": "2026-11-12T08:03:44.795531+00:00"
+    },
+    "maicross|LOW_VOLATILITY|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -0.5004421248025946,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -0.5004421248025946,
+      "sum_mfe_r": 0.598360769798088,
+      "sum_mae_r": 3.353603384217191,
+      "sum_fees": 0.8404469203311337,
+      "last_updated": "2026-11-12T08:03:44.795540+00:00"
+    },
+    "maicross|ANY|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -0.5004421248025946,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -0.5004421248025946,
+      "sum_mfe_r": 0.598360769798088,
+      "sum_mae_r": 3.353603384217191,
+      "sum_fees": 0.8404469203311337,
+      "last_updated": "2026-11-12T08:03:44.795544+00:00"
     }
   }
 }
