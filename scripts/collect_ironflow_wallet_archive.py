@@ -61,7 +61,7 @@ def download_file(url: str, path: Path, retries: int = 5) -> tuple[int, str]:
 
 
 def _blank_dex_mask(values: pa.ChunkedArray) -> pa.Array:
-    return pc.fill_null(pc.equal(values, ""), False)
+    return pc.or_(pc.is_null(values), pc.equal(values, ""))
 
 
 def _new_stats() -> dict[str, Any]:
