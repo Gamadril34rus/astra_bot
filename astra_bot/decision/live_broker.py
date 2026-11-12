@@ -524,7 +524,7 @@ class LiveBroker:
         from astra_bot.decision.live_positions import load_positions, plan_key, save_positions
 
         path = positions_path or Path("models/zeus_live_positions.json")
-        out: dict[str, Any] = {"reconciled": [], "checked": 0}
+        out: dict[str, Any] = {"reconciled": [], "leverage_reconciled": [], "checked": 0}
         try:
             positions = await self.client.get_positions()
         except Exception as exc:
