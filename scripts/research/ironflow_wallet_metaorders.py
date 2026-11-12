@@ -43,7 +43,10 @@ def post_query(sql: str, api_key: str | None, timeout: int = 25) -> dict:
     req = Request(API_URL, data=body, headers=headers, method="POST")
     try:
         with urlopen(req, timeout=timeout) as response:
-            return json.loads(response.read().decode("utf-8"))
+            data = json.loads(response.read().decode("utf-8"))
+            if data.get("code") not in (None, 0):
+                raise RuntimeError(f"Ironflow query error {data.get('code')}: {data.get('msg', data)}")
+            return data
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"Ironflow HTTP {exc.code}: {detail[:1200]}") from exc
@@ -99,7 +102,33 @@ def query_orders(address: str, market: str, start: datetime, end: datetime,
         nxt = min(cursor + max_chunk, end)
         fetch_window(cursor, nxt)
         cursor = nxt
-    return collected
+    # An order can straddle adjacent query windows. Merge by oid before counting
+    # child orders so boundary fills cannot create duplicate child orders.
+    merged: dict[str, dict] = {}
+    for row in collected:
+        oid = str(row.get("oid"))
+        if oid not in merged:
+            merged[oid] = dict(row)
+            continue
+        old = merged[oid]
+        old_size = float(old.get("size") or 0)
+        new_size = float(row.get("size") or 0)
+        total_size = old_size + new_size
+        if total_size > 0:
+            old["vwap"] = (
+                float(old.get("vwap") or 0) * old_size
+                + float(row.get("vwap") or 0) * new_size
+            ) / total_size
+        old["size"] = total_size
+        old["q_notional"] = float(old.get("q_notional") or 0) + float(row.get("q_notional") or 0)
+        old["fill_count"] = int(old.get("fill_count") or 0) + int(row.get("fill_count") or 0)
+        old["fees"] = float(old.get("fees") or 0) + float(row.get("fees") or 0)
+        old["realized_pnl"] = float(old.get("realized_pnl") or 0) + float(row.get("realized_pnl") or 0)
+        if parse_dt(str(row["ts"])) < parse_dt(str(old["ts"])):
+            old["ts"] = row["ts"]
+        if not old.get("tx_hash") and row.get("tx_hash"):
+            old["tx_hash"] = row["tx_hash"]
+    return list(merged.values())
 
 
 def build_metaorders(rows: list[dict], gap_minutes: int, min_orders: int,
