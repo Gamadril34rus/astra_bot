@@ -191,8 +191,8 @@ def fetch_funding(inst_id: str, begin_ms: int, end_ms: int) -> tuple[list[dict],
         "/api/v5/public/funding-rate-history",
         {
             "instId": inst_id,
-            "after": str(begin_ms - 1),
-            "before": str(end_ms + 1),
+            "after": str(end_ms + 1),
+            "before": str(begin_ms - 1),
             "limit": "400",
         },
     )
