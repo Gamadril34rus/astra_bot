@@ -4,7 +4,7 @@
   "market": "USDT-M perpetual swaps",
   "source_endpoint": "/openApi/swap/v2/quote/openInterest",
   "unit": "base asset quantity as returned by BingX",
-  "generated_at_utc": "2026-11-12T09:52:36.631685+00:00",
+  "generated_at_utc": "2026-11-12T10:26:44.629647+00:00",
   "symbols": [
     "BTC-USDT",
     "ETH-USDT",
@@ -16,52 +16,52 @@
     "BTC-USDT": {
       "symbol": "BTC-USDT",
       "path": "data/bingx_usdm/open_interest/BTCUSDT_open_interest.csv",
-      "source_time": 1794477119515,
-      "source_time_utc": "2026-11-12T09:51:59.515000+00:00",
-      "observed_at_ms": 1794477119627,
-      "open_interest_base": "764816864.7",
-      "snapshot_count": 93,
-      "sha256": "9dc5a4a632c60560b9a2950d0c971df706046d6c8f8ac2a827a64fdbe22954de"
+      "source_time": 1794479167542,
+      "source_time_utc": "2026-11-12T10:26:07.542000+00:00",
+      "observed_at_ms": 1794479167655,
+      "open_interest_base": "766068466.0",
+      "snapshot_count": 94,
+      "sha256": "abf7d84e1f920c34fa23725fdd5f8715336013d6e3173bbf6102d64da96737c1"
     },
     "ETH-USDT": {
       "symbol": "ETH-USDT",
       "path": "data/bingx_usdm/open_interest/ETHUSDT_open_interest.csv",
-      "source_time": 1794477128783,
-      "source_time_utc": "2026-11-12T09:52:08.783000+00:00",
-      "observed_at_ms": 1794477128897,
-      "open_interest_base": "301158488.11",
-      "snapshot_count": 93,
-      "sha256": "970b4eea54e98a024b64cc9d587b56297184d7f7603991adeba9a8f82b5b2d22"
+      "source_time": 1794479176782,
+      "source_time_utc": "2026-11-12T10:26:16.782000+00:00",
+      "observed_at_ms": 1794479176904,
+      "open_interest_base": "299245696.71",
+      "snapshot_count": 94,
+      "sha256": "81b082d5a81eb349d77f931773dfafb0f6cfa8a995fe551cdb781d38aa84f3bb"
     },
     "SOL-USDT": {
       "symbol": "SOL-USDT",
       "path": "data/bingx_usdm/open_interest/SOLUSDT_open_interest.csv",
-      "source_time": 1794477138027,
-      "source_time_utc": "2026-11-12T09:52:18.027000+00:00",
-      "observed_at_ms": 1794477138150,
-      "open_interest_base": "97654215.924",
-      "snapshot_count": 93,
-      "sha256": "76aadd592a445560abd0d1bc2512e315e6948c0a1ba8bfcf06e97bd8d361f46b"
+      "source_time": 1794479186032,
+      "source_time_utc": "2026-11-12T10:26:26.032000+00:00",
+      "observed_at_ms": 1794479186142,
+      "open_interest_base": "97844635.029",
+      "snapshot_count": 94,
+      "sha256": "4312700303625307596966d56d905d405fc16c503d50b814a325b2a4fc363b3e"
     },
     "HYPE-USDT": {
       "symbol": "HYPE-USDT",
       "path": "data/bingx_usdm/open_interest/HYPEUSDT_open_interest.csv",
-      "source_time": 1794477147279,
-      "source_time_utc": "2026-11-12T09:52:27.279000+00:00",
-      "observed_at_ms": 1794477147390,
-      "open_interest_base": "30145741.237",
-      "snapshot_count": 93,
-      "sha256": "84c3501696845c47a7797fc43f5f92e9d9ca6de6962f6d71bbf8875e23fe4310"
+      "source_time": 1794479195270,
+      "source_time_utc": "2026-11-12T10:26:35.270000+00:00",
+      "observed_at_ms": 1794479195379,
+      "open_interest_base": "30135630.385",
+      "snapshot_count": 94,
+      "sha256": "6b6d1fb5bbeaf4ef7cd4a9d661b04f2cf07f34218337d7001962f39abe9176ae"
     },
     "INJ-USDT": {
       "symbol": "INJ-USDT",
       "path": "data/bingx_usdm/open_interest/INJUSDT_open_interest.csv",
-      "source_time": 1794477156518,
-      "source_time_utc": "2026-11-12T09:52:36.518000+00:00",
-      "observed_at_ms": 1794477156629,
-      "open_interest_base": "3408876.182",
-      "snapshot_count": 93,
-      "sha256": "9484cdf3d95bc2f66ade9ee9498917662cab2919e8765ee7e82d32a0cf191412"
+      "source_time": 1794479204503,
+      "source_time_utc": "2026-11-12T10:26:44.503000+00:00",
+      "observed_at_ms": 1794479204627,
+      "open_interest_base": "3432596.342",
+      "snapshot_count": 94,
+      "sha256": "f7b792e04abf75fbf3f056c975defc21d71af729ad1d22e5fd015bad8b827a15"
     }
   },
   "warning": "BingX endpoint is a current snapshot, not historical OHLC. This archive is prospective from the first collection time."
