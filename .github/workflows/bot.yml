@@ -9,7 +9,7 @@ on:
 
 concurrency:
   # Не даём двум сессиям работать одновременно (общее состояние в git).
-  group: astra-bot
+  group: astra-state-writers
   cancel-in-progress: false
 
 permissions:
@@ -91,16 +91,27 @@ jobs:
           done
           git diff --cached --quiet || \
             git commit -m "chore(ci): bot state $(date -u +%Y-%m-%dT%H:%MZ)"
-          # Другие state-writers могут успеть обновить master между checkout и push.
-          # Подтягиваем их коммиты и повторяем push, чтобы закрытая PAPER-позиция
-          # не оставалась открытой в репозитории до следующего запуска.
-          for attempt in 1 2 3; do
-            if git push origin master; then
+          # Shared concurrency serializes the three bot state writers. The
+          # candle archive may still publish disjoint data files, so rebase
+          # our committed state snapshot onto the newest master before push.
+          set -euo pipefail
+          for attempt in 1 2 3 4 5 6; do
+            echo "PAPER state save attempt ${attempt}/6"
+            git fetch origin master
+            if git merge-base --is-ancestor HEAD origin/master; then
+              # No local state commit (or it is already included remotely).
+              git reset --hard origin/master
               exit 0
             fi
-            echo "push attempt $attempt failed; rebasing latest master"
-            git fetch origin master
-            git rebase origin/master || { git rebase --abort || true; break; }
+            if ! git rebase --autostash origin/master; then
+              git rebase --abort || true
+              echo "::error::PAPER state rebase conflict; local state commit preserved in runner log" >&2
+              exit 1
+            fi
+            if git push origin HEAD:master; then
+              exit 0
+            fi
+            sleep $((5 + attempt * 3))
           done
-          echo "::error::Unable to persist PAPER state after 3 push attempts"
+          echo "::error::Unable to persist PAPER state after 6 push attempts"
           exit 1
