@@ -1,6 +1,11 @@
+import io
+import json
+
 from __future__ import annotations
 
 import pytest
+
+from scripts import probe_bingx_public_history as probe
 from scripts.probe_bingx_public_history import (
     _kline_summary,
     _minute_window_summary,
@@ -107,3 +112,70 @@ def test_minute_window_summary_rejects_unrecognized_object_timestamp() -> None:
     end = start + 59_999
     with pytest.raises(ValueError, match="no supported timestamp"):
         _minute_window_summary([{"open_time": start}], start, end)
+
+
+def test_request_json_retries_http_200_rate_limit(monkeypatch) -> None:
+    attempts = {"count": 0}
+    waits: list[float] = []
+
+    def fake_urlopen(request, timeout):
+        attempts["count"] += 1
+        payload = (
+            {"code": 100410, "msg": "FREQUENCY_LIMIT"}
+            if attempts["count"] == 1
+            else {"code": 0, "msg": "", "data": []}
+        )
+
+        class Response:
+            def __enter__(self):
+                return io.BytesIO(json.dumps(payload).encode("utf-8"))
+
+            def __exit__(self, *args):
+                return False
+
+        return Response()
+
+    monkeypatch.setattr(probe, "urlopen", fake_urlopen)
+    monkeypatch.setattr(probe.time, "sleep", waits.append)
+
+    result = probe._request_json("/openApi/swap/v3/quote/klines", {"symbol": "BTC-USDT"})
+
+    assert result["code"] == 0
+    assert attempts["count"] == 2
+    assert waits == [5.0]
+
+
+def test_request_json_uses_retry_after_for_http_429(monkeypatch) -> None:
+    attempts = {"count": 0}
+    waits: list[float] = []
+
+    def fake_urlopen(request, timeout):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            from urllib.error import HTTPError
+
+            raise HTTPError(
+                request.full_url,
+                429,
+                "Too Many Requests",
+                {"Retry-After": "12"},
+                io.BytesIO(b'{"code":100410,"msg":"FREQUENCY_LIMIT"}'),
+            )
+
+        class Response:
+            def __enter__(self):
+                return io.BytesIO(b'{"code":0,"msg":"","data":[]}')
+
+            def __exit__(self, *args):
+                return False
+
+        return Response()
+
+    monkeypatch.setattr(probe, "urlopen", fake_urlopen)
+    monkeypatch.setattr(probe.time, "sleep", waits.append)
+
+    result = probe._request_json("/openApi/swap/v3/quote/klines", {"symbol": "BTC-USDT"})
+
+    assert result["code"] == 0
+    assert attempts["count"] == 2
+    assert waits == [12.0]
