@@ -530,7 +530,7 @@ class LiveBroker:
         except Exception as exc:
             logger.warning("reconcile_plan_qty get_positions: %s", type(exc).__name__)
             return {**out, "error": type(exc).__name__}
-        exch: dict[str, float] = {}
+        exch: dict[str, tuple[float, int | None]] = {}
         for pos in positions or []:
             sym = getattr(pos, "symbol", None)
             side = str(getattr(pos, "side", "") or "").lower()
@@ -542,7 +542,12 @@ class LiveBroker:
                 continue
             if q <= 0:
                 continue
-            exch[plan_key(str(sym), side)] = q
+            lev_raw = getattr(pos, "leverage", None)
+            try:
+                lev = int(lev_raw) if lev_raw is not None and int(lev_raw) > 0 else None
+            except (TypeError, ValueError, OverflowError):
+                lev = None
+            exch[plan_key(str(sym), side)] = (q, lev)
         plans = load_positions(path)
         changed = False
         for key, plan in list(plans.items()):
@@ -555,57 +560,72 @@ class LiveBroker:
                 continue
             if plan_qty <= 0:
                 continue
-            exch_qty = exch.get(key)
-            if exch_qty is None:
+            exch_row = exch.get(key)
+            if exch_row is None:
                 continue
+            exch_qty, exch_lev = exch_row
             rel = abs(exch_qty - plan_qty) / plan_qty
-            if rel <= threshold:
-                continue
-            old_qty = plan_qty
-            plan["qty"] = float(exch_qty)
-            if plan.get("plan_qty") not in (None, ""):
+            if rel > threshold:
+                old_qty = plan_qty
+                plan["qty"] = float(exch_qty)
+                if plan.get("plan_qty") not in (None, ""):
+                    try:
+                        pq = float(plan["plan_qty"])
+                        if pq:
+                            plan["qty_ratio"] = exch_qty / pq
+                    except (TypeError, ValueError):
+                        pass
+                plans[key] = plan
+                changed = True
+                row = {
+                    "event": "qty_reconcile",
+                    "symbol": plan.get("symbol") or key.split("|")[0],
+                    "side": plan.get("side") or (key.split("|")[1] if "|" in key else None),
+                    "old_qty": float(old_qty),
+                    "new_qty": float(exch_qty),
+                    "rel_diff": float(round(rel, 6)),
+                    "signal_id": plan.get("signal_id"),
+                    "ts": time.time(),
+                }
+                out["reconciled"].append(row)
                 try:
-                    pq = float(plan["plan_qty"])
-                    if pq:
-                        plan["qty_ratio"] = exch_qty / pq
-                except (TypeError, ValueError):
-                    pass
-            plans[key] = plan
-            changed = True
-            # F16b: JSON-safe numbers (Decimal from exchange must not break journal)
-            row = {
-                "event": "qty_reconcile",
-                "symbol": plan.get("symbol") or key.split("|")[0],
-                "side": plan.get("side") or (key.split("|")[1] if "|" in key else None),
-                "old_qty": float(old_qty),
-                "new_qty": float(exch_qty),
-                "rel_diff": float(round(rel, 6)),
-                "signal_id": plan.get("signal_id"),
-                "ts": time.time(),
-            }
-            plan["qty"] = float(exch_qty)
-            out["reconciled"].append(row)
-            # F16: journal MUST land — silent pass was losing qty_reconcile while
-            # plan.qty already moved (LTC 474.7→199.4 without journal row).
-            try:
-                append_journal(row)
-            except Exception as exc:
-                logger.warning(
-                    "qty_reconcile journal failed %s: %s",
-                    row.get("symbol"),
-                    type(exc).__name__,
-                )
-                out.setdefault("journal_errors", []).append(
-                    {"symbol": row.get("symbol"), "error": type(exc).__name__}
-                )
-            try:
-                append_live_trade(row)
-            except Exception as exc:
-                logger.debug(
-                    "qty_reconcile trade-log skip %s: %s",
-                    row.get("symbol"),
-                    type(exc).__name__,
-                )
+                    append_journal(row)
+                except Exception as exc:
+                    logger.warning("qty_reconcile journal failed %s: %s", row.get("symbol"), type(exc).__name__)
+                    out.setdefault("journal_errors", []).append({"symbol": row.get("symbol"), "error": type(exc).__name__})
+                try:
+                    append_live_trade(row)
+                except Exception as exc:
+                    logger.debug("qty_reconcile trade-log skip %s: %s", row.get("symbol"), type(exc).__name__)
+            if exch_lev is not None:
+                try:
+                    old_lev = int(plan.get("leverage") or 0)
+                except (TypeError, ValueError, OverflowError):
+                    old_lev = 0
+                if old_lev != exch_lev:
+                    plan["leverage"] = int(exch_lev)
+                    plans[key] = plan
+                    changed = True
+                    row = {
+                        "event": "leverage_reconcile",
+                        "symbol": plan.get("symbol") or key.split("|")[0],
+                        "side": plan.get("side") or (key.split("|")[1] if "|" in key else None),
+                        "old_leverage": old_lev or None,
+                        "exchange_leverage": int(exch_lev),
+                        "source": "bingx_position",
+                        "signal_id": plan.get("signal_id"),
+                        "ts": time.time(),
+                    }
+                    out.setdefault("leverage_reconciled", []).append(row)
+                    try:
+                        append_journal(row)
+                    except Exception as exc:
+                        logger.warning("leverage_reconcile journal failed %s: %s", row.get("symbol"), type(exc).__name__)
+                        out.setdefault("journal_errors", []).append({"symbol": row.get("symbol"), "error": type(exc).__name__})
+                    try:
+                        append_live_trade(row)
+                    except Exception as exc:
+                        logger.debug("leverage_reconcile trade-log skip %s: %s", row.get("symbol"), type(exc).__name__)
         if changed:
             try:
                 save_positions(plans, path)
