@@ -56,7 +56,11 @@ The next data gate is therefore:
 
 ### Fill-to-position reconstruction
 
-For every address and perpetual coin, persist raw fills with source, retrieval time and hash. Reconstruct signed position from `startPosition`, `sz`, `side` and `dir`; distinguish open, add, reduce, close and flip. Group fills into position episodes. Retain fees, funding, realised PnL, partial-fill aggregation choice and missing-history flags. Never infer a position from a single isolated fill.
+The Hyperliquid Info API `userFills` / `userFillsByTime` schema can expose `startPosition`, `sz`, `side`, `dir`, `fee`, `closedPnl` and related fields for the API-returned fills. Those fields permit position-episode reconstruction only where the returned history is complete and the initial position state is known. The latest-10,000-fill cap can left-censor active accounts; TWAP slice fills are a separate endpoint and must be included before claiming complete execution history. Funding, transfers, deposits and withdrawals are not included in a fill-only PnL calculation.
+
+The separate Ironflow public matched-trade archive contains buyer/seller, taker side, price, size, notional, market, timestamp and liquidation marker. It does **not** contain per-wallet `startPosition`, `dir`, `fee`, `closedPnl`, TWAP identifiers or account inventory. It supports wallet-side flow, size, aggression, market and time-of-day analysis, but cannot by itself prove position entry, add, reduce, close, flip, holding time or realised PnL. Keep these two evidence sources separate.
+
+For any API wallet, reconstruct signed position from `startPosition`, `sz`, `side` and `dir`; distinguish open, add, reduce, close and flip. Group fills into position episodes. Retain fees, funding, realised PnL, partial-fill aggregation choice and missing-history flags. Never infer a position from a single isolated fill.
 
 Measure:
 - entry timing relative to 15m/1h structure, VWAP/anchored VWAP, prior session high/low, range expansion and volatility compression;
