@@ -204,8 +204,8 @@ def test_decimal_stop_distance_and_skip_counter(tmp_path, monkeypatch):
             "symbol": "INJ-USDT",
             "side": "short",
             "entry": 100.0,
-            "stop": 99.01,
-            "tp": 102.0,
+            "stop": 100.99,
+            "tp": 98.0,
             "ts": time.time(),
             "confidence": 0.95,
         }
