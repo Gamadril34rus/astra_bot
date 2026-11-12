@@ -235,3 +235,14 @@ The 37-day archive cannot establish complete position episodes, holding times, r
 
 **Current scope:** public large-trader behaviour reconstruction and cross-venue validation only. No strategy activation, no production changes, no VST/REAL changes, no leverage/risk changes, no PR merge.
 
+### Second-stage wallet-flow event study implementation
+
+The next research-only stage is implemented in `scripts/analyze_ironflow_wallet_flow.py` and wired into the isolated archive workflow. It derives:
+- per-wallet × market 15m signed notional, participant notional, aggressive signed notional, taker notional, fill counts, taker counts and liquidation interactions;
+- selected-cohort aggregate 15m signed/aggressive flow, participant notional, active-wallet count, net-buy/net-sell wallet counts and wallet-side fill counts;
+- same-venue native-market 15m price bars from the matched trade tape, with forward close observations at 15m, 30m, 1h, 4h and 9h;
+- a descriptive decile event study of signed cohort flow ratio against subsequent directional returns, requiring at least three active cohort wallets in a market/bar.
+
+The event study is intentionally not a backtest. Observations overlap in time, are not statistically independent, and the cohort is only a selected 100-wallet sample. The output does not establish account profitability, exact positions or a tradable edge. It is a first filter for deciding which wallet behaviours merit deeper individual-wallet analysis. Aggressive flow and wallet consensus are retained in the raw 15m cohort output for follow-on tests; no thresholds are selected from this event study.
+
+The first clean archive+event-study run is currently being verified. The previous attempts were stopped by a Ruff import-order gate before the expensive 37-day data download; the unit tests passed, and the import grouping has now been corrected. No performance result is reported until the complete workflow and artifacts are available.
