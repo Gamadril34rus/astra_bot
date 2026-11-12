@@ -77,3 +77,15 @@ def test_run_arm_entries_not_in_except_handler() -> None:
     assert not v.in_except, (
         f"run_arm_entries still inside ExceptHandler at lines {v.in_except}"
     )
+
+
+def test_session_profile_is_applied_before_exit_and_stop_management():
+    src = CLOCK.read_text(encoding="utf-8")
+    applied = src.index("_sp = apply_session_to_environ()")
+    parity = src.index("_par = await apply_tp_parity_v1")
+    ensure = src.index("ens = await broker.ensure_protection")
+    dead_tp = src.index("heal = await heal_dead_tp_legs(broker)")
+    partial_be = src.index("partial = await sync_partial_breakeven")
+    assert applied < parity < ensure
+    assert applied < dead_tp < partial_be
+    assert "trigger_r=_sp.be_trigger_r if _sp is not None else None" in src
