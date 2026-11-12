@@ -588,6 +588,7 @@ class LiveBroker:
                     "ts": time.time(),
                 }
                 out["reconciled"].append(row)
+                # F16: journal MUST land — plan.qty changes are persisted with audit row.
                 try:
                     append_journal(row)
                 except Exception as exc:
