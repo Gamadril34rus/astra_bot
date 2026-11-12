@@ -176,6 +176,7 @@ def parse_candle_zip(blob: bytes, inst_id: str, begin_ms: int, end_ms: int) -> t
                         "volume_base": "0" if row[6] in {"", "None"} else str(_decimal(row[6], "volume base")),
                         "volume_quote": "0" if row[7] in {"", "None"} else str(_decimal(row[7], "volume quote")),
                         "confirm": row[9],
+                        "source": "okx_monthly_archive",
                     }
                     if Decimal(bar["high"]) < max(Decimal(bar["open"]), Decimal(bar["close"]), Decimal(bar["low"])):
                         raise ValueError(f"{member}:{line_number}: invalid OHLC high")
@@ -212,6 +213,88 @@ def parse_candle_zip(blob: bytes, inst_id: str, begin_ms: int, end_ms: int) -> t
     if not ordered:
         raise RuntimeError(f"OKX ZIP contained no {inst_id} candles")
     return ordered, summary
+
+
+def fetch_rest_candle(inst_id: str, timestamp_ms: int) -> dict | None:
+    """Fetch one historical 1m candle to verify/patch a monthly archive gap."""
+    payload = _request_json(
+        "/api/v5/market/history-candles",
+        {
+            "instId": inst_id,
+            "bar": "1m",
+            "after": str(timestamp_ms + 60_000),
+            "before": str(timestamp_ms - 60_000),
+            "limit": "10",
+        },
+    )
+    for row in payload.get("data") or []:
+        if len(row) < 9 or int(row[0]) != timestamp_ms:
+            continue
+        return {
+            "open_time": timestamp_ms,
+            "open": str(_decimal(row[1], "open")),
+            "high": str(_decimal(row[2], "high")),
+            "low": str(_decimal(row[3], "low")),
+            "close": str(_decimal(row[4], "close")),
+            "volume_contracts": str(_decimal(row[5], "volume")),
+            "volume_base": "0" if row[6] in {"", "None"} else str(_decimal(row[6], "volume base")),
+            "volume_quote": "0" if row[7] in {"", "None"} else str(_decimal(row[7], "volume quote")),
+            "confirm": str(row[8]),
+            "source": "okx_rest_history_candles_gap_patch",
+        }
+    return None
+
+
+def patch_month_gaps(
+    inst_id: str, month: str, summary: dict, out_dir: Path
+) -> dict:
+    """Patch archive omissions only when the official REST candle exists."""
+    if not summary["gap_count"]:
+        return summary
+    csv_path = out_dir / month / f"{inst_id}_1m_{month}.csv"
+    with csv_path.open(newline="", encoding="utf-8") as handle:
+        bars = {int(row["open_time"]): row for row in csv.DictReader(handle)}
+    patched = []
+    unresolved = []
+    for gap in summary["gap_samples"]:
+        for timestamp in range(gap["after"] + 60_000, gap["before"], 60_000):
+            rest_bar = fetch_rest_candle(inst_id, timestamp)
+            if rest_bar is None:
+                unresolved.append(timestamp)
+            else:
+                bars[timestamp] = rest_bar
+                patched.append(timestamp)
+            time.sleep(0.25)
+    ordered = [bars[key] for key in sorted(bars)]
+    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(ordered[0]))
+        writer.writeheader()
+        writer.writerows(ordered)
+    times = [bar["open_time"] for bar in ordered]
+    gaps = [
+        {"after": left, "before": right, "missing_minutes": (right - left) // 60_000 - 1}
+        for left, right in itertools.pairwise(times)
+        if right - left > 60_000
+    ]
+    summary.update({
+        "bar_count": len(ordered),
+        "first_open_time": times[0] if times else None,
+        "last_open_time": times[-1] if times else None,
+        "gap_count": len(gaps),
+        "gap_samples": gaps[:20],
+        "rest_gap_patches": patched,
+        "unresolved_gap_timestamps": unresolved,
+        "zero_volume_bars": sum(Decimal(bar["volume_contracts"]) == 0 for bar in ordered),
+    })
+    month_manifest_path = out_dir / month / "manifest.json"
+    if month_manifest_path.exists():
+        month_manifest = json.loads(month_manifest_path.read_text(encoding="utf-8"))
+        month_manifest["symbols"][inst_id] = summary
+        month_manifest_path.write_text(
+            json.dumps(month_manifest, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    return summary
 
 
 def fetch_funding(inst_id: str, begin_ms: int, end_ms: int) -> tuple[list[dict], dict]:
@@ -476,6 +559,12 @@ def run_probe_range(start_month: str, end_month: str, out_dir: Path) -> dict:
         month: run_probe(month, out_dir / month)
         for month in months
     }
+    for month in months:
+        for inst_id, summary in month_reports[month]["symbols"].items():
+            if summary["gap_count"]:
+                month_reports[month]["symbols"][inst_id] = patch_month_gaps(
+                    inst_id, month, summary, out_dir
+                )
     expected_symbols = [f"{symbol}-USDT-SWAP" for symbol in SYMBOLS]
     first_begin, _ = month_bounds_hk(months[0])
     _, last_end = month_bounds_hk(months[-1])
@@ -560,7 +649,7 @@ def run_probe_range(start_month: str, end_month: str, out_dir: Path) -> dict:
         "month_reports": month_reports,
         "limitations": [
             "OKX data is cross-venue robustness evidence, not BingX execution data.",
-            "Only closed 1m candles are aggregated into 15m/1h; no partial buckets or synthetic prices are created.",
+            "Only official monthly archive candles and exact REST gap patches are used; unresolved gaps fail the common-window gate.",
             "Per-wallet trading behaviour is not inferred from market candles or funding archives.",
         ],
     }
