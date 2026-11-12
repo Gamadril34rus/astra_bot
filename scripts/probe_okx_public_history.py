@@ -403,7 +403,16 @@ def run_probe(month: str, out_dir: Path) -> dict:
             "archive_csv": str(csv_path),
         })
         time.sleep(0.25)
-        rest_rates, rest_funding_summary = fetch_funding(inst_id, begin_ms, end_ms)
+        rest_cutoff_ms = int((datetime.now(UTC).timestamp() - 90 * 24 * 60 * 60) * 1000)
+        if end_ms < rest_cutoff_ms:
+            rest_rates = []
+            rest_funding_summary = {
+                "inst_id": inst_id,
+                "funding_events": 0,
+                "skipped": "outside the OKX REST endpoint's recent ~3-month window",
+            }
+        else:
+            rest_rates, rest_funding_summary = fetch_funding(inst_id, begin_ms, end_ms)
         time.sleep(0.25)
         archive_rates, archive_funding_summary = fetch_funding_archive(
             family, inst_id, month, begin_ms, end_ms
@@ -443,12 +452,139 @@ def run_probe(month: str, out_dir: Path) -> dict:
     return manifest
 
 
+def month_sequence(start_month: str, end_month: str) -> list[str]:
+    """Return inclusive YYYY-MM months in chronological order."""
+    month_bounds_hk(start_month)
+    month_bounds_hk(end_month)
+    start_year, start_number = (int(part) for part in start_month.split("-"))
+    end_year, end_number = (int(part) for part in end_month.split("-"))
+    start_index = start_year * 12 + start_number - 1
+    end_index = end_year * 12 + end_number - 1
+    if start_index > end_index:
+        raise ValueError("start_month must be <= end_month")
+    result = []
+    for index in range(start_index, end_index + 1):
+        year, month_number = divmod(index, 12)
+        result.append(f"{year:04d}-{month_number + 1:02d}")
+    return result
+
+
+def run_probe_range(start_month: str, end_month: str, out_dir: Path) -> dict:
+    """Download monthly OKX candles and settled funding, then enforce common coverage."""
+    months = month_sequence(start_month, end_month)
+    month_reports = {
+        month: run_probe(month, out_dir / month)
+        for month in months
+    }
+    expected_symbols = [f"{symbol}-USDT-SWAP" for symbol in SYMBOLS]
+    first_begin, _ = month_bounds_hk(months[0])
+    _, last_end = month_bounds_hk(months[-1])
+    expected_minutes = (last_end + 1 - first_begin) // 60_000
+    aggregate_symbols = {}
+    for inst_id in expected_symbols:
+        summaries = [month_reports[month]["symbols"][inst_id] for month in months]
+        candle_gaps = sum(item["gap_count"] for item in summaries)
+        boundary_gaps = sum(
+            summaries[index + 1]["first_open_time"] - summaries[index]["last_open_time"] != 60_000
+            for index in range(len(summaries) - 1)
+        )
+        total_bars = sum(item["bar_count"] for item in summaries)
+        first_open = summaries[0]["first_open_time"]
+        last_open = summaries[-1]["last_open_time"]
+        funding_summaries = [item["funding"]["archive"] for item in summaries]
+        funding_events = sum(item["funding_events"] for item in funding_summaries)
+        funding_boundary_gaps = [
+            (funding_summaries[index + 1]["first_funding_time"] - funding_summaries[index]["last_funding_time"]) / 3_600_000
+            for index in range(len(funding_summaries) - 1)
+        ]
+        max_funding_gap = max(
+            [item["max_gap_hours"] or 0 for item in funding_summaries]
+            + funding_boundary_gaps
+        )
+        rest_overlap = sum(item["funding"]["archive"]["rest_overlap_events"] for item in summaries)
+        rest_matches = sum(item["funding"]["archive"]["archive_matches_rest_realized_rate"] for item in summaries)
+        rest_mismatches = sum(item["funding"]["archive"]["archive_rest_mismatch_count"] for item in summaries)
+        if (
+            total_bars != expected_minutes
+            or candle_gaps != 0
+            or boundary_gaps != 0
+            or first_open != first_begin
+            or last_open != last_end - 59_999
+        ):
+            raise RuntimeError(
+                f"{inst_id}: incomplete {start_month}..{end_month} candle coverage; "
+                f"bars={total_bars}/{expected_minutes}, internal_gaps={candle_gaps}, "
+                f"boundary_gaps={boundary_gaps}, first={first_open}, last={last_open}"
+            )
+        if max_funding_gap > 8.0:
+            raise RuntimeError(
+                f"{inst_id}: funding archive gap exceeds 8h: {max_funding_gap:.2f}h"
+            )
+        if funding_events == 0:
+            raise RuntimeError(f"{inst_id}: no monthly settled funding archive rows")
+        aggregate_symbols[inst_id] = {
+            "month_count": len(months),
+            "first_open_time": first_open,
+            "last_open_time": last_open,
+            "one_minute_bars": total_bars,
+            "expected_one_minute_bars": expected_minutes,
+            "internal_candle_gaps": candle_gaps,
+            "month_boundary_candle_gaps": boundary_gaps,
+            "complete_15m_bars": total_bars // 15,
+            "complete_1h_bars": total_bars // 60,
+            "funding_events": funding_events,
+            "max_funding_gap_hours": max_funding_gap,
+            "rest_overlap_events": rest_overlap,
+            "archive_matches_rest_realized_rate": rest_matches,
+            "archive_rest_mismatch_count": rest_mismatches,
+            "monthly_archive_sha256": [
+                {
+                    "month": month,
+                    "candles": month_reports[month]["symbols"][inst_id]["archive_sha256"],
+                    "funding": month_reports[month]["symbols"][inst_id]["funding"]["archive"]["archive_sha256"],
+                }
+                for month in months
+            ],
+        }
+    aggregate = {
+        "generated_at_utc": datetime.now(UTC).isoformat(),
+        "exchange": "OKX",
+        "market": "USDT-margined perpetual swaps",
+        "start_month": start_month,
+        "end_month": end_month,
+        "month_timezone": "UTC+8 archive month",
+        "months": months,
+        "common_window_start_ms": first_begin,
+        "common_window_end_ms": last_end,
+        "symbols": aggregate_symbols,
+        "month_reports": month_reports,
+        "limitations": [
+            "OKX data is cross-venue robustness evidence, not BingX execution data.",
+            "Only closed 1m candles are aggregated into 15m/1h; no partial buckets or synthetic prices are created.",
+            "Per-wallet trading behaviour is not inferred from market candles or funding archives.",
+        ],
+    }
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "manifest.json").write_text(
+        json.dumps(aggregate, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return aggregate
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--month", default="2026-10", help="OKX archive month in YYYY-MM, UTC+8")
+    parser.add_argument("--month", default=None, help="Single OKX archive month in YYYY-MM, UTC+8")
+    parser.add_argument("--start-month", default=None, help="Inclusive first month, YYYY-MM")
+    parser.add_argument("--end-month", default=None, help="Inclusive last month, YYYY-MM")
     parser.add_argument("--out-dir", type=Path, default=Path("reports/okx_public_history_probe"))
     args = parser.parse_args()
-    report = run_probe(args.month, args.out_dir)
+    if args.start_month or args.end_month:
+        if not args.start_month or not args.end_month or args.month:
+            parser.error("provide both --start-month and --end-month, or only --month")
+        report = run_probe_range(args.start_month, args.end_month, args.out_dir)
+    else:
+        report = run_probe(args.month or "2026-10", args.out_dir)
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
 
