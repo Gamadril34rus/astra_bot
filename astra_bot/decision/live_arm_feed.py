@@ -25,6 +25,7 @@ from astra_bot.strategies.zeus_multi_top_breakdown import (
 logger = logging.getLogger(__name__)
 ZONE_FILTER_JOURNAL_PATH = Path("models/zone_trade_filter.jsonl")
 _ZONE_CACHE: dict[str, tuple[int, list[dict[str, float]]]] = {}
+_ZONE_PROFILE_META: dict[str, dict[str, Any]] = {}
 
 TIMEFRAME = "4h"
 CANDLE_LIMIT = 120
@@ -179,7 +180,9 @@ def _save_zone_approach_state(state: dict[str, Any], path: Path | None = None) -
 async def scan_zone_shadow(client: Any, symbols: list[str] | tuple[str, ...] = FEED_SYMBOLS) -> dict[str, dict[str, Any]]:
     """Observe zones and persist per-closed-4h-bar minimum approach distances."""
     try:
-        from astra_bot.decision.zone_shadow import build_volume_zones, is_enabled, zone_context
+        from astra_bot.decision.zone_shadow import (
+            build_volume_zones_with_fallback, is_enabled, zone_context,
+        )
         if not is_enabled():
             return {}
     except Exception as exc:
@@ -202,10 +205,20 @@ async def scan_zone_shadow(client: Any, symbols: list[str] | tuple[str, ...] = F
                 raise ValueError("closed_candle_missing_close")
             cached = _ZONE_CACHE.get(symbol)
             if cached is None or cached[0] != closed_ts:
-                _ZONE_CACHE[symbol] = (closed_ts, build_volume_zones(list(zone_candles), price=closed_price))
-            zones = _ZONE_CACHE[symbol][1]
+                zones, profile_meta = build_volume_zones_with_fallback(
+                    list(zone_candles), price=closed_price, fallback_lookback=120,
+                )
+                _ZONE_CACHE[symbol] = (closed_ts, zones)
+                _ZONE_PROFILE_META[symbol] = profile_meta
+            else:
+                zones = cached[1]
+                profile_meta = _ZONE_PROFILE_META.get(
+                    symbol, {"source": "cached", "lookback_bars": max(0, len(zone_candles) - 1)}
+                )
             price_now = _candle_value(zone_candles[-1], "close") or closed_price
             context = zone_context(price_now, zones)
+            context["profile_source"] = profile_meta.get("source")
+            context["profile_lookback_bars"] = profile_meta.get("lookback_bars")
             out[symbol] = context
             previous = approach_state.get(symbol)
             previous = previous if isinstance(previous, dict) else {}
@@ -224,7 +237,13 @@ async def scan_zone_shadow(client: Any, symbols: list[str] | tuple[str, ...] = F
                     except (TypeError, ValueError):
                         continue
                 try:
-                    append_journal({"event": "zone_shadow_summary", "symbol": symbol, "bar_ts": old_ts, "zones": summary_zones, "ts": time.time()})
+                    append_journal({
+                        "event": "zone_shadow_summary", "symbol": symbol, "bar_ts": old_ts,
+                        "zones": summary_zones,
+                        "profile_source": previous.get("profile_source"),
+                        "profile_lookback_bars": previous.get("profile_lookback_bars"),
+                        "ts": time.time(),
+                    })
                 except Exception as exc:
                     logger.warning("zone shadow summary journal failed %s: %s", symbol, type(exc).__name__)
                 minima = {}
@@ -246,10 +265,21 @@ async def scan_zone_shadow(client: Any, symbols: list[str] | tuple[str, ...] = F
                         zone_rows.append(row)
                     except (KeyError, TypeError, ValueError, ZeroDivisionError):
                         continue
-            approach_state[symbol] = {"bar_ts": closed_ts, "zones": minima}
+            approach_state[symbol] = {
+                "bar_ts": closed_ts, "zones": minima,
+                "profile_source": profile_meta.get("source"),
+                "profile_lookback_bars": profile_meta.get("lookback_bars"),
+            }
             _save_zone_approach_state(approach_state)
             try:
-                append_journal({"event": "zone_shadow", "symbol": symbol, "price": price_now, "nearest_above": context.get("above"), "nearest_below": context.get("below"), "in_zone": context.get("in_zone"), "zones": zone_rows, "bar_ts": closed_ts, "ts": time.time()})
+                append_journal({
+                "event": "zone_shadow", "symbol": symbol, "price": price_now,
+                "nearest_above": context.get("above"), "nearest_below": context.get("below"),
+                "in_zone": context.get("in_zone"), "zones": zone_rows,
+                "profile_source": profile_meta.get("source"),
+                "profile_lookback_bars": profile_meta.get("lookback_bars"),
+                "bar_ts": closed_ts, "ts": time.time(),
+            })
             except Exception as exc:
                 logger.warning("zone shadow journal failed %s: %s", symbol, type(exc).__name__)
         except Exception as exc:
@@ -374,6 +404,8 @@ def _apply_zone_trade_filter(
         "target": row.get("tp"),
         "price": price,
         "zone_bar_ts": int(expected_bar_ts),
+        "zone_profile_source": _ZONE_PROFILE_META.get(symbol, {}).get("source"),
+        "zone_profile_lookback_bars": _ZONE_PROFILE_META.get(symbol, {}).get("lookback_bars"),
         "ts": time.time(),
     }
     try:
@@ -415,6 +447,8 @@ async def scan_symbol(
         price_now = _candle_value(candles[-1], "close")
         if is_enabled() and cached is not None and price_now > 0:
             zone_ctx = zone_context(price_now, cached[1])
+            zone_ctx["profile_source"] = _ZONE_PROFILE_META.get(symbol, {}).get("source")
+            zone_ctx["profile_lookback_bars"] = _ZONE_PROFILE_META.get(symbol, {}).get("lookback_bars")
     except Exception as exc:
         logger.warning("zone shadow context failed %s: %s", symbol, type(exc).__name__)
     # Entry decisions use confirmed candles only. The forming candle is
@@ -549,21 +583,27 @@ async def produce_pending(
                 open_syms.add(str(_pl["symbol"]))
     except Exception:
         pass
+    scan_outcomes: dict[str, str] = {}
     for sym in symbols:
         if sym in open_syms:
             logger.info("arm feed: skip %s - already open", sym)
+            scan_outcomes[sym] = "already_open"
             continue
         row = await scan_symbol(client, sym, strategy=strat)
         if row is None:
+            scan_outcomes[sym] = "no_candidate_or_zone_veto"
             continue
         sid = row["signal_id"]
         if sid in seen:
             logger.info("arm feed: skip %s - signal_id already seen", sid)
+            scan_outcomes[sym] = "duplicate_signal"
             continue
         if any(r["symbol"] == row["symbol"] for r in out):
+            scan_outcomes[sym] = "duplicate_symbol"
             continue
         seen.add(sid)
         out.append(row)
+        scan_outcomes[sym] = "candidate"
     write_pending(out, path)
     try:
         jpath = Path("models/zeus_live_journal.jsonl")
@@ -586,5 +626,20 @@ async def produce_pending(
                 )
     except Exception as exc:
         logger.warning("arm feed journal: %s", type(exc).__name__)
+    logger.info(
+        "arm feed scan: scanned=%d candidates=%d outcomes=%s",
+        len(scan_outcomes), len(out), scan_outcomes,
+    )
+    try:
+        from astra_bot.decision.live_arm_wiring import append_journal
+        append_journal({
+            "event": "arm_scan_summary",
+            "scanned": len(scan_outcomes),
+            "candidate_count": len(out),
+            "outcomes": scan_outcomes,
+            "ts": time.time(),
+        })
+    except Exception as exc:
+        logger.warning("arm scan summary journal failed: %s", type(exc).__name__)
     logger.info("arm feed: wrote %d channel candidate(s) -> %s", len(out), path)
     return out
