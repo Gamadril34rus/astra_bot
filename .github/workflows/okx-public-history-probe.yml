@@ -60,7 +60,7 @@ jobs:
           python scripts/build_okx_backtest_dataset.py --source-dir reports/okx_public_history_probe --out-dir data/okx_usdm
       - name: Run 15m pullback on OKX at base execution costs
         run: |
-          python scripts/research_15m_pullback_continuation.py \
+          python -m scripts.research_15m_pullback_continuation \
             --data-dir data/okx_usdm \
             --signal-timeframe 15m \
             --symbols BTC-USDT,ETH-USDT,SOL-USDT,HYPE-USDT,INJ-USDT \
@@ -69,7 +69,7 @@ jobs:
             --out reports/okx_15m_pullback_base
       - name: Run same frozen rules at 1.5x execution costs
         run: |
-          python scripts/research_15m_pullback_continuation.py \
+          python -m scripts.research_15m_pullback_continuation \
             --data-dir data/okx_usdm \
             --signal-timeframe 15m \
             --symbols BTC-USDT,ETH-USDT,SOL-USDT,HYPE-USDT,INJ-USDT \
