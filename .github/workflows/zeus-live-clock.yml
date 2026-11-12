@@ -13,7 +13,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: astra-state-writers
+  # Unique per dispatch; the shared Git-ref lock queues writers without dropping ticks.
+  group: astra-state-writer-${{ github.run_id }}-${{ github.run_attempt }}
   cancel-in-progress: false
 
 jobs:
@@ -28,6 +29,8 @@ jobs:
       - name: Install deps
         run: |
           pip install -q -r requirements.txt
+      - name: Acquire shared state lock
+        run: python scripts/ci_state_lock.py acquire --wait-seconds 5400 --stale-after-seconds 2700
       - name: Guard flags
         env:
           ZEUS_LIVE: ${{ secrets.ZEUS_LIVE }}
@@ -183,3 +186,7 @@ jobs:
             fi
             exit 1
           fi
+
+      - name: Release shared state lock
+        if: always()
+        run: python scripts/ci_state_lock.py release
