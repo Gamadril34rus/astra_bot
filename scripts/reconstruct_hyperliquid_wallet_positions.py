@@ -6,10 +6,10 @@ import argparse
 import csv
 import hashlib
 import json
+import statistics
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-import statistics
 from typing import Any
 
 import duckdb
