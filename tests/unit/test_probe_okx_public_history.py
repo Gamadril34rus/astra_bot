@@ -151,6 +151,32 @@ def test_parse_candle_zip_rejects_conflicting_duplicate() -> None:
         probe.parse_candle_zip(_zip_csv(rows), "BTC-USDT-SWAP", start, start)
 
 
+def test_rest_gap_patch_fetches_exact_historical_minute(monkeypatch) -> None:
+    timestamp = 1_790_784_000_000
+    captured = {}
+
+    def fake_request(path, params):
+        captured.update(path=path, params=params)
+        return {
+            "code": "0",
+            "data": [
+                [str(timestamp - 60_000), "99", "101", "98", "100", "1", "1", "100", "1"],
+                [str(timestamp), "100", "102", "99", "101", "0", "0", "0", "1"],
+                [str(timestamp + 60_000), "101", "103", "100", "102", "1", "1", "102", "1"],
+            ],
+        }
+
+    monkeypatch.setattr(probe, "_request_json", fake_request)
+    result = probe.fetch_rest_candle("SOL-USDT-SWAP", timestamp)
+
+    assert captured["path"] == "/api/v5/market/history-candles"
+    assert captured["params"]["after"] == str(timestamp + 60_000)
+    assert captured["params"]["before"] == str(timestamp - 60_000)
+    assert result["open_time"] == timestamp
+    assert result["volume_contracts"] == "0"
+    assert result["source"] == "okx_rest_history_candles_gap_patch"
+
+
 def test_funding_history_uses_correct_before_after_window(monkeypatch) -> None:
     begin, end = 1_790_784_000_000, 1_793_462_399_999
     captured = {}
