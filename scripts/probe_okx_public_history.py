@@ -76,7 +76,9 @@ def month_bounds_hk(month: str) -> tuple[int, int]:
     return int(start.timestamp() * 1000), int(next_start.timestamp() * 1000) - 1
 
 
-def _archive_files(\n    payload: dict, month: str, symbols: tuple[str, ...], file_keyword: str = "candlesticks"\n) -> dict[str, dict]:
+def _archive_files(
+    payload: dict, month: str, symbols: tuple[str, ...], file_keyword: str = "candlesticks"
+) -> dict[str, dict]:
     data = payload.get("data")
     if isinstance(data, dict):
         details = data.get("details") or data.get("list")
