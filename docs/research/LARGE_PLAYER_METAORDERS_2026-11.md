@@ -143,6 +143,13 @@ This gives two concrete lessons:
 - maker share alone cannot distinguish a good liquidity provider from one trapped in adverse inventory;
 - counting raw trade/fill rows as child orders is wrong: that HYPE market order was one `oid` with 277 fills, not 277 separate parent orders.
 
+
+The 12 Nov fill-level comparison sharpens the mechanism:
+- Winner-P2 (BTC-only native-perp profile): maker Close Short buys were $57.3m across 922 order IDs, with +$1.250m realized PnL; taker Close Short buys added $5.30m and +$83.1k realized. In parallel it had maker Open Short sells of $22.6m and taker Open Short sells of $3.03m. This is short-inventory management with profitable exits, not simply a buy/sell direction signal.
+- Loser-P2 (24-market native-perp profile): HYPE maker Open Long buys were $1.89m; its taker Close Long sell was **one order ID with 277 fill rows**, $1.85m notional and −$214.2k realized. Maker Close Long sells added $1.40m and −$144.8k. The order was not flagged as a liquidation. HYPE then moved from about $70.80 at the order to $70.22 at +30m and $69.80 at +1h. ETH closes were also negative.
+
+This is a direct adverse-inventory example: a maker-heavy account accumulated long exposure and later sold it at a loss while the market continued down. The profitable BTC-only account had short exposure and realized gains while closing shorts. The difference is inventory direction and exit quality, not the raw maker percentage.
+
 ### Funding is not optional
 
 In the same rolling 24-hour sample, wallet-level funding payments were approximately:
