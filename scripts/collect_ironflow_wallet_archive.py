@@ -8,6 +8,7 @@ import json
 import time
 from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
+import statistics
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -123,8 +124,6 @@ def _make_fill_table(table: pa.Table, side: str, day_text: str) -> pa.Table:
 
 
 def _serialize_wallet_stats(wallets: list[dict], stats: dict[str, Any]) -> list[dict]:
-    import numpy as np
-
     output = []
     cohort_map = {row["address"]: row for row in wallets}
     for address, item in stats.items():
@@ -151,8 +150,8 @@ def _serialize_wallet_stats(wallets: list[dict], stats: dict[str, Any]) -> list[
                 round(total / len(item["active_days"]), 3) if item["active_days"] else 0
             ),
             "average_fill_notional": round(item["notional"] / total, 6) if total else None,
-            "median_fill_notional": round(float(np.median(samples)), 6) if samples else None,
-            "p90_fill_notional": round(float(np.percentile(samples, 90)), 6) if samples else None,
+            "median_fill_notional": round(float(statistics.median(samples)), 6) if samples else None,
+            "p90_fill_notional": round(float(sorted(samples)[min(len(samples) - 1, int(len(samples) * 0.9))]), 6) if samples else None,
             "top_markets_by_notional": [
                 {"market": market, "notional": round(value, 6)}
                 for market, value in item["markets"].most_common(10)
@@ -193,10 +192,23 @@ def _group_comparison(wallet_summaries: list[dict]) -> dict:
     return result
 
 
-def collect(cohort_path: Path, out_dir: Path, start: date = START_DATE, end: date = END_DATE) -> dict:
-    import pyarrow as pa
-
+def collect(
+    cohort_path: Path,
+    out_dir: Path,
+    start: date = START_DATE,
+    end: date = END_DATE,
+    cohort_manifest_path: Path | None = None,
+) -> dict:
     cohort_snapshot = json.loads(cohort_path.read_text(encoding="utf-8"))
+    cohort_manifest = (
+        json.loads(cohort_manifest_path.read_text(encoding="utf-8"))
+        if cohort_manifest_path and cohort_manifest_path.exists()
+        else {}
+    )
+    strata_map = {
+        row["address"].lower(): row.get("cohort_strata") or []
+        for row in cohort_manifest.get("wallet_results", [])
+    }
     cohort = cohort_snapshot["wallets"]
     addresses = [str(row["ethAddress"]).lower() for row in cohort] if "ethAddress" in cohort[0] else [
         str(row["address"]).lower() for row in cohort
@@ -207,7 +219,7 @@ def collect(cohort_path: Path, out_dir: Path, start: date = START_DATE, end: dat
             perf = dict(row.get("windowPerformances") or [])
             cohort_rows.append({
                 "address": str(row["ethAddress"]).lower(),
-                "cohort_strata": row.get("cohort_strata") or [],
+                "cohort_strata": row.get("cohort_strata") or strata_map.get(str(row["ethAddress"]).lower(), []),
                 "account_value": row.get("accountValue"),
                 "day_pnl": (perf.get("day") or {}).get("pnl"),
                 "week_pnl": (perf.get("week") or {}).get("pnl"),
@@ -248,7 +260,14 @@ def collect(cohort_path: Path, out_dir: Path, start: date = START_DATE, end: dat
             batch_offset = 0
             file_filtered = 0
             file_wallet_fills = 0
-            for batch in parquet.iter_batches(batch_size=BATCH_SIZE):
+            for batch in parquet.iter_batches(
+                batch_size=BATCH_SIZE,
+                columns=[
+                    "timestamp", "market", "coin", "dex", "market_class", "price",
+                    "size", "notional", "taker_side", "buyer", "seller", "liquidation",
+                    "block", "tid",
+                ],
+            ):
                 table = pa.Table.from_batches([batch])
                 row_order = pa.array(
                     range(batch_offset, batch_offset + batch.num_rows), type=pa.int64()
@@ -346,6 +365,10 @@ def collect(cohort_path: Path, out_dir: Path, start: date = START_DATE, end: dat
         },
         "cohort": {
             "snapshot_time_utc": cohort_snapshot.get("generated_at_utc"),
+            "cohort_manifest_sha256": (
+                hashlib.sha256(cohort_manifest_path.read_bytes()).hexdigest()
+                if cohort_manifest_path and cohort_manifest_path.exists() else None
+            ),
             "source": cohort_snapshot.get("source"),
             "selection": cohort_snapshot.get("cohort_selection"),
             "survivorship_warning": cohort_snapshot.get("survivorship_warning"),
@@ -395,11 +418,15 @@ def collect(cohort_path: Path, out_dir: Path, start: date = START_DATE, end: dat
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cohort-path", type=Path, required=True)
+    parser.add_argument("--cohort-manifest-path", type=Path, default=None)
     parser.add_argument("--out-dir", type=Path, default=Path("reports/hyperliquid_wallet_archive"))
     parser.add_argument("--start-date", type=date.fromisoformat, default=START_DATE)
     parser.add_argument("--end-date", type=date.fromisoformat, default=END_DATE)
     args = parser.parse_args()
-    report = collect(args.cohort_path, args.out_dir, args.start_date, args.end_date)
+    report = collect(
+        args.cohort_path, args.out_dir, args.start_date, args.end_date,
+        cohort_manifest_path=args.cohort_manifest_path,
+    )
     print(json.dumps({
         "total_source_rows": report["source"]["total_source_rows"],
         "cohort_native_perp_trade_rows": report["counts"]["cohort_native_perp_trade_rows"],
