@@ -43,7 +43,7 @@ jobs:
       - name: Install isolated research dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pyarrow pytest ruff
+          python -m pip install pyarrow duckdb pytest ruff
       - name: Run archive-filter tests and lint
         run: |
           python -m pytest tests/unit/test_collect_ironflow_wallet_archive.py -q --confcutdir=tests/unit
