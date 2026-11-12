@@ -57,6 +57,10 @@ def test_positive_funding_is_cost_for_long_and_credit_for_short() -> None:
 def test_archive_page_size_matches_verified_bingx_adapter_cap() -> None:
     assert candle_archive.PAGE_SIZE == 500
 
+def test_fixed_stress_gate_is_one_point_five_times_default_base_cost() -> None:
+    assert research.STRESS_COST_BPS_PER_SIDE == pytest.approx(1.5 * (5.0 + 2.0 + 3.0))
+
+
 def test_hard_hold_limit_is_nine_hours() -> None:
     assert MAX_HOLD_BARS * 15 == 540
 
