@@ -312,12 +312,22 @@ def collect(
                     continue
                 output_table = pa.concat_tables(fill_tables)
                 output_table = output_table.sort_by([("row_order", "ascending"), ("side", "ascending")])
+                output_table = output_table.select([
+                    "wallet", "timestamp", "market", "price", "size", "notional",
+                    "taker_side", "side", "crossed", "liquidation", "block", "tid",
+                ])
                 if writer is None:
                     writer_schema = output_table.schema
-                    writer = pq.ParquetWriter(output_path, writer_schema, compression="zstd")
+                    writer = pq.ParquetWriter(
+                        output_path,
+                        writer_schema,
+                        compression="zstd",
+                        compression_level=9,
+                        use_dictionary=["wallet", "market", "taker_side", "side"],
+                    )
                 elif output_table.schema != writer_schema:
                     output_table = output_table.cast(writer_schema)
-                writer.write_table(output_table, row_group_size=100_000)
+                writer.write_table(output_table, row_group_size=250_000)
                 wallet_fill_rows += output_table.num_rows
                 file_wallet_fills += output_table.num_rows
                 _add_stats(stats, output_table)
