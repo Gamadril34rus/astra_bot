@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Research-only regime-routed backtest for USDT-margined perpetuals."""
+"""Research-only regime-routed backtest for BingX USDT-M perpetuals."""
 from __future__ import annotations
 
 import argparse
@@ -15,17 +15,11 @@ INTERVAL_MS = {"15m": 900_000, "30m": 1_800_000, "1h": 3_600_000}
 MAX_HOLD_BARS = 36
 NO_PROGRESS_BARS = 2
 NO_PROGRESS_MFE_R = 0.35
-STRESS_COST_BPS_PER_SIDE = 15.0  # 1.5x the default 10 bps/side base cost (5 + 2 + 3)
+STRESS_COST_BPS_PER_SIDE = 12.375
 MAX_STRESS_COST_TO_R = 0.40
 MIN_PROGRESS_EXIT_BARS = 6
 MIN_PROGRESS_MFE_R = 0.75
 WARMUP_BARS = 120
-REGIME_FAMILIES = (
-    "COMPRESSION_BREAKOUT",
-    "FALSE_BREAK_REVERSAL",
-    "TREND_PULLBACK",
-    "RANGE_REVERSION",
-)
 
 
 def load_bars(path: Path, interval: str) -> pd.DataFrame:
@@ -102,19 +96,6 @@ def _adx(frame: pd.DataFrame, period: int = 14) -> pd.Series:
     return dx.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
 
 
-def volume_for_ratio(frame: pd.DataFrame) -> pd.Series:
-    """Choose one volume unit for the entire symbol history, never row by row."""
-    base = pd.to_numeric(frame["volume"], errors="coerce")
-    quote = pd.to_numeric(frame["quote_volume"], errors="coerce")
-    quote_is_consistent = (
-        quote.notna().all()
-        and (quote >= 0).all()
-        and ((base <= 0) | (quote > 0)).all()
-        and (quote > 0).any()
-    )
-    return quote if quote_is_consistent else base
-
-
 def add_features(m15: pd.DataFrame, h1: pd.DataFrame) -> pd.DataFrame:
     x = m15.copy()
     close = x["close"]
@@ -139,8 +120,8 @@ def add_features(m15: pd.DataFrame, h1: pd.DataFrame) -> pd.DataFrame:
     x["bb_width_pct"] = x["bb_width"].rolling(96, min_periods=48).apply(
         lambda values: float(np.mean(values <= values[-1])), raw=True
     ).shift(1)
-    volume = volume_for_ratio(x)
-    x["volume_ratio"] = volume / volume.shift(1).rolling(20, min_periods=20).mean()
+    volume = x["quote_volume"].where(x["quote_volume"] > 0, x["volume"])
+    x["volume_ratio"] = volume / volume.rolling(20, min_periods=20).mean()
 
     h = h1.copy()
     hc = h["close"]
@@ -156,40 +137,34 @@ def add_features(m15: pd.DataFrame, h1: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def choose_signals(x: pd.DataFrame, i: int) -> list[dict]:
-    """Return every independently valid regime signal at a closed 15m decision."""
+def choose_signal(x: pd.DataFrame, i: int) -> dict | None:
     row = x.iloc[i]
-    required = ("atr14", "h1_adx14", "bb_width_pct", "volume_ratio")
-    if any(pd.isna(row[column]) for column in required):
-        return []
+    if pd.isna(row["atr14"]) or pd.isna(row["h1_adx14"]) or pd.isna(row["bb_width_pct"]):
+        return None
     atr = float(row["atr14"])
     if atr <= 0:
-        return []
+        return None
     prior = x.iloc[i - 20:i]
     prior4 = x.iloc[i - 4:i]
     prior3 = x.iloc[i - 3:i]
     previous = x.iloc[i - 1]
     long_bias = row["h1_ema20"] > row["h1_ema50"]
     short_bias = row["h1_ema20"] < row["h1_ema50"]
-    signals: list[dict] = []
 
-    # Compression breakout: evaluate independently of every other family.
+    # Compression breakout has first priority; it is a regime transition, not scalping.
     if row["bb_width_pct"] <= 0.25 and row["volume_ratio"] >= 1.5:
         high = float(prior["high"].max())
         low = float(prior["low"].min())
         if row["close"] > high and not short_bias:
-            signals.append({
-                "family": "COMPRESSION_BREAKOUT", "side": 1,
-                "stop": float(row["close"]) - 1.2 * atr, "target_rr": 1.5,
-            })
+            return {"family": "COMPRESSION_BREAKOUT", "side": 1,
+                    "stop": float(row["close"]) - 1.2 * atr, "target_rr": 1.5}
         if row["close"] < low and not long_bias:
-            signals.append({
-                "family": "COMPRESSION_BREAKOUT", "side": -1,
-                "stop": float(row["close"]) + 1.2 * atr, "target_rr": 1.5,
-            })
+            return {"family": "COMPRESSION_BREAKOUT", "side": -1,
+                    "stop": float(row["close"]) + 1.2 * atr, "target_rr": 1.5}
 
-    # False-break reversal: prior breakout bar must close back inside its
-    # pre-break 20-bar range on the current closed bar.
+    # False-break reversal: fade a failed 20-bar range escape only in a
+    # non-trending hourly regime. The breakout bar is prior; current close must
+    # return inside the same pre-break range.
     if row["h1_adx14"] <= 22 and previous["volume_ratio"] >= 1.5:
         pre_break = x.iloc[i - 21:i - 1]
         range_high = float(pre_break["high"].max())
@@ -197,16 +172,16 @@ def choose_signals(x: pd.DataFrame, i: int) -> list[dict]:
         range_mid = (range_high + range_low) / 2
         if previous["close"] > range_high and row["close"] < range_high:
             stop = max(float(previous["high"]), float(row["high"])) + 0.15 * atr
-            signals.append({
+            return {
                 "family": "FALSE_BREAK_REVERSAL", "side": -1,
                 "stop": stop, "target_price": range_mid,
-            })
+            }
         if previous["close"] < range_low and row["close"] > range_low:
             stop = min(float(previous["low"]), float(row["low"])) - 0.15 * atr
-            signals.append({
+            return {
                 "family": "FALSE_BREAK_REVERSAL", "side": 1,
                 "stop": stop, "target_price": range_mid,
-            })
+            }
 
     # Directional trend continuation: pullback and confirmed reclaim.
     if row["h1_adx14"] >= 20 and row["volume_ratio"] >= 1.1:
@@ -215,47 +190,24 @@ def choose_signals(x: pd.DataFrame, i: int) -> list[dict]:
             held = (prior4["close"] > prior4["ema50"]).all()
             if touched and held and row["close"] > row["ema20"] and row["close"] > previous["high"]:
                 stop = float(prior4["low"].min()) - 0.15 * atr
-                signals.append({
-                    "family": "TREND_PULLBACK", "side": 1,
-                    "stop": stop, "target_rr": 1.5,
-                })
+                return {"family": "TREND_PULLBACK", "side": 1, "stop": stop, "target_rr": 1.5}
         if short_bias and bool(row["h1_ema20_falling"]):
             touched = (prior4["high"] >= prior4["ema20"]).any()
             held = (prior4["close"] < prior4["ema50"]).all()
             if touched and held and row["close"] < row["ema20"] and row["close"] < previous["low"]:
                 stop = float(prior4["high"].max()) + 0.15 * atr
-                signals.append({
-                    "family": "TREND_PULLBACK", "side": -1,
-                    "stop": stop, "target_rr": 1.5,
-                })
+                return {"family": "TREND_PULLBACK", "side": -1, "stop": stop, "target_rr": 1.5}
 
     # Range reversion is allowed only when the hourly trend is weak.
     if row["h1_adx14"] <= 18:
         if previous["close"] < previous["bb_lower"] and row["close"] > row["bb_lower"] and row["rsi14"] <= 40:
             stop = float(prior3["low"].min()) - 0.15 * atr
-            signals.append({
-                "family": "RANGE_REVERSION", "side": 1,
-                "stop": stop, "target_price": float(row["ema20"]),
-            })
+            return {"family": "RANGE_REVERSION", "side": 1, "stop": stop, "target_price": float(row["ema20"])}
         if previous["close"] > previous["bb_upper"] and row["close"] < row["bb_upper"] and row["rsi14"] >= 60:
             stop = float(prior3["high"].max()) + 0.15 * atr
-            signals.append({
-                "family": "RANGE_REVERSION", "side": -1,
-                "stop": stop, "target_price": float(row["ema20"]),
-            })
-    return signals
-
-
-def choose_signal(
-    x: pd.DataFrame,
-    i: int,
-    enabled_families: set[str] | None = None,
-) -> dict | None:
-    """Route only to an explicitly eligible family; None preserves diagnostic all-family routing."""
-    for signal in choose_signals(x, i):
-        if enabled_families is None or signal["family"] in enabled_families:
-            return signal
+            return {"family": "RANGE_REVERSION", "side": -1, "stop": stop, "target_price": float(row["ema20"])}
     return None
+
 
 def funding_cost_fraction(side: int, rates: pd.Series) -> float:
     """Positive funding rate is paid by LONG and received by SHORT."""
@@ -267,9 +219,6 @@ def simulate_symbol(
     fee_bps: float, spread_bps: float, slippage_bps: float,
     diagnostics: dict[str, Any] | None = None,
     bar_minutes: int = 15,
-    start_time_ms: int | None = None,
-    family_filter: str | None = None,
-    enabled_families: set[str] | None = None,
 ) -> list[dict]:
     if bar_minutes not in (15, 30):
         raise ValueError(f"unsupported signal bar duration: {bar_minutes}")
@@ -318,20 +267,7 @@ def simulate_symbol(
 
     i = WARMUP_BARS
     while i < len(x) - max_hold_bars - 1:
-        if start_time_ms is not None and int(x.iloc[i]["decision_time"]) < start_time_ms:
-            i += 1
-            continue
-        if family_filter is None:
-            signal = (
-                choose_signal(x, i)
-                if enabled_families is None
-                else choose_signal(x, i, enabled_families=enabled_families)
-            )
-        else:
-            signal = next(
-                (item for item in choose_signals(x, i) if item["family"] == family_filter),
-                None,
-            )
+        signal = choose_signal(x, i)
         if signal is None:
             i += 1
             continue
@@ -437,99 +373,14 @@ def common_15m_coverage_window(
     start_ms = max(int(item[start_key]) for item in coverage.values())
     end_ms = min(int(item[end_key]) for item in coverage.values())
     if end_ms < start_ms:
-        raise ValueError(f"symbols have no common {timeframe} history window")
-    interval_ms = INTERVAL_MS[timeframe]
-    end_exclusive_ms = end_ms + interval_ms
-    days = (end_exclusive_ms - start_ms) / 86_400_000
+        raise ValueError(f"BingX symbols have no common {timeframe} history window")
+    days = (end_ms - start_ms) / 86_400_000
     return {
         "common_start_utc": pd.to_datetime(start_ms, unit="ms", utc=True).isoformat(),
         "common_end_utc": pd.to_datetime(end_ms, unit="ms", utc=True).isoformat(),
-        "common_end_exclusive_utc": pd.to_datetime(
-            end_exclusive_ms, unit="ms", utc=True
-        ).isoformat(),
         "common_days": round(days, 2),
         "covers_12_months": days >= 365.0,
     }
-
-def simulation_window_for_period(
-    max_period: str,
-    common_start_ms: int,
-    validation_start_ms: int,
-    oos_start_ms: int,
-    common_end_ms: int,
-    interval_ms: int,
-) -> tuple[int, int]:
-    """Return the allowed entry start and exclusive signal-close cutoff.
-
-    IS/validation screens never pass OOS bars to feature calculation or the
-    simulator. OOS-only replay starts flat at the OOS boundary while retaining
-    earlier bars solely as indicator warm-up.
-    """
-    if max_period == "IS":
-        return common_start_ms, validation_start_ms
-    if max_period == "VALIDATION":
-        return common_start_ms, oos_start_ms
-    if max_period == "OOS":
-        return oos_start_ms, common_end_ms + interval_ms
-    if max_period == "ALL":
-        return common_start_ms, common_end_ms + interval_ms
-    raise ValueError(f"unsupported max_period: {max_period}")
-
-
-def clip_bars_for_simulation(
-    signal_bars: pd.DataFrame,
-    hourly_bars: pd.DataFrame,
-    common_start_ms: int,
-    simulation_end_ms: int,
-    interval_ms: int,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Keep indicator warm-up plus only signal/context bars before the cutoff."""
-    if signal_bars.empty:
-        return signal_bars.copy(), hourly_bars.iloc[0:0].copy()
-    warmup_start_ms = max(
-        int(signal_bars.open_time.iloc[0]),
-        common_start_ms - WARMUP_BARS * interval_ms,
-    )
-    signals = signal_bars.loc[
-        (signal_bars.open_time >= warmup_start_ms)
-        & (signal_bars.decision_time < simulation_end_ms)
-    ].copy().reset_index(drop=True)
-    hourly = hourly_bars.loc[
-        hourly_bars.decision_time < simulation_end_ms
-    ].copy().reset_index(drop=True)
-    return signals, hourly
-
-
-def exclude_split_crossing_trades(
-    trades: pd.DataFrame, validation_start_ms: int, oos_start_ms: int
-) -> tuple[pd.DataFrame, int]:
-    """Drop trades whose holding interval crosses a chronological split boundary."""
-    remains_within_one_period = (
-        ((trades.entry_time < validation_start_ms) & (trades.exit_time <= validation_start_ms))
-        | (
-            (trades.entry_time >= validation_start_ms)
-            & (trades.entry_time < oos_start_ms)
-            & (trades.exit_time <= oos_start_ms)
-        )
-        | (trades.entry_time >= oos_start_ms)
-    )
-    excluded = int((~remains_within_one_period).sum())
-    return trades.loc[remains_within_one_period].copy(), excluded
-
-
-def filter_max_period(trades: pd.DataFrame, max_period: str) -> pd.DataFrame:
-    """Limit reported performance to a pre-OOS screen or the requested period."""
-    if max_period == "IS":
-        return trades.loc[trades.period == "IS"].copy()
-    if max_period == "VALIDATION":
-        return trades.loc[trades.period.isin(["IS", "VALIDATION"])].copy()
-    if max_period == "OOS":
-        return trades.loc[trades.period == "OOS"].copy()
-    if max_period == "ALL":
-        return trades.copy()
-    raise ValueError(f"unsupported max_period: {max_period}")
-
-
 def summarize(
     frame: pd.DataFrame,
     calendar_start: pd.Period | None = None,
@@ -611,43 +462,23 @@ def main() -> int:
     parser.add_argument("--spread-bps", type=float, default=2.0)
     parser.add_argument("--slippage-bps", type=float, default=3.0)
     parser.add_argument("--signal-timeframe", choices=("15m", "30m"), default="15m")
-    parser.add_argument("--symbols", default=",".join(SYMBOLS))
-    parser.add_argument("--max-period", choices=("IS", "VALIDATION", "OOS", "ALL"), default="ALL")
-    parser.add_argument("--family-only", choices=REGIME_FAMILIES)
-    parser.add_argument("--enabled-families", help="comma-separated eligible families, or NONE to force NO_TRADE")
     parser.add_argument("--out", type=Path, default=Path("reports/adaptive_perp"))
     args = parser.parse_args()
-    enabled_families = None
-    if args.enabled_families is not None:
-        enabled_families = (
-            set() if args.enabled_families.strip().upper() == "NONE"
-            else {item.strip().upper() for item in args.enabled_families.split(",") if item.strip()}
-        )
-        unknown_families = sorted(enabled_families - set(REGIME_FAMILIES))
-        if unknown_families:
-            parser.error(f"unknown enabled families: {unknown_families}")
-    if args.family_only and enabled_families is not None:
-        parser.error("--family-only and --enabled-families are mutually exclusive")
-    args.symbols = tuple(item.strip().upper() for item in args.symbols.split(",") if item.strip())
-    unknown_symbols = sorted(set(args.symbols) - set(SYMBOLS))
-    if not args.symbols or unknown_symbols:
-        parser.error(f"symbols must be a non-empty subset of {SYMBOLS}; unknown={unknown_symbols}")
+    all_trades = []
     coverage = {}
-    prepared: dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]] = {}
-    interval_ms = INTERVAL_MS[args.signal_timeframe]
-    for symbol in args.symbols:
+    signal_diagnostics: dict[str, dict[str, Any]] = {}
+    for symbol in SYMBOLS:
         stem = symbol.replace("-", "")
         signal_path = args.data_dir / f"{stem}_{args.signal_timeframe}.csv"
         h1_path = args.data_dir / f"{stem}_1h.csv"
         funding_path = args.data_dir / f"funding_{stem}.csv"
         for path in (signal_path, h1_path, funding_path):
             if not path.exists():
-                raise SystemExit(f"INCOMPLETE: required market-data source is missing: {path}")
-        signal_bars = load_bars(signal_path, args.signal_timeframe)
-        h1 = load_bars(h1_path, "1h")
+                raise SystemExit(f"INCOMPLETE: required BingX source is missing: {path}")
+        signal_bars, h1 = load_bars(signal_path, args.signal_timeframe), load_bars(h1_path, "1h")
         funding = load_funding(funding_path, symbol)
         if funding.empty:
-            raise SystemExit(f"INCOMPLETE: {symbol} has no funding history")
+            raise SystemExit(f"INCOMPLETE: {symbol} has no BingX funding history")
         raw_funding = funding
         funding, excluded_funding_events = latest_contiguous_funding_segment(funding)
         excluded_funding_first = (
@@ -658,96 +489,34 @@ def main() -> int:
             if excluded_funding_events else None
         )
         if funding.empty:
-            raise SystemExit(f"INCOMPLETE: {symbol} has no contiguous funding segment")
-        signal_bars = signal_bars[
-            signal_bars.open_time >= int(funding.funding_time.iloc[0])
-        ].reset_index(drop=True)
+            raise SystemExit(f"INCOMPLETE: {symbol} has no contiguous BingX funding segment")
+        # Earlier funding history contains multi-day/month holes. Use only the
+        # latest uninterrupted segment, selected solely on data integrity, never PnL.
+        # Trim candles to that segment; do not impute missing funding as zero.
+        signal_bars = signal_bars[signal_bars.open_time >= int(funding.funding_time.iloc[0])].reset_index(drop=True)
         if signal_bars.empty:
-            raise SystemExit(
-                f"INCOMPLETE: {symbol} has no {args.signal_timeframe} candles inside funding coverage"
-            )
+            raise SystemExit(f"INCOMPLETE: {symbol} has no {args.signal_timeframe} candles inside funding coverage")
+        x = add_features(signal_bars, h1)
         coverage[symbol] = {
             f"{args.signal_timeframe}_rows": len(signal_bars),
             f"{args.signal_timeframe}_first": int(signal_bars.open_time.iloc[0]),
-            f"{args.signal_timeframe}_last": int(signal_bars.open_time.iloc[-1]),
-            "1h_rows": len(h1),
-            "1h_first": int(h1.open_time.iloc[0]),
-            "1h_last": int(h1.open_time.iloc[-1]),
+            f"{args.signal_timeframe}_last": int(signal_bars.open_time.iloc[-1]), "1h_rows": len(h1),
+            "1h_first": int(h1.open_time.iloc[0]), "1h_last": int(h1.open_time.iloc[-1]),
             "funding_events": len(funding),
             "funding_events_excluded_before_latest_contiguous_segment": excluded_funding_events,
             "excluded_funding_first": excluded_funding_first,
             "excluded_funding_last": excluded_funding_last,
-            "funding_first": int(funding.funding_time.iloc[0]),
-            "funding_last": int(funding.funding_time.iloc[-1]),
+            "funding_first": int(funding.funding_time.iloc[0]) if not funding.empty else None,
+            "funding_last": int(funding.funding_time.iloc[-1]) if not funding.empty else None,
         }
-        prepared[symbol] = (signal_bars, h1, funding)
-
-    common_window = common_15m_coverage_window(coverage, args.signal_timeframe)
-    common_start_ms = int(
-        pd.Timestamp(common_window["common_start_utc"]).timestamp() * 1000
-    )
-    common_end_ms = int(
-        pd.Timestamp(common_window["common_end_utc"]).timestamp() * 1000
-    )
-    split_span = common_end_ms - common_start_ms
-    validation_start_ms = common_start_ms + int(split_span * 0.60)
-    oos_start_ms = common_start_ms + int(split_span * 0.80)
-    trade_start_ms, simulation_end_ms = simulation_window_for_period(
-        args.max_period,
-        common_start_ms,
-        validation_start_ms,
-        oos_start_ms,
-        common_end_ms,
-        interval_ms,
-    )
-    simulation_window = {
-        "trade_start_utc": pd.to_datetime(
-            trade_start_ms, unit="ms", utc=True
-        ).isoformat(),
-        "exclusive_signal_close_cutoff_utc": pd.to_datetime(
-            simulation_end_ms, unit="ms", utc=True
-        ).isoformat(),
-        "oos_bars_processed": args.max_period in ("OOS", "ALL"),
-    }
-
-    all_trades = []
-    signal_diagnostics: dict[str, dict[str, Any]] = {}
-    for symbol in args.symbols:
-        signal_bars, h1, funding = prepared[symbol]
-        signal_bars, h1 = clip_bars_for_simulation(
-            signal_bars,
-            h1,
-            common_start_ms,
-            simulation_end_ms,
-            interval_ms,
-        )
-        funding = funding.loc[
-            funding.funding_time < simulation_end_ms
-        ].copy().reset_index(drop=True)
-        if funding.empty:
-            raise SystemExit(
-                f"INCOMPLETE: {symbol} has no funding events before the simulation cutoff"
-            )
-        if signal_bars.empty:
-            raise SystemExit(
-                f"INCOMPLETE: {symbol} has no signal bars before the {args.max_period} cutoff"
-            )
-        x = add_features(signal_bars, h1)
         symbol_diagnostics: dict[str, Any] = {}
         all_trades.extend(simulate_symbol(
-            symbol,
-            x,
-            funding,
-            args.fee_bps,
-            args.spread_bps,
-            args.slippage_bps,
+            symbol, x, funding, args.fee_bps, args.spread_bps, args.slippage_bps,
             diagnostics=symbol_diagnostics,
-            bar_minutes=interval_ms // 60_000,
-            start_time_ms=trade_start_ms,
-            family_filter=args.family_only,
-            enabled_families=enabled_families,
+            bar_minutes=INTERVAL_MS[args.signal_timeframe] // 60_000,
         ))
         signal_diagnostics[symbol] = symbol_diagnostics
+    common_window = common_15m_coverage_window(coverage, args.signal_timeframe)
     trade_columns = [
         "symbol", "family", "side", "entry_time", "exit_time", "hold_minutes",
         "exit_reason", "gross_pct", "fee_pct", "spread_pct", "slippage_pct",
@@ -774,16 +543,6 @@ def main() -> int:
             "coverage": coverage,
             "common_signal_window": common_window,
             "signal_timeframe": args.signal_timeframe,
-            "symbols": list(args.symbols),
-            "max_period": args.max_period,
-            "family_filter": args.family_only,
-            "enabled_families": sorted(enabled_families) if enabled_families is not None else None,
-            "simulation_window": simulation_window,
-            "split_boundaries_utc": {
-                "validation_start": pd.to_datetime(validation_start_ms, unit="ms", utc=True).isoformat(),
-                "oos_start": pd.to_datetime(oos_start_ms, unit="ms", utc=True).isoformat(),
-            },
-            "boundary_excluded_trades": 0,
             "signal_diagnostics": signal_diagnostics,
             "by_period": {},
             "by_family": {},
@@ -798,18 +557,19 @@ def main() -> int:
         )
         print(json.dumps(report, indent=2))
         return 0
+    common_start_ms = int(pd.Timestamp(common_window["common_start_utc"]).timestamp() * 1000)
+    common_end_ms = int(pd.Timestamp(common_window["common_end_utc"]).timestamp() * 1000)
     trades = trades[
         (trades.entry_time >= common_start_ms)
         & (trades.exit_time <= common_end_ms)
     ].copy()
-    trades, boundary_excluded_trades = exclude_split_crossing_trades(
-        trades, validation_start_ms, oos_start_ms
-    )
+    split_span = common_end_ms - common_start_ms
+    validation_start_ms = common_start_ms + int(split_span * 0.60)
+    oos_start_ms = common_start_ms + int(split_span * 0.80)
     trades["period"] = np.select(
         [trades.entry_time < validation_start_ms, trades.entry_time < oos_start_ms],
         ["IS", "VALIDATION"], default="OOS"
     )
-    trades = filter_max_period(trades, args.max_period)
     calendar_start = pd.to_datetime(common_window["common_start_utc"], utc=True).to_period("M")
     calendar_end = pd.to_datetime(common_window["common_end_utc"], utc=True).to_period("M")
     validation_start_period = pd.to_datetime(validation_start_ms, unit="ms", utc=True).to_period("M")
@@ -819,11 +579,6 @@ def main() -> int:
         "VALIDATION": (validation_start_period, oos_start_period),
         "OOS": (oos_start_period, calendar_end),
     }
-    analysis_end_period = (
-        validation_start_period if args.max_period == "IS"
-        else oos_start_period if args.max_period == "VALIDATION"
-        else calendar_end
-    )
     args.out.mkdir(parents=True, exist_ok=True)
     trades.to_csv(args.out / "trades.csv", index=False)
     report = {
@@ -843,10 +598,6 @@ def main() -> int:
         "coverage": coverage,
         "common_signal_window": common_window,
         "signal_timeframe": args.signal_timeframe,
-        "symbols": list(args.symbols),
-        "max_period": args.max_period,
-        "simulation_window": simulation_window,
-        "boundary_excluded_trades": boundary_excluded_trades,
         "split_boundaries_utc": {
             "validation_start": pd.to_datetime(validation_start_ms, unit="ms", utc=True).isoformat(),
             "oos_start": pd.to_datetime(oos_start_ms, unit="ms", utc=True).isoformat(),
@@ -857,43 +608,28 @@ def main() -> int:
             for period, group in trades.groupby("period")
         },
         "by_family": {
-            family: summarize(group, calendar_start, analysis_end_period)
+            family: summarize(group, calendar_start, calendar_end)
             for family, group in trades.groupby("family")
         },
         "by_symbol_side": {
-            f"{symbol}_{side}": summarize(group, calendar_start, analysis_end_period)
+            f"{symbol}_{side}": summarize(group, calendar_start, calendar_end)
             for (symbol, side), group in trades.groupby(["symbol", "side"])
         },
-        "oos_by_family": (
-            {
-                family: summarize(group, oos_start_period, calendar_end)
-                for family, group in trades[trades.period == "OOS"].groupby("family")
-            }
-            if args.max_period in ("ALL", "OOS") else {}
-        ),
-        "oos_by_symbol_side": (
-            {
-                f"{symbol}_{side}": summarize(group, oos_start_period, calendar_end)
-                for (symbol, side), group in trades[trades.period == "OOS"].groupby(
-                    ["symbol", "side"]
-                )
-            }
-            if args.max_period in ("ALL", "OOS") else {}
-        ),
-        "by_family_symbol_side": {
-            f"{family}_{symbol}_{side}": summarize(group, calendar_start, analysis_end_period)
-            for (family, symbol, side), group in trades.groupby(["family", "symbol", "side"])
+        "oos_by_family": {
+            family: summarize(
+                group, oos_start_period, calendar_end
+            )
+            for family, group in trades[trades.period == "OOS"].groupby("family")
         },
-        "oos_by_family_symbol_side": (
-            {
-                f"{family}_{symbol}_{side}": summarize(group, oos_start_period, calendar_end)
-                for (family, symbol, side), group in trades[trades.period == "OOS"].groupby(
-                    ["family", "symbol", "side"]
-                )
-            }
-            if args.max_period in ("ALL", "OOS") else {}
-        ),
-        "combined": summarize(trades, calendar_start, analysis_end_period),
+        "oos_by_symbol_side": {
+            f"{symbol}_{side}": summarize(
+                group, oos_start_period, calendar_end
+            )
+            for (symbol, side), group in trades[trades.period == "OOS"].groupby(
+                ["symbol", "side"]
+            )
+        },
+        "combined": summarize(trades, calendar_start, calendar_end),
         "warning": "Equal-notional drawdown is a realized-PnL proxy with each trade weighted at 1/max-concurrency of starting equity (peak gross exposure 1x); it omits intratrade mark-to-market, margin and liquidation. Trade-sequence drawdown is also shown. Funding uses entry-notional approximation. OHLC fills are proxies, not confirmed exchange fills. IS/validation/OOS are chronological 60/20/20 splits of the common signal-timeframe window. No live/paper activation." + (f" Common {args.signal_timeframe} history is shorter than 12 months; this run is insufficient for a profitability promotion claim." if not common_window["covers_12_months"] else "")
     }
     (args.out / "summary.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
