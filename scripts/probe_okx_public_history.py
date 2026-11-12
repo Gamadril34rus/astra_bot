@@ -292,7 +292,7 @@ def parse_funding_zip(blob: bytes, inst_id: str, begin_ms: int, end_ms: int) -> 
         raise ValueError("OKX funding ZIP contains no CSV members")
     ordered = [rates[key] for key in sorted(rates)]
     times = [item["funding_time"] for item in ordered]
-    diffs = [right - left for left, right in zip(times, times[1:], strict=False)]
+    diffs = [right - left for left, right in itertools.pairwise(times)]
     summary = {
         "inst_id": inst_id,
         "funding_events": len(ordered),
