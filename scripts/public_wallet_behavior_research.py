@@ -311,7 +311,8 @@ def _write_json(path: Path, payload: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def run(\n    out_dir: Path,\n    limit: int = MAX_WALLETS,\n    pause_s: float = DEFAULT_PAUSE_SECONDS,\n    window_hours: float = 96,\n) -> dict[str, Any]:
+def run(
+    out_dir: Path,\n    limit: int = MAX_WALLETS,\n    pause_s: float = DEFAULT_PAUSE_SECONDS,\n    window_hours: float = 96,\n) -> dict[str, Any]:
     generated = datetime.now(UTC)
     now_ms = int(generated.timestamp() * 1000)
     leaderboard = _get_json(LEADERBOARD_URL)
