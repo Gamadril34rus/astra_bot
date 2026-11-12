@@ -76,7 +76,7 @@ def month_bounds_hk(month: str) -> tuple[int, int]:
     return int(start.timestamp() * 1000), int(next_start.timestamp() * 1000) - 1
 
 
-def _archive_files(payload: dict, month: str, symbols: tuple[str, ...]) -> dict[str, dict]:
+def _archive_files(\n    payload: dict, month: str, symbols: tuple[str, ...], file_keyword: str = "candlesticks"\n) -> dict[str, dict]:
     data = payload.get("data")
     if isinstance(data, dict):
         details = data.get("details") or data.get("list")
@@ -115,7 +115,7 @@ def _archive_files(payload: dict, month: str, symbols: tuple[str, ...]) -> dict[
             url_name = urlparse(url).path.rsplit("/", 1)[-1]
             if not filename or not url or filename != url_name:
                 raise ValueError(f"OKX archive filename/url mismatch: {filename!r} != {url_name!r}")
-            if f"candlesticks-{month}" not in filename:
+            if file_keyword.lower() not in filename.lower() or month not in filename:
                 continue
             for family_key in expected:
                 if family == family_key or filename.startswith(f"{family_key}-"):
@@ -253,6 +253,89 @@ def fetch_funding(inst_id: str, begin_ms: int, end_ms: int) -> tuple[list[dict],
     return rates, summary
 
 
+def parse_funding_zip(blob: bytes, inst_id: str, begin_ms: int, end_ms: int) -> tuple[list[dict], dict]:
+    rates: dict[int, dict] = {}
+    duplicate_count = 0
+    csv_members = 0
+    with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+        for member in archive.namelist():
+            if member.endswith("/") or not member.lower().endswith(".csv"):
+                continue
+            csv_members += 1
+            with archive.open(member) as raw:
+                reader = csv.reader(io.TextIOWrapper(raw, encoding="utf-8-sig", newline=""))
+                for line_number, row in enumerate(reader, start=1):
+                    if not row:
+                        continue
+                    if len(row) < 3:
+                        raise ValueError(f"{member}:{line_number}: expected at least 3 funding fields")
+                    time_index = 3 if len(row) >= 4 else 2
+                    if not row[time_index].strip().isdigit():
+                        if line_number == 1:
+                            continue
+                        raise ValueError(f"{member}:{line_number}: invalid funding timestamp")
+                    if row[0] != inst_id:
+                        continue
+                    timestamp = int(row[time_index])
+                    if not begin_ms <= timestamp <= end_ms or row[1] in {"", "None"}:
+                        continue
+                    rate = str(_decimal(row[1], "funding rate"))
+                    item = {"funding_time": timestamp, "funding_rate": rate}
+                    previous = rates.get(timestamp)
+                    if previous is not None:
+                        if previous != item:
+                            raise ValueError(f"conflicting duplicate OKX funding rate {inst_id} at {timestamp}")
+                        duplicate_count += 1
+                    else:
+                        rates[timestamp] = item
+    if not csv_members:
+        raise ValueError("OKX funding ZIP contains no CSV members")
+    ordered = [rates[key] for key in sorted(rates)]
+    times = [item["funding_time"] for item in ordered]
+    diffs = [right - left for left, right in zip(times, times[1:], strict=False)]
+    summary = {
+        "inst_id": inst_id,
+        "funding_events": len(ordered),
+        "first_funding_time": times[0] if times else None,
+        "last_funding_time": times[-1] if times else None,
+        "max_gap_hours": max(diffs) / 3_600_000 if diffs else None,
+        "duplicate_rows_identical": duplicate_count,
+        "csv_members": csv_members,
+    }
+    if not ordered:
+        raise RuntimeError(f"OKX funding ZIP contained no {inst_id} events")
+    return ordered, summary
+
+
+def fetch_funding_archive(
+    family: str, inst_id: str, month: str, begin_ms: int, end_ms: int
+) -> tuple[list[dict], dict]:
+    payload = _request_json(
+        ARCHIVE_PATH,
+        {
+            "module": "3",
+            "instType": "SWAP",
+            "instFamilyList": family,
+            "dateAggrType": "monthly",
+            "begin": str(begin_ms),
+            "end": str(end_ms),
+        },
+    )
+    files = _archive_files(payload, month, (family.removesuffix("-USDT"),), file_keyword="funding")
+    item = files[family]
+    request = Request(item["url"], headers={"User-Agent": USER_AGENT})
+    with urlopen(request, timeout=120) as response:
+        blob = response.read()
+    digest = hashlib.sha256(blob).hexdigest()
+    rates, summary = parse_funding_zip(blob, inst_id, begin_ms, end_ms)
+    summary.update({
+        "archive_filename": item["filename"],
+        "archive_size_mb": item.get("sizeMB"),
+        "archive_sha256": digest,
+    })
+    return rates, summary
+
+
 def run_probe(month: str, out_dir: Path) -> dict:
     begin_ms, end_ms = month_bounds_hk(month)
     symbols = tuple(f"{symbol}-USDT" for symbol in SYMBOLS)
@@ -295,7 +378,7 @@ def run_probe(month: str, out_dir: Path) -> dict:
         "limitations": [
             "OKX data is a cross-venue robustness source, not BingX execution data.",
             "The archive is 1m candles; 15m/1h bars must be aggregated from complete closed 1m groups.",
-            "Funding API history is limited to the latest three months; this probe covers one recent month only.",
+            "Funding archive and REST overlap are both collected; archive/realizedRate agreement is measured before historical use.",
             "No fills, user identities, or per-wallet PnL are inferred from market data.",
         ],
     }
@@ -318,14 +401,38 @@ def run_probe(month: str, out_dir: Path) -> dict:
             "archive_csv": str(csv_path),
         })
         time.sleep(0.25)
-        rates, funding_summary = fetch_funding(inst_id, begin_ms, end_ms)
-        funding_path = out_dir / f"{inst_id}_funding_{month}.csv"
+        rest_rates, rest_funding_summary = fetch_funding(inst_id, begin_ms, end_ms)
+        time.sleep(0.25)
+        archive_rates, archive_funding_summary = fetch_funding_archive(
+            family, inst_id, month, begin_ms, end_ms
+        )
+        rest_realized = {
+            int(row["funding_time"]): row.get("realized_rate")
+            for row in rest_rates
+        }
+        archive_rate_map = {
+            int(row["funding_time"]): row["funding_rate"]
+            for row in archive_rates
+        }
+        overlap = sorted(set(rest_realized) & set(archive_rate_map))
+        matched = sum(
+            rest_realized[ts] not in (None, "")
+            and abs(float(rest_realized[ts]) - float(archive_rate_map[ts])) <= 1e-12
+            for ts in overlap
+        )
+        archive_funding_summary["rest_overlap_events"] = len(overlap)
+        archive_funding_summary["archive_matches_rest_realized_rate"] = matched
+        archive_funding_summary["archive_rest_mismatch_count"] = len(overlap) - matched
+        funding_path = out_dir / f"{inst_id}_funding_archive_{month}.csv"
         with funding_path.open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.DictWriter(handle, fieldnames=list(rates[0]))
+            writer = csv.DictWriter(handle, fieldnames=list(archive_rates[0]))
             writer.writeheader()
-            writer.writerows(rates)
-        funding_summary["csv_path"] = str(funding_path)
-        summary["funding"] = funding_summary
+            writer.writerows(archive_rates)
+        archive_funding_summary["csv_path"] = str(funding_path)
+        summary["funding"] = {
+            "archive": archive_funding_summary,
+            "rest_api": rest_funding_summary,
+        }
         manifest["symbols"][inst_id] = summary
     (out_dir / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
