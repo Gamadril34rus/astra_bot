@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 import pytest
-
 from scripts import collect_ironflow_wallet_archive as collector
 
 
