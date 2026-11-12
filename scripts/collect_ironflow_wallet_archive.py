@@ -364,7 +364,12 @@ def collect(
     connection.execute("SET memory_limit='8GB'")
     connection.execute("SET threads=2")
     connection.execute(
-        """
+        "CREATE VIEW raw_trades AS SELECT * FROM read_parquet(?)",
+        [[str(path) for path in raw_paths]],
+    )
+    market_bars_target = str(market_bars_path).replace("'", "''")
+    connection.execute(
+        f"""
         COPY (
             SELECT
                 market,
@@ -381,16 +386,15 @@ def collect(
                     AS taker_buy_notional,
                 sum(CASE WHEN taker_side = 'sell' THEN notional ELSE 0 END)
                     AS taker_sell_notional
-            FROM read_parquet(?)
+            FROM raw_trades
             WHERE market_class = 'perp'
               AND coalesce(dex, '') = ''
             GROUP BY market, coin, bucket_ts
             ORDER BY market, bucket_ts
         )
-        TO ?
+        TO '{market_bars_target}'
         (FORMAT PARQUET, COMPRESSION ZSTD)
-        """,
-        [[str(path) for path in raw_paths], str(market_bars_path)],
+        """
     )
     connection.close()
     market_bars_rows = pq.ParquetFile(market_bars_path).metadata.num_rows
