@@ -1,0 +1,33 @@
+name: Ruff autofix for isolated research files
+
+on:
+  push:
+    branches:
+      - "research/4h-pullback-continuation"
+    paths:
+      - ".github/workflows/ruff-autofix-research.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  autofix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install ruff
+      - name: Apply Ruff import fixes
+        run: |
+          python -m ruff check --fix scripts/collect_ironflow_wallet_archive.py tests/unit/test_collect_ironflow_wallet_archive.py
+          python -m ruff check scripts/collect_ironflow_wallet_archive.py tests/unit/test_collect_ironflow_wallet_archive.py
+      - name: Upload fixed files
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruff-fixed-ironflow-files
+          path: |
+            scripts/collect_ironflow_wallet_archive.py
+            tests/unit/test_collect_ironflow_wallet_archive.py
+          retention-days: 7
