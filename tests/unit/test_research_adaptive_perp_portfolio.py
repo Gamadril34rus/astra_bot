@@ -459,6 +459,26 @@ def test_common_15m_window_uses_overlapping_symbol_history() -> None:
     assert result["common_end_utc"] == pd.to_datetime(90_000_000, unit="ms", utc=True).isoformat()
     assert result["covers_12_months"] is False
 
+def test_common_15m_window_counts_final_bar_close_for_full_year() -> None:
+    year_ms = 365 * 86_400_000
+    interval_ms = 15 * 60_000
+    coverage = {
+        symbol: {
+            "15m_first": 0,
+            "15m_last": year_ms - interval_ms,
+        }
+        for symbol in ("BTC-USDT", "ETH-USDT", "SOL-USDT")
+    }
+
+    result = common_15m_coverage_window(coverage)
+
+    assert result["common_days"] == 365.0
+    assert result["covers_12_months"] is True
+    assert result["common_end_exclusive_utc"] == pd.to_datetime(
+        year_ms, unit="ms", utc=True
+    ).isoformat()
+
+
 def test_common_window_accepts_30m_coverage_fields() -> None:
     coverage = {
         "BTC-USDT": {"30m_first": 1_000, "30m_last": 100_000_000},
