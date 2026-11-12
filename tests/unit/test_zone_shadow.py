@@ -1,5 +1,7 @@
 from astra_bot.decision.zone_shadow import (
-    build_volume_zones, build_volume_zones_with_fallback, zone_context,
+    build_volume_zones,
+    build_volume_zones_with_fallback,
+    zone_context,
 )
 
 
