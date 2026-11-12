@@ -209,10 +209,10 @@ async def scan_zone_shadow(client: Any, symbols: list[str] | tuple[str, ...] = F
                 shadow_zones, shadow_meta = build_volume_zones_with_fallback(
                     list(zone_candles), price=closed_price, fallback_lookback=120,
                 )
-                # HYPE's recent-window fallback is observational only until at
-                # least 100 unique candidates have been measured. Keep the live
-                # filter on its original full-window result (empty = fail-closed).
-                if symbol == "HYPE-USDT" and shadow_meta.get("source") == "recent_fallback":
+                # Recent-window fallbacks are observational only until at least
+                # 100 unique candidates have been measured. Keep the live filter
+                # on its original full-window result (empty = fail-closed).
+                if shadow_meta.get("source") == "recent_fallback":
                     filter_zones: list[dict[str, float]] = []
                     profile_meta = {
                         "source": "empty_full_window_shadow_only",
