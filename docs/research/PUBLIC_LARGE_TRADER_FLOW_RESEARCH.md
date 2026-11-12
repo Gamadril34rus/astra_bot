@@ -177,3 +177,61 @@ The fixed eligibility stress cost was corrected from 12.375 to 15 bps/side, matc
 - OKX workflow `43240965020` is running the four regime families independently at base and 1.5x costs on the same 365-day dataset.
 - Hyperliquid wallet archive workflow `43241607162` is filtering the 37-day public trade tape for the frozen 100-wallet cohort.
 - No merge, no strategy registration, no VST/REAL activation, no production runtime, risk, leverage or exit-engine changes.
+
+## 2026-11-12 decision: close the old candidate families and pivot
+
+The owner has directed that further work on the previously tested strategy families stop. The following are **retired as research candidates** and must not be tuned, parameter-mined, promoted or run again as the active research track:
+
+- 15m trend/pullback continuation;
+- compression breakout;
+- false-break reversal;
+- range reversion.
+
+This is a research-scope decision, not permission to delete or alter production strategy/runtime code. Preserve the historical reports and code for auditability. No family passed the predeclared profitability gates.
+
+The full-year OKX OHLC-proxy family sweep completed in run `43240965020` (artifact `13954574106`). At base costs (5 bps fee + 2 bps spread + 3 bps slippage per side), OOS results were:
+
+| Family | OOS trades | OOS net PF | OOS net expectancy/trade | Positive OOS months |
+|---|---:|---:|---:|---:|
+| Compression breakout | 56 | 0.4809 | -0.40216% | 0% |
+| False-break reversal | 30 | 0.5079 | -0.33341% | 0% |
+| Trend pullback | 44 | 0.8423 | -0.08241% | 33.33% |
+| Range reversion | 34 | 0.9475 | -0.02902% | 33.33% |
+
+At 1.5x costs, respective OOS PFs fell to 0.4052, 0.4202, 0.6909 and 0.7901; every OOS net expectancy remained negative. These are cross-venue OHLC-proxy results, not BingX execution results, but they are sufficient to stop spending research cycles on these candidates. The pullback family separately failed its own OOS test. Retain these outcomes as negative evidence; do not delete the audit trail.
+
+## 2026-11-12: 37-day public wallet archive successfully collected
+
+Workflow run `43246676924` completed successfully. It downloaded all 37 daily Ironflow Parquet files for 2026-10-03 through 2026-11-08, verified the provider's expected aggregate row count exactly (`210,257,579`), and recorded a SHA-256 for every source file. It then filtered the frozen 100-wallet cohort to native Hyperliquid perpetuals only, excluding spot and HIP-3 markets.
+
+Artifacts:
+- compact summary: `13957123032` (wallet archive manifest and group summaries);
+- filtered wallet-side trade evidence: `13957356889` (about 503 MB compressed).
+
+First-stage collection counts:
+- 100 frozen wallet addresses; current leaderboard snapshot has 49 positive, 37 negative and 14 flat current-month PnL labels;
+- 62/100 wallets had at least one matched native-perp fill in the 37-day archive;
+- 23,714,766 matched native-perp trade rows involving the cohort;
+- 25,170,996 wallet-side fill rows after one side row per cohort participant was materialized;
+- 1,456,230 trades had both buyer and seller in the cohort;
+- 37/37 daily source row counts reconcile to the dataset-card total.
+
+Descriptive group comparison (not a historical performance attribution):
+- wallets currently labelled positive month PnL: 30/49 active; median 783 fills, 41.56% taker share among active wallets, 36 active days;
+- wallets currently labelled negative month PnL: 32/37 active; median 3,412 fills, 96.62% taker share among active wallets, 8 active days;
+- flat group: 0/14 active in this archive.
+
+**Do not read this as proof that passive execution causes profitability.** The PnL labels are a current leaderboard snapshot, not point-in-time labels covering the full archive. Cohort selection is retrospective and can contain survivorship bias; the observed activity differences are leads for a second-stage study, not validated alpha. A market-maker, hedger or inventory manager can have high turnover and a current negative month without being a directional loser. Taker share alone does not identify maker intent or profitability.
+
+The next stage must use the actual wallet-side trade-level Parquet, not just the summary:
+1. reconstruct each wallet × native market's signed inventory *change* through time, while flagging unknown initial inventory and never pretending the archive start is a flat position;
+2. measure 5m/15m/30m/1h signed net flow, taker aggression, burstiness, scale-in/scale-out-like sequences and synchrony across the frozen cohort;
+3. join those events to contemporaneous Hyperliquid market price/volume and volatility context, then test lead/lag and price response without look-ahead;
+4. separate directional, liquidity-provision, hedging and high-turnover/scalping-like behaviour; exclude sub-30m patterns from ASTRA candidate rules;
+5. repeat comparisons using matched activity/market-volume strata and robustly frozen cohorts; do not rank by current leaderboard PnL as if it were historical;
+6. only after a behavioural pattern survives, translate it into a separate BingX-native feature hypothesis and validate against BingX data/costs. Hyperliquid is evidence about behaviour, never a direct execution signal.
+
+The 37-day archive cannot establish complete position episodes, holding times, realised PnL, fees or funding because its schema lacks account inventory and accounting fields. The separate recent-window Info API sample is capped at 10,000 fills per wallet and is left-censored for active accounts. Use it only to cross-check behaviour for accounts/windows where completeness can be demonstrated.
+
+**Current scope:** public large-trader behaviour reconstruction and cross-venue validation only. No strategy activation, no production changes, no VST/REAL changes, no leverage/risk changes, no PR merge.
+
