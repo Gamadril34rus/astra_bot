@@ -246,3 +246,30 @@ The next research-only stage is implemented in `scripts/analyze_ironflow_wallet_
 The event study is intentionally not a backtest. Observations overlap in time, are not statistically independent, and the cohort is only a selected 100-wallet sample. The output does not establish account profitability, exact positions or a tradable edge. It is a first filter for deciding which wallet behaviours merit deeper individual-wallet analysis. Aggressive flow and wallet consensus are retained in the raw 15m cohort output for follow-on tests; no thresholds are selected from this event study.
 
 The first clean archive+event-study run is currently being verified. The previous attempts were stopped by a Ruff import-order gate before the expensive 37-day data download; the unit tests passed, and the import grouping has now been corrected. No performance result is reported until the complete workflow and artifacts are available.
+
+### First 15m flow event study (run 43250750091)
+
+The full 37-day collection and event-study workflow completed successfully. It produced:
+- 915,238 wallet × market × 15m rows;
+- 425,656 cohort × market × 15m rows and the same number of forward-return rows;
+- 626,537 native-market 15m bars across 179 markets;
+- 15m, 30m, 1h, 4h and 9h forward close comparisons.
+
+The initial pooled decile result is asymmetric:
+- strongest net-sell decile: flow-direction hit rate 52.24% at 15m, 52.88% at 1h, 54.51% at 4h and 55.08% at 9h;
+- strongest net-buy decile: 50.18% at 15m, 49.21% at 1h, 46.91% at 4h and 45.24% at 9h.
+
+Here `directional_hit_rate` means the future return had the same sign as the cohort's signed flow. Mean directional return for the strongest sell decile was +0.251% at 9h; for the strongest buy decile it was -0.284% at 9h. Each decile contains roughly 9,800 market/bar observations per horizon.
+
+This is an exploratory asymmetry, **not a trading edge**. The observations overlap, are pooled across 179 markets, have only about 3.7 active cohort wallets per extreme-decile bar, and are not adjusted for market regime, symbol, time-of-day, multiple testing or fees. The study also cannot tell whether a wallet's sell was opening a short or closing a long. No signal threshold or trade rule is approved from these numbers.
+
+### Free position-snapshot anchor discovered
+
+A better free source for resolving that last ambiguity is the CC BY 4.0 Hugging Face sample from Hydromancer Reservoir:
+- positions snapshot at 2026-10-19 00:02 UTC: 406,682 open positions across 137,190 accounts; file `snapshots/positions_2026-10-19.parquet` (18,586,255 bytes);
+- matching account-value snapshot: `snapshots/account_values_2026-10-19.parquet` (58,747,857 bytes);
+- schema includes user, market, signed size, entry price, liquidation price, leverage, funding PnL and account value; account values include long/short notional and account mode.
+
+These two dated sample files are directly downloadable from Hugging Face and do not require AWS credentials or requester-pays S3 access. The full daily Reservoir archive remains requester-pays and is not being accessed.
+
+Planned reconstruction: use the 19 Oct position snapshot as a signed-size anchor, then roll the complete 3 Oct–8 Nov Ironflow wallet-side trade tape backward and forward. This can identify flat-to-flat position episodes, adds, reductions, flips, holding times and left/right-censored positions. A small time guard around the snapshot's minute will be excluded because the published snapshot timestamp is rounded to 00:02 UTC. Validate reconstructed position sizes and, where an episode starts flat, average entry prices against the anchor. Do not claim exact net PnL: the Ironflow tape has no per-wallet fee or closed-PnL fields, and one snapshot does not provide a complete funding history.
