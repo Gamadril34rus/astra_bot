@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+
 from scripts.analyze_ironflow_wallet_flow import HORIZONS, _sql_path, analyze
 
 
@@ -20,7 +21,6 @@ def test_forward_horizons_match_at_hold_time_cap() -> None:
 def test_sql_path_escapes_single_quotes(tmp_path: Path) -> None:
     path = tmp_path / "wallet's trades.parquet"
     assert _sql_path(path).endswith("wallet''s trades.parquet")
-
 
 
 def test_analyze_builds_wallet_flow_and_exact_forward_returns(tmp_path: Path) -> None:
