@@ -6,6 +6,7 @@ on:
     paths:
       - "scripts/public_wallet_behavior_research.py"
       - "tests/unit/test_public_wallet_behavior_research.py"
+      - "tests/unit/test_public_wallet_behavior_rate_limit.py"
       - ".github/workflows/public-wallet-behavior-research.yml"
   workflow_dispatch:
 
@@ -33,7 +34,7 @@ jobs:
           python -m ruff check --config pyproject.toml scripts/public_wallet_behavior_research.py tests/unit/test_public_wallet_behavior_research.py
       - name: Collect prospective public wallet cohort and fills
         run: |
-          python scripts/public_wallet_behavior_research.py --limit 100 --pause-seconds 0.35
+          python scripts/public_wallet_behavior_research.py --limit 100 --pause-seconds 6.2
       - name: Upload immutable read-only evidence
         if: always()
         uses: actions/upload-artifact@v4
