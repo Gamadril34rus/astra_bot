@@ -28,7 +28,7 @@ def parse_dt(value: str) -> datetime:
     dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=UTC)
-    return dt.astimezone(timezone.utc)
+    return dt.astimezone(UTC)
 
 
 def sql_ts(value: datetime) -> str:
