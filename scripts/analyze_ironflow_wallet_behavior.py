@@ -67,7 +67,7 @@ def analyze(input_path: Path, manifest_path: Path, out_dir: Path) -> dict[str, A
         gaps AS (
             SELECT
                 wallet, market,
-                epoch(timestamp - previous_timestamp) AS gap_seconds,
+                date_diff('microseconds', previous_timestamp, timestamp) / 1000000.0 AS gap_seconds,
                 side, previous_side
             FROM ordered
             WHERE previous_timestamp IS NOT NULL
