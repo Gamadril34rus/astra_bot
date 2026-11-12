@@ -24,6 +24,17 @@ def test_month_bounds_use_okx_utc_plus_8_archive_calendar() -> None:
     assert end == 1_793_462_399_999
 
 
+def test_month_sequence_returns_inclusive_contiguous_months() -> None:
+    assert probe.month_sequence("2025-11", "2026-02") == [
+        "2025-11", "2025-12", "2026-01", "2026-02"
+    ]
+
+
+def test_month_sequence_rejects_reversed_range() -> None:
+    with pytest.raises(ValueError, match="start_month must be"):
+        probe.month_sequence("2026-02", "2025-11")
+
+
 def test_month_bounds_reject_invalid_month() -> None:
     with pytest.raises(ValueError, match="YYYY-MM"):
         probe.month_bounds_hk("2026-13")
