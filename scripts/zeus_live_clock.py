@@ -120,7 +120,7 @@ async def _send_live_tg(msg: str) -> None:
 from astra_bot.decision.live_margin_warn import (
     maybe_warn_margin_reject as _maybe_warn_margin_reject,
 )
-from astra_bot.decision.live_margin_warn import (  # noqa: E402
+from astra_bot.decision.live_margin_warn import (  
     set_send_tg as _set_margin_warn_tg,
 )
 
