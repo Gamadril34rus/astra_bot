@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 from datetime import UTC, datetime
@@ -108,7 +109,7 @@ def analyze(wallet_trades_path: Path, market_bars_path: Path, manifest_path: Pat
     )
 
     forward_selects = []
-    for label, column in HORIZONS.items():
+    for label in HORIZONS:
         minutes = {"15m": 15, "30m": 30, "1h": 60, "4h": 240, "9h": 540}[label]
         forward_selects.append(
             f"LEFT JOIN market_bars f_{label} "
@@ -194,8 +195,6 @@ def analyze(wallet_trades_path: Path, market_bars_path: Path, manifest_path: Pat
                     for key, value in zip(columns, values, strict=True)
                 },
             })
-
-    import csv
 
     with event_study_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=[
