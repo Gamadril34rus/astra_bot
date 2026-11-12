@@ -66,10 +66,17 @@ jobs:
             --start-date "$IRONFLOW_START_DATE" \
             --end-date "$IRONFLOW_END_DATE" \
             --out-dir reports/hyperliquid_wallet_archive
-      - name: Upload filtered wallet evidence and source checksums
+      - name: Upload compact wallet behaviour summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperliquid-wallet-archive-summary
+          path: reports/hyperliquid_wallet_archive/wallet_archive_manifest.json
+          retention-days: 90
+      - name: Upload filtered wallet trade-level evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: hyperliquid-wallet-archive-research
-          path: reports/hyperliquid_wallet_archive/
+          path: reports/hyperliquid_wallet_archive/wallet_trades.parquet
           retention-days: 90
