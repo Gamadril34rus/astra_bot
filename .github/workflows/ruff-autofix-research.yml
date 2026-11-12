@@ -8,7 +8,7 @@ on:
       - ".github/workflows/ruff-autofix-research.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   autofix:
@@ -23,6 +23,15 @@ jobs:
         run: |
           python -m ruff check --fix scripts/collect_ironflow_wallet_archive.py scripts/analyze_ironflow_wallet_flow.py tests/unit/test_collect_ironflow_wallet_archive.py tests/unit/test_analyze_ironflow_wallet_flow.py
           python -m ruff check scripts/collect_ironflow_wallet_archive.py scripts/analyze_ironflow_wallet_flow.py tests/unit/test_collect_ironflow_wallet_archive.py tests/unit/test_analyze_ironflow_wallet_flow.py
+      - name: Commit isolated research lint fixes
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add scripts/collect_ironflow_wallet_archive.py scripts/analyze_ironflow_wallet_flow.py tests/unit/test_collect_ironflow_wallet_archive.py tests/unit/test_analyze_ironflow_wallet_flow.py
+            git commit -m "style(research): apply Ruff fixes to wallet research"
+            git push
+          fi
       - name: Upload fixed files
         uses: actions/upload-artifact@v4
         with:
