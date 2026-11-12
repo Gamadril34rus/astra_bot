@@ -71,10 +71,11 @@ jobs:
         env:
           OKX_SYMBOLS: ${{ inputs.symbols || 'BTC,ETH,SOL,INJ' }}
         run: |
+          OKX_SYMBOLS_USDT="$(printf '%s' "$OKX_SYMBOLS" | sed 's/,/-USDT,/g')-USDT"
           python -m scripts.research_15m_pullback_continuation \
             --data-dir data/okx_usdm \
             --signal-timeframe 15m \
-            --symbols ${OKX_SYMBOLS//,/\-USDT,}-USDT \
+            --symbols "$OKX_SYMBOLS_USDT" \
             --fee-bps 5 --spread-bps 2 --slippage-bps 3 \
             --max-period ALL \
             --out reports/okx_15m_pullback_base
@@ -82,10 +83,11 @@ jobs:
         env:
           OKX_SYMBOLS: ${{ inputs.symbols || 'BTC,ETH,SOL,INJ' }}
         run: |
+          OKX_SYMBOLS_USDT="$(printf '%s' "$OKX_SYMBOLS" | sed 's/,/-USDT,/g')-USDT"
           python -m scripts.research_15m_pullback_continuation \
             --data-dir data/okx_usdm \
             --signal-timeframe 15m \
-            --symbols BTC-USDT,ETH-USDT,SOL-USDT,HYPE-USDT,INJ-USDT \
+            --symbols "$OKX_SYMBOLS_USDT" \
             --fee-bps 7.5 --spread-bps 3 --slippage-bps 4.5 \
             --max-period ALL \
             --out reports/okx_15m_pullback_stress
@@ -93,12 +95,13 @@ jobs:
         env:
           OKX_SYMBOLS: ${{ inputs.symbols || 'BTC,ETH,SOL,INJ' }}
         run: |
+          OKX_SYMBOLS_USDT="$(printf '%s' "$OKX_SYMBOLS" | sed 's/,/-USDT,/g')-USDT"
           for family in COMPRESSION_BREAKOUT FALSE_BREAK_REVERSAL TREND_PULLBACK RANGE_REVERSION; do
             slug="${family,,}"
             python -m scripts.research_adaptive_perp_portfolio \
               --data-dir data/okx_usdm \
               --signal-timeframe 15m \
-              --symbols BTC-USDT,ETH-USDT,SOL-USDT,HYPE-USDT,INJ-USDT \
+              --symbols "$OKX_SYMBOLS_USDT" \
               --family-only "$family" \
               --fee-bps 5 --spread-bps 2 --slippage-bps 3 \
               --max-period ALL \
@@ -106,7 +109,7 @@ jobs:
             python -m scripts.research_adaptive_perp_portfolio \
               --data-dir data/okx_usdm \
               --signal-timeframe 15m \
-              --symbols BTC-USDT,ETH-USDT,SOL-USDT,HYPE-USDT,INJ-USDT \
+              --symbols "$OKX_SYMBOLS_USDT" \
               --family-only "$family" \
               --fee-bps 7.5 --spread-bps 3 --slippage-bps 4.5 \
               --max-period ALL \
