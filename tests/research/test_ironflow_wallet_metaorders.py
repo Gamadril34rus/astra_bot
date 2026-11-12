@@ -1,7 +1,7 @@
 import importlib.util
-from pathlib import Path
-from datetime import datetime, timedelta, timezone
 import unittest
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "research" / "ironflow_wallet_metaorders.py"
 spec = importlib.util.spec_from_file_location("ironflow_wallet_metaorders", SCRIPT)
@@ -13,7 +13,7 @@ class MetaorderGroupingTests(unittest.TestCase):
     def make_row(self, oid, minute, direction="Open Long", side="buy", tx_hash="0xabc"):
         return {
             "oid": oid,
-            "ts": (datetime(2026, 11, 12, 12, 0, tzinfo=timezone.utc) + timedelta(minutes=minute)).isoformat(),
+            "ts": (datetime(2026, 11, 12, 12, 0, tzinfo=UTC) + timedelta(minutes=minute)).isoformat(),
             "side": side,
             "direction": direction,
             "q_notional": 100.0,
