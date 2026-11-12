@@ -29,7 +29,7 @@
       "side": "short",
       "qty": "0.2886",
       "stop": "72877.84920",
-      "tp": "71864.510640",
+      "tp": "70001.29720",
       "entry": "72950.8",
       "leverage": 5,
       "pending_verify": false,
@@ -42,14 +42,19 @@
       "be_earned": true,
       "peak_low": "71909.6",
       "current_regime": "STRONG_BEAR_TREND",
-      "tp1": "71864.510640"
+      "tp1": "71864.510640",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true,
+      "runner_tp_rr": 1.5,
+      "runner_tp_healed_v1": true
     },
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
       "side": "short",
       "qty": "7.663",
       "stop": "2028.049920",
-      "tp": "1989.3295",
+      "tp": "1918.900",
       "entry": "2030.08",
       "leverage": 5,
       "pending_verify": false,
@@ -63,7 +68,12 @@
       "peak_low": "1991.46",
       "current_regime": "STRONG_BEAR_TREND",
       "tp1": "1989.3295",
-      "migrate_stop_v1": true
+      "migrate_stop_v1": true,
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true,
+      "runner_tp_rr": 1.5,
+      "runner_tp_healed_v1": true
     },
     "SOL-USDT|short": {
       "symbol": "SOL-USDT",
@@ -89,5 +99,5 @@
       "early_tp_repair_v1": true
     }
   },
-  "ts": 1794493636.9398723
+  "ts": 1794493955.4740589
 }

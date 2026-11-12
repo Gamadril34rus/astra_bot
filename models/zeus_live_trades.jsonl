@@ -2535,3 +2535,5 @@
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2120882412069675008", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794493370.2671633}
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2120885031852924928", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794493626.458148}
 {"event": "order_cancel", "symbol": "ETH-USDT", "order_id": "2120867413888688128", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794493634.4263997}
+{"event": "partial_fill", "symbol": "BTC-USDT", "side": null, "qty": null, "price": null, "pnl": 136.49058, "income_type": "REALIZED_PNL", "income_id": "1794212561561284082_512_673381_PNL", "source": "income_tape", "ts": 1794493614.0}
+{"event": "partial_fill", "symbol": "ETH-USDT", "side": null, "qty": null, "price": null, "pnl": 129.13537, "income_type": "REALIZED_PNL", "income_id": "1794212561561284082_512_673385_PNL", "source": "income_tape", "ts": 1794493614.0}
