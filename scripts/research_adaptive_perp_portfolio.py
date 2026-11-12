@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Research-only regime-routed backtest for BingX USDT-M perpetuals."""
+"""Research-only regime-routed backtest for USDT-margined perpetuals."""
 from __future__ import annotations
 
 import argparse
@@ -437,7 +437,7 @@ def common_15m_coverage_window(
     start_ms = max(int(item[start_key]) for item in coverage.values())
     end_ms = min(int(item[end_key]) for item in coverage.values())
     if end_ms < start_ms:
-        raise ValueError(f"BingX symbols have no common {timeframe} history window")
+        raise ValueError(f"symbols have no common {timeframe} history window")
     days = (end_ms - start_ms) / 86_400_000
     return {
         "common_start_utc": pd.to_datetime(start_ms, unit="ms", utc=True).isoformat(),
@@ -637,12 +637,12 @@ def main() -> int:
         funding_path = args.data_dir / f"funding_{stem}.csv"
         for path in (signal_path, h1_path, funding_path):
             if not path.exists():
-                raise SystemExit(f"INCOMPLETE: required BingX source is missing: {path}")
+                raise SystemExit(f"INCOMPLETE: required market-data source is missing: {path}")
         signal_bars = load_bars(signal_path, args.signal_timeframe)
         h1 = load_bars(h1_path, "1h")
         funding = load_funding(funding_path, symbol)
         if funding.empty:
-            raise SystemExit(f"INCOMPLETE: {symbol} has no BingX funding history")
+            raise SystemExit(f"INCOMPLETE: {symbol} has no funding history")
         raw_funding = funding
         funding, excluded_funding_events = latest_contiguous_funding_segment(funding)
         excluded_funding_first = (
@@ -653,7 +653,7 @@ def main() -> int:
             if excluded_funding_events else None
         )
         if funding.empty:
-            raise SystemExit(f"INCOMPLETE: {symbol} has no contiguous BingX funding segment")
+            raise SystemExit(f"INCOMPLETE: {symbol} has no contiguous funding segment")
         signal_bars = signal_bars[
             signal_bars.open_time >= int(funding.funding_time.iloc[0])
         ].reset_index(drop=True)
@@ -721,7 +721,7 @@ def main() -> int:
         ].copy().reset_index(drop=True)
         if funding.empty:
             raise SystemExit(
-                f"INCOMPLETE: {symbol} has no BingX funding events before the simulation cutoff"
+                f"INCOMPLETE: {symbol} has no funding events before the simulation cutoff"
             )
         if signal_bars.empty:
             raise SystemExit(
