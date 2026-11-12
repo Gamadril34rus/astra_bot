@@ -1,11 +1,9 @@
-# ruff: noqa: I001
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-
 from scripts.analyze_ironflow_wallet_flow import HORIZONS, _sql_path, analyze
 
 
