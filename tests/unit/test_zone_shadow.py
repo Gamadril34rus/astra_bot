@@ -77,7 +77,11 @@ def test_recent_fallback_is_used_only_when_full_profile_has_no_zones(monkeypatch
 
     assert calls == [500, 120]
     assert zones == expected
-    assert meta == {"source": "recent_fallback", "lookback_bars": 119}
+    assert meta == {
+        "source": "recent_fallback",
+        "lookback_bars": 119,
+        "full_lookback_bars": 499,
+    }
 
 
 def test_full_profile_prevents_unnecessary_recent_fallback(monkeypatch):
