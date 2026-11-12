@@ -7,7 +7,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: astra-state-writers
+  # Unique per dispatch; the shared Git-ref lock queues writers without dropping ticks.
+  group: astra-state-writer-${{ github.run_id }}-${{ github.run_attempt }}
   cancel-in-progress: false
 
 permissions:
@@ -32,6 +33,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt python-dotenv
+
+      - name: Acquire shared state lock
+        run: python scripts/ci_state_lock.py acquire --wait-seconds 5400 --stale-after-seconds 2700
 
       - name: Restore state
         run: |
@@ -103,3 +107,7 @@ jobs:
             echo "Save Zeus state: push failed after retries" >&2
             exit 1
           fi
+
+      - name: Release shared state lock
+        if: always()
+        run: python scripts/ci_state_lock.py release
