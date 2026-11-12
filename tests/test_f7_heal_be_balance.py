@@ -37,8 +37,8 @@ def test_fmt_balance_counts_positions_not_zeroed_by_equity(tmp_path, monkeypatch
 def test_sync_partial_uses_current_price(tmp_path, monkeypatch):
     """F7.4: mark from Position.current_price (BingX markPrice mapping)."""
     import asyncio
-    from scripts.zeus_live_clock import sync_partial_breakeven
     from astra_bot.decision.live_positions import upsert_plan
+    from scripts.zeus_live_clock import sync_partial_breakeven
 
     monkeypatch.chdir(tmp_path)
     models = tmp_path / "models"
