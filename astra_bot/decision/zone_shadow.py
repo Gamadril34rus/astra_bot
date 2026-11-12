@@ -92,6 +92,37 @@ def build_volume_zones(
     return sorted(selected, key=lambda z: z["center"])
 
 
+def build_volume_zones_with_fallback(
+    candles: list[Any],
+    *,
+    price: float | None = None,
+    fallback_lookback: int = 120,
+    bins: int = 24,
+    max_zones: int = 6,
+    radius_pct: float = 0.10,
+) -> tuple[list[dict[str, float]], dict[str, Any]]:
+    """Use the full profile first; fall back to a recent 4h window if it has no nearby HVNs.
+
+    Long histories can make a fixed 24-bin profile too coarse and push every local
+    maximum outside the ±10% relevance band. The recent fallback preserves the
+    same volume algorithm and price band; it does not disable the zone gate.
+    """
+    zones = build_volume_zones(
+        candles, price=price, bins=bins, max_zones=max_zones, radius_pct=radius_pct
+    )
+    if zones:
+        return zones, {"source": "full_window", "lookback_bars": max(0, len(candles) - 1)}
+    lookback = max(12, int(fallback_lookback))
+    recent = list(candles[-lookback:]) if len(candles) > lookback else list(candles)
+    if len(recent) < len(candles):
+        zones = build_volume_zones(
+            recent, price=price, bins=bins, max_zones=max_zones, radius_pct=radius_pct
+        )
+        if zones:
+            return zones, {"source": "recent_fallback", "lookback_bars": max(0, len(recent) - 1)}
+    return [], {"source": "empty", "lookback_bars": max(0, len(candles) - 1)}
+
+
 def zone_context(price: float, zones: list[dict[str, float]]) -> dict[str, Any]:
     above = [z for z in zones if z["lower"] > price]
     below = [z for z in zones if z["upper"] < price]
