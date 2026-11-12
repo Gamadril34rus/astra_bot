@@ -421,9 +421,9 @@ def fetch_funding_archive(
     return rates, summary
 
 
-def run_probe(month: str, out_dir: Path) -> dict:
+def run_probe(month: str, out_dir: Path, base_symbols: tuple[str, ...] = SYMBOLS) -> dict:
     begin_ms, end_ms = month_bounds_hk(month)
-    symbols = tuple(f"{symbol}-USDT" for symbol in SYMBOLS)
+    symbols = tuple(f"{symbol}-USDT" for symbol in base_symbols)
     params = {
         "module": "2",
         "instType": "SWAP",
@@ -438,7 +438,7 @@ def run_probe(month: str, out_dir: Path) -> dict:
     for attempt in range(8):
         try:
             payload = _request_json(ARCHIVE_PATH, params)
-            files = _archive_files(payload, month, SYMBOLS)
+            files = _archive_files(payload, month, base_symbols)
             break
         except (RuntimeError, ValueError) as exc:
             last_error = str(exc)
@@ -552,11 +552,21 @@ def month_sequence(start_month: str, end_month: str) -> list[str]:
     return result
 
 
-def run_probe_range(start_month: str, end_month: str, out_dir: Path) -> dict:
+def run_probe_range(
+    start_month: str,
+    end_month: str,
+    out_dir: Path,
+    base_symbols: tuple[str, ...] = SYMBOLS,
+) -> dict:
     """Download monthly OKX candles and settled funding, then enforce common coverage."""
+    if not base_symbols or len(set(base_symbols)) != len(base_symbols):
+        raise ValueError("symbols must be a non-empty unique tuple")
+    unknown = sorted(set(base_symbols) - set(SYMBOLS))
+    if unknown:
+        raise ValueError(f"unsupported OKX research symbols: {unknown}")
     months = month_sequence(start_month, end_month)
     month_reports = {
-        month: run_probe(month, out_dir / month)
+        month: run_probe(month, out_dir / month, base_symbols)
         for month in months
     }
     for month in months:
@@ -565,7 +575,7 @@ def run_probe_range(start_month: str, end_month: str, out_dir: Path) -> dict:
                 month_reports[month]["symbols"][inst_id] = patch_month_gaps(
                     inst_id, month, summary, out_dir
                 )
-    expected_symbols = [f"{symbol}-USDT-SWAP" for symbol in SYMBOLS]
+    expected_symbols = [f"{symbol}-USDT-SWAP" for symbol in base_symbols]
     first_begin, _ = month_bounds_hk(months[0])
     _, last_end = month_bounds_hk(months[-1])
     expected_minutes = (last_end + 1 - first_begin) // 60_000
@@ -667,13 +677,24 @@ def main() -> None:
     parser.add_argument("--start-month", default=None, help="Inclusive first month, YYYY-MM")
     parser.add_argument("--end-month", default=None, help="Inclusive last month, YYYY-MM")
     parser.add_argument("--out-dir", type=Path, default=Path("reports/okx_public_history_probe"))
+    parser.add_argument(
+        "--symbols",
+        default=",".join(SYMBOLS),
+        help="comma-separated OKX base symbols from the frozen research universe",
+    )
     args = parser.parse_args()
+    base_symbols = tuple(part.strip().upper() for part in args.symbols.split(",") if part.strip())
+    if not base_symbols or len(set(base_symbols)) != len(base_symbols):
+        parser.error("--symbols must contain unique comma-separated symbols")
+    unknown = sorted(set(base_symbols) - set(SYMBOLS))
+    if unknown:
+        parser.error(f"unsupported --symbols: {unknown}")
     if args.start_month or args.end_month:
         if not args.start_month or not args.end_month or args.month:
             parser.error("provide both --start-month and --end-month, or only --month")
-        report = run_probe_range(args.start_month, args.end_month, args.out_dir)
+        report = run_probe_range(args.start_month, args.end_month, args.out_dir, base_symbols)
     else:
-        report = run_probe(args.month or "2026-10", args.out_dir)
+        report = run_probe(args.month or "2026-10", args.out_dir, base_symbols)
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
 
