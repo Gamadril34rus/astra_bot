@@ -78,18 +78,33 @@ def month_bounds_hk(month: str) -> tuple[int, int]:
 
 def _archive_files(payload: dict, month: str, symbols: tuple[str, ...]) -> dict[str, dict]:
     data = payload.get("data")
-    if not isinstance(data, dict):
-        raise ValueError("OKX market-data-history response data is not an object")
-    details = data.get("details")
+    if isinstance(data, dict):
+        details = data.get("details") or data.get("list")
+        if details is None and "groupDetails" in data:
+            details = [data]
+    elif isinstance(data, list):
+        details = data
+    else:
+        raise ValueError(
+            f"OKX market-data-history response data has unsupported shape: "
+            f"{type(data).__name__} {str(data)[:500]}"
+        )
     if not isinstance(details, list):
-        raise ValueError("OKX market-data-history response has no details array")
+        raise ValueError(
+            f"OKX market-data-history response has no details array: {str(data)[:500]}"
+        )
     expected = {f"{symbol}-USDT" for symbol in symbols}
     files: dict[str, dict] = {}
     for detail in details:
         if not isinstance(detail, dict):
             continue
         family = str(detail.get("instFamily") or "")
-        for item in detail.get("groupDetails") or []:
+        group_items = detail.get("groupDetails")
+        if not isinstance(group_items, list):
+            group_items = [detail] if detail.get("filename") and detail.get("url") else []
+        for item in group_items:
+            if not isinstance(item, dict):
+                continue
             filename = str(item.get("filename") or "")
             url = str(item.get("url") or "")
             url_name = urlparse(url).path.rsplit("/", 1)[-1]
@@ -102,7 +117,10 @@ def _archive_files(payload: dict, month: str, symbols: tuple[str, ...]) -> dict[
                     files[family_key] = item
     missing = sorted(expected - set(files))
     if missing:
-        raise RuntimeError(f"OKX archive listing omitted expected families for {month}: {missing}")
+        raise RuntimeError(
+            f"OKX archive listing omitted expected families for {month}: {missing}; "
+            f"response sample={str(data)[:1000]}"
+        )
     return files
 
 
@@ -267,7 +285,7 @@ def run_probe(month: str, out_dir: Path) -> dict:
         "begin_ms_inclusive": begin_ms,
         "end_ms_inclusive": end_ms,
         "archive_endpoint": f"{BASE_URL}{ARCHIVE_PATH}",
-        "archive_total_size_mb": payload.get("data", {}).get("totalSizeMB"),
+        "archive_total_size_mb": (payload.get("data", {}).get("totalSizeMB") if isinstance(payload.get("data"), dict) else None),
         "symbols": {},
         "limitations": [
             "OKX data is a cross-venue robustness source, not BingX execution data.",
