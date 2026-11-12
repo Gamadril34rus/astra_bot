@@ -182,7 +182,9 @@ async def scan_zone_shadow(client: Any, symbols: list[str] | tuple[str, ...] = F
     """Observe zones and persist per-closed-4h-bar minimum approach distances."""
     try:
         from astra_bot.decision.zone_shadow import (
-            build_volume_zones_with_fallback, is_enabled, zone_context,
+            build_volume_zones_with_fallback,
+            is_enabled,
+            zone_context,
         )
         if not is_enabled():
             return {}
