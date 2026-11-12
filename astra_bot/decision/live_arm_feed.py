@@ -273,13 +273,14 @@ async def scan_zone_shadow(client: Any, symbols: list[str] | tuple[str, ...] = F
             _save_zone_approach_state(approach_state)
             try:
                 append_journal({
-                "event": "zone_shadow", "symbol": symbol, "price": price_now,
-                "nearest_above": context.get("above"), "nearest_below": context.get("below"),
-                "in_zone": context.get("in_zone"), "zones": zone_rows,
-                "profile_source": profile_meta.get("source"),
-                "profile_lookback_bars": profile_meta.get("lookback_bars"),
-                "bar_ts": closed_ts, "ts": time.time(),
-            })
+                    "event": "zone_shadow", "symbol": symbol, "price": price_now,
+                    "nearest_above": context.get("above"),
+                    "nearest_below": context.get("below"),
+                    "in_zone": context.get("in_zone"), "zones": zone_rows,
+                    "profile_source": profile_meta.get("source"),
+                    "profile_lookback_bars": profile_meta.get("lookback_bars"),
+                    "bar_ts": closed_ts, "ts": time.time(),
+                })
             except Exception as exc:
                 logger.warning("zone shadow journal failed %s: %s", symbol, type(exc).__name__)
         except Exception as exc:
