@@ -4,7 +4,6 @@ import io
 import json
 
 import pytest
-
 from scripts import probe_bingx_public_history as probe
 from scripts.probe_bingx_public_history import (
     _kline_summary,
