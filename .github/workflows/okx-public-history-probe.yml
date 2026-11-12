@@ -76,6 +76,27 @@ jobs:
             --fee-bps 7.5 --spread-bps 3 --slippage-bps 4.5 \
             --max-period ALL \
             --out reports/okx_15m_pullback_stress
+      - name: Independently replay each 15m regime family at base and 1.5x costs
+        run: |
+          for family in COMPRESSION_BREAKOUT FALSE_BREAK_REVERSAL TREND_PULLBACK RANGE_REVERSION; do
+            slug="${family,,}"
+            python -m scripts.research_adaptive_perp_portfolio \
+              --data-dir data/okx_usdm \
+              --signal-timeframe 15m \
+              --symbols BTC-USDT,ETH-USDT,SOL-USDT,HYPE-USDT,INJ-USDT \
+              --family-only "$family" \
+              --fee-bps 5 --spread-bps 2 --slippage-bps 3 \
+              --max-period ALL \
+              --out "reports/okx_15m_${slug}_base"
+            python -m scripts.research_adaptive_perp_portfolio \
+              --data-dir data/okx_usdm \
+              --signal-timeframe 15m \
+              --symbols BTC-USDT,ETH-USDT,SOL-USDT,HYPE-USDT,INJ-USDT \
+              --family-only "$family" \
+              --fee-bps 7.5 --spread-bps 3 --slippage-bps 4.5 \
+              --max-period ALL \
+              --out "reports/okx_15m_${slug}_stress"
+          done
       - name: Upload immutable OKX probe and replay evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -84,7 +105,6 @@ jobs:
           path: |
             reports/okx_public_history_probe/
             data/okx_usdm/
-            reports/okx_15m_pullback_base/
-            reports/okx_15m_pullback_stress/
+            reports/okx_15m_*/
           if-no-files-found: warn
           retention-days: 90
