@@ -118,71 +118,118 @@ def select_cohort(rows: list[dict[str, Any]], limit: int = MAX_WALLETS) -> list[
 
 
 def fetch_wallet_fills(
-    address: str, now_ms: int, pause_s: float = DEFAULT_PAUSE_SECONDS
+    address: str,
+    now_ms: int,
+    pause_s: float = DEFAULT_PAUSE_SECONDS,
+    window_hours: float = 96,
 ) -> dict[str, Any]:
-    """Fetch the documented 10k recent-fill window with timestamp pagination."""
-    cursor = 0
-    fills: dict[tuple[Any, ...], dict[str, Any]] = {}
-    pages = 0
-    rate_limit_weight = 0
+    """Fetch a common recent window, including normal and TWAP slice fills."""
+    if window_hours <= 0:
+        raise ValueError("window_hours must be positive")
+    start_ms = max(0, now_ms - int(window_hours * 60 * 60 * 1000))
     errors: list[str] = []
-    while cursor <= now_ms and len(fills) < MAX_FILLS_PER_WALLET:
-        try:
-            batch = _post_json({
-                "type": "userFillsByTime",
-                "user": address,
-                "startTime": cursor,
-                "endTime": now_ms,
-                "aggregateByTime": False,
-            })
-        except (HTTPError, URLError, TimeoutError, ValueError) as exc:
-            errors.append(f"{type(exc).__name__}: {exc}")
-            break
-        pages += 1
-        rate_limit_weight += 20 + math.ceil(len(batch) / 20)
-        if batch:
-            for fill in batch:
+    rate_limit_weight = 0
+
+    def collect(endpoint_type: str, source: str, is_twap: bool = False) -> dict[str, Any]:
+        nonlocal rate_limit_weight
+        cursor = start_ms
+        collected: dict[tuple[Any, ...], dict[str, Any]] = {}
+        pages = 0
+        while cursor <= now_ms and len(collected) < MAX_FILLS_PER_WALLET:
+            try:
+                batch = _post_json({
+                    "type": endpoint_type,
+                    "user": address,
+                    "startTime": cursor,
+                    "endTime": now_ms,
+                    "aggregateByTime": False,
+                })
+            except (HTTPError, URLError, TimeoutError, ValueError) as exc:
+                errors.append(f"{endpoint_type}: {type(exc).__name__}: {exc}")
+                break
+            pages += 1
+            rate_limit_weight += 20 + math.ceil(len(batch) / 20)
+            normalized_batch = []
+            for row in batch:
+                fill = row.get("fill") if is_twap and isinstance(row.get("fill"), dict) else row
+                if not isinstance(fill, dict):
+                    continue
+                normalized = dict(fill)
+                if is_twap:
+                    normalized["twapId"] = row.get("twapId") or fill.get("twapId")
+                normalized["fill_source"] = source
+                normalized_batch.append(normalized)
                 key = (
-                    fill.get("coin"), fill.get("time"), fill.get("tid"),
-                    fill.get("oid"), fill.get("side"), fill.get("px"), fill.get("sz"),
+                    normalized.get("coin"), normalized.get("time"), normalized.get("tid"),
+                    normalized.get("oid"), normalized.get("side"), normalized.get("px"),
+                    normalized.get("sz"), normalized.get("twapId"),
                 )
-                fills[key] = fill
+                collected[key] = normalized
             times = [
-                int(item.get("time", 0))
-                for item in batch if item.get("time") is not None
+                int(item["time"])
+                for item in normalized_batch
+                if item.get("time") is not None
             ]
-            if not times:
-                errors.append("response page had no fill timestamps")
+            if batch and not times:
+                errors.append(f"{endpoint_type}: response page had no fill timestamps")
                 time.sleep(pause_s)
                 break
-            next_cursor = max(times) + 1
-            if next_cursor <= cursor:
-                errors.append("pagination cursor did not advance")
-                time.sleep(pause_s)
+            if times:
+                next_cursor = max(times) + 1
+                if next_cursor <= cursor:
+                    errors.append(f"{endpoint_type}: pagination cursor did not advance")
+                    time.sleep(pause_s)
+                    break
+                cursor = next_cursor
+            time.sleep(pause_s)
+            if not batch or len(batch) < PAGE_SIZE:
                 break
-            cursor = next_cursor
-        time.sleep(pause_s)
-        if not batch or len(batch) < PAGE_SIZE:
-            break
-    ordered = sorted(
-        fills.values(),
-        key=lambda item: (int(item.get("time", 0)), int(item.get("tid", 0))),
-    )
+        ordered = sorted(
+            collected.values(),
+            key=lambda item: int(item.get("time", 0)),
+        )
+        return {
+            "fills": ordered[:MAX_FILLS_PER_WALLET],
+            "fill_count": min(len(ordered), MAX_FILLS_PER_WALLET),
+            "pages": pages,
+            "at_api_cap": len(ordered) >= MAX_FILLS_PER_WALLET,
+        }
+
+    regular = collect("userFillsByTime", "user_fill")
+    twap = collect("userTwapSliceFillsByTime", "twap_slice", is_twap=True)
+    merged: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for fill in regular["fills"] + twap["fills"]:
+        key = (
+            fill.get("coin"), fill.get("time"), fill.get("tid"), fill.get("oid"),
+            fill.get("side"), fill.get("px"), fill.get("sz"), fill.get("twapId"),
+            fill.get("fill_source"),
+        )
+        merged[key] = fill
+    ordered = sorted(merged.values(), key=lambda item: int(item.get("time", 0)))
     times = [int(item["time"]) for item in ordered if item.get("time") is not None]
+    at_api_cap = regular["at_api_cap"] or twap["at_api_cap"]
     return {
         "address": address,
-        "fills": ordered[:MAX_FILLS_PER_WALLET],
-        "fill_count": min(len(ordered), MAX_FILLS_PER_WALLET),
+        "fills": ordered,
+        "fill_count": len(ordered),
+        "regular_fill_count": regular["fill_count"],
+        "twap_slice_fill_count": twap["fill_count"],
         "first_fill_time_ms": min(times) if times else None,
         "last_fill_time_ms": max(times) if times else None,
-        "pages": pages,
+        "requested_start_time_ms": start_ms,
+        "requested_end_time_ms": now_ms,
+        "window_hours": window_hours,
+        "regular_pages": regular["pages"],
+        "twap_pages": twap["pages"],
         "estimated_rate_limit_weight": rate_limit_weight,
-        "at_api_cap": len(ordered) >= MAX_FILLS_PER_WALLET,
+        "at_api_cap": at_api_cap,
+        "window_complete": not errors and not at_api_cap,
         "errors": errors,
         "coverage_note": (
-            "API cap reached: history before the returned recent 10,000 fills is unavailable via this endpoint."
-            if len(ordered) >= MAX_FILLS_PER_WALLET
-            else "Only the endpoint-returned window is captured; no claim of complete account history."
+            "At least one endpoint reached its 10,000-fill cap; this window is left-censored."
+            if at_api_cap
+            else "Both normal fills and TWAP slices were queried for the requested common time window; "
+            "coverage is incomplete if any endpoint error is listed."
         ),
     }
 
@@ -246,7 +293,7 @@ def summarize_fills(fills: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "actions": dict(sorted(actions.items())),
         "fills_by_coin": dict(sorted(coins.items())),
-        "fills_by_market_class": dict(sorted(market_classes.items())),
+        "fills_by_market_class": dict(sorted(market_classes.items())),\n        "fills_by_source": dict(sorted(fill_sources.items())),
         "taker_fill_share": crossed / len(fills) if fills else None,
         "reported_fill_fees": fees,
         "reported_closed_pnl": closed_pnl,
@@ -261,7 +308,7 @@ def _write_json(path: Path, payload: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def run(out_dir: Path, limit: int = MAX_WALLETS, pause_s: float = DEFAULT_PAUSE_SECONDS) -> dict[str, Any]:
+def run(\n    out_dir: Path,\n    limit: int = MAX_WALLETS,\n    pause_s: float = DEFAULT_PAUSE_SECONDS,\n    window_hours: float = 96,\n) -> dict[str, Any]:
     generated = datetime.now(UTC)
     now_ms = int(generated.timestamp() * 1000)
     leaderboard = _get_json(LEADERBOARD_URL)
@@ -327,7 +374,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out-dir", type=Path, default=Path("reports/public_wallet_panel"))
     parser.add_argument("--limit", type=int, default=MAX_WALLETS)
-    parser.add_argument("--pause-seconds", type=float, default=DEFAULT_PAUSE_SECONDS)
+    parser.add_argument("--pause-seconds", type=float, default=DEFAULT_PAUSE_SECONDS)\n    parser.add_argument("--window-hours", type=float, default=96)
     args = parser.parse_args()
     if not 1 <= args.limit <= MAX_WALLETS:
         raise SystemExit(f"--limit must be between 1 and {MAX_WALLETS}")
