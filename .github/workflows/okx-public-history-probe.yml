@@ -1,4 +1,4 @@
-name: OKX public market history research probe
+name: OKX public market history archive (research support)
 
 on:
   push:
@@ -8,9 +8,6 @@ on:
       - "tests/unit/test_probe_okx_public_history.py"
       - "scripts/build_okx_backtest_dataset.py"
       - "tests/unit/test_build_okx_backtest_dataset.py"
-      - "scripts/research_15m_pullback_continuation.py"
-      - "scripts/research_adaptive_perp_portfolio.py"
-      - "tests/unit/test_research_adaptive_perp_portfolio.py"
       - ".github/workflows/okx-public-history-probe.yml"
   workflow_dispatch:
     inputs:
@@ -34,8 +31,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: okx-public-history-research
-  cancel-in-progress: false
+  group: okx-public-history-archive
+  cancel-in-progress: true
 
 jobs:
   public-history-probe:
@@ -46,15 +43,15 @@ jobs:
       - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
         with:
           python-version: "3.11"
-      - name: Install test dependencies
+      - name: Install isolated data-validation dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install pytest ruff numpy pandas
-      - name: Run isolated tests
+      - name: Test archive acquisition and dataset builder
         run: |
           python -m pytest tests/unit/test_probe_okx_public_history.py tests/unit/test_build_okx_backtest_dataset.py -q --confcutdir=tests/unit
           python -m ruff check --config pyproject.toml scripts/probe_okx_public_history.py scripts/build_okx_backtest_dataset.py tests/unit/test_probe_okx_public_history.py tests/unit/test_build_okx_backtest_dataset.py
-      - name: Download and validate extended public OKX swap history
+      - name: Download and validate public OKX swap history
         env:
           OKX_START_MONTH: ${{ inputs.start_month || '2023-08' }}
           OKX_END_MONTH: ${{ inputs.end_month || '2026-10' }}
@@ -64,65 +61,16 @@ jobs:
             --start-month "$OKX_START_MONTH" \
             --end-month "$OKX_END_MONTH" \
             --symbols "$OKX_SYMBOLS"
-      - name: Build strict 15m/1h and settled-funding backtest dataset
+      - name: Build clean 15m/1h candles and settled funding reference
         run: |
           python scripts/build_okx_backtest_dataset.py --source-dir reports/okx_public_history_probe --out-dir data/okx_usdm
-      - name: Run 15m pullback on OKX at base execution costs
-        env:
-          OKX_SYMBOLS: ${{ inputs.symbols || 'BTC,ETH,SOL,INJ' }}
-        run: |
-          OKX_SYMBOLS_USDT="$(printf '%s' "$OKX_SYMBOLS" | sed 's/,/-USDT,/g')-USDT"
-          python -m scripts.research_15m_pullback_continuation \
-            --data-dir data/okx_usdm \
-            --signal-timeframe 15m \
-            --symbols "$OKX_SYMBOLS_USDT" \
-            --fee-bps 5 --spread-bps 2 --slippage-bps 3 \
-            --max-period ALL \
-            --out reports/okx_15m_pullback_base
-      - name: Run same frozen rules at 1.5x execution costs
-        env:
-          OKX_SYMBOLS: ${{ inputs.symbols || 'BTC,ETH,SOL,INJ' }}
-        run: |
-          OKX_SYMBOLS_USDT="$(printf '%s' "$OKX_SYMBOLS" | sed 's/,/-USDT,/g')-USDT"
-          python -m scripts.research_15m_pullback_continuation \
-            --data-dir data/okx_usdm \
-            --signal-timeframe 15m \
-            --symbols "$OKX_SYMBOLS_USDT" \
-            --fee-bps 7.5 --spread-bps 3 --slippage-bps 4.5 \
-            --max-period ALL \
-            --out reports/okx_15m_pullback_stress
-      - name: Independently replay each 15m regime family at base and 1.5x costs
-        env:
-          OKX_SYMBOLS: ${{ inputs.symbols || 'BTC,ETH,SOL,INJ' }}
-        run: |
-          OKX_SYMBOLS_USDT="$(printf '%s' "$OKX_SYMBOLS" | sed 's/,/-USDT,/g')-USDT"
-          for family in COMPRESSION_BREAKOUT FALSE_BREAK_REVERSAL TREND_PULLBACK RANGE_REVERSION; do
-            slug="${family,,}"
-            python -m scripts.research_adaptive_perp_portfolio \
-              --data-dir data/okx_usdm \
-              --signal-timeframe 15m \
-              --symbols "$OKX_SYMBOLS_USDT" \
-              --family-only "$family" \
-              --fee-bps 5 --spread-bps 2 --slippage-bps 3 \
-              --max-period ALL \
-              --out "reports/okx_15m_${slug}_base"
-            python -m scripts.research_adaptive_perp_portfolio \
-              --data-dir data/okx_usdm \
-              --signal-timeframe 15m \
-              --symbols "$OKX_SYMBOLS_USDT" \
-              --family-only "$family" \
-              --fee-bps 7.5 --spread-bps 3 --slippage-bps 4.5 \
-              --max-period ALL \
-              --out "reports/okx_15m_${slug}_stress"
-          done
-      - name: Upload immutable OKX probe and replay evidence
+      - name: Upload immutable market-data evidence (no strategy replay)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: okx-public-history-and-replay
+          name: okx-public-market-history
           path: |
             reports/okx_public_history_probe/
             data/okx_usdm/
-            reports/okx_15m_*/
           if-no-files-found: warn
           retention-days: 90
