@@ -88,9 +88,10 @@ def test_sync_partial_uses_current_price(tmp_path, monkeypatch):
     assert "DOGE-USDT" not in out.get("skipped", []) or out.get("moved")
 
 
-def test_heal_dead_tp_replace_first_after_2_ticks(tmp_path, monkeypatch):
+def test_heal_dead_tp_crossed_is_terminal_after_two_ticks(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "models").mkdir()
+    models = tmp_path / "models"
+    models.mkdir()
     from astra_bot.decision.live_positions import upsert_plan
     from scripts.zeus_live_clock import heal_dead_tp_legs
 
@@ -101,10 +102,15 @@ def test_heal_dead_tp_replace_first_after_2_ticks(tmp_path, monkeypatch):
         stop="0.09",
         tp="0.077",
         entry="0.08",
-        path=tmp_path / "models" / "zeus_live_positions.json",
+        path=models / "zeus_live_positions.json",
     )
     placed = []
     cancelled = []
+    journals = []
+    monkeypatch.setattr(
+        "astra_bot.decision.live_arm_wiring.append_journal",
+        journals.append,
+    )
 
     old_tp = SimpleNamespace(
         id="old1",
@@ -145,9 +151,16 @@ def test_heal_dead_tp_replace_first_after_2_ticks(tmp_path, monkeypatch):
         assert "DOGE-USDT" in r1.get("watched", [])
         assert placed == []
         r2 = await heal_dead_tp_legs(Broker())
-        assert "DOGE-USDT" in r2.get("healed", [])
-        assert len(placed) == 1
-        assert placed[0].get("reduce_only") is False
-        assert placed[0].get("working_type") == "MARK_PRICE"
-        assert cancelled == ["old1"]
+        assert "DOGE-USDT" in r2.get("watched", [])
+        state = json.loads((models / "zeus_tp_heal_state.json").read_text())
+        assert state["DOGE-USDT|short"]["status"] == "crossed_unfilled"
+        assert any(row.get("event") == "tp_crossed_unfilled" for row in journals)
+        assert placed == []
+        assert cancelled == []
+        journal_count = len(journals)
+        r3 = await heal_dead_tp_legs(Broker())
+        assert "DOGE-USDT" in r3.get("watched", [])
+        assert len(journals) == journal_count
+        assert placed == []
+        assert cancelled == []
     asyncio.run(_run())
