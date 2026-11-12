@@ -6,6 +6,8 @@ on:
       - "research/4h-pullback-continuation"
     paths:
       - ".github/workflows/ruff-autofix-research.yml"
+      - "scripts/analyze_ironflow_wallet_flow.py"
+      - "tests/unit/test_analyze_ironflow_wallet_flow.py"
 
 permissions:
   contents: write
