@@ -54,6 +54,16 @@ The next data gate is therefore:
 - Freeze the address cohort before evaluating subsequent periods. Do not retroactively select today's winners and backtest their past trades as if they were known winners then.
 - Record public display name only as metadata, not as proof of institutional identity. Exclude subaccounts/agent addresses when they cannot be reliably mapped to the controlling account.
 
+### First 100-wallet API snapshot: coverage audit
+
+The frozen panel was built from a 12 November 2026 leaderboard snapshot containing 48,023 rows. The 100-address cohort is explicitly a current snapshot, not a point-in-time historical cohort. Its overlapping selection strata are 20 high-month-PnL, 20 high-week-PnL, 20 high-month-volume, 20 high-account-value, 20 low-month-ROI and 22 residual accounts (the strata overlap; these counts are not mutually exclusive).
+
+The first recent-window Info API retrieval returned 96,119 fills across 13 of the 100 wallets; 8 of those 13 hit the 10,000-fill API cap. The remaining 87 wallets returned no fills in that queried API window, which is not evidence that they were historically inactive. All 13 wallets with returned fills belonged to the high-month-PnL stratum; 11 also belonged to the high-week-PnL stratum. No low-month-ROI or residual wallet had fills in this short API window. This is a strong coverage/selection warning, not evidence that low-ROI wallets never trade.
+
+Across those API-returned fills, the parsed action labels were 42,996 open, 1,336 add, 51,785 close and 2 unknown. These counts are descriptive of the returned recent-window API sample only. Reported closed PnL and fill fees are incomplete account-level performance because funding, cash flows, missing pre-cap history and TWAP slices are not fully represented. Do not rank accounts or derive a strategy from those totals.
+
+A separate 37-day matched-trade archive is being used to observe the same frozen wallet cohort across a longer period. Its matched prints have no position inventory fields, so its output must remain a flow-behaviour study rather than an entry/exit or holding-time reconstruction.
+
 ### Fill-to-position reconstruction
 
 The Hyperliquid Info API `userFills` / `userFillsByTime` schema can expose `startPosition`, `sz`, `side`, `dir`, `fee`, `closedPnl` and related fields for the API-returned fills. Those fields permit position-episode reconstruction only where the returned history is complete and the initial position state is known. The latest-10,000-fill cap can left-censor active accounts; TWAP slice fills are a separate endpoint and must be included before claiming complete execution history. Funding, transfers, deposits and withdrawals are not included in a fill-only PnL calculation.
