@@ -452,7 +452,7 @@ def _apply_zone_trade_filter(
         shadow_decision = _zone_trade_filter_decision(row, shadow_cached[1])
         try:
             from astra_bot.decision.live_arm_wiring import append_journal
-            append_journal({
+            shadow_event = {
                 "event": "zone_filter_shadow_counterfactual",
                 "signal_id": row.get("signal_id"),
                 "symbol": symbol,
@@ -465,7 +465,9 @@ def _apply_zone_trade_filter(
                 "shadow_lookback_bars": profile_meta.get("shadow_lookback_bars"),
                 "zone_bar_ts": int(expected_bar_ts),
                 "ts": time.time(),
-            })
+            }
+            append_journal(shadow_event)
+            _append_zone_trade_filter_event(shadow_event)
         except Exception as exc:
             logger.warning("zone shadow counterfactual journal failed %s: %s", symbol, type(exc).__name__)
     try:
