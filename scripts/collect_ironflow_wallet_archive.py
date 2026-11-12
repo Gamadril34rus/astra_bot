@@ -361,11 +361,14 @@ def collect(
     import duckdb
 
     connection = duckdb.connect()
-    connection.execute("SET memory_limit='8GB'")
+    connection.execute("SET memory_limit='6GB'")
     connection.execute("SET threads=2")
+    raw_files_sql = "[" + ", ".join(
+        "'" + str(path.resolve()).replace("'", "''") + "'"
+        for path in raw_paths
+    ) + "]"
     connection.execute(
-        "CREATE VIEW raw_trades AS SELECT * FROM read_parquet(?)",
-        [[str(path) for path in raw_paths]],
+        f"CREATE VIEW raw_trades AS SELECT * FROM read_parquet({raw_files_sql})"
     )
     market_bars_target = str(market_bars_path).replace("'", "''")
     connection.execute(
