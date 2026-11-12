@@ -4,7 +4,6 @@ import csv
 import json
 from decimal import Decimal
 
-import pytest
 from scripts import build_okx_backtest_dataset as builder
 
 
