@@ -9,8 +9,13 @@ on:
       - ".github/workflows/okx-public-history-probe.yml"
   workflow_dispatch:
     inputs:
-      month:
-        description: "OKX UTC+8 archive month (YYYY-MM)"
+      start_month:
+        description: "First OKX UTC+8 archive month, inclusive (YYYY-MM)"
+        type: string
+        default: "2025-11"
+        required: true
+      end_month:
+        description: "Last OKX UTC+8 archive month, inclusive (YYYY-MM)"
         type: string
         default: "2026-10"
         required: true
@@ -41,9 +46,10 @@ jobs:
           python -m ruff check --config pyproject.toml scripts/probe_okx_public_history.py tests/unit/test_probe_okx_public_history.py
       - name: Download and validate one month of public OKX swap history
         env:
-          OKX_PROBE_MONTH: ${{ inputs.month || '2026-10' }}
+          OKX_START_MONTH: ${{ inputs.start_month || '2025-11' }}
+          OKX_END_MONTH: ${{ inputs.end_month || '2026-10' }}
         run: |
-          python scripts/probe_okx_public_history.py --month "$OKX_PROBE_MONTH"
+          python scripts/probe_okx_public_history.py --start-month "$OKX_START_MONTH" --end-month "$OKX_END_MONTH"
       - name: Upload immutable OKX probe evidence
         if: always()
         uses: actions/upload-artifact@v4
