@@ -6,10 +6,10 @@ import argparse
 import csv
 import hashlib
 import json
-import math
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+import statistics
 from typing import Any
 
 import duckdb
@@ -129,6 +129,7 @@ def _new_episode(
         "fill_count": 0,
         "add_count": 0,
         "reduce_count": 0,
+        "reverse_count": 0,
         "liquidation_fill_count": 0,
         "taker_fill_count": 0,
         "maker_fill_count": 0,
@@ -277,7 +278,7 @@ def reconstruct(
 
     groups = con.execute("""
         SELECT
-            wallet, market, anchor_size, anchor_entry_price,
+            wallet, market, anchor_present, anchor_size, anchor_entry_price,
             anchor_liquidation_price, anchor_leverage_type, anchor_leverage,
             anchor_funding_pnl, anchor_account_value, fill_count,
             delta_pre_anchor, delta_post_anchor, boundary_fill_count,
@@ -292,7 +293,7 @@ def reconstruct(
     for row in groups.to_dict("records"):
         key = (row["wallet"], row["market"])
         meta = {
-            "anchor_present": row["anchor_entry_price"] is not None,
+            "anchor_present": bool(row["anchor_present"]),
             "anchor_size": float(row["anchor_size"] or 0.0),
             "anchor_entry_price": (
                 float(row["anchor_entry_price"])
@@ -329,11 +330,6 @@ def reconstruct(
                 "fill_count": meta["fill_count"],
             })
 
-    clean_keys = [
-        (wallet, market)
-        for (wallet, market), meta in group_meta.items()
-        if meta["boundary_fill_count"] == 0
-    ]
     episodes: list[dict[str, Any]] = []
     entry_validation: list[dict[str, Any]] = []
     current_key: tuple[str, str] | None = None
@@ -541,13 +537,9 @@ def reconstruct(
                 current_episode["maker_fill_count"] = 0 if row["crossed"] else 1
                 current_episode["liquidation_fill_count"] = 1 if row["liquidation"] else 0
                 current_episode["reverse_count"] = 1
-                current_episode["gross_realized_pnl_known_usd"] = (
-                    float(realized) if realized is not None and pnl_known else 0.0
-                )
-                current_episode["pnl_unknown_close_count"] = (
-                    0 if realized is not None and pnl_known else 1
-                )
-                current_episode["pnl_complete"] = realized is not None and pnl_known
+                current_episode["gross_realized_pnl_known_usd"] = 0.0
+                current_episode["pnl_unknown_close_count"] = 0
+                current_episode["pnl_complete"] = True
                 new_average = price
             current_size = after
             average_entry = new_average
@@ -600,7 +592,7 @@ def reconstruct(
             "is_unified": row[5],
             "pm_ratio": row[6],
             "gross_exposure_to_equity": (
-                (float(row[2] or 0) + float(row[3] or 0)) / float(row[1])
+                (abs(float(row[2] or 0)) + abs(float(row[3] or 0))) / float(row[1])
                 if row[1] not in (None, 0) else None
             ),
         }
@@ -630,7 +622,7 @@ def reconstruct(
             "long_episodes": sum(row["side"] == "long" for row in items),
             "short_episodes": sum(row["side"] == "short" for row in items),
             "median_hold_minutes": (
-                sorted(holds)[len(holds) // 2] if holds else None
+                statistics.median(holds) if holds else None
             ),
             "mean_hold_minutes": sum(holds) / len(holds) if holds else None,
             "gross_realized_pnl_known_usd": sum(
@@ -748,7 +740,7 @@ def reconstruct(
         },
         "holding_time_minutes": {
             "median_complete_episode": (
-                sorted(complete_holds)[len(complete_holds) // 2]
+                statistics.median(complete_holds)
                 if complete_holds else None
             ),
             "p90_complete_episode": (
