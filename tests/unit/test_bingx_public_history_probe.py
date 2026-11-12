@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from scripts.probe_bingx_public_history import (
     _kline_summary,
     _minute_window_summary,
@@ -82,3 +84,27 @@ def test_minute_window_rejects_non_minute_aligned_intervals() -> None:
     assert summary["missing_minutes_between_returned_rows"] == 0
     assert summary["non_minute_intervals"] == 2
     assert summary["full_contiguous_window"] is False
+
+
+
+def test_minute_window_summary_handles_bingx_time_object_rows() -> None:
+    start = 1_700_000_000_000
+    end = start + 2 * 60_000 + 59_999
+    rows = [
+        {"time": start, "open": "1"},
+        {"time": start + 60_000, "open": "1.5"},
+        {"time": start + 120_000, "open": "1.8"},
+    ]
+    summary = _minute_window_summary(rows, start, end)
+    assert summary["rows"] == 3
+    assert summary["unique_timestamps"] == 3
+    assert summary["first_open_utc"] is not None
+    assert summary["last_open_utc"] is not None
+    assert summary["full_contiguous_window"] is True
+
+
+def test_minute_window_summary_rejects_unrecognized_object_timestamp() -> None:
+    start = 1_700_000_000_000
+    end = start + 59_999
+    with pytest.raises(ValueError, match="no supported timestamp"):
+        _minute_window_summary([{"open_time": start}], start, end)
