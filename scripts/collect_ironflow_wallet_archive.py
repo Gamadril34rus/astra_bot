@@ -14,7 +14,6 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-
 DATASET_ID = "ironflow/hyperliquid-trades"
 DATASET_URL = "https://huggingface.co/datasets/ironflow/hyperliquid-trades"
 FILE_URL = "https://huggingface.co/datasets/ironflow/hyperliquid-trades/resolve/main/data/{day}.parquet"
