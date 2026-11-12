@@ -243,6 +243,19 @@ This is a different sample and methodology from the Barone–Lillo execution-sch
 7. Publish reproducible results with sample coverage, data gaps, event counts, confidence intervals, costs, IS/validation/OOS and negative findings.
 
 
+
+### Forced-liquidation case: a whale-sized sell is not a discretionary signal
+
+A separate native-perp wallet (`0x6046…b21d`, 30-day profile: 5 active days, PF 0, realized PnL −$5.30m, fees $29k) produced a BTC-PERP sell event at 13:09:52–13:10:01 UTC:
+- 822 fill rows, but only **2 order IDs**;
+- $38.77m notional, classified `Close Long` and `is_liquidation=true`;
+- realized loss −$5.25m;
+- the whole BTC market traded $64.75m aggressive sells versus $5.36m buys in those 9.4 seconds (net taker delta −$59.39m). The wallet accounted for about 60% of aggressive sell notional.
+
+BTC traded about $72,464 at the event, $72,568 at +30m (+0.14%), $72,300 at +1h (−0.23%) and $71,341 at +2h (−1.55%). OI fell from roughly 40,067 BTC to 39,978 BTC around the event, then recovered to 40,349 BTC by +1h.
+
+This is a forced long liquidation, not a skilled participant choosing to open a short. The initial 30m bounce did not persist; by +2h price was materially lower. A trade-level scan would have counted 822 child trades and mistaken the event for a 9-second parent program. OID plus the liquidation flag reveals the actual mechanism. Liquidations must be a separate event class in the research, not mixed into the smart-money cohort.
+
 ## 9. Candidate ASTRA translation to test (not a live rule)
 
 The evidence suggests the first strategy candidate should be a **position-build versus position-exit classifier**, not a raw whale-following signal.
