@@ -312,7 +312,11 @@ def _write_json(path: Path, payload: Any) -> str:
 
 
 def run(
-    out_dir: Path,\n    limit: int = MAX_WALLETS,\n    pause_s: float = DEFAULT_PAUSE_SECONDS,\n    window_hours: float = 96,\n) -> dict[str, Any]:
+    out_dir: Path,
+    limit: int = MAX_WALLETS,
+    pause_s: float = DEFAULT_PAUSE_SECONDS,
+    window_hours: float = 96,
+) -> dict[str, Any]:
     generated = datetime.now(UTC)
     now_ms = int(generated.timestamp() * 1000)
     leaderboard = _get_json(LEADERBOARD_URL)
