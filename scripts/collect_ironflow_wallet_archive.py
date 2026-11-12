@@ -246,6 +246,7 @@ def collect(
     writer_schema = None
     stats = {address: _new_stats() for address in addresses}
     source_files = []
+    raw_paths = []
     total_source_rows = 0
     filtered_trade_rows = 0
     wallet_fill_rows = 0
@@ -342,7 +343,7 @@ def collect(
                 "cohort_native_perp_trade_rows": file_filtered,
                 "cohort_wallet_fill_rows": file_wallet_fills,
             })
-            path.unlink(missing_ok=True)
+            raw_paths.append(path)
             print(json.dumps({
                 "date": day_text,
                 "source_rows": source_rows,
@@ -355,6 +356,46 @@ def collect(
             writer.close()
     if not output_path.exists():
         raise RuntimeError("no native-perp trades matched the frozen wallet cohort")
+
+    market_bars_path = out_dir / "market_15m.parquet"
+    import duckdb
+
+    connection = duckdb.connect()
+    connection.execute("SET memory_limit='8GB'")
+    connection.execute("SET threads=2")
+    connection.execute(
+        """
+        COPY (
+            SELECT
+                market,
+                coin,
+                time_bucket(INTERVAL '15 minutes', timestamp) AS bucket_ts,
+                first(price ORDER BY timestamp, tid) AS open,
+                max(price) AS high,
+                min(price) AS low,
+                last(price ORDER BY timestamp, tid) AS close,
+                sum(size) AS base_volume,
+                sum(notional) AS quote_volume,
+                count(*) AS trade_count,
+                sum(CASE WHEN taker_side = 'buy' THEN notional ELSE 0 END)
+                    AS taker_buy_notional,
+                sum(CASE WHEN taker_side = 'sell' THEN notional ELSE 0 END)
+                    AS taker_sell_notional
+            FROM read_parquet(?)
+            WHERE market_class = 'perp'
+              AND coalesce(dex, '') = ''
+            GROUP BY market, coin, bucket_ts
+            ORDER BY market, bucket_ts
+        )
+        TO ?
+        (FORMAT PARQUET, COMPRESSION ZSTD)
+        """,
+        [[str(path) for path in raw_paths], str(market_bars_path)],
+    )
+    connection.close()
+    market_bars_rows = pq.ParquetFile(market_bars_path).metadata.num_rows
+    for raw_path in raw_paths:
+        raw_path.unlink(missing_ok=True)
 
     wallet_summaries = _serialize_wallet_stats(cohort_rows, stats)
     report = {
@@ -421,6 +462,10 @@ def collect(
             "wallet_trades_parquet": str(output_path),
             "wallet_trades_sha256": hashlib.sha256(output_path.read_bytes()).hexdigest(),
             "wallet_trades_size_bytes": output_path.stat().st_size,
+            "market_15m_parquet": str(market_bars_path),
+            "market_15m_sha256": hashlib.sha256(market_bars_path.read_bytes()).hexdigest(),
+            "market_15m_rows": market_bars_rows,
+            "market_15m_size_bytes": market_bars_path.stat().st_size,
         },
     }
     (out_dir / "wallet_archive_manifest.json").write_text(
