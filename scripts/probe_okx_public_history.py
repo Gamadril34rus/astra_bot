@@ -129,10 +129,12 @@ def parse_candle_zip(blob: bytes, inst_id: str, begin_ms: int, end_ms: int) -> t
                 for line_number, row in enumerate(reader, start=1):
                     if not row:
                         continue
-                    if not row[0] or not row[0][0].isdigit():
-                        continue
                     if len(row) < 10:
                         raise ValueError(f"{member}:{line_number}: expected 10 CSV fields, got {len(row)}")
+                    if not row[8].strip().isdigit():
+                        if line_number == 1:
+                            continue
+                        raise ValueError(f"{member}:{line_number}: invalid open_time {row[8]!r}")
                     if row[0] != inst_id:
                         continue
                     timestamp = int(row[8])
