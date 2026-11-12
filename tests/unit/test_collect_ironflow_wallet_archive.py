@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from datetime import date, datetime, timezone
 
-import pyarrow as pa
+import pytest
+
 from scripts import collect_ironflow_wallet_archive as collector
 
 
@@ -23,11 +24,13 @@ def test_days_inclusive_rejects_reversed_window() -> None:
 
 
 def test_native_perp_dex_filter_keeps_only_empty_dex() -> None:
+    pa = pytest.importorskip("pyarrow")
     values = pa.array(["", None, "xyz", "flx"])
     assert collector._blank_dex_mask(values).to_pylist() == [True, True, False, False]
 
 
 def test_wallet_fill_table_marks_side_and_taker_aggression() -> None:
+    pa = pytest.importorskip("pyarrow")
     table = pa.table({
         "timestamp": [datetime(2026, 10, 3, tzinfo=timezone.utc)],
         "market": ["BTC-PERP"],
