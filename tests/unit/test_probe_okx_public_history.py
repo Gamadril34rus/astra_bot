@@ -61,6 +61,46 @@ def test_archive_listing_flattens_okx_data_list_with_nested_details() -> None:
     assert set(result) == {"BTC-USDT", "ETH-USDT"}
 
 
+def test_archive_listing_supports_monthly_funding_file_names() -> None:
+    filename = "BTC-USDT-SWAP-fundingRate-2026-10.zip"
+    result = probe._archive_files(
+        {
+            "data": [{
+                "details": [{
+                    "instFamily": "BTC-USDT",
+                    "groupDetails": [{
+                        "filename": filename,
+                        "url": f"https://static.okx.com/{filename}",
+                    }],
+                }],
+            }],
+        },
+        "2026-10",
+        ("BTC",),
+        file_keyword="funding",
+    )
+    assert result["BTC-USDT"]["filename"] == filename
+
+
+def test_parse_funding_zip_reads_three_column_archive_and_deduplicates() -> None:
+    start = 1_790_784_000_000
+    rows = [
+        ["instId", "fundingRate", "fundingTime"],
+        ["BTC-USDT-SWAP", "0.0001", str(start)],
+        ["BTC-USDT-SWAP", "0.0002", str(start + 8 * 3_600_000)],
+        ["BTC-USDT-SWAP", "0.0002", str(start + 8 * 3_600_000)],
+    ]
+    rates, summary = probe.parse_funding_zip(
+        _zip_csv(rows),
+        "BTC-USDT-SWAP",
+        start,
+        start + 8 * 3_600_000,
+    )
+    assert len(rates) == 2
+    assert summary["duplicate_rows_identical"] == 1
+    assert summary["max_gap_hours"] == 8.0
+
+
 def test_archive_listing_rejects_foreign_url_filename() -> None:
     details = [{
         "instFamily": "BTC-USDT",
