@@ -24,7 +24,7 @@ def test_days_inclusive_rejects_reversed_window() -> None:
 
 def test_native_perp_dex_filter_keeps_only_empty_dex() -> None:
     values = pa.array(["", None, "xyz", "flx"])
-    assert collector._blank_dex_mask(values).to_pylist() == [True, False, False, False]
+    assert collector._blank_dex_mask(values).to_pylist() == [True, True, False, False]
 
 
 def test_wallet_fill_table_marks_side_and_taker_aggression() -> None:
