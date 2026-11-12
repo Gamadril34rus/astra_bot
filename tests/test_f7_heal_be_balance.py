@@ -1,13 +1,10 @@
-"""F7: balance pos count, BE mark from current_price, dead-TP heal replace-first."""
+"""F7: balance position count, BE mark mapping, and crossed-TP retry safety."""
 from __future__ import annotations
 
 import json
 from decimal import Decimal
-from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
 
-import pytest
 
 
 def test_fmt_balance_counts_positions_not_zeroed_by_equity(tmp_path, monkeypatch):
