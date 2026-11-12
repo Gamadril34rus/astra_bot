@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-
 from scripts.analyze_ironflow_wallet_flow import HORIZONS, _sql_path, analyze
 
 
