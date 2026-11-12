@@ -83,7 +83,12 @@ def _archive_files(payload: dict, month: str, symbols: tuple[str, ...]) -> dict[
         if details is None and "groupDetails" in data:
             details = [data]
     elif isinstance(data, list):
-        details = data
+        details = []
+        for item in data:
+            if isinstance(item, dict) and isinstance(item.get("details"), list):
+                details.extend(item["details"])
+            else:
+                details.append(item)
     else:
         raise ValueError(
             f"OKX market-data-history response data has unsupported shape: "
