@@ -28,7 +28,7 @@
       "symbol": "BTC-USDT",
       "side": "short",
       "qty": "0.41233649",
-      "stop": "74611.21428571429",
+      "stop": "74532.81428571428",
       "tp": "71864.510640",
       "entry": "72950.8",
       "leverage": 6,
@@ -44,7 +44,7 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "72836.8",
+      "peak_low": "72758.4",
       "be_earned": true,
       "current_regime": "STRONG_BEAR_TREND"
     },
@@ -52,7 +52,7 @@
       "symbol": "ETH-USDT",
       "side": "short",
       "qty": "10.9488598",
-      "stop": "2103.948571428571",
+      "stop": "2095.278571428571",
       "tp": "1989.3295",
       "entry": "2030.08",
       "leverage": 6,
@@ -68,7 +68,7 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "2025.20",
+      "peak_low": "2016.53",
       "be_earned": true,
       "migrate_stop_v1": true,
       "current_regime": "STRONG_BEAR_TREND"
@@ -89,8 +89,13 @@
       "opened_at_ms": 1794488583758,
       "plan_qty": "370.83339038",
       "qty_ratio": 1.0,
-      "tp1": "80.408349"
+      "tp1": "80.408349",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "81.924",
+      "current_regime": "STRONG_BEAR_TREND"
     }
   },
-  "ts": 1794488583.758384
+  "ts": 1794488875.674034
 }
