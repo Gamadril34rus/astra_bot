@@ -1,14 +1,6 @@
-name: OKX public market history archive (research support)
+name: ARCHIVED - OKX market history archive (manual only)
 
 on:
-  push:
-    branches: [research/4h-pullback-continuation]
-    paths:
-      - "scripts/probe_okx_public_history.py"
-      - "tests/unit/test_probe_okx_public_history.py"
-      - "scripts/build_okx_backtest_dataset.py"
-      - "tests/unit/test_build_okx_backtest_dataset.py"
-      - ".github/workflows/okx-public-history-probe.yml"
   workflow_dispatch:
     inputs:
       start_month:
