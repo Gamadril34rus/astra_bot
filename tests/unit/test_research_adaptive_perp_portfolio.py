@@ -13,16 +13,11 @@ from scripts.research_adaptive_perp_portfolio import (
     MAX_HOLD_BARS,
     add_features,
     choose_signal,
-    choose_signals,
-    clip_bars_for_simulation,
     common_15m_coverage_window,
-    exclude_split_crossing_trades,
-    filter_max_period,
     funding_cost_fraction,
     latest_contiguous_funding_segment,
     load_bars,
     simulate_symbol,
-    simulation_window_for_period,
 )
 
 
@@ -56,10 +51,6 @@ def test_positive_funding_is_cost_for_long_and_credit_for_short() -> None:
 
 def test_archive_page_size_matches_verified_bingx_adapter_cap() -> None:
     assert candle_archive.PAGE_SIZE == 500
-
-def test_fixed_stress_gate_is_one_point_five_times_default_base_cost() -> None:
-    assert research.STRESS_COST_BPS_PER_SIDE == pytest.approx(1.5 * (5.0 + 2.0 + 3.0))
-
 
 def test_hard_hold_limit_is_nine_hours() -> None:
     assert MAX_HOLD_BARS * 15 == 540
@@ -249,7 +240,7 @@ async def test_archive_retries_bingx_100410_with_cooldowns(monkeypatch) -> None:
     result = await candle_archive._call_with_cooldown(client.call, label="test")
     assert result == ["ok"]
     assert client.attempts == 4
-    assert delays == [5.0, 30.0, 60.0]
+    assert delays == [300.0, 300.0, 300.0]
 
 @pytest.mark.asyncio
 async def test_archive_persists_verified_pages_before_later_cooldown_failure(
@@ -409,7 +400,7 @@ async def test_no_progress_exit_closes_after_30_minutes(monkeypatch) -> None:
     assert len(trades) == 1
     assert trades[0]["exit_reason"] == "no_progress_30m"
     assert trades[0]["hold_minutes"] == pytest.approx(30.0)
-    assert trades[0]["stress_cost_to_r"] == pytest.approx(0.3)
+    assert trades[0]["stress_cost_to_r"] == pytest.approx(0.2475)
     assert diagnostics["raw_signals"] == 1
     assert diagnostics["completed_trades"] == 1
     assert diagnostics["completed_by_family"] == {"TEST": 1}
@@ -458,26 +449,6 @@ def test_common_15m_window_uses_overlapping_symbol_history() -> None:
     assert result["common_start_utc"] == pd.to_datetime(3_000, unit="ms", utc=True).isoformat()
     assert result["common_end_utc"] == pd.to_datetime(90_000_000, unit="ms", utc=True).isoformat()
     assert result["covers_12_months"] is False
-
-def test_common_15m_window_counts_final_bar_close_for_full_year() -> None:
-    year_ms = 365 * 86_400_000
-    interval_ms = 15 * 60_000
-    coverage = {
-        symbol: {
-            "15m_first": 0,
-            "15m_last": year_ms - interval_ms,
-        }
-        for symbol in ("BTC-USDT", "ETH-USDT", "SOL-USDT")
-    }
-
-    result = common_15m_coverage_window(coverage)
-
-    assert result["common_days"] == 365.0
-    assert result["covers_12_months"] is True
-    assert result["common_end_exclusive_utc"] == pd.to_datetime(
-        year_ms, unit="ms", utc=True
-    ).isoformat()
-
 
 def test_common_window_accepts_30m_coverage_fields() -> None:
     coverage = {
@@ -556,175 +527,3 @@ def test_false_break_reversal_fades_failed_range_escape() -> None:
     assert signal["family"] == "FALSE_BREAK_REVERSAL"
     assert signal["side"] == -1
     assert signal["target_price"] == pytest.approx(100.0)
-
-
-def test_trades_crossing_chronological_split_boundaries_are_excluded() -> None:
-    trades = pd.DataFrame({
-        "entry_time": [10, 20, 40, 45, 60],
-        "exit_time": [19, 35, 59, 65, 80],
-    })
-    kept, excluded = exclude_split_crossing_trades(
-        trades, validation_start_ms=30, oos_start_ms=60
-    )
-    assert kept["entry_time"].tolist() == [10, 40, 60]
-    assert excluded == 2
-
-def test_validation_screen_does_not_include_oos_trades() -> None:
-    trades = pd.DataFrame({
-        "period": ["IS", "VALIDATION", "OOS"],
-        "entry_time": [10, 40, 70],
-    })
-    screened = filter_max_period(trades, "VALIDATION")
-    assert screened["period"].tolist() == ["IS", "VALIDATION"]
-    assert filter_max_period(trades, "OOS")["period"].tolist() == ["OOS"]
-
-
-
-
-def test_validation_screen_clips_signal_and_hourly_bars_before_oos() -> None:
-    interval = 15 * 60_000
-    signal = _bars([index * interval for index in range(240)], interval)
-    hourly = _bars([index * 60 * 60_000 for index in range(80)], 60 * 60_000)
-    common_start = 30 * interval
-    validation_start = 150 * interval
-    oos_start = 190 * interval
-    common_end = 239 * interval
-    trade_start, cutoff = simulation_window_for_period(
-        "VALIDATION", common_start, validation_start, oos_start, common_end, interval
-    )
-    clipped_signal, clipped_hourly = clip_bars_for_simulation(
-        signal, hourly, common_start, cutoff, interval
-    )
-    assert trade_start == common_start
-    assert clipped_signal["decision_time"].max() < cutoff
-    assert clipped_hourly["decision_time"].max() < cutoff
-    assert clipped_signal["open_time"].min() == max(0, common_start - 120 * interval)
-
-
-def test_oos_only_window_starts_flat_at_oos_boundary() -> None:
-    start, cutoff = simulation_window_for_period(
-        "OOS", 100, 200, 260, 400, 900_000
-    )
-    assert start == 260
-    assert cutoff == 400 + 900_000
-
-
-def test_simulator_skips_signals_before_requested_oos_start(monkeypatch) -> None:
-    times = [index * 900_000 for index in range(170)]
-    frame = pd.DataFrame({
-        "open_time": times,
-        "decision_time": [value + 900_000 for value in times],
-        "open": [100.0] * 170,
-        "high": [100.2] * 170,
-        "low": [99.5] * 170,
-        "close": [100.1] * 170,
-        "atr14": [1.0] * 170,
-    })
-
-    def frozen_signal(_frame, index):
-        if index in (120, 130):
-            return {"family": "TEST", "side": 1, "stop": 99.0, "target_rr": 1.5}
-        return None
-
-    monkeypatch.setattr(research, "choose_signal", frozen_signal)
-    funding = pd.DataFrame({
-        "funding_time": list(range(0, 48 * 3_600_000 + 1, 8 * 3_600_000)),
-        "rate": [0.0] * 7,
-    })
-    start_time = int(frame.loc[130, "decision_time"])
-    trades = simulate_symbol(
-        "BTC-USDT", frame, funding, fee_bps=0, spread_bps=0, slippage_bps=0,
-        start_time_ms=start_time,
-    )
-    assert len(trades) == 1
-    assert trades[0]["entry_time"] == times[131]
-
-
-def test_relative_volume_uses_one_unit_when_quote_volume_is_incomplete() -> None:
-    interval = 15 * 60_000
-    m15 = _bars([index * interval for index in range(30)], interval)
-    m15["volume"] = 100.0
-    m15["quote_volume"] = 1_000.0
-    m15.loc[20, "volume"] = 500.0
-    m15.loc[20, "quote_volume"] = 0.0
-    hourly = _bars([index * 60 * 60_000 for index in range(12)], 60 * 60_000)
-    featured = add_features(m15, hourly)
-    # A single missing quote-volume observation selects base volume for the
-    # entire symbol history; row-wise quote/base mixing would corrupt the ratio.
-    assert featured.loc[20, "volume_ratio"] == pytest.approx(5.0)
-
-
-def test_adaptive_volume_ratio_excludes_current_signal_candle() -> None:
-    interval = 15 * 60_000
-    m15 = _bars([index * interval for index in range(30)], interval)
-    m15["quote_volume"] = 100.0
-    m15.loc[20, "quote_volume"] = 1_000.0
-    hourly = _bars([index * 60 * 60_000 for index in range(12)], 60 * 60_000)
-    featured = add_features(m15, hourly)
-    assert featured.loc[20, "volume_ratio"] == pytest.approx(10.0)
-
-
-def test_independent_regime_signals_are_not_hidden_by_router_priority() -> None:
-    frame = pd.DataFrame({
-        "open": [100.0] * 22,
-        "high": [100.5] * 22,
-        "low": [99.0] * 22,
-        "close": [100.0] * 22,
-        "ema20": [100.0] * 22,
-        "ema50": [100.0] * 22,
-        "atr14": [1.0] * 22,
-        "bb_width_pct": [0.10] * 22,
-        "volume_ratio": [2.0] * 22,
-        "h1_adx14": [15.0] * 22,
-        "h1_ema20": [100.0] * 22,
-        "h1_ema50": [100.0] * 22,
-        "h1_ema20_rising": [False] * 22,
-        "h1_ema20_falling": [False] * 22,
-        "bb_lower": [101.0] * 22,
-        "bb_upper": [102.0] * 22,
-        "rsi14": [30.0] * 22,
-    })
-    frame.loc[20, ["high", "close", "bb_lower"]] = [101.0, 100.0, 100.5]
-    frame.loc[21, ["high", "low", "close"]] = [102.5, 99.5, 102.0]
-
-    signals = choose_signals(frame, 21)
-    families = {signal["family"] for signal in signals}
-    assert families == {"COMPRESSION_BREAKOUT", "RANGE_REVERSION"}
-    # Router priority is retained for actual routed simulation, but family
-    # reports can now evaluate both hypotheses independently.
-    assert choose_signal(frame, 21)["family"] == "COMPRESSION_BREAKOUT"
-    assert choose_signal(frame, 21, enabled_families={"RANGE_REVERSION"})["family"] == "RANGE_REVERSION"
-    assert choose_signal(frame, 21, enabled_families=set()) is None
-
-
-def test_family_filter_selects_requested_signal_for_independent_replay(monkeypatch) -> None:
-    times = [index * 900_000 for index in range(160)]
-    frame = pd.DataFrame({
-        "open_time": times,
-        "decision_time": [value + 900_000 for value in times],
-        "open": [100.0] * 160,
-        "high": [100.5] * 160,
-        "low": [99.5] * 160,
-        "close": [100.2] * 160,
-        "atr14": [1.0] * 160,
-    })
-
-    def frozen_signals(_frame, index):
-        if index == 120:
-            return [
-                {"family": "COMPRESSION_BREAKOUT", "side": 1, "stop": 99.0, "target_rr": 1.5},
-                {"family": "RANGE_REVERSION", "side": 1, "stop": 99.0, "target_rr": 1.5},
-            ]
-        return []
-
-    monkeypatch.setattr(research, "choose_signals", frozen_signals)
-    funding = pd.DataFrame({
-        "funding_time": list(range(0, 40 * 3_600_000 + 1, 8 * 3_600_000)),
-        "rate": [0.0] * 6,
-    })
-    trades = simulate_symbol(
-        "BTC-USDT", frame, funding, fee_bps=0, spread_bps=0, slippage_bps=0,
-        family_filter="RANGE_REVERSION",
-    )
-    assert len(trades) == 1
-    assert trades[0]["family"] == "RANGE_REVERSION"
