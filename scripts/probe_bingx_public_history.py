@@ -10,6 +10,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -35,26 +36,61 @@ def _iso_ms(value: int | None) -> str | None:
 
 
 def _request_json(path: str, params: dict[str, int | str]) -> dict:
-    query = dict(params)
-    if path.endswith("/historicalTrades"):
-        query["timestamp"] = int(time.time() * 1000)
-    url = f"{BASE_URL}{path}?{urlencode(query)}"
-    request = Request(
-        url,
-        headers={
-            "Accept": "application/json",
-            "User-Agent": "ASTRA-BOT-research-history-probe/1.0",
-            "X-SOURCE-KEY": "BX-AI-SKILL",
-        },
-    )
-    with urlopen(request, timeout=20) as response:
-        payload = json.loads(response.read().decode("utf-8"))
-    if not isinstance(payload, dict) or payload.get("code") != 0:
-        raise RuntimeError(
-            f"BingX {path} failed: code={payload.get('code') if isinstance(payload, dict) else 'invalid'} "
-            f"msg={payload.get('msg') if isinstance(payload, dict) else payload!r}"
+    """Request public data and honour BingX's HTTP-200 code 100410 cooldown."""
+    delays = (5.0, 30.0, 60.0)
+    for attempt in range(len(delays) + 1):
+        query = dict(params)
+        if path.endswith("/historicalTrades"):
+            query["timestamp"] = int(time.time() * 1000)
+        url = f"{BASE_URL}{path}?{urlencode(query)}"
+        request = Request(
+            url,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "ASTRA-BOT-research-history-probe/1.0",
+                "X-SOURCE-KEY": "BX-AI-SKILL",
+            },
         )
-    return payload
+        try:
+            with urlopen(request, timeout=20) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            raw = exc.read()
+            try:
+                payload = json.loads(raw.decode("utf-8")) if raw else {}
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                payload = {}
+            if exc.code != 429 and payload.get("code") != 100410:
+                raise
+            if attempt == len(delays):
+                raise RuntimeError(
+                    f"BingX {path} rate limit exhausted: HTTP {exc.code} "
+                    f"code={payload.get('code')} msg={payload.get('msg')}"
+                ) from exc
+            retry_after = exc.headers.get("Retry-After") if exc.headers else None
+            try:
+                wait = max(delays[attempt], float(retry_after or 0))
+            except ValueError:
+                wait = delays[attempt]
+            time.sleep(wait)
+            continue
+
+        if not isinstance(payload, dict):
+            raise RuntimeError(f"BingX {path} returned a non-object response")
+        if payload.get("code") == 100410:
+            if attempt == len(delays):
+                raise RuntimeError(
+                    f"BingX {path} rate limit exhausted: "
+                    f"code=100410 msg={payload.get('msg')}"
+                )
+            time.sleep(delays[attempt])
+            continue
+        if payload.get("code") != 0:
+            raise RuntimeError(
+                f"BingX {path} failed: code={payload.get('code')} msg={payload.get('msg')}"
+            )
+        return payload
+    raise RuntimeError(f"BingX {path}: retry loop exhausted")
 
 
 def _trade_summary(rows: list[dict], requested_from_id: int | None) -> dict:
@@ -140,34 +176,23 @@ def _probe_historical_1m_windows(symbol: str) -> dict:
         start = datetime.fromisoformat(f"{day}T00:00:00+00:00")
         start_ms = int(start.timestamp() * 1000)
         end_ms = start_ms + 499 * 60_000 + 59_999
-        payload = None
-        last_error = None
-        for attempt, cooldown in enumerate((0, 5, 30, 60)):
-            if cooldown:
-                time.sleep(cooldown)
-            else:
-                time.sleep(0.35)
-            try:
-                payload = _request_json(
-                    "/openApi/swap/v3/quote/klines",
-                    {
-                        "symbol": symbol,
-                        "interval": "1m",
-                        "startTime": start_ms,
-                        "endTime": end_ms,
-                        "limit": 500,
-                    },
-                )
-                break
-            except RuntimeError as exc:
-                last_error = str(exc)
-                if "code=100410" not in last_error or attempt == 3:
-                    break
-        if payload is None:
+        try:
+            time.sleep(1.1)
+            payload = _request_json(
+                "/openApi/swap/v3/quote/klines",
+                {
+                    "symbol": symbol,
+                    "interval": "1m",
+                    "startTime": start_ms,
+                    "endTime": end_ms,
+                    "limit": 500,
+                },
+            )
+        except RuntimeError as exc:
             result[day] = {
                 "requested_start_utc": _iso_ms(start_ms),
                 "requested_end_utc": _iso_ms(end_ms),
-                "error": last_error,
+                "error": str(exc),
                 "rows": 0,
                 "full_contiguous_window": False,
             }
@@ -225,7 +250,7 @@ def run_probe(symbol: str = SYMBOL) -> dict:
             result["historical_trades"][name] = _trade_summary(rows, from_id)
 
     for interval in ("1m", "5m", "15m", "30m", "1h"):
-        time.sleep(0.25)
+        time.sleep(1.1)
         payload = _request_json(
             "/openApi/swap/v3/quote/klines",
             {
@@ -238,7 +263,7 @@ def run_probe(symbol: str = SYMBOL) -> dict:
         )
         result["klines"][interval] = _kline_summary(payload.get("data") or [])
 
-    time.sleep(0.25)
+    time.sleep(1.1)
     mark_payload = _request_json(
         "/openApi/swap/v1/market/markPriceKlines",
         {
