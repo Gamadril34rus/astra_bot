@@ -438,10 +438,15 @@ def common_15m_coverage_window(
     end_ms = min(int(item[end_key]) for item in coverage.values())
     if end_ms < start_ms:
         raise ValueError(f"symbols have no common {timeframe} history window")
-    days = (end_ms - start_ms) / 86_400_000
+    interval_ms = INTERVAL_MS[timeframe]
+    end_exclusive_ms = end_ms + interval_ms
+    days = (end_exclusive_ms - start_ms) / 86_400_000
     return {
         "common_start_utc": pd.to_datetime(start_ms, unit="ms", utc=True).isoformat(),
         "common_end_utc": pd.to_datetime(end_ms, unit="ms", utc=True).isoformat(),
+        "common_end_exclusive_utc": pd.to_datetime(
+            end_exclusive_ms, unit="ms", utc=True
+        ).isoformat(),
         "common_days": round(days, 2),
         "covers_12_months": days >= 365.0,
     }
