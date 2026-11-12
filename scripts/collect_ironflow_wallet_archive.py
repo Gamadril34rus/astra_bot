@@ -14,9 +14,6 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-import pyarrow as pa
-import pyarrow.compute as pc
-import pyarrow.parquet as pq
 
 DATASET_ID = "ironflow/hyperliquid-trades"
 DATASET_URL = "https://huggingface.co/datasets/ironflow/hyperliquid-trades"
@@ -60,7 +57,9 @@ def download_file(url: str, path: Path, retries: int = 5) -> tuple[int, str]:
     raise RuntimeError(f"failed to download {url}: {last_error}") from last_error
 
 
-def _blank_dex_mask(values: pa.ChunkedArray) -> pa.Array:
+def _blank_dex_mask(values: Any) -> Any:
+    import pyarrow.compute as pc
+
     return pc.fill_null(pc.or_(pc.is_null(values), pc.equal(values, "")), True)
 
 
@@ -110,7 +109,10 @@ def _add_stats(stats: dict[str, Any], table: pa.Table) -> None:
             wallet_stats["liquidation_trade_interactions"] += 1
 
 
-def _make_fill_table(table: pa.Table, side: str, day_text: str) -> pa.Table:
+def _make_fill_table(table: Any, side: str, day_text: str) -> Any:
+    import pyarrow as pa
+    import pyarrow.compute as pc
+
     wallet_column = table["buyer"] if side == "buy" else table["seller"]
     crossed = pc.equal(table["taker_side"], side)
     table = table.append_column("wallet", wallet_column)
@@ -199,6 +201,10 @@ def collect(
     end: date = END_DATE,
     cohort_manifest_path: Path | None = None,
 ) -> dict:
+    import pyarrow as pa
+    import pyarrow.compute as pc
+    import pyarrow.parquet as pq
+
     cohort_snapshot = json.loads(cohort_path.read_text(encoding="utf-8"))
     cohort_manifest = (
         json.loads(cohort_manifest_path.read_text(encoding="utf-8"))
