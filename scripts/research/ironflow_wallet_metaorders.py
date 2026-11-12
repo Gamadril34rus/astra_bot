@@ -10,13 +10,13 @@ reconstructs same-side, same-direction parent sequences.
 from __future__ import annotations
 
 import argparse
-from collections import defaultdict
-from datetime import datetime, timedelta, timezone
 import json
 import os
-from pathlib import Path
 import re
 import time
+from collections import defaultdict
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -27,7 +27,7 @@ ZERO_HASHES = {"0x" + "0" * 64, "0x" + "0" * 40}
 def parse_dt(value: str) -> datetime:
     dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt.astimezone(timezone.utc)
 
 
@@ -97,7 +97,7 @@ def query_orders(address: str, market: str, start: datetime, end: datetime,
             return
         cols = [c["name"] for c in data.get("columns", [])]
         for row in rows:
-            collected.append(dict(zip(cols, row)))
+            collected.append(dict(zip(cols, row, strict=True)))
         notice = data.get("notice")
         if notice:
             print(f"API notice: {notice}")
