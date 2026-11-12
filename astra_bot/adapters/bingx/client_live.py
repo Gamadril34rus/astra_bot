@@ -99,6 +99,18 @@ def parse_position_item(item: dict[str, Any]) -> Position | None:
         or item.get("lastPrice")
         or "0"
     )
+    leverage = None
+    for lev_key in ("leverage", "leverageRatio", "leverageLevel"):
+        lev_raw = item.get(lev_key)
+        if lev_raw in (None, ""):
+            continue
+        try:
+            lev_d = Decimal(str(lev_raw))
+            if lev_d.is_finite() and lev_d > 0 and lev_d == lev_d.to_integral_value():
+                leverage = int(lev_d)
+                break
+        except Exception:
+            continue
     return Position(
         exchange="bingx",
         symbol=sym,
@@ -117,6 +129,7 @@ def parse_position_item(item: dict[str, Any]) -> Position | None:
             )
         ),
         status="open",
+        leverage=leverage,
     )
 
 
