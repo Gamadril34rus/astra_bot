@@ -26,7 +26,9 @@ def test_fill_classification_uses_exchange_direction_fields() -> None:
     assert classify_fill({"dir": "Open Long", "side": "B", "sz": "1", "startPosition": "0"}) == "open"
     assert classify_fill({"dir": "Close Long", "side": "A", "sz": "1", "startPosition": "1"}) == "close"
     assert classify_fill({"side": "B", "sz": "0.5", "startPosition": "1"}) == "add"
+    assert classify_fill({"dir": "Open Long", "side": "B", "sz": "0.5", "startPosition": "1"}) == "add"
     assert classify_fill({"side": "A", "sz": "0.5", "startPosition": "1"}) == "close"
+    assert classify_fill({"side": "A", "sz": "1.5", "startPosition": "1"}) == "reverse"
 
 
 def test_summary_reports_fee_and_taker_share_without_claiming_full_pnl() -> None:
