@@ -256,6 +256,25 @@ BTC traded about $72,464 at the event, $72,568 at +30m (+0.14%), $72,300 at +1h 
 
 This is a forced long liquidation, not a skilled participant choosing to open a short. The initial 30m bounce did not persist; by +2h price was materially lower. A trade-level scan would have counted 822 child trades and mistaken the event for a 9-second parent program. OID plus the liquidation flag reveals the actual mechanism. Liquidations must be a separate event class in the research, not mixed into the smart-money cohort.
 
+
+### BingX prospective OI archive: first cross-venue positioning read
+
+The separate `research/positioning-data` branch contains a BingX USDT-M open-interest capture started 2026-11-10 09:51 UTC. As of 2026-11-12 15:57 UTC it held 105 snapshots per symbol, roughly 30-minute spacing, for BTC/ETH/SOL/HYPE/INJ. This is a **prospective** archive, not retroactive historical OI. The accompanying 30m candle archive is gap-free for all five symbols and reaches the 15:00 UTC bar on 12 Nov.
+
+Nearest snapshots around the Hyperliquid BTC liquidation at 13:09:52 UTC:
+
+| BingX symbol | OI before (~12:50 UTC) | OI after (~13:20 UTC) | Change |
+|---|---:|---:|---:|
+| BTC | 842.71m | 884.48m | +4.96% |
+| ETH | 332.45m | 341.50m | +2.72% |
+| SOL | 96.68m | 95.70m | −1.01% |
+| HYPE | 30.56m | 31.52m | +3.16% |
+| INJ | 3.492m | 3.494m | +0.04% |
+
+By the next snapshot around 14:22 UTC, ETH OI had increased further to 377.66m (+10.6% from 13:20), while BTC was almost flat at 882.94m (−0.17%), HYPE at 31.43m (−0.29%), SOL at 95.64m (−0.07%) and INJ at 3.438m (−1.60%).
+
+This is a useful early indication that positioning response was not uniform across assets. However, the capture is only 105 points deep and the raw BingX `openInterest` unit has not been independently reconciled with contract size; the archive currently labels it as base quantity, but absolute magnitudes do not look like literal BTC/ETH coin amounts. **Use within-symbol percentage changes only; do not use absolute OI notional or cross-symbol level comparisons until units are verified.** The API's public response and contract metadata need a dedicated unit audit before the archive is treated as a calibrated OI series.
+
 ## 9. Candidate ASTRA translation to test (not a live rule)
 
 The evidence suggests the first strategy candidate should be a **position-build versus position-exit classifier**, not a raw whale-following signal.
