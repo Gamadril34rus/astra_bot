@@ -171,7 +171,6 @@ def analyze(wallet_trades_path: Path, market_bars_path: Path, manifest_path: Pat
                 FROM sample
             )
             SELECT
-                '{horizon}' AS horizon,
                 flow_decile,
                 count(*) AS observations,
                 avg(flow_ratio) AS mean_flow_ratio,
@@ -184,21 +183,28 @@ def analyze(wallet_trades_path: Path, market_bars_path: Path, manifest_path: Pat
             GROUP BY flow_decile
             ORDER BY flow_decile
         """
-        event_rows.extend(connection.execute(query).fetchdf().to_dict(orient="records"))
+        result = connection.execute(query)
+        columns = [item[0] for item in result.description]
+        for values in result.fetchall():
+            event_rows.append({
+                "horizon": horizon,
+                **{
+                    key: (int(value) if key in {"flow_decile", "observations"} else
+                          float(value) if value is not None else None)
+                    for key, value in zip(columns, values, strict=True)
+                },
+            })
 
-    event_df = connection.execute(
-        "SELECT * FROM ("
-        + " UNION ALL ".join(
-            f"SELECT * FROM ({'SELECT ' + ', '.join([repr(h), 'flow_decile', 'observations', 'mean_flow_ratio', 'mean_directional_return_pct', 'median_directional_return_pct', 'directional_hit_rate_pct', 'mean_active_wallets']) + ' FROM (SELECT 1) WHERE 1=0'})"
-            for h in []
-        )
-        + "SELECT 'placeholder' AS unused"
-        + ")"
-    ) if False else None
-    import pandas as pd
+    import csv
 
-    event_frame = pd.DataFrame(event_rows)
-    event_frame.to_csv(event_study_path, index=False)
+    with event_study_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=[
+            "horizon", "flow_decile", "observations", "mean_flow_ratio",
+            "mean_directional_return_pct", "median_directional_return_pct",
+            "directional_hit_rate_pct", "mean_active_wallets",
+        ])
+        writer.writeheader()
+        writer.writerows(event_rows)
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     wallet_flow_rows = connection.execute(
