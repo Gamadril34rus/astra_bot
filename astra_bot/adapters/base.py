@@ -346,6 +346,8 @@ class Position:
     strategy_name: str = ""
     open_time: datetime = field(default_factory=datetime.utcnow)
     close_time: datetime | None = None
+    # Reported exchange leverage; None when the venue omits it.
+    leverage: int | None = None
 
     @property
     def market_value(self) -> Decimal:
