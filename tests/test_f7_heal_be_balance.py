@@ -6,7 +6,6 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 
-
 def test_fmt_balance_counts_positions_not_zeroed_by_equity(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     models = tmp_path / "models"
