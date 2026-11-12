@@ -279,11 +279,13 @@ def summarize_fills(fills: list[dict[str, Any]]) -> dict[str, Any]:
     crossed = 0
     fees = 0.0
     closed_pnl = 0.0
+    fill_sources: dict[str, int] = defaultdict(int)
     for fill in fills:
         actions[classify_fill(fill)] += 1
         coin = str(fill.get("coin") or "UNKNOWN")
         coins[coin] += 1
         market_classes[market_class(coin)] += 1
+        fill_sources[str(fill.get("fill_source") or "unspecified")] += 1
         crossed += int(bool(fill.get("crossed")))
         try:
             fees += float(fill.get("fee") or 0)
@@ -293,7 +295,8 @@ def summarize_fills(fills: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "actions": dict(sorted(actions.items())),
         "fills_by_coin": dict(sorted(coins.items())),
-        "fills_by_market_class": dict(sorted(market_classes.items())),\n        "fills_by_source": dict(sorted(fill_sources.items())),
+        "fills_by_market_class": dict(sorted(market_classes.items())),
+        "fills_by_source": dict(sorted(fill_sources.items())),
         "taker_fill_share": crossed / len(fills) if fills else None,
         "reported_fill_fees": fees,
         "reported_closed_pnl": closed_pnl,
@@ -328,11 +331,17 @@ def run(\n    out_dir: Path,\n    limit: int = MAX_WALLETS,\n    pause_s: float 
     results = []
     for index, wallet in enumerate(cohort, start=1):
         address = wallet["ethAddress"].lower()
-        result = fetch_wallet_fills(address, now_ms, pause_s)
+        result = fetch_wallet_fills(address, now_ms, pause_s, window_hours)
         raw_hash = _write_json(out_dir / "wallet_fills" / f"{address}.json", result)
         result_summary = {
             key: result[key]
-            for key in ("address", "fill_count", "first_fill_time_ms", "last_fill_time_ms", "pages", "at_api_cap", "errors", "coverage_note")
+            for key in (
+                "address", "fill_count", "regular_fill_count", "twap_slice_fill_count",
+                "first_fill_time_ms", "last_fill_time_ms", "requested_start_time_ms",
+                "requested_end_time_ms", "window_hours", "regular_pages", "twap_pages",
+                "estimated_rate_limit_weight", "at_api_cap", "window_complete", "errors",
+                "coverage_note",
+            )
         }
         result_summary["raw_sha256"] = raw_hash
         result_summary["behaviour"] = summarize_fills(result["fills"])
@@ -347,18 +356,20 @@ def run(\n    out_dir: Path,\n    limit: int = MAX_WALLETS,\n    pause_s: float 
         "leaderboard_url": LEADERBOARD_URL,
         "info_api_url": INFO_URL,
         "wallet_count": len(cohort),
+        "fill_window_hours": window_hours,
         "wallets_with_fills": sum(item["fill_count"] > 0 for item in results),
         "wallets_at_10k_fill_cap": sum(item["at_api_cap"] for item in results),
+        "wallets_with_incomplete_window": sum(not item["window_complete"] for item in results),
         "total_fills": sum(item["fill_count"] for item in results),
         "wallet_results": results,
         "limitations": [
             "Wallet addresses are pseudonymous accounts, not verified funds or legal institutions.",
             "Leaderboard selection is a current snapshot and is not survivorship-free historical sampling.",
-            "The Info API exposes only the latest 10,000 fills per wallet through userFillsByTime.",
+            "The Info API is queried over a common recent 96h window; each normal/TWAP endpoint is capped at 10,000 fills per wallet.",
             "The documented REST IP limit is 1,200 weighted units/minute; a 2,000-fill page costs about 120 units, so requests are paced at 6.2 seconds.",
             "A 429 is retried with exponential backoff; any remaining 429 is preserved as an explicit collection error.",
             "Builder-deployed markets and spot-like coin identifiers are separated from native crypto perpetual fills in summaries.",
-            "TWAP slice fills require separate userTwapSliceFills endpoints and are not included in this first pass.",
+            "Normal fills and TWAP slice fills are collected separately through userFillsByTime and userTwapSliceFillsByTime.",
             "Funding, deposits, withdrawals and transfers are not included in fill-level PnL summaries.",
             "Hyperliquid behaviour is a hypothesis source only; final validation must use BingX-native data.",
         ],
@@ -374,11 +385,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out-dir", type=Path, default=Path("reports/public_wallet_panel"))
     parser.add_argument("--limit", type=int, default=MAX_WALLETS)
-    parser.add_argument("--pause-seconds", type=float, default=DEFAULT_PAUSE_SECONDS)\n    parser.add_argument("--window-hours", type=float, default=96)
+    parser.add_argument("--pause-seconds", type=float, default=DEFAULT_PAUSE_SECONDS)
+    parser.add_argument("--window-hours", type=float, default=96)
     args = parser.parse_args()
     if not 1 <= args.limit <= MAX_WALLETS:
         raise SystemExit(f"--limit must be between 1 and {MAX_WALLETS}")
-    manifest = run(args.out_dir, args.limit, args.pause_seconds)
+    manifest = run(args.out_dir, args.limit, args.pause_seconds, args.window_hours)
     print(json.dumps({
         "wallet_count": manifest["wallet_count"],
         "wallets_with_fills": manifest["wallets_with_fills"],
