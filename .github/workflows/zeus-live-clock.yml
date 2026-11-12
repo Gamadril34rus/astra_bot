@@ -13,7 +13,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: astra-state-writers
+  # Separate queue: VST cycles must not cancel PAPER or main-bot runs.
+  group: astra-state-writers-${{ github.workflow }}
   cancel-in-progress: false
 
 jobs:

@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  # Не даём двум сессиям работать одновременно (общее состояние в git).
-  group: astra-state-writers
+  # Separate queues prevent the main PAPER cycle from replacing Zeus ticks.
+  group: astra-state-writers-${{ github.workflow }}
   cancel-in-progress: false
 
 permissions:
@@ -91,9 +91,7 @@ jobs:
           done
           git diff --cached --quiet || \
             git commit -m "chore(ci): bot state $(date -u +%Y-%m-%dT%H:%MZ)"
-          # Shared concurrency serializes the three bot state writers. The
-          # candle archive may still publish disjoint data files, so rebase
-          # our committed state snapshot onto the newest master before push.
+          # This workflow has its own queue; commits still rebase onto latest master.
           set -euo pipefail
           for attempt in 1 2 3 4 5 6; do
             echo "PAPER state save attempt ${attempt}/6"

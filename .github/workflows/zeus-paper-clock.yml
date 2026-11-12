@@ -7,7 +7,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: astra-state-writers
+  # Separate queue: Zeus PAPER must not cancel the main bot or VST clock.
+  group: astra-state-writers-${{ github.workflow }}
   cancel-in-progress: false
 
 permissions:
