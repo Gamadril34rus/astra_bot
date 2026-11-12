@@ -80,7 +80,7 @@ def _new_stats() -> dict[str, Any]:
     }
 
 
-def _add_stats(stats: dict[str, Any], table: pa.Table) -> None:
+def _add_stats(stats: dict[str, Any], table: Any) -> None:
     columns = table.select([
         "wallet", "side", "crossed", "notional", "market", "timestamp", "liquidation"
     ]).to_pylist()
