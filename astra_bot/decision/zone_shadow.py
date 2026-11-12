@@ -28,9 +28,6 @@ def build_volume_zones(
     candles: list[Any],
     *,
     price: float | None = None,
-    bins: int = 24,
-    max_zones: int = 6,
-    radius_pct: float = 0.10,
 ) -> list[dict[str, float]]:
     """Build local maxima of smoothed quote volume; last candle is treated as forming."""
     rows = candles[:-1] if len(candles) > 1 else candles
@@ -107,17 +104,13 @@ def build_volume_zones_with_fallback(
     maximum outside the ±10% relevance band. The recent fallback preserves the
     same volume algorithm and price band; it does not disable the zone gate.
     """
-    zones = build_volume_zones(
-        candles, price=price, bins=bins, max_zones=max_zones, radius_pct=radius_pct
-    )
+    zones = build_volume_zones(candles, price=price)
     if zones:
         return zones, {"source": "full_window", "lookback_bars": max(0, len(candles) - 1)}
     lookback = max(12, int(fallback_lookback))
     recent = list(candles[-lookback:]) if len(candles) > lookback else list(candles)
     if len(recent) < len(candles):
-        zones = build_volume_zones(
-            recent, price=price, bins=bins, max_zones=max_zones, radius_pct=radius_pct
-        )
+        zones = build_volume_zones(recent, price=price)
         if zones:
             return zones, {
             "source": "recent_fallback",
