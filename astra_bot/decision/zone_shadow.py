@@ -119,8 +119,16 @@ def build_volume_zones_with_fallback(
             recent, price=price, bins=bins, max_zones=max_zones, radius_pct=radius_pct
         )
         if zones:
-            return zones, {"source": "recent_fallback", "lookback_bars": max(0, len(recent) - 1)}
-    return [], {"source": "empty", "lookback_bars": max(0, len(candles) - 1)}
+            return zones, {
+            "source": "recent_fallback",
+            "lookback_bars": max(0, len(recent) - 1),
+            "full_lookback_bars": max(0, len(candles) - 1),
+        }
+    return [], {
+        "source": "empty",
+        "lookback_bars": max(0, len(candles) - 1),
+        "full_lookback_bars": max(0, len(candles) - 1),
+    }
 
 
 def zone_context(price: float, zones: list[dict[str, float]]) -> dict[str, Any]:
