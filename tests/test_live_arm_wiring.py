@@ -187,3 +187,34 @@ def test_freshness_first_45min_window():
     now = time.time()
     assert is_fresh({"ts": now - 40 * 60}, max_sec=2700)
     assert not is_fresh({"ts": now - 50 * 60}, max_sec=2700)
+
+
+def test_decimal_stop_distance_and_skip_counter(tmp_path, monkeypatch):
+    from astra_bot.decision.live_arm_wiring import _stop_pct_decimal
+
+    assert _stop_pct_decimal(71.985, 72.70485) == Decimal("0.01")
+    assert _stop_pct_decimal(71.985, 72.70484) < Decimal("0.01")
+    assert _stop_pct_decimal(0, 1) is None
+
+    async def _():
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("ZEUS_MIN_STOP_PCT", "0.01")
+        row = {
+            "signal_id": "below-min-stop",
+            "symbol": "INJ-USDT",
+            "side": "short",
+            "entry": 100.0,
+            "stop": 99.01,
+            "tp": 102.0,
+            "ts": time.time(),
+            "confidence": 0.95,
+        }
+        skipped_client = MockClient()
+        entered, skipped = await run_arm_entries(
+            LiveBroker(skipped_client), [row], max_entries=1,
+        )
+        assert entered == []
+        assert skipped["stop_too_tight"] == 1
+        assert skipped_client.placed == []
+
+    asyncio.run(_())
