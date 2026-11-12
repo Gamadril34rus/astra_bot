@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Study 15m signed wallet flow and its subsequent native-market price response."""
+# ruff: noqa: I001
 from __future__ import annotations
 
 import argparse
