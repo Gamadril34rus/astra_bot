@@ -334,3 +334,11 @@ ASTRA BOT движется от бумажного симулятора к уп�
 | [#3](https://github.com/Gamadril34rus/astra_bot/pull/3) | 2026-08-12 18:57 | build(deps): bump python from 3.12-slim to 3.14-slim | Закрыт без merge: Bumps python from 3.12-slim to 3.14-slim. |
 | [#2](https://github.com/Gamadril34rus/astra_bot/pull/2) | 2026-08-12 18:57 | build(deps): bump actions/setup-python from 5 to 7 | Закрыт без merge: Bumps actions/setup-python from 5 to 7. |
 | [#1](https://github.com/Gamadril34rus/astra_bot/pull/1) | 2026-08-12 18:08 | ASTRA Arena | ASTRA Arena |
+
+
+## 2026-11-12 — PAPER: убрать повторные exit-уведомления
+
+- `scripts/run_bot.py`: карточки сделок TradingEngine отправляются обычным Telegram-сообщением через `_send_to_admins`, без заголовка `ASTRA ALERT`.
+- `astra_bot/decision/trading_engine.py`: ключ exit-карточки стабилен (`exit:<position_id>`), не зависит от меняющейся цены стоп-исполнения.
+- `.github/workflows/bot.yml`: сохранение PAPER state повторяет push после fetch/rebase до трёх попыток; при невозможности сохранения workflow завершается ошибкой, а не маскирует потерю состояния.
+- REAL не включается; торговые параметры, позиции и риск не меняются.

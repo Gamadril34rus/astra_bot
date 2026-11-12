@@ -2137,11 +2137,9 @@ class TradingEngine:
                 except Exception as exc:
                     logger.debug("symbol_loss_guard record skipped: %s", exc)
             try:
-                _card_key = (
-                    f"stop:{d.get('symbol')}:{d.get('exit_price')}"
-                    if str(d.get("exit_reason")) == "stop_loss"
-                    else f"exit:{d.get('id') or ''}"
-                )
+                # Идентификатор закрытия привязан к позиции, а не к цене:
+                # повторный расчёт стопа с новой котировкой не создаёт новую карточку.
+                _card_key = f"exit:{d.get('id') or ''}"
                 self._send_trade_card(self._card_exit_text(d), _card_key)
             except Exception as exc:
                 logger.debug("exit card skipped: %s", exc)

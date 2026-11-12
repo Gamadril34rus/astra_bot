@@ -91,4 +91,16 @@ jobs:
           done
           git diff --cached --quiet || \
             git commit -m "chore(ci): bot state $(date -u +%Y-%m-%dT%H:%MZ)"
-          git push origin master || echo "push failed (will retry next run)"
+          # Другие state-writers могут успеть обновить master между checkout и push.
+          # Подтягиваем их коммиты и повторяем push, чтобы закрытая PAPER-позиция
+          # не оставалась открытой в репозитории до следующего запуска.
+          for attempt in 1 2 3; do
+            if git push origin master; then
+              exit 0
+            fi
+            echo "push attempt $attempt failed; rebasing latest master"
+            git fetch origin master
+            git rebase origin/master || { git rebase --abort || true; break; }
+          done
+          echo "::error::Unable to persist PAPER state after 3 push attempts"
+          exit 1

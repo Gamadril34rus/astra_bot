@@ -58,18 +58,17 @@ def _rotate_state() -> None:
 
 
 def make_telegram_notifier(bot):
-    """Notifier для TradingEngine через Telegram-бота (блок M: HALT-алерты).
+    """Отправляет карточки сделок как обычные сообщения, не как ASTRA ALERT.
 
-    Fire-and-forget со стороны движка; ошибки отправки — в лог, сессию
-    не валят. При отсутствии метода send_alert — тихий no-op.
+    Этот notifier используется только для карточек TradingEngine.
     """
 
     async def _tg_notifier(text: str, severity: str = "info") -> None:
-        if bot and hasattr(bot, "send_alert"):
+        if bot and hasattr(bot, "_send_to_admins"):
             try:
-                await bot.send_alert(text, severity=severity)
+                await bot._send_to_admins(text, severity=severity)
             except Exception as exc:
-                logger.warning("Notifier send failed: %s", exc)
+                logger.warning("Trade notification send failed: %s", exc)
 
     return _tg_notifier
 
