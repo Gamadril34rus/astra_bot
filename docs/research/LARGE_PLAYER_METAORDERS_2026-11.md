@@ -235,7 +235,36 @@ This is a different sample and methodology from the Barone–Lillo execution-sch
 6. Join ASTRA Zone Shadow events only after the source journal has been located and validated. Test approach → zone entry → absorption/break/fakeout/retest and forward returns at 30m/1h/2h/4h/9h, with fees and funding.
 7. Publish reproducible results with sample coverage, data gaps, event counts, confidence intervals, costs, IS/validation/OOS and negative findings.
 
-## 8. Safety boundary
+
+## 9. Candidate ASTRA translation to test (not a live rule)
+
+The evidence suggests the first strategy candidate should be a **position-build versus position-exit classifier**, not a raw whale-following signal.
+
+On Hyperliquid, the ground-truth classes are available:
+- buy + Open Long;
+- buy + Close Short;
+- sell + Open Short;
+- sell + Close Long.
+
+On BingX, participant direction is not public. Only aggregate states can be inferred probabilistically:
+- price rising + net aggressive buying + OI rising → likely new long-side leverage;
+- price falling + net aggressive selling + OI rising → likely new short-side leverage;
+- price rising + net aggressive buying + OI falling → likely short covering;
+- price falling + net aggressive selling + OI falling → likely long reduction/liquidation.
+
+These are market-wide heuristics, not wallet attribution. They must be checked against the actual BingX contract data and not treated as exact position labels.
+
+Proposed research test:
+1. Build 1m/5m market-state episodes from taker delta, OI change, funding, price impact, volume and book depth.
+2. Label Hyperliquid episodes using exact `direction`, maker/taker role and OID-level metaorders.
+3. Test whether opening-flow episodes with rising OI and persistent signed impact outperform closing-flow episodes after 30m/1h/2h/4h/9h, net of fees and funding.
+4. Separate absorption (large aggressive flow, weak price progress, replenishing opposite-side depth) from continuation (price progress and OI expansion).
+5. Join ASTRA Zone Shadow approach/entry/absorption/break/retest states only as a research dimension.
+6. Validate the same aggregate states on BingX. Do not copy the Hyperliquid wallet's side or assume its position is visible there.
+
+No threshold, entry, exit or risk parameter is approved. The purpose is to generate a falsifiable strategy test; Zeus remains untouched.
+
+## 10. Safety boundary
 
 This folder and script are research-only. Do not wire outputs into live Zeus, enable a strategy, change risk parameters or switch REAL on. Any eventual strategy proposal must first pass independent walk-forward/OOS evaluation and a separate owner-approved integration review.
 
