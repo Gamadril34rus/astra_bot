@@ -1,6 +1,11 @@
+import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from scripts.analyze_ironflow_wallet_flow import HORIZONS, _sql_path
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+from scripts.analyze_ironflow_wallet_flow import HORIZONS, _sql_path, analyze
 
 
 def test_forward_horizons_match_at_hold_time_cap() -> None:
@@ -20,14 +25,6 @@ def test_sql_path_escapes_single_quotes(tmp_path: Path) -> None:
 
 
 def test_analyze_builds_wallet_flow_and_exact_forward_returns(tmp_path: Path) -> None:
-    import json
-    from datetime import datetime, timedelta, timezone
-
-    import pyarrow as pa
-    import pyarrow.parquet as pq
-
-    from scripts.analyze_ironflow_wallet_flow import analyze
-
     start = datetime(2026, 10, 3, 0, 0, tzinfo=timezone.utc)
     wallet_trades = pa.table({
         "wallet": ["0xa", "0xb", "0xc"],
