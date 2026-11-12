@@ -151,6 +151,62 @@ def test_parse_candle_zip_rejects_conflicting_duplicate() -> None:
         probe.parse_candle_zip(_zip_csv(rows), "BTC-USDT-SWAP", start, start)
 
 
+def test_patch_month_gaps_inserts_only_verified_rest_bar(tmp_path, monkeypatch) -> None:
+    month = "2026-09"
+    inst_id = "SOL-USDT-SWAP"
+    month_dir = tmp_path / month
+    month_dir.mkdir()
+    first = 1_788_250_000_000
+    missing = first + 60_000
+    last = first + 120_000
+    csv_path = month_dir / f"{inst_id}_1m_{month}.csv"
+    rows = [
+        {
+            "open_time": str(first), "open": "100", "high": "101", "low": "99",
+            "close": "100", "volume_contracts": "1", "volume_base": "1",
+            "volume_quote": "100", "confirm": "1", "source": "okx_monthly_archive",
+        },
+        {
+            "open_time": str(last), "open": "101", "high": "102", "low": "100",
+            "close": "101", "volume_contracts": "1", "volume_base": "1",
+            "volume_quote": "101", "confirm": "1", "source": "okx_monthly_archive",
+        },
+    ]
+    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    summary = {
+        "gap_count": 1,
+        "gap_samples": [{"after": first, "before": last, "missing_minutes": 1}],
+        "bar_count": 2,
+        "first_open_time": first,
+        "last_open_time": last,
+    }
+    (month_dir / "manifest.json").write_text(
+        json.dumps({"symbols": {inst_id: summary}}),
+        encoding="utf-8",
+    )
+    patched_bar = {
+        "open_time": missing, "open": "100", "high": "101", "low": "100",
+        "close": "101", "volume_contracts": "0", "volume_base": "0",
+        "volume_quote": "0", "confirm": "1",
+        "source": "okx_rest_history_candles_gap_patch",
+    }
+    monkeypatch.setattr(probe, "fetch_rest_candle", lambda symbol, ts: patched_bar)
+    monkeypatch.setattr(probe.time, "sleep", lambda _: None)
+
+    updated = probe.patch_month_gaps(inst_id, month, summary, tmp_path)
+
+    assert updated["bar_count"] == 3
+    assert updated["gap_count"] == 0
+    assert updated["rest_gap_patches"] == [missing]
+    with csv_path.open(newline="", encoding="utf-8") as handle:
+        saved = list(csv.DictReader(handle))
+    assert len(saved) == 3
+    assert saved[1]["source"] == "okx_rest_history_candles_gap_patch"
+
+
 def test_rest_gap_patch_fetches_exact_historical_minute(monkeypatch) -> None:
     timestamp = 1_790_784_000_000
     captured = {}
