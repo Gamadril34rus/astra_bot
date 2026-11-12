@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: B023  # Legacy nested async callbacks intentionally close over tick-local state.
 """Zeus LIVE clock — one tick. INACTIVE without ZEUS_LIVE=1.
 
 Paper path (run_paper_zeus / PaperBroker) is never imported here for trading.
@@ -2587,16 +2588,16 @@ async def one_tick(*, dry: bool = False) -> int:
     # Session profile must be applied before ANY BE/TP repair or stop management.
     _sp = None
     try:
-        from astra_bot.decision.live_session import apply_session_to_environ
         from astra_bot.decision.live_arm_wiring import append_journal as _aj_sess
+        from astra_bot.decision.live_session import apply_session_to_environ
         _sp = apply_session_to_environ()
         logger.info(
             "session_profile: %s arm=%s BE=%.2fR TP1=%.2fR (%s)",
             _sp.name, _sp.arm, _sp.be_trigger_r, _sp.tp1_rr, _sp.note,
         )
         try:
-            from pathlib import Path as _P
             import json as _json
+            from pathlib import Path as _P
             _sf = _P("models/zeus_session_state.json")
             _prev = None
             if _sf.exists():
