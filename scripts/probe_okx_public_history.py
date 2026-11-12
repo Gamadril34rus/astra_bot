@@ -192,7 +192,7 @@ def parse_candle_zip(blob: bytes, inst_id: str, begin_ms: int, end_ms: int) -> t
     if not csv_members:
         raise ValueError("OKX ZIP contains no CSV members")
     ordered = [bars[key] for key in sorted(bars)]
-    times = [bar["open_time"] for bar in ordered]
+    times = [int(bar["open_time"]) for bar in ordered]
     gaps = [
         {"after": left, "before": right, "missing_minutes": (right - left) // 60_000 - 1}
         for left, right in itertools.pairwise(times)
