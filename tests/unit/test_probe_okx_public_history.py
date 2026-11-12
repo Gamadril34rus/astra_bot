@@ -36,6 +36,13 @@ def test_month_sequence_rejects_reversed_range() -> None:
         probe.month_sequence("2026-02", "2025-11")
 
 
+def test_okx_range_rejects_unknown_or_duplicate_symbol_cohorts(tmp_path) -> None:
+    with pytest.raises(ValueError, match="unsupported OKX research symbols"):
+        probe.run_probe_range("2025-01", "2025-01", tmp_path, ("BTC", "XRP"))
+    with pytest.raises(ValueError, match="non-empty unique tuple"):
+        probe.run_probe_range("2025-01", "2025-01", tmp_path, ())
+
+
 def test_month_bounds_reject_invalid_month() -> None:
     with pytest.raises(ValueError, match="YYYY-MM"):
         probe.month_bounds_hk("2026-13")
