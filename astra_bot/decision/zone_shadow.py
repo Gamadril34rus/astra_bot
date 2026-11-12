@@ -94,9 +94,6 @@ def build_volume_zones_with_fallback(
     *,
     price: float | None = None,
     fallback_lookback: int = 120,
-    bins: int = 24,
-    max_zones: int = 6,
-    radius_pct: float = 0.10,
 ) -> tuple[list[dict[str, float]], dict[str, Any]]:
     """Use the full profile first; fall back to a recent 4h window if it has no nearby HVNs.
 
@@ -113,10 +110,10 @@ def build_volume_zones_with_fallback(
         zones = build_volume_zones(recent, price=price)
         if zones:
             return zones, {
-            "source": "recent_fallback",
-            "lookback_bars": max(0, len(recent) - 1),
-            "full_lookback_bars": max(0, len(candles) - 1),
-        }
+                "source": "recent_fallback",
+                "lookback_bars": max(0, len(recent) - 1),
+                "full_lookback_bars": max(0, len(candles) - 1),
+            }
     return [], {
         "source": "empty",
         "lookback_bars": max(0, len(candles) - 1),
