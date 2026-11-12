@@ -48,7 +48,7 @@ jobs:
           python -m pip install pyarrow duckdb pytest ruff
       - name: Run archive-filter tests and lint
         run: |
-          python -m pytest tests/unit/test_collect_ironflow_wallet_archive.py -q --confcutdir=tests/unit
+          python -m pytest tests/unit/test_collect_ironflow_wallet_archive.py tests/unit/test_analyze_ironflow_wallet_flow.py -q --confcutdir=tests/unit
           python -m ruff check --config pyproject.toml scripts/collect_ironflow_wallet_archive.py scripts/analyze_ironflow_wallet_flow.py tests/unit/test_collect_ironflow_wallet_archive.py tests/unit/test_analyze_ironflow_wallet_flow.py
       - name: Download frozen 100-wallet leaderboard cohort
         uses: actions/download-artifact@v4
