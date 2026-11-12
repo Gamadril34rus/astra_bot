@@ -28,6 +28,9 @@ def build_volume_zones(
     candles: list[Any],
     *,
     price: float | None = None,
+    bins: int = 24,
+    max_zones: int = 6,
+    radius_pct: float = 0.10,
 ) -> list[dict[str, float]]:
     """Build local maxima of smoothed quote volume; last candle is treated as forming."""
     rows = candles[:-1] if len(candles) > 1 else candles
