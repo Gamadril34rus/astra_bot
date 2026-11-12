@@ -2672,7 +2672,7 @@ async def one_tick(*, dry: bool = False) -> int:
     # F13: plan.qty ↔ exchange qty (>0.5% → upsert + qty_reconcile)
     try:
         rq = await broker.reconcile_plan_qty()
-        if rq.get("reconciled"):
+        if rq.get("reconciled") or rq.get("leverage_reconciled"):
             logger.info("reconcile_plan_qty: %s", rq)
     except Exception as _rq_exc:
         logger.warning("reconcile_plan_qty failed: %s", type(_rq_exc).__name__)
