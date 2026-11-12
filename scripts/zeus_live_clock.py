@@ -1890,9 +1890,11 @@ async def sync_partial_breakeven(
 
 
 async def heal_dead_tp_legs(broker, *, positions_path: Path | None = None) -> dict:
-    """F7.3a: TP leg NEW but mark crossed trigger 2 ticks → replace-first then cancel old.
+    """Detect crossed TP triggers once; never re-arm an already-crossed price.
 
-    Never leave position naked: place new TP at same level, code=0, then cancel old.
+    BingX rejects a new TP order when its trigger is already through mark. The
+    function therefore records a terminal crossed_unfilled state and leaves
+    the existing position/protection untouched for owner reconciliation.
     """
     from astra_bot.decision.live_arm_wiring import append_journal
     from astra_bot.decision.live_positions import load_positions
@@ -2819,7 +2821,7 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception as _oa_exc:
         logger.warning("order_audit FAILED: %s", type(_oa_exc).__name__)
 
-    # F7.3a: dead TP leg auto-heal (replace-first, never naked)
+    # F7.3a: crossed TP watchdog (idempotent; no invalid trigger re-arm)
     try:
         heal = await heal_dead_tp_legs(broker)
         if heal.get("healed") or heal.get("watched"):
