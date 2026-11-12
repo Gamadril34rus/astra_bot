@@ -6,10 +6,11 @@ import argparse
 import csv
 import hashlib
 import io
+import itertools
 import json
 import time
 import zipfile
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.error import HTTPError
@@ -168,7 +169,7 @@ def parse_candle_zip(blob: bytes, inst_id: str, begin_ms: int, end_ms: int) -> t
     times = [bar["open_time"] for bar in ordered]
     gaps = [
         {"after": left, "before": right, "missing_minutes": (right - left) // 60_000 - 1}
-        for left, right in zip(times, times[1:])
+        for left, right in itertools.pairwise(times)
         if right - left > 60_000
     ]
     summary = {
@@ -215,7 +216,7 @@ def fetch_funding(inst_id: str, begin_ms: int, end_ms: int) -> tuple[list[dict],
             "method": row.get("method"),
         })
     rates.sort(key=lambda item: item["funding_time"])
-    diffs = [b["funding_time"] - a["funding_time"] for a, b in zip(rates, rates[1:])]
+    diffs = [b["funding_time"] - a["funding_time"] for a, b in itertools.pairwise(rates)]
     summary = {
         "inst_id": inst_id,
         "funding_events": len(rates),
@@ -258,7 +259,7 @@ def run_probe(month: str, out_dir: Path) -> dict:
 
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest = {
-        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "generated_at_utc": datetime.now(UTC).isoformat(),
         "exchange": "OKX",
         "market": "USDT-margined perpetual swaps",
         "month": month,
