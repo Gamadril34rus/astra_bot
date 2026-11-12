@@ -5,10 +5,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import statistics
 import time
 from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
-import statistics
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
