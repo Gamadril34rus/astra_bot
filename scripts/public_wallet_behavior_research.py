@@ -159,25 +159,32 @@ def fetch_wallet_fills(address: str, now_ms: int, pause_s: float = 0.25) -> dict
 
 
 def classify_fill(fill: dict[str, Any]) -> str:
-    direction = str(fill.get("dir") or "").lower()
-    if "open" in direction:
-        return "open"
-    if "close" in direction:
-        return "close"
+    """Classify position effect; exchange 'Open Long' can also describe an add."""
     side = str(fill.get("side") or "").upper()
     try:
         start = float(fill.get("startPosition") or 0)
         size = float(fill.get("sz") or 0)
     except (TypeError, ValueError):
-        return "unknown"
-    delta = size if side == "B" else -size if side == "A" else 0.0
-    end = start + delta
-    if abs(start) < 1e-12 and abs(end) > 1e-12:
+        start = size = 0.0
+    if side in {"A", "B"} and size > 0:
+        delta = size if side == "B" else -size
+        end = start + delta
+        epsilon = 1e-12
+        if abs(start) <= epsilon and abs(end) > epsilon:
+            return "open"
+        if abs(end) <= epsilon:
+            return "close"
+        if start * end < 0:
+            return "reverse"
+        if abs(end) > abs(start):
+            return "add"
+        if abs(end) < abs(start):
+            return "close"
+    direction = str(fill.get("dir") or "").lower()
+    if "open" in direction:
         return "open"
-    if abs(end) < abs(start):
+    if "close" in direction:
         return "close"
-    if abs(end) > abs(start):
-        return "add"
     return "unknown"
 
 
