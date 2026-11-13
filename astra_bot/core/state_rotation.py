@@ -35,6 +35,8 @@ LIVE_JSONL_LIMITS: dict[str, int] = {
     # Zeus: ротация (rotate_zeus_states) держит хвост ≤20_000;
     # гейт тревожится на 24_000 — то есть при ОТКАЗЕ ротации.
     "zeus_trade_journal.jsonl": 24_000,
+    # Main ASTRA runner keeps its stop-adjust stream separate from Zeus paper-clock.
+    "astra_trade_journal.jsonl": 24_000,
     "zeus_no_trade_observations.jsonl": 24_000,
     # Keep an outcome tail >= observation cap to avoid re-enrichment after eviction.
     "zeus_no_trade_outcomes.jsonl": 24_000,
