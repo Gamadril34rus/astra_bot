@@ -76,7 +76,7 @@ def test_workflow_save_bash_n():
             lines.append(ln[10:])
         elif not ln.strip():
             lines.append("")
-        elif ln.startswith("      -") or ln.startswith("    -"):
+        elif ln.startswith(("      -", "    -")):
             break
     tmp = Path("/tmp/wf_for_test.sh")
     tmp.write_text("#!/bin/bash\n" + "\n".join(lines) + "\n")
@@ -121,6 +121,7 @@ async def test_price_breakeven_once_at_08r_without_tp_fill(tmp_path, monkeypatch
 
     class P:
         symbol = "BTC-USDT"
+        side = "long"
         quantity = Decimal("1")
         mark_price = Decimal("108")  # +0.8R
 
