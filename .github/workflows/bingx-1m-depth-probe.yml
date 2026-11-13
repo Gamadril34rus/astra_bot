@@ -25,6 +25,8 @@ jobs:
       - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
         with:
           python-version: "3.11"
+      - name: Install test runner
+        run: python -m pip install pytest
       - name: Run probe unit tests
         run: python -m pytest tests/research/test_bingx_1m_depth_probe.py -q --confcutdir=tests/research
       - name: Probe actual BingX swap kline history and optional fields
