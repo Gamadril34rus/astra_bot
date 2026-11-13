@@ -2560,3 +2560,5 @@
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2121024639441920000", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794526940.4186797}
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2121025835309293568", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794528420.3842616}
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2121032705788960768", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794529970.3246713}
+{"event": "qty_reconcile", "symbol": "BTC-USDT", "side": "short", "old_qty": 0.44588999, "new_qty": 0.312, "rel_diff": 0.300276, "signal_id": "zeus_channel_boundary|BTC-USDT|short|1794499200000", "ts": 1794530205.2341218}
+{"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2121038543735840768", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794530252.9017756}
