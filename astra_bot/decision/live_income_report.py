@@ -222,12 +222,82 @@ def claim_funding_event(
     return True
 
 
+def _income_position_side(row: dict[str, Any]) -> str | None:
+    raw = row.get("positionSide") or row.get("position_side")
+    info = row.get("info")
+    if info is None:
+        info = row.get("tradeInfo")
+    if isinstance(info, str):
+        try:
+            info = json.loads(info)
+        except (TypeError, ValueError):
+            info = None
+    if raw is None and isinstance(info, dict):
+        raw = info.get("positionSide") or info.get("position_side")
+    side = str(raw or "").strip().lower()
+    return side if side in {"long", "short"} else None
+
+
+def _income_trade_id(row: dict[str, Any]) -> str | None:
+    for key in ("tradeId", "trade_id"):
+        value = row.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return None
+
+
+def filter_income_rows_for_position_side(
+    rows: list[dict[str, Any]],
+    position_side: str,
+    *,
+    trade_ids: set[str] | list[str] | tuple[str, ...] | None = None,
+) -> tuple[list[dict[str, Any]], bool]:
+    """Map income rows to one hedge leg using positionSide or matched fill tradeId.
+
+    The user/income endpoint is often symbol-wide and may omit positionSide. In
+    that case only a tradeId already attributed from allFillOrders is accepted.
+    Unlinked realized-PnL/fee rows make the batch ambiguous and invalidate it.
+    Funding without a side or tradeId is omitted rather than assigned to a leg.
+    """
+    side = str(position_side or "").strip().lower()
+    if side not in {"long", "short"}:
+        return [], True
+    allowed_trade_ids = {str(value).strip() for value in (trade_ids or []) if str(value).strip()}
+    selected: list[dict[str, Any]] = []
+    ambiguous = False
+    for row in rows or []:
+        if not isinstance(row, dict):
+            ambiguous = True
+            continue
+        row_side = _income_position_side(row)
+        if row_side is not None:
+            if row_side == side:
+                selected.append(row)
+            continue
+        trade_id = _income_trade_id(row)
+        if trade_id:
+            if trade_id in allowed_trade_ids:
+                selected.append(row)
+            # A different tradeId is not attributable to this position leg.
+            continue
+        if _row_type(row) == "FUNDING_FEE":
+            continue
+        if _row_type(row) in {"REALIZED_PNL", "TRADING_FEE", "COMMISSION"}:
+            ambiguous = True
+    if ambiguous:
+        return [], True
+    return selected, False
+
+
 async def exit_net_from_client(
     client: Any,
     symbol: str,
     since_ms: int | None,
+    *,
+    position_side: str | None = None,
+    trade_ids: set[str] | list[str] | tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
-    """Fetch income via client.get_realized_income and aggregate."""
+    """Fetch income and, in hedge mode, attribute only provable rows to one leg."""
     if not hasattr(client, "get_realized_income"):
         return aggregate_income([])
     try:
@@ -235,7 +305,21 @@ async def exit_net_from_client(
     except Exception as exc:
         logger.warning("exit_net_from_client %s: %s", symbol, type(exc).__name__)
         rows = []
-    return aggregate_income(rows or [])
+    if position_side is None:
+        return aggregate_income(rows or [])
+    selected, ambiguous = filter_income_rows_for_position_side(
+        rows or [], position_side, trade_ids=trade_ids
+    )
+    if ambiguous:
+        return {
+            **aggregate_income([]),
+            "ambiguous_position_side": True,
+            "ambiguous_rows": len(rows or []),
+        }
+    return {
+        **aggregate_income(selected),
+        "ambiguous_position_side": False,
+    }
 
 
 async def fetch_income_with_retries(
@@ -245,13 +329,23 @@ async def fetch_income_with_retries(
     *,
     attempts: int = 3,
     delay_sec: float = 7.0,
+    position_side: str | None = None,
+    trade_ids: set[str] | list[str] | tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
-    """Poll income up to attempts (~20s total). Return best aggregate."""
+    """Poll income up to attempts; ambiguous hedge attribution is not retryable."""
     import asyncio
 
     best = aggregate_income([])
     for i in range(max(1, attempts)):
-        agg = await exit_net_from_client(client, symbol, since_ms)
+        agg = await exit_net_from_client(
+            client,
+            symbol,
+            since_ms,
+            position_side=position_side,
+            trade_ids=trade_ids,
+        )
+        if agg.get("ambiguous_position_side"):
+            return agg
         if agg.get("has_realized") or abs(float(agg.get("net") or 0)) > 1e-9:
             return agg
         best = agg
@@ -290,7 +384,7 @@ def income_too_small(agg: dict[str, Any], est: float | None) -> bool:
     """has_realized but |REALIZED_PNL| < 0.10·est and est > 50."""
     if est is None or est <= 50:
         return False
-    if not agg.get("has_realized"):
+    if not agg.get("has_realized") or agg.get("ambiguous_position_side"):
         return False
     try:
         rp = abs(float(agg.get("pnl") or 0))
@@ -421,7 +515,7 @@ async def resolve_pending_dogon(
     sent = 0
     for item in items:
         sym = str(item.get("symbol") or "")
-        side = str(item.get("side") or "long")
+        side = str(item.get("side") or "").strip().lower()
         sid = item.get("signal_id")
         since_ms = item.get("since_ms")
         reason = str(item.get("reason") or "стоп")
@@ -433,10 +527,31 @@ async def resolve_pending_dogon(
         age = now_ts - enqueued_ts
         if not sym:
             continue
+        if side not in {"long", "short"}:
+            logger.warning(
+                "dogon: %s pending income has no valid LONG/SHORT side; retain without patch",
+                sym,
+            )
+            remaining.append(item)
+            continue
         try:
-            agg = await exit_net_from_client(client, sym, since_ms)
+            agg = await exit_net_from_client(
+                client,
+                sym,
+                since_ms,
+                position_side=side,
+                trade_ids=item.get("trade_ids"),
+            )
         except Exception as exc:
             logger.warning("dogon exit_net %s: %s", sym, type(exc).__name__)
+            remaining.append(item)
+            continue
+        if agg.get("ambiguous_position_side"):
+            logger.warning(
+                "dogon: %s %s income rows cannot be mapped to the closed hedge leg; keep pending",
+                sym,
+                side,
+            )
             remaining.append(item)
             continue
 
@@ -587,7 +702,8 @@ def _parse_income_fill(row: dict, symbol: str) -> dict | None:
     return {
         "event": "partial_fill",
         "symbol": symbol,
-        "side": None,
+        "side": _income_position_side(row),
+        "position_side": _income_position_side(row),
         "qty": qty_f,
         "price": px_f,
         "pnl": amount,
