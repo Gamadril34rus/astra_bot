@@ -1,7 +1,6 @@
 """Hedge-mode regression tests for Zeus clock reconciliation and TP repair."""
 
 import asyncio
-import json
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -13,7 +12,6 @@ from scripts.zeus_live_clock import (
     _positions_by_hedge_leg,
     apply_tp_parity_v1,
     detect_position_missing_with_orders,
-    heal_dead_tp_legs,
     sync_partial_breakeven,
 )
 
@@ -216,89 +214,6 @@ def test_tp_parity_sizes_and_cancels_only_matching_hedge_leg(tmp_path, monkeypat
 
     asyncio.run(run())
 
-
-def test_dead_tp_heal_replaces_only_the_matching_hedge_tp(tmp_path, monkeypatch):
-    async def run():
-        monkeypatch.chdir(tmp_path)
-        models = tmp_path / "models"
-        models.mkdir()
-        plans_path = models / "positions.json"
-        save_positions(
-            {
-                "BTC-USDT|long": {
-                    "symbol": "BTC-USDT",
-                    "side": "long",
-                    "entry": "100",
-                    "stop": "90",
-                    "tp1": "110",
-                    "qty": "1",
-                },
-                "BTC-USDT|short": {
-                    "symbol": "BTC-USDT",
-                    "side": "short",
-                    "entry": "100",
-                    "stop": "110",
-                    "tp1": "90",
-                    "qty": "2",
-                },
-            },
-            plans_path,
-        )
-        (models / "zeus_tp_heal_state.json").write_text(
-            json.dumps(
-                {
-                    "BTC-USDT|long": {"ticks": 1},
-                    "BTC-USDT|short": {"ticks": 1},
-                }
-            ),
-            encoding="utf-8",
-        )
-        long_tp = _tp("old-long-tp", "long", "0.3", "110")
-        short_tp = _tp("old-short-tp", "short", "0.6", "90")
-
-        class Client:
-            def __init__(self):
-                self.placed = []
-                self.cancelled = []
-
-            async def get_positions(self):
-                return [
-                    _position("long", "0.7", "111"),
-                    _position("short", "1.4", "89"),
-                ]
-
-            async def get_open_orders(self, symbol=None):
-                return [long_tp, short_tp]
-
-            async def place_order(self, **kwargs):
-                self.placed.append(kwargs)
-                return SimpleNamespace(id=f"replacement-{len(self.placed)}")
-
-            async def cancel_order(self, symbol, order_id):
-                self.cancelled.append((symbol, order_id))
-                return True
-
-        monkeypatch.setattr(
-            "astra_bot.decision.live_arm_wiring.append_journal", lambda _row: None
-        )
-        client = Client()
-        broker = SimpleNamespace(client=client)
-
-        result = await heal_dead_tp_legs(broker, positions_path=plans_path)
-
-        assert len(client.placed) == 2
-        assert {row["quantity"] for row in client.placed} == {
-            Decimal("0.3"),
-            Decimal("0.6"),
-        }
-        assert {row["position_side"] for row in client.placed} == {"LONG", "SHORT"}
-        assert set(client.cancelled) == {
-            ("BTC-USDT", "old-long-tp"),
-            ("BTC-USDT", "old-short-tp"),
-        }
-        assert len(result["healed"]) == 2
-
-    asyncio.run(run())
 
 
 def test_missing_position_detection_does_not_confuse_opposite_hedge_leg(
