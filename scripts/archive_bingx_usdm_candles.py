@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import csv
+import hashlib
 import json
 import logging
 import os
@@ -137,17 +138,32 @@ def _same_bar(left: dict[str, str], right: dict[str, str]) -> bool:
 def _merge_rows(
     existing: dict[int, dict[str, str]],
     incoming: dict[int, dict[str, str]],
+    *,
+    conflicts: list[dict[str, Any]] | None = None,
 ) -> dict[int, dict[str, str]]:
-    """Merge by candle open time; never silently overwrite a historical bar."""
+    """Merge by candle open time; conflicting history is preserved and surfaced.
+
+    Without a conflict sink, retain the strict legacy behavior (raise). The
+    archive runner supplies a sink so one revised historical bar cannot abort
+    collection for every remaining symbol/timeframe.
+    """
     merged = dict(existing)
     for open_time, row in incoming.items():
         previous = merged.get(open_time)
         if previous is not None:
             if not _same_bar(previous, row):
-                raise ValueError(
-                    f"immutable candle conflict at open_time={open_time}: "
-                    f"existing={previous!r} incoming={row!r}"
-                )
+                conflict = {
+                    "open_time": open_time,
+                    "existing": dict(previous),
+                    "incoming": dict(row),
+                }
+                if conflicts is None:
+                    raise ValueError(
+                        f"immutable candle conflict at open_time={open_time}: "
+                        f"existing={previous!r} incoming={row!r}"
+                    )
+                conflicts.append(conflict)
+                continue
             enriched = dict(previous)
             for field in OPTIONAL_VOLUME_FIELDS:
                 if not enriched.get(field) and row.get(field):
@@ -156,6 +172,43 @@ def _merge_rows(
             continue
         merged[open_time] = row
     return dict(sorted(merged.items()))
+
+
+def _append_conflicts(
+    path: Path, conflicts: list[dict[str, Any]]
+) -> int:
+    """Append unique immutable-bar discrepancies to an audit JSONL sidecar."""
+    if not conflicts:
+        return 0
+    path.parent.mkdir(parents=True, exist_ok=True)
+    known: set[str] = set()
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            try:
+                item = json.loads(line)
+                known.add(str(item.get("conflict_id") or ""))
+            except (json.JSONDecodeError, AttributeError):
+                continue
+    added = 0
+    with path.open("a", encoding="utf-8") as handle:
+        for conflict in conflicts:
+            payload = {
+                **conflict,
+                "detected_at_utc": datetime.now(tz=UTC).isoformat(),
+            }
+            identity = json.dumps(
+                [conflict["open_time"], conflict["existing"], conflict["incoming"]],
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            conflict_id = hashlib.sha256(identity.encode("utf-8")).hexdigest()
+            if conflict_id in known:
+                continue
+            payload["conflict_id"] = conflict_id
+            handle.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
+            known.add(conflict_id)
+            added += 1
+    return added
 
 
 def _write_rows(path: Path, rows: dict[int, dict[str, str]]) -> None:
@@ -295,9 +348,12 @@ async def _download_pair(
     if not existing and not incoming:
         raise RuntimeError(f"BingX returned no closed candles for {symbol} {timeframe}")
 
-    merged = _merge_rows(existing, incoming)
+    conflicts: list[dict[str, Any]] = []
+    merged = _merge_rows(existing, incoming, conflicts=conflicts)
     if merged:
         _write_rows(path, merged)
+    conflict_path = path.parent / "conflicts" / f"{symbol.replace('-', '')}_{timeframe}.jsonl"
+    conflicts_recorded = _append_conflicts(conflict_path, conflicts)
     coverage = _coverage(merged, interval_ms)
     coverage.update(
         {
@@ -307,6 +363,8 @@ async def _download_pair(
             "mode": mode,
             "new_bars": len(set(merged) - set(existing)),
             "verified_overlap_bars": len(set(incoming) & set(existing)),
+            "immutable_conflicts_detected": len(conflicts),
+            "immutable_conflicts_newly_recorded": conflicts_recorded,
             "pages_requested": pages,
             "optional_fields_refresh": refresh_optional_fields,
         }

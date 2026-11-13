@@ -106,3 +106,11 @@ YML — отдельный мини-PR после её мержа. Допуст�
 **Digest:** исправлены wrapper и ошибочное умножение `bar_time` ещё на 1000:
 теперь NO_TRADE-выводы попадают в реальное окно watermark/26 часов. Старые
 исходы больше не выглядят свежими, сохраняется прежний вердикт по направлению.
+
+## CI reliability follow-up (13.11.2026)
+
+- Main `Bot (always-on)` and `Zeus paper-clock` used separate GitHub concurrency groups while both could append to `models/zeus_trade_journal.jsonl`. The main runner now writes stop-adjust events to `models/astra_trade_journal.jsonl` via `ASTRA_TRADE_JOURNAL_PATH`; Zeus paper-clock retains the original journal. Both files have independent rotation/size limits and are persisted by their owning workflow.
+- `bingx-usdm-candle-archive.yml` now sets `PYTHONPATH` to the repository root and performs an import smoke check before the archive script. This prevents `scripts/` being the only import root when executing a script by path.
+- BingX can revise an already archived OHLCV candle. The archive keeps its existing row, records the old/new pair once in `data/bingx_usdm/conflicts/<SYMBOL>_<TF>.jsonl`, and continues collecting other bars/symbols. Conflicts are visible in the per-symbol manifest; they are not silently accepted as replacements or treated as a fatal failure for the entire collection.
+- `zeus-paper-clock` no longer masks a failed core paper-runner step with `continue-on-error`; the save-state step still runs with `if: always()` so diagnostics and state persistence are retained.
+- These changes do not enable REAL trading or change order/risk logic. They address journal write contention, archive startup imports, and failure visibility.

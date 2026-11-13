@@ -47,6 +47,8 @@ jobs:
           ARCHIVE_TIMEFRAMES: ${{ inputs.timeframes || '' }}
         run: |
           set -euo pipefail
+          export PYTHONPATH="$GITHUB_WORKSPACE${PYTHONPATH:+:$PYTHONPATH}"
+          python -c 'from astra_bot.adapters.bingx.client import BingXClient; print("archive imports OK")'
           if [[ -z "$ARCHIVE_MODE" ]]; then
             if [[ -f data/bingx_usdm/manifest.json ]]; then
               ARCHIVE_MODE=daily

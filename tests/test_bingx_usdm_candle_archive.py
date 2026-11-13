@@ -7,6 +7,7 @@ import pytest
 from scripts.archive_bingx_usdm_candles import (
     DEFAULT_TIMEFRAMES,
     TIMEFRAME_MS,
+    _append_conflicts,
     _coverage,
     _merge_rows,
     _read_rows,
@@ -42,6 +43,37 @@ def test_merge_rejects_revised_historical_bar() -> None:
     incoming = {60_000: _row(60_000, "100.01")}
     with pytest.raises(ValueError, match="immutable candle conflict"):
         _merge_rows(existing, incoming)
+
+
+def test_merge_quarantines_conflicting_bar_without_overwriting(tmp_path: Path) -> None:
+    existing_row = _row(60_000, "100")
+    incoming_row = _row(60_000, "100.01")
+    conflicts: list[dict] = []
+    merged = _merge_rows(
+        {60_000: existing_row},
+        {60_000: incoming_row, 120_000: _row(120_000)},
+        conflicts=conflicts,
+    )
+    assert merged[60_000] == existing_row
+    assert 120_000 in merged
+    assert len(conflicts) == 1
+    assert conflicts[0]["open_time"] == 60_000
+    assert conflicts[0]["incoming"] == incoming_row
+
+
+def test_conflict_audit_is_deduplicated(tmp_path: Path) -> None:
+    conflict = {
+        "open_time": 60_000,
+        "existing": _row(60_000, "100"),
+        "incoming": _row(60_000, "100.01"),
+    }
+    path = tmp_path / "conflicts" / "BTCUSDT_30m.jsonl"
+    assert _append_conflicts(path, [conflict]) == 1
+    assert _append_conflicts(path, [conflict]) == 0
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert len(rows) == 1
+    assert rows[0]["open_time"] == 60_000
+    assert rows[0]["conflict_id"]
 
 def test_csv_roundtrip(tmp_path: Path) -> None:
     path = tmp_path / "candles.csv"

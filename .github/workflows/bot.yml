@@ -51,6 +51,7 @@ jobs:
         run: |
           {
             echo "ENVIRONMENT=paper"
+            echo "ASTRA_TRADE_JOURNAL_PATH=models/astra_trade_journal.jsonl"
             echo "PAPER_TRADING=true"
             echo "BINGX_API_KEY=$BINGX_API_KEY"
             echo "BINGX_API_SECRET=$BINGX_API_SECRET"
@@ -86,7 +87,7 @@ jobs:
                    models/research/observations.jsonl \
                    models/halt_alerts.json \
                    models/symbol_loss_guard.json \
-                   models/zeus_trade_journal.jsonl; do
+                   models/astra_trade_journal.jsonl; do
             [ -f "$f" ] && git add -f "$f" || true
           done
           git diff --cached --quiet || \

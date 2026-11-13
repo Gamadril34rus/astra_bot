@@ -6,7 +6,7 @@ import sys
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -70,7 +70,7 @@ async def test_qty_reconcile_writes_journal_and_saves(tmp_path, monkeypatch):
     }
     positions_path.write_text(json.dumps({"positions": plans}))
 
-    from astra_bot.decision import live_arm_wiring, live_positions, live_broker
+    from astra_bot.decision import live_arm_wiring, live_broker, live_positions
 
     monkeypatch.setattr(live_arm_wiring, "JOURNAL_PATH", journal_path)
     monkeypatch.setattr(live_positions, "DEFAULT_PATH", positions_path)
@@ -125,15 +125,6 @@ async def test_qty_reconcile_decimal_fields_write_real_journal(tmp_path, monkeyp
 
     positions_path = tmp_path / "zeus_live_positions.json"
     journal_path = tmp_path / "zeus_live_journal.jsonl"
-    plans = {
-        "LTC-USDT|short": {
-            "symbol": "LTC-USDT",
-            "side": "short",
-            "qty": Decimal("474.7"),  # plan may hold Decimal-like
-            "plan_qty": "474.7",
-            "signal_id": "sid-ltc-dec",
-        }
-    }
     # write plan with float for JSON file; Decimal comes from exchange side
     positions_path.write_text(
         json.dumps(
@@ -181,3 +172,18 @@ async def test_qty_reconcile_decimal_fields_write_real_journal(tmp_path, monkeyp
     assert abs(qr["old_qty"] - 474.7) < 0.01
     assert abs(qr["new_qty"] - 284.85) < 0.01
     assert qr["symbol"] == "LTC-USDT"
+
+def test_exit_plan_stop_adjust_uses_runner_specific_journal(tmp_path, monkeypatch):
+    """The main ASTRA runner must not append to Zeus paper-clock's journal."""
+    try:
+        from astra_bot.decision.exit_plan import ExitPlanEngine
+    except Exception:
+        pytest.skip("exit_plan import requires full deps")
+    journal = tmp_path / "astra_trade_journal.jsonl"
+    monkeypatch.setenv("ASTRA_TRADE_JOURNAL_PATH", str(journal))
+    pos = SimpleNamespace(symbol="BTC-USDT", direction="long", stop_loss=Decimal("101"))
+    ExitPlanEngine._emit_stop_adjust(pos, Decimal("100"), "test")
+    assert journal.exists()
+    row = json.loads(journal.read_text(encoding="utf-8").splitlines()[-1])
+    assert row["event"] == "stop_adjust"
+    assert row["symbol"] == "BTC-USDT"

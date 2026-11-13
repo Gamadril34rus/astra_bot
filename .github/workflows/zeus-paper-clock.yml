@@ -58,7 +58,6 @@ jobs:
 
       - name: Zeus paper-clock --once multi-symbol
         run: python scripts/run_paper_zeus.py --once --symbols BTC-USDT,ETH-USDT,SOL-USDT,HYPE-USDT,INJ-USDT
-        continue-on-error: true
 
       - name: Telegram status
         env:
