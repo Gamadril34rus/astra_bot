@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# ruff: noqa: B023
+# Legacy nested async callbacks intentionally close over tick-local state.
 """Zeus LIVE clock — one tick. INACTIVE without ZEUS_LIVE=1.
 
 Paper path (run_paper_zeus / PaperBroker) is never imported here for trading.
@@ -115,10 +117,10 @@ async def _send_live_tg(msg: str) -> None:
 
 
 # F15: margin-reject warn + tp_parity_v1 (imports after sys.path insert above)
-from astra_bot.decision.live_margin_warn import (  # noqa: E402
+from astra_bot.decision.live_margin_warn import (
     maybe_warn_margin_reject as _maybe_warn_margin_reject,
 )
-from astra_bot.decision.live_margin_warn import (  # noqa: E402
+from astra_bot.decision.live_margin_warn import (
     set_send_tg as _set_margin_warn_tg,
 )
 
@@ -1890,9 +1892,11 @@ async def sync_partial_breakeven(
 
 
 async def heal_dead_tp_legs(broker, *, positions_path: Path | None = None) -> dict:
-    """F7.3a: TP leg NEW but mark crossed trigger 2 ticks → replace-first then cancel old.
+    """Detect crossed TP triggers once; never re-arm an already-crossed price.
 
-    Never leave position naked: place new TP at same level, code=0, then cancel old.
+    BingX rejects a new TP order when its trigger is already through mark. The
+    function therefore records a terminal crossed_unfilled state and leaves
+    the existing position/protection untouched for owner reconciliation.
     """
     from astra_bot.decision.live_arm_wiring import append_journal
     from astra_bot.decision.live_positions import load_positions
@@ -1960,95 +1964,56 @@ async def heal_dead_tp_legs(broker, *, positions_path: Path | None = None) -> di
             tp_orders.append(o)
         if not tp_orders:
             continue
-        # crossed?
+        key = f"{sym}|{side}"
+        prior = st.get(key) if isinstance(st.get(key), dict) else {}
+        # A crossed TP cannot be re-armed at the same trigger: BingX rejects it
+        # because the trigger is already on the wrong side of mark. Make this
+        # terminal for the current TP level instead of retrying every 5 minutes.
+        if prior.get("status") == "crossed_unfilled" and str(prior.get("tp")) == str(tp_px):
+            watched.append(sym)
+            continue
+        if prior and str(prior.get("tp")) != str(tp_px):
+            st.pop(key, None)
+            prior = {}
         if side == "short":
             crossed = mark_px <= tp_px
         else:
             crossed = mark_px >= tp_px
-        key = f"{sym}|{side}"
         if not crossed:
             st.pop(key, None)
             continue
-        ticks = int(st.get(key, {}).get("ticks", 0)) + 1
-        st[key] = {"ticks": ticks, "tp": str(tp_px), "mark": str(mark_px), "ts": time.time()}
+        ticks = int(prior.get("ticks", 0)) + 1
         watched.append(sym)
         if ticks < 2:
+            st[key] = {"ticks": ticks, "tp": str(tp_px), "mark": str(mark_px), "ts": time.time()}
             logger.info("heal_dead_tp: %s crossed tick %s/2 mark=%s tp=%s", sym, ticks, mark_px, tp_px)
             continue
-        # replace-first
-        old = tp_orders[0]
-        old_id = getattr(old, "id", None) or getattr(old, "exchange_order_id", None)
-        qty = getattr(old, "quantity", None)
-        if qty is None or Decimal(str(qty)) <= 0:
-            # 40% of position
-            qty = (Decimal(str(getattr(pos, "quantity", 0))) * Decimal("0.4")).quantize(Decimal("0.00000001"))
-        stop_side = "BUY" if side == "short" else "SELL"
-        ps = "SHORT" if side == "short" else "LONG"
-        try:
-            new_o = await broker.client.place_order(
-                symbol=sym,
-                side=stop_side,
-                order_type="TAKE_PROFIT_MARKET",
-                quantity=Decimal(str(qty)),
-                stop_price=tp_px,
-                position_side=ps,
-                reduce_only=False,
-                close_position=False,
-                working_type="MARK_PRICE",
-            )
-            append_journal({
-                "event": "tp_heal_place",
-                "symbol": sym,
-                "side": side,
-                "stop_price": str(tp_px),
-                "qty": str(qty),
-                "mark": str(mark_px),
-                "old_id": str(old_id or ""),
-                "new_id": str(getattr(new_o, "id", None) or ""),
-                "ts": time.time(),
-            })
-            # cancel old only after success
-            if old_id and hasattr(broker.client, "cancel_order"):
-                try:
-                    await broker.client.cancel_order(sym, str(old_id))
-                    try:
-                        from astra_bot.decision.live_broker import journal_order_cancel
-                        journal_order_cancel(
-                            symbol=sym,
-                            order_id=str(old_id),
-                            order_type="TAKE_PROFIT",
-                            reason="tp_heal_replace",
-                            path="tp_heal",
-                            side=side,
-                        )
-                    except Exception:
-                        pass
-                    append_journal({
-                        "event": "tp_heal_cancel_old",
-                        "symbol": sym,
-                        "old_id": str(old_id),
-                        "ts": time.time(),
-                    })
-                except Exception as cexc:
-                    logger.warning("heal_dead_tp cancel old %s: %s", sym, cexc)
-                    append_journal({
-                        "event": "tp_heal_cancel_failed",
-                        "symbol": sym,
-                        "old_id": str(old_id),
-                        "error": f"{type(cexc).__name__}: {cexc}",
-                        "ts": time.time(),
-                    })
-            healed.append(sym)
-            st.pop(key, None)
-            logger.info("heal_dead_tp: %s replaced TP @ %s (mark=%s)", sym, tp_px, mark_px)
-        except Exception as exc:
-            logger.warning("heal_dead_tp place %s failed: %s: %s", sym, type(exc).__name__, exc)
-            append_journal({
-                "event": "tp_heal_place_failed",
-                "symbol": sym,
-                "error": f"{type(exc).__name__}: {exc}",
-                "ts": time.time(),
-            })
+        old_ids = [
+            str(getattr(o, "id", None) or getattr(o, "exchange_order_id", None) or "")
+            for o in tp_orders
+        ]
+        st[key] = {
+            "ticks": ticks, "status": "crossed_unfilled",
+            "tp": str(tp_px), "mark": str(mark_px),
+            "order_ids": [oid for oid in old_ids if oid],
+            "ts": time.time(),
+        }
+        append_journal({
+            "event": "tp_crossed_unfilled",
+            "symbol": sym,
+            "side": side,
+            "tp": str(tp_px),
+            "mark": str(mark_px),
+            "order_ids": [oid for oid in old_ids if oid],
+            "action": "no_rearm_no_market_close",
+            "reason": "trigger_already_crossed; owner reconciliation required",
+            "ts": time.time(),
+        })
+        logger.warning(
+            "heal_dead_tp: %s TP level already crossed (mark=%s tp=%s); "
+            "stopping invalid re-arm retries, position unchanged",
+            sym, mark_px, tp_px,
+        )
 
     try:
         state_path.write_text(json.dumps(st, ensure_ascii=False), encoding="utf-8")
@@ -2621,6 +2586,47 @@ async def one_tick(*, dry: bool = False) -> int:
         config=LiveBrokerConfig(max_leverage=_max_lev),
     )
 
+    # Session profile must be applied before ANY BE/TP repair or stop management.
+    _sp = None
+    try:
+        from astra_bot.decision.live_arm_wiring import append_journal as _aj_sess
+        from astra_bot.decision.live_session import apply_session_to_environ
+        _sp = apply_session_to_environ()
+        logger.info(
+            "session_profile: %s arm=%s BE=%.2fR TP1=%.2fR (%s)",
+            _sp.name, _sp.arm, _sp.be_trigger_r, _sp.tp1_rr, _sp.note,
+        )
+        try:
+            import json as _json
+            from pathlib import Path as _P
+            _sf = _P("models/zeus_session_state.json")
+            _prev = None
+            if _sf.exists():
+                try:
+                    _prev = _json.loads(_sf.read_text()).get("name")
+                except Exception:
+                    _prev = None
+            if _prev != _sp.name:
+                _aj_sess({
+                    "event": "session_profile",
+                    "name": _sp.name,
+                    "arm": _sp.arm,
+                    "be_trigger_r": _sp.be_trigger_r,
+                    "tp1_rr": _sp.tp1_rr,
+                    "ts": __import__("time").time(),
+                })
+                _sf.write_text(_json.dumps({
+                    "name": _sp.name,
+                    "arm": _sp.arm,
+                    "be_trigger_r": _sp.be_trigger_r,
+                    "tp1_rr": _sp.tp1_rr,
+                    "ts": __import__("time").time(),
+                }) + "\n")
+        except Exception:
+            pass
+    except Exception as _sess_exc:
+        logger.warning("session_profile failed: %s", type(_sess_exc).__name__)
+
     try:
         from astra_bot.decision.vol_cd_hooks import apply_live_sync_hook
 
@@ -2668,7 +2674,7 @@ async def one_tick(*, dry: bool = False) -> int:
     # F13: plan.qty ↔ exchange qty (>0.5% → upsert + qty_reconcile)
     try:
         rq = await broker.reconcile_plan_qty()
-        if rq.get("reconciled"):
+        if rq.get("reconciled") or rq.get("leverage_reconciled"):
             logger.info("reconcile_plan_qty: %s", rq)
     except Exception as _rq_exc:
         logger.warning("reconcile_plan_qty failed: %s", type(_rq_exc).__name__)
@@ -2729,6 +2735,8 @@ async def one_tick(*, dry: bool = False) -> int:
             _be_tr = float((_os_be.environ.get("ZEUS_BE_TRIGGER_R") or "0.5").strip() or "0.5")
         except Exception:
             _be_tr = 0.5
+        if _sp is not None:
+            _be_tr = float(_sp.be_trigger_r)
         ens = await broker.ensure_protection(send_tg=_send_live_tg, trigger_be_r=_be_tr)
         if ens.get("placed") or ens.get("closed"):
             logger.info("ensure_protection: %s", ens)
@@ -2815,7 +2823,7 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception as _oa_exc:
         logger.warning("order_audit FAILED: %s", type(_oa_exc).__name__)
 
-    # F7.3a: dead TP leg auto-heal (replace-first, never naked)
+    # F7.3a: crossed TP watchdog (idempotent; no invalid trigger re-arm)
     try:
         heal = await heal_dead_tp_legs(broker)
         if heal.get("healed") or heal.get("watched"):
@@ -2842,7 +2850,11 @@ async def one_tick(*, dry: bool = False) -> int:
     # C: partial TP1 → BE — EVERY tick (owner rule), after restore so stop is present
     try:
         _F17_5M_CACHE.clear()
-        partial = await sync_partial_breakeven(broker, send_tg=_send_live_tg)
+        partial = await sync_partial_breakeven(
+            broker,
+            send_tg=_send_live_tg,
+            trigger_r=_sp.be_trigger_r if _sp is not None else None,
+        )
         if partial.get("moved") or partial.get("skipped"):
             logger.info("sync_partial_breakeven: %s", partial)
     except Exception as exc:
@@ -2917,45 +2929,7 @@ async def one_tick(*, dry: bool = False) -> int:
         logger.error("risk_check_failed: %s", type(exc).__name__)
         broker.set_halt("risk_check_failed")
 
-    # Session profile (MSK): fat/normal/thin/off → BE, TP1, arm gate
-    try:
-        from astra_bot.decision.live_session import apply_session_to_environ
-        from astra_bot.decision.live_arm_wiring import append_journal as _aj_sess
-        _sp = apply_session_to_environ()
-        logger.info(
-            "session_profile: %s arm=%s BE=%.2fR TP1=%.2fR (%s)",
-            _sp.name, _sp.arm, _sp.be_trigger_r, _sp.tp1_rr, _sp.note,
-        )
-        try:
-            from pathlib import Path as _P
-            import json as _json
-            _sf = _P("models/zeus_session_state.json")
-            _prev = None
-            if _sf.exists():
-                try:
-                    _prev = _json.loads(_sf.read_text()).get("name")
-                except Exception:
-                    _prev = None
-            if _prev != _sp.name:
-                _aj_sess({
-                    "event": "session_profile",
-                    "name": _sp.name,
-                    "arm": _sp.arm,
-                    "be_trigger_r": _sp.be_trigger_r,
-                    "tp1_rr": _sp.tp1_rr,
-                    "ts": __import__("time").time(),
-                })
-                _sf.write_text(_json.dumps({
-                    "name": _sp.name,
-                    "arm": _sp.arm,
-                    "be_trigger_r": _sp.be_trigger_r,
-                    "tp1_rr": _sp.tp1_rr,
-                    "ts": __import__("time").time(),
-                }) + "\n")
-        except Exception:
-            pass
-    except Exception as _sess_exc:
-        logger.warning("session_profile failed: %s", type(_sess_exc).__name__)
+    # Session profile already applied before exit/stop management above.
 
     # PR-B exit engine (shadow default) — after kill/risk, before arm
     try:
