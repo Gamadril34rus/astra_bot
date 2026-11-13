@@ -24,7 +24,8 @@ MIN_OOS_TRADES = 100
 MIN_OOS_TRADES_PER_SIDE = 25
 MIN_OOS_PF = 1.25
 MIN_POSITIVE_MONTH_SHARE_PCT = 70.0
-MAX_RESEARCH_DRAWDOWN_PCT = 20.0
+MAX_REALIZED_EQUAL_NOTIONAL_DRAWDOWN_PCT = 10.0
+MAX_TRADE_SEQUENCE_DRAWDOWN_PCT = 20.0
 
 EXTREME_DEVIATION_ATR = 1.25
 RECLAIM_MIN_DEVIATION_ATR = 0.15
@@ -266,16 +267,20 @@ def _oos_gate(
         failures.append("base_oos_net_expectancy<=0")
     if float(base["positive_month_share_pct"]) < MIN_POSITIVE_MONTH_SHARE_PCT:
         failures.append(f"base_oos_positive_month_share<{MIN_POSITIVE_MONTH_SHARE_PCT}")
-    if float(base["realized_equal_notional_drawdown_pct"]) < -MAX_RESEARCH_DRAWDOWN_PCT:
-        failures.append(f"base_oos_drawdown>{MAX_RESEARCH_DRAWDOWN_PCT}")
+    if float(base["realized_equal_notional_drawdown_pct"]) < -MAX_REALIZED_EQUAL_NOTIONAL_DRAWDOWN_PCT:
+        failures.append(f"base_oos_realized_drawdown>{MAX_REALIZED_EQUAL_NOTIONAL_DRAWDOWN_PCT}")
+    if float(base["trade_sequence_drawdown_pct"]) < -MAX_TRADE_SEQUENCE_DRAWDOWN_PCT:
+        failures.append(f"base_oos_trade_sequence_drawdown>{MAX_TRADE_SEQUENCE_DRAWDOWN_PCT}")
     if float(stress["net_expectancy_pct"]) <= 0:
         failures.append("stress_oos_net_expectancy<=0")
     if _pf_value(stress["pf"]) < 1.0:
         failures.append("stress_oos_net_pf<1.0")
     if float(stress["positive_month_share_pct"]) < MIN_POSITIVE_MONTH_SHARE_PCT:
         failures.append(f"stress_oos_positive_month_share<{MIN_POSITIVE_MONTH_SHARE_PCT}")
-    if float(stress["realized_equal_notional_drawdown_pct"]) < -MAX_RESEARCH_DRAWDOWN_PCT:
-        failures.append(f"stress_oos_drawdown>{MAX_RESEARCH_DRAWDOWN_PCT}")
+    if float(stress["realized_equal_notional_drawdown_pct"]) < -MAX_REALIZED_EQUAL_NOTIONAL_DRAWDOWN_PCT:
+        failures.append(f"stress_oos_realized_drawdown>{MAX_REALIZED_EQUAL_NOTIONAL_DRAWDOWN_PCT}")
+    if float(stress["trade_sequence_drawdown_pct"]) < -MAX_TRADE_SEQUENCE_DRAWDOWN_PCT:
+        failures.append(f"stress_oos_trade_sequence_drawdown>{MAX_TRADE_SEQUENCE_DRAWDOWN_PCT}")
     return {
         "passed": not failures,
         "failures": failures,
@@ -460,6 +465,11 @@ def run_research(args: argparse.Namespace) -> dict[str, Any]:
             "stress_1_5x": stress_costs,
             "stress_factor": STRESS_MULTIPLIER,
             "execution_costs_are_proxies": True,
+        },
+        "drawdown_guardrails": {
+            "realized_equal_notional_drawdown_max_pct": MAX_REALIZED_EQUAL_NOTIONAL_DRAWDOWN_PCT,
+            "trade_sequence_drawdown_max_pct": MAX_TRADE_SEQUENCE_DRAWDOWN_PCT,
+            "note": "research OHLC/realized-PnL proxies; not intratrade margin or liquidation risk",
         },
         "coverage": coverage,
         "common_15m_window": common,
