@@ -6,6 +6,7 @@ import pytest
 
 from scripts import research_adaptive_perp_portfolio as core
 from scripts.research_bingx_session_vwap import (
+    _assert_same_population,
     _oos_gate,
     _period_signal,
     _screen_passes,
@@ -228,3 +229,14 @@ def test_backtest_engine_accepts_isolated_signal_function(monkeypatch) -> None:
         signal_fn=lambda _x, _i: None,
     )
     assert trades == []
+
+
+def test_base_and_stress_cost_cases_must_share_trade_population() -> None:
+    base = pd.DataFrame([
+        {"symbol": "ETH-USDT", "side": "LONG", "entry_time": 100, "exit_time": 200}
+    ])
+    stress = base.copy()
+    _assert_same_population(base, stress, "test")
+    stress.loc[0, "exit_time"] = 201
+    with pytest.raises(RuntimeError, match="identical trade population"):
+        _assert_same_population(base, stress, "test")
