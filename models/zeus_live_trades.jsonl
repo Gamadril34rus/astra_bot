@@ -2570,3 +2570,4 @@
 {"event": "protect_place", "ts": 1794538982.7035165, "symbol": "SOL-USDT", "kind": "stop", "stop_price": "82.3644", "qty": "397.14409554", "close_position": true, "order_id": "2121076343231307776"}
 {"event": "protect_place", "ts": 1794538983.220603, "symbol": "SOL-USDT", "kind": "tp", "stop_price": "79.145980", "qty": "119.14322866", "reduce_only": false, "order_id": "2121076345454288896"}
 {"event": "entry", "signal_id": "zeus_multi_top_breakdown|SOL-USDT|short|1794535200000", "symbol": "SOL-USDT", "side": "short", "plan_entry": "80.288", "fill_price": "80.241", "slip_pct": 0.05853925866878867, "slip_r": 0.022635330379502987, "qty": "397.14409554", "stop": "82.3644", "tp": "79.145980", "tp_frac": 0.3, "leverage": 6, "ts": 1794538983.221556}
+{"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2121073615914491904", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794540125.098094}
