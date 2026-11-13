@@ -22,6 +22,12 @@ from .base import BaseStrategy, Signal, SignalType, StrategyConfig
 logger = logging.getLogger(__name__)
 
 _lazy_bingx_client: BingXClient | None = None
+
+
+def set_bingx_client(client: BingXClient | None) -> None:
+    """Inject the runner-owned client so filters share its limiter and lifecycle."""
+    global _lazy_bingx_client
+    _lazy_bingx_client = client
 _oi_cache: dict[str, list[tuple[float, float]]] = {}  # symbol -> [(timestamp, oi_val)]
 
 # Блок J: OI-история персистится в файл. In-memory кэш с TTL 900с при

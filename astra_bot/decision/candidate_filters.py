@@ -26,6 +26,12 @@ logger = logging.getLogger(__name__)
 
 _lazy_bingx_client: BingXClient | None = None
 
+
+def set_bingx_client(client: BingXClient | None) -> None:
+    """Inject the runner-owned client so filters share its limiter and lifecycle."""
+    global _lazy_bingx_client
+    _lazy_bingx_client = client
+
 _btcd_cache: dict[str, Any] = {"timestamp": 0.0, "history": []}
 _candles_cache: dict[str, tuple[float, list[float]]] = {}
 _basket_cache: dict[str, Any] = {"timestamp": 0.0, "pos_count": 0, "neg_count": 0}

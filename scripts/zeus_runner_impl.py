@@ -50,6 +50,9 @@ async def amain(args: argparse.Namespace) -> int:
         }
     )
     await bingx.initialize()
+    from astra_bot.decision.shared_market_data import bind_shared_bingx_client
+
+    bind_shared_bingx_client(bingx)
     config = zeus_engine_config(args, symbols)
     engine, zeus, zeus_channel = zeus_build_pipeline_and_engine(
         args, symbols, config, bingx
@@ -75,9 +78,10 @@ async def amain(args: argparse.Namespace) -> int:
         "symbols": symbols,
         "stop": stop,
     }
-    await zeus_run_cycles(ctx)
-
-    await bingx.close()
+    try:
+        await zeus_run_cycles(ctx)
+    finally:
+        await bingx.close()
     return 0
 
 def main() -> None:

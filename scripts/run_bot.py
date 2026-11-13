@@ -96,6 +96,9 @@ async def amain() -> int:
     except Exception as exc:
         logger.warning("BingX init failed (продолжаю в офлайн-режиме): %s", exc)
 
+    from astra_bot.decision.shared_market_data import bind_shared_bingx_client
+
+    bind_shared_bingx_client(bingx)
     candidates = tuple(to_bingx(s) for s in TRADING_UNIVERSE)
     symbols = candidates  # fallback по умолчанию
     try:
