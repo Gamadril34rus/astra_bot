@@ -47,6 +47,7 @@ jobs:
           ARCHIVE_TIMEFRAMES: ${{ inputs.timeframes || '' }}
         run: |
           set -euo pipefail
+          export PYTHONPATH="$GITHUB_WORKSPACE${PYTHONPATH:+:$PYTHONPATH}"
           if [[ -z "$ARCHIVE_MODE" ]]; then
             if [[ -f data/bingx_usdm/manifest.json ]]; then
               ARCHIVE_MODE=daily
