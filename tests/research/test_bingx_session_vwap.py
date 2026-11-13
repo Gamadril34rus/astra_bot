@@ -175,19 +175,24 @@ def test_oos_gate_requires_100_trades_1_25_pf_months_and_stress() -> None:
         "pf": 1.3,
         "net_expectancy_pct": 0.03,
         "positive_month_share_pct": 75.0,
-        "realized_equal_notional_drawdown_pct": -12.0,
+        "realized_equal_notional_drawdown_pct": -8.0,
+        "trade_sequence_drawdown_pct": -15.0,
     }
     stress = {
         "trades": 120,
         "pf": 1.05,
         "net_expectancy_pct": 0.005,
         "positive_month_share_pct": 75.0,
-        "realized_equal_notional_drawdown_pct": -15.0,
+        "realized_equal_notional_drawdown_pct": -9.0,
+        "trade_sequence_drawdown_pct": -18.0,
     }
     result = _oos_gate(base, stress, long_trades=60, short_trades=60)
     assert result["passed"] is True
     assert result["side_specific_claims_allowed"] is True
     stress["net_expectancy_pct"] = -0.001
+    assert _oos_gate(base, stress, 60, 60)["passed"] is False
+    stress["net_expectancy_pct"] = 0.005
+    stress["trade_sequence_drawdown_pct"] = -21.0
     assert _oos_gate(base, stress, 60, 60)["passed"] is False
 
 
