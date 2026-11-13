@@ -202,7 +202,7 @@ def _simulate_period(
         )
         rows.extend(
             trade for trade in trades
-            if int(trade["entry_time"]) >= start_ms and int(trade["exit_time"]) <= end_ms
+            if int(trade["entry_time"]) >= start_ms and int(trade["exit_time"]) < end_ms
         )
         diagnostics[symbol] = symbol_diagnostics
     return pd.DataFrame(rows), diagnostics
