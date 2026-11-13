@@ -223,6 +223,18 @@ def _add_notional_pnl(summary: dict[str, Any]) -> dict[str, Any]:
     return summary
 
 
+def _population_signature(frame: pd.DataFrame) -> list[tuple[Any, ...]]:
+    if frame.empty:
+        return []
+    columns = ["symbol", "side", "entry_time", "exit_time"]
+    return sorted(tuple(row) for row in frame[columns].itertuples(index=False, name=None))
+
+
+def _assert_same_population(base: pd.DataFrame, stress: pd.DataFrame, label: str) -> None:
+    if _population_signature(base) != _population_signature(stress):
+        raise RuntimeError(f"{label}: base and 1.5x cost cases do not share an identical trade population")
+
+
 def _summary(frame: pd.DataFrame, start_ms: int, end_ms: int) -> dict[str, Any]:
     first_month, last_month = _period_months(start_ms, end_ms)
     result = _add_notional_pnl(core.summarize(frame, first_month, last_month))
@@ -423,6 +435,12 @@ def run_research(args: argparse.Namespace) -> dict[str, Any]:
             screen_diagnostics[cost_case][period] = diagnostics
             screen[cost_case][period] = _summary(frame, period_start, period_end)
 
+    for period in periods:
+        _assert_same_population(
+            screen_trades["base"][period],
+            screen_trades["stress_1_5x"][period],
+            f"{period} screen",
+        )
     screen_passed, screen_failures = _screen_passes(screen)
     args.out_dir.mkdir(parents=True, exist_ok=True)
     for cost_case in screen_trades:
@@ -525,6 +543,7 @@ def run_research(args: argparse.Namespace) -> dict[str, Any]:
         oos_stress, diag_stress = _simulate_period(
             prepared, oos_start_ms, common_end_ms, stress_costs
         )
+        _assert_same_population(oos_base, oos_stress, "OOS replay")
         oos_base_summary = _summary(oos_base, oos_start_ms, common_end_ms)
         oos_stress_summary = _summary(oos_stress, oos_start_ms, common_end_ms)
         long_count = int((oos_base["side"] == "LONG").sum()) if not oos_base.empty else 0
