@@ -13,7 +13,7 @@
 | `SETTINGS.md` | Канон Zeus | Числовые правила Zeus, их источники, code defaults и фактические значения workflow на дату среза. Для Zeus это основной справочник. |
 | `.github/workflows/zeus-live-clock.yml` | Фактическое окружение live-clock | Явно задаёт часть переменных процесса. Остальные передаёт из GitHub Actions Secrets. |
 | GitHub Actions Secrets | Секреты и owner-controlled флаги | Сами значения хранятся в настройках репозитория, а не в Git. Workflow только передаёт их процессу. |
-| `.github/workflows/copy-zeus-archive.yml` + `scripts/copy_zeus_archive.py` | COPY_ZEUS, этап 1 | Отдельный real-only **read-only архив**. Использует существующие BingX API secrets; создание, изменение и закрытие ордеров отсутствуют. |
+| `.github/workflows/copy-zeus-archive.yml` + `scripts/copy_zeus_archive.py` | COPY_ZEUS, архив остановлен | Job workflow отключён: BingX API code 100410 не позволяет получить нужные copy-trading данные. Внешний cron-job.org требуется отключить отдельно. |
 
 ## Как выбирается фактическое значение
 
@@ -57,9 +57,9 @@ Live workflow запускается через `workflow_dispatch`. Внешн�
 
 ## COPY_ZEUS — отдельный read-only контур
 
-`copy-zeus-archive.yml` имеет `workflow_dispatch`; внешний cron-job.org вызывает его каждые 30 минут на минутах **07 и 37**. Workflow выставляет `COPYZEUS_ENV=real`, загружает предыдущий зашифрованный архив, выполняет разрешённые GET-запросы, шифрует архив и публикует artifact.
+`copy-zeus-archive.yml` сохраняет `workflow_dispatch`, но job отключён (`if: false`). Причина: BingX возвращает HTTP 200 с API code 100410 для требуемых copy-trading данных. Повторные запросы не устраняют ограничение источника.
 
-COPY_ZEUS не наследует торговые настройки Zeus и не копирует сделки. Это сбор и хранение read-only данных реального счёта — первый инфраструктурный этап, а не разрешение торговать или зеркалировать позиции.
+Если внешний cron-job.org всё ещё отправляет dispatch каждые 30 минут на минутах **07 и 37**, его нужно отключить отдельно в cron-job.org. GitHub workflow не имеет доступа к настройкам внешнего планировщика. COPY_ZEUS не копирует сделки и не участвует в торговле.
 
 ## Чего не делать
 
