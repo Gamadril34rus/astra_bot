@@ -6,6 +6,7 @@ import argparse
 import csv
 import hashlib
 import json
+import math
 import statistics
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
@@ -17,6 +18,7 @@ import duckdb
 ANCHOR_UTC = datetime(2026, 10, 19, 0, 2, tzinfo=UTC)
 BOUNDARY_GUARD_SECONDS = 60
 EPSILON = 1e-9
+POSITION_MATCH_ABS_TOLERANCE = 1e-6
 POSITIONS_URL = (
     "https://huggingface.co/datasets/Hydromancer/hyperliquid-reservoir/"
     "resolve/main/snapshots/positions_2026-10-19.parquet"
@@ -37,6 +39,12 @@ def sha256_file(path: Path) -> str:
 
 def sql_path(path: Path) -> str:
     return str(path.resolve()).replace("'", "''")
+
+
+def _positions_match(left: float, right: float) -> bool:
+    return math.isclose(
+        left, right, rel_tol=1e-9, abs_tol=POSITION_MATCH_ABS_TOLERANCE
+    )
 
 
 def _load_cohort(path: Path) -> tuple[list[str], dict[str, dict[str, Any]]]:
@@ -463,7 +471,7 @@ def reconstruct(
             after = float(row["position_after"] or 0.0)
             delta = float(row["delta"] or 0.0)
             price = float(row["price"] or 0.0)
-            if abs(current_size - before) > 1e-7 * max(1.0, abs(before)):
+            if not _positions_match(current_size, before):
                 raise RuntimeError(
                     f"position path discontinuity for {key}: "
                     f"python={current_size}, sql_before={before}"
