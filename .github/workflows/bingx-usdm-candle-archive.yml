@@ -53,8 +53,8 @@ jobs:
             if [[ -f data/bingx_usdm/manifest.json ]]; then
               ARCHIVE_MODE=daily
             else
-              echo "No candle manifest yet; first scheduled run performs initial history backfill"
-              ARCHIVE_MODE=initial
+              echo "::warning::No candle manifest exists; scheduled run is safely skipped. A full initial archive requires an explicit owner-initiated workflow_dispatch with mode=initial."
+              exit 0
             fi
           fi
           args=(--mode "$ARCHIVE_MODE")

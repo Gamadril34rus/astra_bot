@@ -25,16 +25,20 @@ BingXClient. It is perpetual-futures OHLCV, not Binance spot candles.
 
 Workflow: .github/workflows/bingx-usdm-candle-archive.yml
 
-1. The first scheduled run automatically detects a missing manifest and performs
-   the initial historical backfill. No backfill runs on PR merge itself.
-2. After manifest.json exists, the daily schedule appends bars newer than the last
-   archived timestamp using the timeframe set recorded in the manifest. The
-   initial default is 5m/15m/1h/4h/1d; a manual initial dispatch can explicitly
-   add 1m. Later daily runs inherit that chosen set unless explicitly overridden.
-3. A manual workflow_dispatch can still select mode=initial or mode=daily.
-3. If the manifest reports gaps or a data conflict, investigate and run a
-   controlled initial/backfill repair separately. Daily mode does not rewrite
-   old bars or hide missing intervals.
+1. A scheduled run is strictly incremental. If the manifest exists, it appends
+   only missing closed bars using the timeframe set recorded in the manifest.
+2. If the manifest is absent, the scheduled run exits safely before making any
+   BingX request. It never infers permission for a full historical backfill from
+   an empty archive.
+3. A full initial archive requires an explicit owner-initiated
+   workflow_dispatch with mode=initial. A manual mode=daily dispatch without a
+   manifest fails closed in the downloader before requesting candles.
+4. The initial default timeframe set is 5m/15m/1h/4h/1d; a manual initial
+   dispatch can explicitly add 1m. Later daily runs inherit the timeframe set
+   recorded in the manifest unless explicitly overridden.
+5. If the manifest reports gaps or a data conflict, investigate and plan a
+   controlled repair separately. Daily mode does not rewrite old bars or hide
+   missing intervals.
 
 The workflow uses only public market-data requests. It requires no API key and
 has no trading, account, order, or position permissions.
