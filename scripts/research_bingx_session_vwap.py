@@ -11,7 +11,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-
 from scripts import research_adaptive_perp_portfolio as core
 
 DEFAULT_SYMBOLS = ("ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
