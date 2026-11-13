@@ -11,8 +11,11 @@ concurrency:
   group: copyzeus-archive
   cancel-in-progress: false
 
+# Disabled 2026-11-13: BingX returns API code 100410 for the copy-trading data
+# this collector needs. Re-enable only after a supported data source is verified.
 jobs:
   archive:
+    if: ${{ false }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
