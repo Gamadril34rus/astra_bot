@@ -38,7 +38,7 @@ def test_crossed_tp_is_terminal_and_does_not_retry_invalid_order(tmp_path, monke
     ])
     broker.client.get_open_orders = AsyncMock(return_value=[
         SimpleNamespace(
-            id="tp1-old", order_type="TAKE_PROFIT_MARKET",
+            id="tp1-old", symbol="INJ-USDT", order_type="TAKE_PROFIT_MARKET",
             side="BUY", position_side="SHORT",
             status_raw="NEW", stop_price=Decimal("7.6228"),
             quantity=Decimal("219.2"),
