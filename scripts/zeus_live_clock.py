@@ -131,6 +131,63 @@ _TP_PARITY_DONE = "tp_parity_v1"
 _INITIAL_STOP_DONE = "initial_stop_v1"
 
 
+def _normalize_plan_side(value: object) -> str | None:
+    side = str(value or "").strip().lower()
+    return side if side in ("long", "short") else None
+
+
+def _positions_by_hedge_leg(positions) -> dict[tuple[str, str], object]:
+    """Index unique positive exchange legs by (symbol, positionSide)."""
+    result: dict[tuple[str, str], object] = {}
+    duplicates: set[tuple[str, str]] = set()
+    for position in positions or []:
+        symbol = str(getattr(position, "symbol", None) or getattr(position, "symbol_name", None) or "").strip()
+        side = _normalize_plan_side(getattr(position, "side", None))
+        try:
+            quantity = Decimal(str(getattr(position, "quantity", None) or getattr(position, "qty", None) or 0))
+        except Exception:
+            continue
+        if not symbol or side is None or quantity <= 0:
+            continue
+        key = (symbol, side)
+        if key in result:
+            duplicates.add(key)
+        else:
+            result[key] = position
+    for key in duplicates:
+        result[key] = None
+    return result
+
+
+def _position_for_hedge_leg(positions_by_leg, symbol: str, side: str):
+    normalized = _normalize_plan_side(side)
+    if normalized is None:
+        return None
+    return positions_by_leg.get((str(symbol), normalized))
+
+
+def _order_matches_hedge_leg(order, symbol: str, side: str) -> bool:
+    if str(getattr(order, "symbol", "") or "") != str(symbol):
+        return False
+    normalized = _normalize_plan_side(side)
+    if normalized is None:
+        return False
+    from astra_bot.decision.live_broker import _order_matches_position_side
+    return _order_matches_position_side(order, normalized)
+
+
+def _open_orders_for_hedge_leg(orders, symbol: str, side: str, kind: str | None = None) -> list:
+    from astra_bot.decision.live_broker import _order_is_open, _protective_order_kind
+    return [
+        order
+        for order in orders or []
+        if _order_is_open(order)
+        and _order_matches_hedge_leg(order, symbol, side)
+        and (kind is None or _protective_order_kind(order) == kind)
+    ]
+
+
+
 def migrate_initial_stop_v1() -> dict:
     """One-shot: fill plan.initial_stop for open plans (F15b).
 
@@ -260,12 +317,7 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
         positions = await broker.client.get_positions()
     except Exception as exc:
         return {**out, "error": type(exc).__name__}
-    by_sym = {}
-    for p in positions or []:
-        sym = getattr(p, "symbol", None) or getattr(p, "symbol_name", None)
-        if not sym:
-            continue
-        by_sym[str(sym)] = p
+    by_leg = _positions_by_hedge_leg(positions)
     for key, plan in list(plans.items()):
         if not isinstance(plan, dict):
             continue
@@ -273,7 +325,12 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
             out["skipped"] += 1
             continue
         sym = plan.get("symbol") or key.split("|")[0]
-        side = (plan.get("side") or "").lower()
+        side = _normalize_plan_side(plan.get("side") or (
+            key.rsplit("|", 1)[1] if "|" in key else None
+        ))
+        if side is None:
+            out["skipped"] += 1
+            continue
         entry = plan.get("entry")
         stop = plan.get("stop")
         tp = plan.get("tp") or plan.get("tp1")
@@ -326,7 +383,10 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
                 continue
             # rr > 2.3 only: clamp down to corridor
             new_tp = clamp_take_rr(entry_d, init_d, tp_d, side, 2.0, 2.3)
-            pos = by_sym.get(sym)
+            pos = _position_for_hedge_leg(by_leg, sym, side)
+            if pos is None:
+                out["skipped"] += 1
+                continue
             exch_qty = Decimal(
                 str(
                     getattr(pos, "quantity", None)
@@ -351,14 +411,12 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
             try:
                 if hasattr(broker, "client") and hasattr(broker.client, "get_open_orders"):
                     orders = await broker.client.get_open_orders(sym)
-                    for o in orders or []:
-                        ot = str(
-                            getattr(o, "type", "") or getattr(o, "order_type", "") or ""
-                        ).upper()
-                        if "TAKE_PROFIT" in ot:
-                            oid = getattr(o, "id", None) or getattr(o, "order_id", None)
-                            if oid:
-                                old_tp_ids.append(str(oid))
+                    for o in _open_orders_for_hedge_leg(
+                        orders, sym, side, kind="take_profit"
+                    ):
+                        oid = getattr(o, "id", None) or getattr(o, "order_id", None)
+                        if oid:
+                            old_tp_ids.append(str(oid))
             except Exception:
                 old_tp_ids = []
             ps = "LONG" if side == "long" else "SHORT"
@@ -500,11 +558,7 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
         positions = await broker.client.get_positions()
     except Exception as exc:
         return {**out, "error": type(exc).__name__}
-    by_sym: dict = {}
-    for p in positions or []:
-        sym = getattr(p, "symbol", None) or getattr(p, "symbol_name", None)
-        if sym:
-            by_sym[str(sym)] = p
+    by_leg = _positions_by_hedge_leg(positions)
 
     def _mark_of(pos) -> Decimal | None:
         if pos is None:
@@ -537,7 +591,12 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
             out["skipped"] += 1
             continue
         sym = plan.get("symbol") or key.split("|")[0]
-        side = (plan.get("side") or "").lower()
+        side = _normalize_plan_side(plan.get("side") or (
+            key.rsplit("|", 1)[1] if "|" in key else None
+        ))
+        if side is None:
+            out["skipped"] += 1
+            continue
         entry = plan.get("entry")
         init_raw = plan.get("initial_stop") or plan.get("stop")
         tp = plan.get("tp") or plan.get("tp1")
@@ -565,7 +624,10 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
                 new_tp = entry_d + risk * early_rr
             else:
                 new_tp = entry_d - risk * early_rr
-            pos = by_sym.get(sym)
+            pos = _position_for_hedge_leg(by_leg, sym, side)
+            if pos is None:
+                out["skipped"] += 1
+                continue
             mark = _mark_of(pos)
             exch_qty = Decimal(
                 str(
@@ -586,22 +648,19 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
             ps = "LONG" if side == "long" else "SHORT"
             stop_side = "SELL" if side == "long" else "BUY"
 
-            async def _cancel_old_tps() -> None:
+            async def _cancel_old_tps(sym=sym, side=side) -> None:
                 try:
                     if not (hasattr(broker, "client") and hasattr(broker.client, "get_open_orders")):
                         return
                     orders = await broker.client.get_open_orders(sym)
-                    for o in orders or []:
-                        ot = str(
-                            getattr(o, "type", "") or getattr(o, "order_type", "") or ""
-                        ).upper()
-                        if "TAKE_PROFIT" not in ot:
-                            continue
+                    for o in _open_orders_for_hedge_leg(
+                        orders, sym, side, kind="take_profit"
+                    ):
                         oid = getattr(o, "id", None) or getattr(o, "order_id", None)
                         if not oid:
                             continue
                         try:
-                            await broker.client.cancel_order(sym, str(oid))
+                                await broker.client.cancel_order(sym, str(oid))
                         except Exception as cexc:
                             append_journal(
                                 {
@@ -615,7 +674,21 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
                 except Exception:
                     pass
 
-            async def _past_level_market() -> bool:
+            async def _past_level_market(
+                sym=sym,
+                side=side,
+                stop_side=stop_side,
+                q_tp=q_tp,
+                ps=ps,
+                exch_qty=exch_qty,
+                entry_d=entry_d,
+                plan=plan,
+                new_tp=new_tp,
+                risk=risk,
+                key=key,
+                old_tp=old_tp,
+                mark=mark,
+            ) -> bool:
                 """Market-close frac leg + BE stop; always marks repair done."""
                 market_ok = False
                 be_ok = False
@@ -847,11 +920,7 @@ async def heal_ratchet_and_runner_tp(broker, send_tg=None) -> dict:
         positions = await broker.client.get_positions()
     except Exception as exc:
         return {**out, "error": type(exc).__name__}
-    by_sym: dict = {}
-    for p in positions or []:
-        sym = getattr(p, "symbol", None) or getattr(p, "symbol_name", None)
-        if sym:
-            by_sym[str(sym)] = p
+    by_leg = _positions_by_hedge_leg(positions)
 
     def _mark(pos):
         if pos is None:
@@ -872,10 +941,12 @@ async def heal_ratchet_and_runner_tp(broker, send_tg=None) -> dict:
         if not isinstance(plan, dict):
             continue
         sym = plan.get("symbol") or key.split("|")[0]
-        side = (plan.get("side") or "").lower()
+        side = _normalize_plan_side(plan.get("side") or (
+            key.rsplit("|", 1)[1] if "|" in key else None
+        ))
         entry = plan.get("entry")
         init_raw = plan.get("initial_stop") or plan.get("stop")
-        if entry is None or init_raw is None or side not in ("long", "short"):
+        if entry is None or init_raw is None or side is None:
             out["skipped"] += 1
             continue
         try:
@@ -889,7 +960,10 @@ async def heal_ratchet_and_runner_tp(broker, send_tg=None) -> dict:
         if risk <= 0:
             out["skipped"] += 1
             continue
-        pos = by_sym.get(sym)
+        pos = _position_for_hedge_leg(by_leg, sym, side)
+        if pos is None:
+            out["skipped"] += 1
+            continue
         mark = _mark(pos)
         qty = Decimal(
             str(
@@ -1047,11 +1121,9 @@ async def heal_ratchet_and_runner_tp(broker, send_tg=None) -> dict:
         if need_tp and not plan.get("runner_tp_healed_v1"):
             try:
                 orders = await broker.client.get_open_orders(sym)
-                n_tp = 0
-                for o in orders or []:
-                    ot = str(getattr(o, "type", "") or getattr(o, "order_type", "") or "").upper()
-                    if "TAKE_PROFIT" in ot:
-                        n_tp += 1
+                n_tp = len(
+                    _open_orders_for_hedge_leg(orders, sym, side, kind="take_profit")
+                )
                 if n_tp == 0:
                     if side == "long":
                         runner_tp = entry_d + risk * Decimal("1.5")
@@ -1139,11 +1211,7 @@ async def scale_out_early_if_due(broker, send_tg=None) -> dict:
         positions = await broker.client.get_positions()
     except Exception as exc:
         return {**out, "error": type(exc).__name__}
-    by_sym: dict = {}
-    for p in positions or []:
-        sym = getattr(p, "symbol", None) or getattr(p, "symbol_name", None)
-        if sym:
-            by_sym[str(sym)] = p
+    by_leg = _positions_by_hedge_leg(positions)
 
     def _mark(pos):
         if pos is None:
@@ -1170,7 +1238,12 @@ async def scale_out_early_if_due(broker, send_tg=None) -> dict:
                 out["skipped"] += 1
                 continue
         sym = plan.get("symbol") or key.split("|")[0]
-        side = (plan.get("side") or "").lower()
+        side = _normalize_plan_side(plan.get("side") or (
+            key.rsplit("|", 1)[1] if "|" in key else None
+        ))
+        if side is None:
+            out["skipped"] += 1
+            continue
         entry = plan.get("entry")
         init_raw = plan.get("initial_stop") or plan.get("stop")
         tp = plan.get("tp") or plan.get("tp1")
@@ -1184,7 +1257,10 @@ async def scale_out_early_if_due(broker, send_tg=None) -> dict:
             if risk <= 0:
                 out["skipped"] += 1
                 continue
-            pos = by_sym.get(sym)
+            pos = _position_for_hedge_leg(by_leg, sym, side)
+            if pos is None:
+                out["skipped"] += 1
+                continue
             mark = _mark(pos)
             if mark is None:
                 out["skipped"] += 1
@@ -1239,15 +1315,15 @@ async def scale_out_early_if_due(broker, send_tg=None) -> dict:
                 # cancel far TP legs
                 try:
                     orders = await broker.client.get_open_orders(sym)
-                    for o in orders or []:
-                        ot = str(getattr(o, "type", "") or getattr(o, "order_type", "") or "").upper()
-                        if "TAKE_PROFIT" in ot:
-                            oid = getattr(o, "id", None) or getattr(o, "order_id", None)
-                            if oid:
-                                try:
-                                    await broker.client.cancel_order(sym, str(oid))
-                                except Exception:
-                                    pass
+                    for o in _open_orders_for_hedge_leg(
+                        orders, sym, side, kind="take_profit"
+                    ):
+                        oid = getattr(o, "id", None) or getattr(o, "order_id", None)
+                        if oid:
+                            try:
+                                await broker.client.cancel_order(sym, str(oid))
+                            except Exception:
+                                pass
                 except Exception:
                     pass
                 new_qty = exch_qty - q_tp
@@ -1447,12 +1523,8 @@ async def sync_partial_breakeven(
     if not plans:
         return {"moved": [], "skipped": []}
 
-    by_sym: dict[str, object] = {}
-    for p in positions:
-        sym = getattr(p, "symbol", "") or ""
-        qty = getattr(p, "quantity", None) or Decimal("0")
-        if sym and qty and qty > 0:
-            by_sym[sym] = p
+    by_leg = _positions_by_hedge_leg(positions)
+
 
     for _key, plan in list(plans.items()):
         sym = str(plan.get("symbol") or _key.split("|")[0] or "")
@@ -1460,17 +1532,22 @@ async def sync_partial_breakeven(
             continue
         if plan.get("be_moved"):
             continue
+        side = _normalize_plan_side(plan.get("side") or (
+            _key.rsplit("|", 1)[1] if "|" in _key else None
+        ))
+        if side is None:
+            skipped.append(f"{sym}|unknown")
+            continue
         if plan.get("entry") is None or plan.get("stop") is None:
             skipped.append(sym)
             continue
-        pos = by_sym.get(sym)
+        pos = _position_for_hedge_leg(by_leg, sym, side)
         if pos is None:
             continue
         try:
             exch_qty = Decimal(str(getattr(pos, "quantity", 0) or 0))
             entry_px = Decimal(str(plan["entry"]))
             stop_px = Decimal(str(plan["stop"]))
-            side = str(plan.get("side") or "long").lower()
             plan_qty_raw = plan.get("plan_qty") or plan.get("qty") or plan.get("quantity")
             try:
                 plan_qty = Decimal(str(plan_qty_raw)) if plan_qty_raw is not None else Decimal("0")
@@ -1758,7 +1835,6 @@ async def sync_partial_breakeven(
                 r_abs = abs(entry_px - stop_px)
             if r_abs <= 0 or exch_qty <= 0:
                 continue
-            side = str(plan.get("side") or "long").lower()
             if side == "long":
                 mfe_r = float((mark_px - entry_px) / r_abs)
             else:
@@ -2041,7 +2117,7 @@ async def detect_position_missing_with_orders(broker, *, positions_path: Path | 
         logger.warning("detect_position_missing: setup %s", type(exc).__name__)
         return {"missing": [], "error": type(exc).__name__}
 
-    by_sym = {getattr(p, "symbol", "") for p in positions if getattr(p, "symbol", "")}
+    by_leg = _positions_by_hedge_leg(positions)
     try:
         st = json.loads(flag.read_text(encoding="utf-8")) if flag.exists() else {}
     except Exception:
@@ -2052,35 +2128,40 @@ async def detect_position_missing_with_orders(broker, *, positions_path: Path | 
 
     for _key, plan in list(plans.items()):
         sym = str(plan.get("symbol") or _key.split("|")[0] or "")
-        if not sym or sym in by_sym:
+        side = _normalize_plan_side(plan.get("side") or (
+            _key.rsplit("|", 1)[1] if "|" in _key else None
+        ))
+        if not sym or side is None or (sym, side) in by_leg:
             continue
         try:
             orders = await broker.client.get_open_orders(sym)
         except Exception:
             continue
-        n_prot = 0
-        for o in orders or []:
-            ot = str(getattr(o, "order_type", "") or "").upper()
-            if "STOP" in ot or "TAKE_PROFIT" in ot:
-                n_prot += 1
+        leg_orders = _open_orders_for_hedge_leg(orders, sym, side)
+        from astra_bot.decision.live_broker import _protective_order_kind
+        n_prot = sum(
+            _protective_order_kind(order) in ("stop", "take_profit")
+            for order in leg_orders
+        )
         if n_prot <= 0:
             continue
-        last = float(st.get(sym) or 0)
+        warning_key = f"{sym}|{side}"
+        last = float(st.get(warning_key) or 0)
         if now - last < 3600:
-            missing.append(sym)
+            missing.append(f"{sym}|{side}")
             continue
         try:
             append_journal({
                 "event": "position_missing_with_open_orders",
                 "symbol": sym,
-                "side": plan.get("side"),
+                "side": side,
                 "n_protect_orders": n_prot,
                 "ts": now,
             })
         except Exception:
             pass
-        st[sym] = now
-        missing.append(sym)
+        st[warning_key] = now
+        missing.append(f"{sym}|{side}")
         logger.warning(
             "position_missing_with_open_orders: %s n_orders=%s (no TG)",
             sym, n_prot,
