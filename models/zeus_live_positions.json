@@ -27,9 +27,9 @@
     "HYPE-USDT|short": {
       "symbol": "HYPE-USDT",
       "side": "short",
-      "qty": "696.15582752",
+      "qty": 487.3091,
       "stop": "72.54123",
-      "tp": "71.320239",
+      "tp": "70.408155",
       "entry": "71.688",
       "leverage": 6,
       "pending_verify": false,
@@ -39,15 +39,17 @@
       "initial_stop": "72.54123",
       "opened_at_ms": 1794553971807,
       "plan_qty": "696.15582752",
-      "qty_ratio": 1.0,
+      "qty_ratio": 0.7000000297864346,
       "tp1": "71.320239",
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "71.529",
+      "peak_low": "71.290",
       "current_regime": "WEAK_BEAR_TREND",
-      "be_earned": true
+      "be_earned": true,
+      "runner_tp_rr": 1.5,
+      "runner_tp_healed_v1": true
     }
   },
-  "ts": 1794556338.0732222
+  "ts": 1794556640.7869384
 }
