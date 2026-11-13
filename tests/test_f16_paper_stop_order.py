@@ -181,3 +181,18 @@ async def test_qty_reconcile_decimal_fields_write_real_journal(tmp_path, monkeyp
     assert abs(qr["old_qty"] - 474.7) < 0.01
     assert abs(qr["new_qty"] - 284.85) < 0.01
     assert qr["symbol"] == "LTC-USDT"
+
+def test_exit_plan_stop_adjust_uses_runner_specific_journal(tmp_path, monkeypatch):
+    """The main ASTRA runner must not append to Zeus paper-clock's journal."""
+    try:
+        from astra_bot.decision.exit_plan import ExitPlanEngine
+    except Exception:
+        pytest.skip("exit_plan import requires full deps")
+    journal = tmp_path / "astra_trade_journal.jsonl"
+    monkeypatch.setenv("ASTRA_TRADE_JOURNAL_PATH", str(journal))
+    pos = SimpleNamespace(symbol="BTC-USDT", direction="long", stop_loss=Decimal("101"))
+    ExitPlanEngine._emit_stop_adjust(pos, Decimal("100"), "test")
+    assert journal.exists()
+    row = json.loads(journal.read_text(encoding="utf-8").splitlines()[-1])
+    assert row["event"] == "stop_adjust"
+    assert row["symbol"] == "BTC-USDT"
