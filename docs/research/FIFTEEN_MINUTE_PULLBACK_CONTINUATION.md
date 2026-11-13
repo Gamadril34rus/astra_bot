@@ -21,8 +21,8 @@ Status: frozen research hypothesis; exploratory until the historical gate is met
 
 ## Cohorts and evidence
 
-- Primary cohort: BTC, ETH, SOL and INJ. Their latest uninterrupted BingX funding segments overlap from 2025-09-02, giving more than 12 months of common history through 2026-11-09.
-- HYPE is evaluated separately because its latest uninterrupted funding segment begins 2026-04-05. It cannot be silently mixed into a 12-month five-symbol claim.
+- Promotion cohort for the 2025-11-13 to 2026-11-13 price window: ETH, SOL, HYPE and INJ. Their merged BingX funding histories are continuous across that full 365-day window. BTC is reported separately: its latest uninterrupted funding segment starts 2025-12-06, leaving only about 341 days.
+- The 2026-04-05 date was the start of the earlier 30m HYPE candle archive, not its funding history. The merged funding audit finds HYPE's latest uninterrupted funding segment starts 2025-11-06; HYPE may join the four-symbol cohort only after its 15m/1h candle coverage is verified.
 - Candle and funding archives must be from BingX swap endpoints, with recomputed SHA-256, zero candle gaps, and no funding imputation. The exact first/last timestamps and hashes are written to the run artifact.
 - Chronological 60/20/20 IS/validation/OOS. Any trade crossing a split boundary is excluded, not assigned by entry time alone. Rules are frozen before OOS is read.
 - Report gross return, taker fees, spread, slippage, funding and net return separately; report PF, expectancy, win rate, hold distribution, positive-month share, drawdown and concurrent exposure by cohort, family, symbol and side.
@@ -32,7 +32,7 @@ Status: frozen research hypothesis; exploratory until the historical gate is met
 - The four-family 30m router in the adaptive-perpetual artifact was negative: OOS PF 0.5406, net expectancy -0.24751% per trade, 74 OOS trades, and no positive OOS months. It is rejected, not a tuning target.
 - The earlier 30m lab artifact from PR #344 run #102 reported OOS PF 0.563 (trend pullback), 0.692 (trend expansion) and 0.526 (range reversion); the corresponding stress PFs were 0.477, 0.590 and 0.438. No family passed.
 - Important provenance correction: adaptive artifact run #92 (ID 42692378936) was executed on SHA `eb1864bb6020f32c2ad31cb7788622cd8b2694f0` on branch `research/confirmed-breakout-retest`, not on PR #343 HEAD `377c83af7851e681a2cd1ab8a9f36e33b1fa62e8`. PR #343 HEAD has no associated Actions run. The raw 30m/1h candle hashes in that artifact were independently recomputed and matched its manifest, and all listed candle gap counts were zero; however, that artifact contains no 15m candles. The new candidate workflow therefore downloads fresh 15m/1h swap candles and funding from BingX rather than treating run #92 as PR #343 CI evidence.
-- The latest uninterrupted funding starts in the verified archive were BTC 2025-07-09, ETH 2025-08-29, SOL 2025-04-11, INJ 2025-09-02 and HYPE 2026-04-05. The four-symbol core has more than 12 months of common coverage; HYPE does not and is evaluated separately.
+- Superseded by the 2026-11-13 merged funding audit: BTC 2025-12-06; ETH 2025-07-09; SOL 2025-09-02; HYPE 2025-11-06; INJ 2025-07-09. The 365-day funding cohort is ETH/SOL/HYPE/INJ. BTC is excluded from that cohort until its funding gap is resolved.
 
 
 ### Run 34 evidence update (2026-11-10)
@@ -41,10 +41,10 @@ The funding-history overlap must not be confused with candle-history coverage. R
 
 - Four-symbol core, base costs: 37 completed trades; IS 29 trades, PF 0.9627, net expectancy -0.01705%; validation 8 trades, PF 0.6550, net expectancy -0.20481%; combined PF 0.8815, net expectancy -0.05765%.
 - Four-symbol core, 1.5x costs: IS PF 0.8041, validation PF 0.5617, combined PF 0.7405 and net expectancy -0.14015%.
-- HYPE was screened separately and is not part of the core cohort: only 11 completed trades (8 IS, 3 validation); validation expectancy was negative in both cost cases. Its small sample and sub-12-month funding segment prevent any promotion claim.
+- HYPE's earlier 11-trade screen (8 IS, 3 validation) remains a small-sample diagnostic with negative validation expectancy in both cost cases. Its exclusion from the then-current core was based on the 30m candle archive start, not funding coverage; the 2026-11-13 merged funding audit now supports HYPE funding coverage across the 365-day target window. This does not establish 365 days of 15m candle coverage or a tradable edge.
 - The IS/validation gate correctly failed, so no OOS results were generated. Candidate rejected for now; do not tune against OOS or register it in production.
 
-The next research step is to obtain a longer, independently verifiable 15m perpetual-futures history without mislabelling another exchange's data as BingX. A non-BingX dataset may be used for hypothesis discovery only; any candidate must still be frozen and checked against BingX data and costs before it can be considered for VST planning. No paid data source is authorized.
+The next research step is to validate the 365-day BingX-only 1m-to-15m/1h archive and run a new frozen 15m hypothesis against actual BingX candles and funding. No Binance, OKX or Hyperliquid candles are used as BingX fills or as candidate validation. No paid data source is authorized.
 
 ## Holdout protection
 
@@ -85,7 +85,7 @@ This work is on the descendant research branch used by PR #347, based on the pre
 
 ## 2026-11-11 research hardening
 
-The 15m archive currently provides only 99.91 days of common last-traded-price swap candles for the BTC/ETH/SOL/INJ core (2026-08-03 through 2026-11-11), despite a deeper uninterrupted 1h archive and longer funding records. The OOS gate therefore remains closed. Do not infer 15m availability from 1h or funding coverage.
+The native 15m archive used by Run 34 provided only 99.91 days of common last-traded-price swap candles for BTC/ETH/SOL/INJ. A separate 365-day BingX 1m source archive is now being aggregated into 15m/1h bars; it remains acquisition-only and is accepted only after complete-day, no-gap, duplicate and native-overlap validation. The OOS gate stays closed until that archive proves the full common 15m window. Do not infer 15m availability from 1h or funding coverage.
 
 The adaptive four-family script had two analysis limitations that are now corrected on the PR #347 research branch:
 
@@ -94,7 +94,7 @@ The adaptive four-family script had two analysis limitations that are now correc
 
 The research router now supports --enabled-families and explicit NONE. The workflow first evaluates each family independently on IS and validation at base and 1.5x costs. A family is eligible for the research router only if it has at least 20 IS trades and 10 validation trades and positive net expectancy with PF >=1.0 in all four period/cost combinations. If no family qualifies, the filtered router is forced to NO_TRADE. This is a research-only allowlist and does not register or activate any production strategy.
 
-The public-history probe now samples 500-minute windows of actual BingX USDT-M 1m swap candles at seven dates from 2025-08-08 through 2026-11-10. This is only a depth test for a possible exact OHLCV aggregation into 15m bars; it does not authorize 1m/5m signals or minute trading. Aggregation will be considered only if every source minute is present, unique, correctly aligned and sourced from the same BingX swap contract. No incomplete window may be silently filled.
+The earlier seven-date 500-minute probe has been superseded by a full 365-complete-UTC-day BingX 1m archive attempt. Its only permitted use is exact OHLCV aggregation into 15m/1h bars; it does not authorize 1m/5m signals or minute trading. Every source minute must be present, unique, correctly aligned and from the same BingX USDT-M contract. The aggregated 15m/1h series must match native BingX bars exactly over the available overlap. No incomplete window may be silently filled.
 
 The previous router's by_family values must not be treated as independent module evidence. The new independent reports supersede those breakdowns for future selection. The PR #347 research branch remains Draft and unmerged; no production, VST or REAL settings are changed.
 
@@ -107,3 +107,20 @@ A code review found that the previous quote-volume fallback selected quote volum
 ### 2026-11-11 candle-archive cooldown correction
 
 A review of the live research workflow found that the candle archive used three 300-second waits for BingX HTTP-200 code 100410, while the funding archive already used bounded 5/30/60-second backoff. The candle archive now uses the same 5/30/60-second schedule (four total attempts), with a regression test asserting the exact wait sequence. This avoids a 15-minute stall for one page without removing cooldown handling or increasing request rate. The archive remains sequential at 0.2 requests/second.
+
+
+## 2026-11-13 BingX-only data and strategy extension
+
+The prior funding summary mixed up the start of the older 30m HYPE candle archive with the start of its funding history, and overstated the BTC funding window. The merged funding audit uses the union of two independently downloaded BingX funding archives: base run 43213211531 and supplemental run 43424403539. Duplicate timestamps must carry identical rates; no funding is imputed.
+
+The latest uninterrupted funding segments in that union start at BTC 2025-12-06, ETH 2025-07-09, SOL 2025-09-02, HYPE 2025-11-06, and INJ 2025-07-09. Therefore ETH/SOL/HYPE/INJ can form the 365-day funding cohort from 2025-11-13T00:00:00Z through 2026-11-13T00:00:00Z. BTC has only about 341 days of uninterrupted coverage and is excluded from that promotion cohort, but remains available for a separate diagnostic.
+
+A new merge workflow re-downloads BingX funding through 2026-11-14 and verifies source CSV SHA-256, duplicate-rate equality, each symbol's recent settlement cadence, the exact requested window edges, and the 365-day common cohort. The earlier 12-month refresh run 43424403539 failed its all-symbol strict check because of gaps outside the selected core window; that failure is not treated as complete coverage. The new merged artifact must pass its own gate before the strategy workflow can use it.
+
+The 1m archive is acquisition-only. It aggregates actual BingX USDT-M 1m candles to 15m and 1h, with no 1m/5m signal trading. Its manifest explicitly marks quote volume, trade count, taker-buy base/quote volume, historical order book, historical open interest and wallet identity as unavailable. The strategy therefore uses base-asset volume only for its session VWAP and relative-volume baseline; it makes no order-flow or participant-identity claim.
+
+A read-only check of the separate research/positioning-data branch at commit 2b9f1155d359ea1f4ce322091ed17686c8766bdf found blank taker-buy fields in the 30m candles and records=0, skipped_missing_flow=5 in the positioning shadow summary. The marker .positioning_taker_buy_backfill_v1 is not proof that those fields were populated. Workflow run 43426136989 also failed because a 30m candle captured about 24 seconds after close changed on re-fetch; that data path is not used for the 15m candidate.
+
+A distinct research-only candidate, SESSION_VWAP_RECLAIM, has been added in scripts/research_bingx_session_vwap.py. It uses a closed 15m UTC-session VWAP excursion/reclaim, a closed 1h ADX range filter, next-15m-open entry, a three-bar swing stop, fixed signal-time VWAP target, 30m/90m no-progress exits and a hard 9h maximum. It is screened independently from the retired four-family router. IS and validation are simulated as separate flat periods; OOS is not simulated unless both periods pass at base and 1.5x execution costs. The existing research drawdown guardrails remain -10% realized equal-notional and -20% trade-sequence drawdown.
+
+Current status: candidate code and regression tests are on the PR #347 descendant research branch; no historical candidate result exists yet. The 365-day 1m archive and merged funding artifact must both complete and pass their data gates before OOS can be opened. This is not a strategy recommendation, not VST approval, and not production activation.
