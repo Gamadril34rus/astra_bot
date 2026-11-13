@@ -83,10 +83,10 @@ def test_tp1_leg_estimate_uses_configured_fraction_for_long_and_short():
     short_plan = {"qty": "100", "tp1": "90", "tp_frac": "0.3"}
 
     assert _estimate_tp1_leg(long_plan, 100, "long", 100) == 300.0
-    assert _estimate_tp1_leg(short_plan, 100, "short", 100) == pytest.approx(300)
+    assert _estimate_tp1_leg(short_plan, 100, "short", 100) == 300.0
 
 
 def test_legacy_plan_without_tp1_fraction_uses_legacy_default():
     plan = {"qty": "100", "tp1": "110"}
 
-    assert _estimate_tp1_leg(plan, 100, "long", 100) == pytest.approx(300)
+    assert _estimate_tp1_leg(plan, 100, "long", 100) == 300.0
