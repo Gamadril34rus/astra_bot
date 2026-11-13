@@ -36,13 +36,13 @@ MOEX's FUTOI product explicitly separates long/short open positions and the numb
 BingX's public USDT-M market interface does not expose the same client-group split. Its documented open-interest endpoint returns total open interest in base-asset units, while the kline endpoint includes total volume, trade count, taker-buy base volume and taker-buy quote volume. There is no physical-person/legal-entity field in these public market responses:
 - https://github.com/BingX-API/api-ai-skills/blob/main/skills/swap-market/api-reference.md
 
-Therefore this project does **not** claim to reproduce MOEX participant positioning. It captures the nearest observable BingX proxy:
+Therefore this project does **not** claim to reproduce MOEX participant positioning. Its primary BingX research features are:
 1. Total open interest (OI) change between timestamped public snapshots.
-2. Taker-buy share within each completed 30m candle.
-3. The price return on that same completed candle.
-4. Forward price returns after the observation, for 30m, 1h, 2h, 4h and 9h.
+2. Price change across the latest fully completed 30m candle.
+3. Forward price returns after the observation, for 30m, 1h, 2h, 4h and 9h.
+4. Taker-buy imbalance as an optional refinement only when the returned candle contains valid taker-buy fields.
 
-Taker-buy volume identifies the aggressive side of executed volume, not who opened/closed a position. OI is total outstanding exposure, not net long or net short. Every open futures contract has both a long and a short counterparty. Combining OI change with price and taker flow is a market-pressure heuristic, not participant identity or a proof of trade direction.
+Taker-buy volume identifies the aggressive side of executed volume, not who opened/closed a position. OI is total outstanding exposure, not net long or net short. Every open futures contract has both a long and a short counterparty. Price/OI states remain descriptive market-pressure heuristics, not participant identity or proof of trade direction.
 
 ## 3. Collection contract
 
@@ -57,7 +57,7 @@ The append-only archive adds optional columns:
 - `taker_buy_volume`,
 - `taker_buy_quote_volume`.
 
-Older OHLCV rows can be re-fetched and enriched with `--refresh-optional-fields`. Existing OHLCV values remain immutable. Unknown optional values remain blank, not zero. The archive retries BingX 100410 with bounded cooldowns and uses a conservative request pace.
+Older OHLCV rows can be re-fetched with `--refresh-optional-fields`, but this does not guarantee optional fields exist in the response. The observed five-symbol 30m object-form responses have `quote_volume=0`, `trades_count=0`, and blank taker-buy fields. These are unavailable data, not zero aggressor flow. Existing OHLCV values remain immutable. The analyzer retains valid price/OI observations with `taker_unknown`; taker states are added only when valid source fields exist. The archive retries BingX 100410 with bounded cooldowns and uses a conservative request pace.
 
 ### Open-interest snapshots
 
@@ -76,15 +76,11 @@ For every OI observation, the analyzer joins the latest fully completed 30m cand
 Features:
 - `price_change_pct`: latest completed 30m close versus the preceding 30m close.
 - `oi_change_pct`: base-unit OI change versus the prior local observation.
-- `taker_buy_share_pct`: taker-buy quote volume / total quote volume where available; otherwise the same ratio in base units.
-- `taker_imbalance_pct`: 2 × taker-buy share − 1, expressed as percent.
+- `taker_buy_share_pct` and `taker_imbalance_pct`: optional; calculated only where valid taker-buy and total volume are both present. Missing values stay unknown.
 - `open_interest_usdt_est`: base-unit OI multiplied by the latest closed 30m close; this is a notional estimate, not an exchange-reported USD field.
 - Forward close-to-close returns for 30m, 1h, 2h, 4h and 9h after the matched closed candle.
 
-The analyzer buckets observations into eight descriptive combinations:
-- price up/down,
-- OI up/down,
-- taker-buy imbalance positive/negative.
+When taker flow is missing, the analyzer keeps the observation in one of four primary descriptive price/OI states and labels taker flow as unknown. When taker flow is available, it adds the buy/sell/balanced refinement. Missing taker fields never cause a valid OI/price observation to be discarded.
 
 Example interpretation only:
 - price up + OI up + buy imbalance positive = price advanced while total exposure expanded and buyers were more aggressive;
@@ -98,13 +94,13 @@ These are not unique explanations. The buyer/seller that initiated each trade ma
 
 The goal is to inspect useful evidence early without pretending a tiny sample proves an edge.
 
-1. Preserve the parent five-symbol 30m candle archive and enrich it with taker-buy fields.
+1. Preserve the five-symbol BingX 30m OHLCV archive; do not make historical taker-buy enrichment a prerequisite for the primary OI/price screen.
 2. Collect prospective OI snapshots on a 30-minute cadence for BTC, ETH, SOL, HYPE and INJ.
-3. **Data-integrity check after the first 3–5 snapshots per symbol:** verify timestamps, OI units, duplicates, freshness, candle joins and missing values. Fix data-contract errors immediately.
-4. **First exploratory screen after roughly 12 snapshots (~6 hours):** inspect state frequency, direction and available forward returns. Mark the result low-confidence; use it to find obvious behavior or collection bugs, not to declare profitability.
-5. **Interim screen after 48–96 snapshots (~1–2 days):** report per-symbol and pooled sample counts, state frequency, average/median forward return, positive-return share, dispersion, unconditional baselines and conservative cost sensitivity.
+3. **Data-integrity check after the first 3–5 snapshots per symbol:** verify timestamps, OI units, duplicates, freshness, candle joins and optional-field coverage. Missing taker fields are unknown, never zero.
+4. **First exploratory screen after roughly 12 valid snapshots (~6 hours):** inspect state frequency, direction and forward returns. Mark it low-confidence; use it to find collection bugs, not to declare profitability.
+5. **Interim screen after 48–96 valid snapshots (~1–2 days):** report per-symbol and pooled sample counts, state frequency, average/median forward return, positive-return share, dispersion, unconditional baselines and conservative cost sensitivity.
 6. Continue collection. Use chronological splits; freeze any candidate threshold before evaluating later holdout data. Do not select thresholds using the same OOS period.
-7. Validate data quality continuously: duplicate local observation times, stale snapshots, missing candle joins, impossible buy volume > total volume, OI jumps, missing 30m bars and per-symbol coverage.
+7. Validate data quality continuously: duplicate local observation times, stale snapshots, missing candle joins, optional-field coverage, OI jumps, missing 30m bars and per-symbol coverage.
 8. Account for fees, spread, slippage and funding before any strategy proposal. The MOEX chart's direction alone is not a trade rule.
 9. Only after a stable, cost-adjusted effect survives a later chronological holdout can a separate VST shadow/forward test be proposed. No production activation follows automatically.
 
@@ -125,13 +121,12 @@ A state with attractive average returns but tiny sample size, poor dispersion, o
 
 Everything here is research data plumbing and a read-only descriptive analyzer. No production strategy registration, order path, stops, exits, risk percentage, leverage, position sizing, VST routing or REAL switch is modified.
 
-PR #348 was merged to master on 2026-11-10 (merge commit `630a2f8c89a6ae071c19404b818f8dbbedca0ce0`). The collector workflow is now present in master at `.github/workflows/positioning-shadow.yml`. Its GitHub schedule is at minutes 03 and 33 UTC; scheduled starts are best-effort and can be delayed. The persistent data branch is `research/positioning-data`.
+PR #348 was merged to master on 2026-11-10 (merge commit `630a2f8c89a6ae071c19404b818f8dbbedca0ce0`). The collector workflow is present in master at `.github/workflows/positioning-shadow.yml`; its GitHub schedule is disabled and collection is triggered through external `workflow_dispatch`. The persistent data branch is `research/positioning-data`.
 
-The workflow's first historical seed currently requires a `workflow_dispatch` run with `initialize_history=true`. After seeding, scheduled runs append current OI snapshots and rebuild the descriptive report. Until a successful initialization and non-empty per-symbol OI archives are verified, the research must be treated as **not yet collecting**. External cron-job.org has not been configured from this session because no supported external HTTP/API action is available here. The external trigger should call GitHub's workflow-dispatch endpoint every 30 minutes; store its GitHub Actions token and cron-job.org API key as secrets, never in repository files.
+The first historical seed requires a `workflow_dispatch` run with `initialize_history=true`. After seeding, external dispatches append current OI snapshots and rebuild the descriptive report. As of 2026-11-11 06:30 UTC, the persistent data branch contained 39 OI snapshots for each of BTC, ETH, SOL, HYPE and INJ; the earlier analyzer still reported zero usable observations because it incorrectly required taker-buy data that was blank in archived candles.
 
-Historical candle data can be enriched from existing archives, but historical OI cannot be backfilled from the current-snapshot endpoint.
+The collector uses a shallow checkout (`fetch-depth: 1`) for the persistent data branch. The previous full-history checkout took about 25 minutes before the first OI request, often making the latest completed 30m candle older than the analyzer's 20-minute freshness threshold. The freshness and 90-minute OI interval gates remain unchanged.
 
+After the five-symbol archive is seeded, collection appends closed candles, captures current OI and rebuilds the price/OI report. It no longer performs a full historical taker-buy re-fetch on the assumption that those fields must be present. Historical OI cannot be backfilled from the current-snapshot endpoint.
 
-### One-time taker-buy history backfill
-
-The collector checks for the persistent marker `data/bingx_usdm/.positioning_taker_buy_backfill_v1`. If the marker is absent after the five-symbol 30m archive is seeded, the next successful collection run re-fetches the complete archived 30m candle window with `--refresh-optional-fields`, then writes the marker. The marker is committed to `research/positioning-data`, so ordinary 30m append runs do not repeatedly download the full history or accidentally re-mark the archive as unrefreshed. The marker is written only after the full five-symbol refresh command succeeds. The existing candle archive tests cover immutable OHLCV preservation and enrichment of legacy rows.
+These collection and analyzer changes remain research-only. They do not register strategies or change orders, risk, leverage, stops, exits, position sizing, VST routing or REAL routing.
