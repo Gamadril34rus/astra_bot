@@ -9,6 +9,7 @@ import json
 import statistics
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -86,7 +87,7 @@ def _latest_segment(rows: dict[int, str]) -> dict[str, Any]:
     times = sorted(rows)
     if len(times) < 3:
         raise ValueError("at least three funding events are required to verify cadence")
-    gaps = [(right - left) / 3_600_000 for left, right in zip(times, times[1:])]
+    gaps = [(right - left) / 3_600_000 for left, right in pairwise(times)]
     recent_gaps = gaps[-min(200, len(gaps)):]
     median_gap = float(statistics.median(recent_gaps))
     if median_gap <= 0:
@@ -97,7 +98,7 @@ def _latest_segment(rows: dict[int, str]) -> dict[str, Any]:
     segment_times = times[start_index:]
     segment_gaps = [
         (right - left) / 3_600_000
-        for left, right in zip(segment_times, segment_times[1:])
+        for left, right in pairwise(segment_times)
     ]
     return {
         "events_total": len(times),
