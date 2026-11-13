@@ -1988,12 +1988,7 @@ async def heal_dead_tp_legs(broker, *, positions_path: Path | None = None) -> di
         logger.warning("heal_dead_tp_legs setup failed: %s", type(exc).__name__)
         return {"healed": [], "error": type(exc).__name__}
 
-    by_sym: dict[str, object] = {}
-    for p in positions:
-        sym = getattr(p, "symbol", "") or ""
-        qty = getattr(p, "quantity", None) or Decimal("0")
-        if sym and qty and qty > 0:
-            by_sym[sym] = p
+    by_leg = _positions_by_hedge_leg(positions)
 
     try:
         st = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {}
@@ -2004,9 +1999,14 @@ async def heal_dead_tp_legs(broker, *, positions_path: Path | None = None) -> di
 
     for _key, plan in list(plans.items()):
         sym = str(plan.get("symbol") or _key.split("|")[0] or "")
-        if not sym or sym not in by_sym:
+        side = _normalize_plan_side(plan.get("side") or (
+            _key.rsplit("|", 1)[1] if "|" in _key else None
+        ))
+        if not sym or side is None:
             continue
-        pos = by_sym[sym]
+        pos = _position_for_hedge_leg(by_leg, sym, side)
+        if pos is None:
+            continue
         mark = (
             getattr(pos, "mark_price", None)
             or getattr(pos, "markPrice", None)
@@ -2016,7 +2016,6 @@ async def heal_dead_tp_legs(broker, *, positions_path: Path | None = None) -> di
         if mark is None:
             continue
         mark_px = Decimal(str(mark))
-        side = str(plan.get("side") or "long").lower()
         tp_level = plan.get("tp1") or plan.get("tp") or plan.get("take_profit_price")
         if tp_level is None:
             continue
@@ -2027,13 +2026,7 @@ async def heal_dead_tp_legs(broker, *, positions_path: Path | None = None) -> di
             logger.warning("heal_dead_tp: get_open_orders %s: %s", sym, type(exc).__name__)
             continue
         tp_orders = []
-        for o in orders or []:
-            ot = str(getattr(o, "order_type", "") or "").upper()
-            if "TAKE_PROFIT" not in ot:
-                continue
-            st_o = str(getattr(o, "status_raw", None) or getattr(o, "status", None) or "").upper()
-            if st_o and st_o not in ("NEW", "PENDING", ""):
-                continue
+        for o in _open_orders_for_hedge_leg(orders or [], sym, side, kind="take_profit"):
             stop_p = getattr(o, "stop_price", None) or getattr(o, "price", None)
             if stop_p is None:
                 continue
