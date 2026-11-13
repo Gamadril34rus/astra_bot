@@ -240,7 +240,7 @@ async def test_archive_retries_bingx_100410_with_cooldowns(monkeypatch) -> None:
     result = await candle_archive._call_with_cooldown(client.call, label="test")
     assert result == ["ok"]
     assert client.attempts == 4
-    assert delays == [300.0, 300.0, 300.0]
+    assert delays == [5.0, 30.0, 60.0]
 
 @pytest.mark.asyncio
 async def test_archive_persists_verified_pages_before_later_cooldown_failure(
