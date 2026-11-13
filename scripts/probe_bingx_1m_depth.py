@@ -99,11 +99,11 @@ class BingXProbe:
         self.delay = 1.0 / qps
         self.last_request = 0.0
 
-    def get(self, symbol: str, interval: str, day: str) -> dict[str, Any]:
+    def get(self, symbol: str, interval: str, day: str, limit: int = 500) -> dict[str, Any]:
         interval_ms = INTERVALS[interval]
         start = datetime.fromisoformat(day).replace(tzinfo=UTC)
         start_ms = int(start.timestamp() * 1000)
-        expected = 500
+        expected = int(limit)
         end_ms = start_ms + expected * interval_ms - 1
         params = {
             "symbol": symbol,
@@ -166,8 +166,20 @@ def run_probe() -> dict[str, Any]:
                     results[symbol][f"{interval}:{day}"] = client.get(symbol, interval, day)
                 except Exception as exc:
                     results[symbol][f"{interval}:{day}"] = {"error": str(exc), "full_contiguous_window": False}
+        for day in ("2025-11-13", "2026-11-10"):
+            try:
+                results[symbol][f"1m1440:{day}"] = client.get(symbol, "1m", day, limit=1440)
+            except Exception as exc:
+                results[symbol][f"1m1440:{day}"] = {"error": str(exc), "full_contiguous_window": False}
     full_1m = {
         symbol: [day for day in SAMPLE_DATES_1M if results[symbol].get(f"1m:{day}", {}).get("full_contiguous_window")]
+        for symbol in SYMBOLS
+    }
+    limit_probe = {
+        symbol: {
+            day: results[symbol].get(f"1m1440:{day}", {})
+            for day in ("2025-11-13", "2026-11-10")
+        }
         for symbol in SYMBOLS
     }
     return {
@@ -180,6 +192,7 @@ def run_probe() -> dict[str, Any]:
         "sample_dates_1m": list(SAMPLE_DATES_1M),
         "sample_dates_native": list(SAMPLE_DATES_NATIVE),
         "full_1m_sample_dates_by_symbol": full_1m,
+        "limit_1440_probe_by_symbol": limit_probe,
         "results": results,
     }
 
@@ -191,7 +204,7 @@ def main() -> None:
     report = run_probe()
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"full_1m_sample_dates_by_symbol": report["full_1m_sample_dates_by_symbol"]}, indent=2))
+    print(json.dumps({"full_1m_sample_dates_by_symbol": report["full_1m_sample_dates_by_symbol"], "limit_1440_probe_by_symbol": report["limit_1440_probe_by_symbol"]}, indent=2))
 
 
 if __name__ == "__main__":
