@@ -37,6 +37,7 @@ ExitController.SMART_DEFAULT_PLAN + safety ExitManager, чтобы поведе�
 from __future__ import annotations
 
 import logging
+import os
 import statistics
 import time as _time
 from dataclasses import dataclass
@@ -326,7 +327,10 @@ class ExitPlanEngine:
                 return
             from astra_bot.decision.zeus_trade_log import ZeusTradeLog
 
-            ZeusTradeLog().stop_adjust(
+            journal_path = os.environ.get(
+                "ASTRA_TRADE_JOURNAL_PATH", "models/zeus_trade_journal.jsonl"
+            )
+            ZeusTradeLog(journal_path).stop_adjust(
                 symbol=str(getattr(pos, "symbol", "") or ""),
                 direction=str(
                     getattr(pos, "direction", None) or getattr(pos, "side", "") or ""
