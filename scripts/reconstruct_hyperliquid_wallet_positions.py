@@ -453,6 +453,10 @@ def reconstruct(
                         key[0], key[1], current_size, None, True, meta
                     )
             timestamp = row["timestamp"]
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.replace(tzinfo=UTC)
+            else:
+                timestamp = timestamp.astimezone(UTC)
             if timestamp > anchor_utc + timedelta(seconds=guard) and not anchor_checked:
                 check_anchor(key)
 
