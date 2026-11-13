@@ -79,7 +79,7 @@ def query_orders(address: str, market: str, start: datetime, end: datetime,
             time.sleep(delay)
         data = post_query(sql, api_key)
         actual_history = data.get("limits", {}).get("history_days")
-        if actual_history is not None and a < datetime.now(timezone.utc) - timedelta(days=int(actual_history)):
+        if actual_history is not None and a < datetime.now(UTC) - timedelta(days=int(actual_history)):
             raise RuntimeError(
                 f"API reports only {actual_history} days of history; refusing a potentially truncated result."
             )
@@ -237,7 +237,7 @@ def main() -> None:
     if end <= start:
         ap.error("--end must be after --start")
     api_key = os.getenv("IRONFLOW_API_KEY")
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     history_days = args.history_days if args.history_days is not None else (14 if api_key else 1)
     if history_days < 1:
         ap.error("--history-days must be at least 1")
