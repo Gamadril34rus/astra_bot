@@ -7,8 +7,8 @@ from ..adapters.bingx.client import BingXClient
 
 def bind_shared_bingx_client(client: BingXClient | None) -> None:
     """Share one session/rate limiter across auxiliary strategy data consumers."""
-    from . import candidate_filters, htf_gates
     from ..strategies import funding_rate_contrarian, open_interest_divergence
+    from . import candidate_filters, htf_gates
 
     candidate_filters.set_bingx_client(client)
     htf_gates.set_bingx_client(client)
