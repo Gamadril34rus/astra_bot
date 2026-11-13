@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import duckdb
-
 from scripts.reconstruct_hyperliquid_wallet_positions import reconstruct
 
 
