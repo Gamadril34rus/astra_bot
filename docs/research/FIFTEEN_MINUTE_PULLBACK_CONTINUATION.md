@@ -22,7 +22,7 @@ Status: frozen research hypothesis; exploratory until the historical gate is met
 ## Cohorts and evidence
 
 - Intended promotion cohort for the 2025-11-13 to 2026-11-13 price window: ETH, SOL, HYPE and INJ. A preliminary union of BingX funding artifacts shows continuous latest segments across the start of that window; the exact 2026-11-13 right edge is still pending the new merge workflow. BTC is reported separately: its latest uninterrupted funding segment starts 2025-12-06, leaving only about 341 days.
-- The 2026-04-05 date was the start of the earlier 30m HYPE candle archive, not its funding history. The merged funding audit finds HYPE's latest uninterrupted funding segment starts 2025-11-06; HYPE may join the four-symbol cohort only after its 15m/1h candle coverage is verified.
+- The 2026-04-05 date was the start of the earlier 30m HYPE candle archive, not its funding history. The preliminary funding union finds HYPE's latest uninterrupted funding segment starts 2025-11-06; HYPE may join the four-symbol cohort only after exact funding right-edge and 15m/1h candle coverage are verified.
 - Candle and funding archives must be from BingX swap endpoints, with recomputed SHA-256, zero candle gaps, and no funding imputation. The exact first/last timestamps and hashes are written to the run artifact.
 - Chronological 60/20/20 IS/validation/OOS. Any trade crossing a split boundary is excluded, not assigned by entry time alone. Rules are frozen before OOS is read.
 - Report gross return, taker fees, spread, slippage, funding and net return separately; report PF, expectancy, win rate, hold distribution, positive-month share, drawdown and concurrent exposure by cohort, family, symbol and side.
@@ -41,7 +41,7 @@ The funding-history overlap must not be confused with candle-history coverage. R
 
 - Four-symbol core, base costs: 37 completed trades; IS 29 trades, PF 0.9627, net expectancy -0.01705%; validation 8 trades, PF 0.6550, net expectancy -0.20481%; combined PF 0.8815, net expectancy -0.05765%.
 - Four-symbol core, 1.5x costs: IS PF 0.8041, validation PF 0.5617, combined PF 0.7405 and net expectancy -0.14015%.
-- HYPE's earlier 11-trade screen (8 IS, 3 validation) remains a small-sample diagnostic with negative validation expectancy in both cost cases. Its exclusion from the then-current core was based on the 30m candle archive start, not funding coverage; the 2026-11-13 merged funding audit now supports HYPE funding coverage across the 365-day target window. This does not establish 365 days of 15m candle coverage or a tradable edge.
+- HYPE's earlier 11-trade screen (8 IS, 3 validation) remains a small-sample diagnostic with negative validation expectancy in both cost cases. Its exclusion from the then-current core was based on the 30m candle archive start, not funding coverage; the preliminary funding union supports HYPE start-side coverage; the exact 365-day funding right edge is still pending. This does not establish 365 days of 15m candle coverage or a tradable edge.
 - The IS/validation gate correctly failed, so no OOS results were generated. Candidate rejected for now; do not tune against OOS or register it in production.
 
 The next research step is to validate the 365-day BingX-only 1m-to-15m/1h archive and run a new frozen 15m hypothesis against actual BingX candles and funding. No Binance, OKX or Hyperliquid candles are used as BingX fills or as candidate validation. No paid data source is authorized.
