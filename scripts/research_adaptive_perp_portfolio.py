@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -219,6 +220,7 @@ def simulate_symbol(
     fee_bps: float, spread_bps: float, slippage_bps: float,
     diagnostics: dict[str, Any] | None = None,
     bar_minutes: int = 15,
+    signal_fn: Callable[[pd.DataFrame, int], dict | None] | None = None,
 ) -> list[dict]:
     if bar_minutes not in (15, 30):
         raise ValueError(f"unsupported signal bar duration: {bar_minutes}")
@@ -265,9 +267,10 @@ def simulate_symbol(
         family_counts = diagnostics[family_key]
         family_counts[family] = family_counts.get(family, 0) + 1
 
+    signal_picker = signal_fn or choose_signal
     i = WARMUP_BARS
     while i < len(x) - max_hold_bars - 1:
-        signal = choose_signal(x, i)
+        signal = signal_picker(x, i)
         if signal is None:
             i += 1
             continue
@@ -349,7 +352,11 @@ def simulate_symbol(
         trades.append({
             "symbol": symbol, "family": signal["family"],
             "side": "LONG" if side == 1 else "SHORT",
+            "signal_time": int(x.iloc[i]["decision_time"]),
             "entry_time": entry_time, "exit_time": exit_time,
+            "entry_price": raw_entry, "exit_price": exit_ref,
+            "stop_price": stop, "target_price": target,
+            "risk_pct": risk_pct * 100,
             "hold_minutes": (exit_time - entry_time) / 60_000,
             "exit_reason": reason, "gross_pct": gross * 100,
             "fee_pct": fee_cost * 100, "spread_pct": spread_cost * 100,
