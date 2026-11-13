@@ -34,11 +34,12 @@ def test_crossed_tp_is_terminal_and_does_not_retry_invalid_order(tmp_path, monke
     )
     broker = MagicMock()
     broker.client.get_positions = AsyncMock(return_value=[
-        SimpleNamespace(symbol="INJ-USDT", quantity=Decimal("548"), mark_price=Decimal("7.455"))
+        SimpleNamespace(symbol="INJ-USDT", quantity=Decimal("548"), mark_price=Decimal("7.455"), side="short")
     ])
     broker.client.get_open_orders = AsyncMock(return_value=[
         SimpleNamespace(
             id="tp1-old", order_type="TAKE_PROFIT_MARKET",
+            side="BUY", position_side="SHORT",
             status_raw="NEW", stop_price=Decimal("7.6228"),
             quantity=Decimal("219.2"),
         )
