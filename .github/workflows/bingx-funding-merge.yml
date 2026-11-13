@@ -65,14 +65,21 @@ jobs:
             --base-artifact 15m-pullback-continuation-research \
             --supplemental-run-id $GITHUB_RUN_ID \
             --supplemental-artifact bingx-usdm-funding-12m-raw
-      - name: Upload immutable raw and merged funding evidence
+      - name: Upload raw BingX funding refresh
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bingx-usdm-funding-12m-raw
+          path: |
+            data/bingx_usdm/funding_*.csv
+            data/bingx_usdm/funding_manifest.json
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Upload merged funding evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bingx-usdm-funding-merged-\${{ github.sha }}
-          path: |
-            data/bingx_usdm/funding_*.csv
-            data/bingx_usdm/funding_manifest.json
-            data/bingx_funding_merged/
-          if-no-files-found: error
+          path: data/bingx_funding_merged/
+          if-no-files-found: warn
           retention-days: 90
