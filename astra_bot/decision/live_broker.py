@@ -162,13 +162,20 @@ async def _existing_protect(
     side: str,
     level: Decimal,
 ) -> Any | None:
-    """Return open protect order if same kind+level already exists (±pct)."""
-    del side  # reserved for future side match; level+kind is enough now
+    """Return an open protect order for this hedge leg at the requested level."""
+    normalized_side = _normalize_position_side(side)
+    if normalized_side is None:
+        return None
     try:
         orders = await client.get_open_orders(symbol)
     except Exception:
         return None
     for o in orders:
+        if (
+            not _order_is_open(o)
+            or not _order_matches_position_side(o, normalized_side)
+        ):
+            continue
         ot = str(getattr(o, "order_type", "") or "").upper()
         is_stop = kind == "stop" and "STOP" in ot and "TAKE_PROFIT" not in ot
         is_tp = kind == "tp" and "TAKE_PROFIT" in ot
@@ -794,28 +801,34 @@ class LiveBroker:
         return out
 
     async def reconcile(self) -> dict[str, Any]:
-        """Exchange is truth. Restore protective stops if missing."""
+        """Exchange is truth; count missing protection independently per hedge leg."""
         positions = await self.client.get_positions()
         open_orders = await self.client.get_open_orders()
-        by_sym: dict[str, list] = {}
-        for o in open_orders:
-            by_sym.setdefault(getattr(o, "symbol", ""), []).append(o)
-        restored = 0
-        for p in positions:
-            sym = p.symbol
-            orders = by_sym.get(sym, [])
-            has_stop = any(
-                "stop" in str(getattr(o, "order_type", "")).lower() for o in orders
-            )
-            if not has_stop and p.quantity > 0:
-                logger.warning("reconcile: %s open qty=%s but no stop order", sym, p.quantity)
-                restored += 1
+        by_symbol: dict[str, list[Any]] = {}
+        for order in open_orders or []:
+            by_symbol.setdefault(str(getattr(order, "symbol", "") or ""), []).append(order)
+        missing: list[str] = []
+        for position in positions or []:
+            symbol = str(getattr(position, "symbol", "") or "")
+            quantity = Decimal(str(getattr(position, "quantity", 0) or 0))
+            if not symbol or quantity <= 0:
+                continue
+            side = _normalize_position_side(getattr(position, "side", None))
+            if side is None:
+                logger.warning("reconcile: %s has unknown hedge side; protection state unknown", symbol)
+                missing.append(f"{symbol}|unknown")
+                continue
+            orders = by_symbol.get(symbol, [])
+            if not _has_matching_protective_order(orders, side, kind="stop"):
+                logger.warning("reconcile: %s side=%s open qty=%s but no matching STOP order", symbol, side, quantity)
+                missing.append(f"{symbol}|{side}")
         eq = await self.equity()
         return {
             "equity": str(eq),
             "positions": len(positions),
             "open_orders": len(open_orders),
-            "missing_stops": restored,
+            "missing_stops": len(missing),
+            "missing_stop_legs": missing,
             "positions_raw": positions,
             "orders_raw": open_orders,
         }
