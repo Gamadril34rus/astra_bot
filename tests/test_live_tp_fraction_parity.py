@@ -2,10 +2,10 @@
 
 from decimal import Decimal
 
-import pytest
-
 from astra_bot.decision.live_broker import _estimate_tp1_leg, _tp_frac_from_plan
 from astra_bot.decision.live_positions import get_plan, upsert_plan
+
+import pytest
 
 
 def test_upsert_plan_persists_tp1_fraction(tmp_path):
