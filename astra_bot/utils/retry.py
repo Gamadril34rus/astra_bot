@@ -224,7 +224,7 @@ def retry_async(
                     # transport failure. Retrying during the disabled period is useless.
                     if is_exchange_endpoint_cooldown_error(exc):
                         logger.warning(
-                            "%s stopped retrying: BingX income endpoint cooldown: %s",
+                            "%s stopped retrying: BingX endpoint returned 100410 (system busy/cooldown): %s",
                             func.__name__,
                             exc,
                         )
