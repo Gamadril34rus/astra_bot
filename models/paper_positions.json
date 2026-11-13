@@ -6,7 +6,7 @@
       "direction": "long",
       "entry_price": "224.57",
       "quantity": "3.74314975",
-      "stop_loss": "223.5657142857143",
+      "stop_loss": "224.28714285714287",
       "take_profits": [
         "226.75371",
         "229.592533"
@@ -22,7 +22,7 @@
       "initial_quantity": "3.74314975",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "224.86",
+      "highest_price": "225.58",
       "lowest_price": "224.23",
       "strategy": "maicross",
       "opened_at": 1794595012432,
@@ -53,12 +53,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 2,
+      "bars_held": 3,
       "leverage": "2",
       "margin_used": "420.29956967875",
       "plan_variant": "STATIC_TP",
       "plan_take": "229.592533",
-      "plan_last_bar_ts": 1794594900000
+      "plan_last_bar_ts": 1794595200000
     },
     {
       "id": "f04b7bec-40e2-4c41-9f1a-f1c1a7b7ccc4",
@@ -66,7 +66,7 @@
       "direction": "short",
       "entry_price": "0.14866",
       "quantity": "5665.74974250",
-      "stop_loss": "0.14965857142857142",
+      "stop_loss": "0.14961714285714284",
       "take_profits": [
         "0.14723974999999978",
         "0.145393424999999494"
@@ -82,7 +82,7 @@
       "initial_quantity": "5665.74974250",
       "trailing_activated": false,
       "trailing_distance": null,
-      "highest_price": "0.14936",
+      "highest_price": "0.14951",
       "lowest_price": "0.14866",
       "strategy": "rounded_top",
       "opened_at": 1794595041294,
@@ -113,12 +113,12 @@
       "regime": "LOW_VOLATILITY",
       "timeframe": "5m",
       "regime_axes": "T:RANGE/V:VERY_LOW/L:DEEP",
-      "bars_held": 2,
+      "bars_held": 3,
       "leverage": "3",
       "margin_used": "280.7567855733500",
       "plan_variant": "STATIC_TP",
       "plan_take": "0.145393424999999494",
-      "plan_last_bar_ts": 1794594900000
+      "plan_last_bar_ts": 1794595200000
     }
   ],
   "realized_pnl": "-2441.280261380115766210011443",
@@ -127,7 +127,7 @@
   "last_extremes_bar": {
     "ETH-USDT": 1790886000000,
     "AVAX-USDT": 1794470400000,
-    "XLM-USDT": 1794595200000,
-    "BCH-USDT": 1794595200000
+    "XLM-USDT": 1794595500000,
+    "BCH-USDT": 1794595500000
   }
 }
