@@ -5,7 +5,6 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-
 from scripts.archive_bingx_1m_research import (
     MINUTE_MS,
     aggregate_rows,
