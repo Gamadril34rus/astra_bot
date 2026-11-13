@@ -6,7 +6,7 @@ import sys
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -70,7 +70,7 @@ async def test_qty_reconcile_writes_journal_and_saves(tmp_path, monkeypatch):
     }
     positions_path.write_text(json.dumps({"positions": plans}))
 
-    from astra_bot.decision import live_arm_wiring, live_positions, live_broker
+    from astra_bot.decision import live_arm_wiring, live_broker, live_positions
 
     monkeypatch.setattr(live_arm_wiring, "JOURNAL_PATH", journal_path)
     monkeypatch.setattr(live_positions, "DEFAULT_PATH", positions_path)
@@ -125,15 +125,6 @@ async def test_qty_reconcile_decimal_fields_write_real_journal(tmp_path, monkeyp
 
     positions_path = tmp_path / "zeus_live_positions.json"
     journal_path = tmp_path / "zeus_live_journal.jsonl"
-    plans = {
-        "LTC-USDT|short": {
-            "symbol": "LTC-USDT",
-            "side": "short",
-            "qty": Decimal("474.7"),  # plan may hold Decimal-like
-            "plan_qty": "474.7",
-            "signal_id": "sid-ltc-dec",
-        }
-    }
     # write plan with float for JSON file; Decimal comes from exchange side
     positions_path.write_text(
         json.dumps(
