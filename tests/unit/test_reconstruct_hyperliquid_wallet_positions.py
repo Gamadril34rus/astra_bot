@@ -20,7 +20,7 @@ def test_reconstructs_flat_to_flat_episodes_and_censors_unknown_positions(tmp_pa
     con = duckdb.connect()
     con.execute("""
         CREATE TABLE fills (
-            wallet VARCHAR, coin VARCHAR, timestamp TIMESTAMP, price DOUBLE,
+            wallet VARCHAR, market VARCHAR, timestamp TIMESTAMP, price DOUBLE,
             size DOUBLE, notional DOUBLE, side VARCHAR, crossed BOOLEAN,
             liquidation BOOLEAN, tid BIGINT, market_class VARCHAR, dex VARCHAR
         )
