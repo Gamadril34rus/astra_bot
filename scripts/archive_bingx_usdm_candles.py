@@ -5,8 +5,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import csv
-import json
 import hashlib
+import json
 import logging
 import os
 import tempfile
