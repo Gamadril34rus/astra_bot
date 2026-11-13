@@ -211,8 +211,7 @@ def reconstruct(
                  ELSE -CAST(size AS DOUBLE) END AS delta
         FROM read_parquet('{trade_file}')
         WHERE lower(wallet) IN ({address_values})
-          AND market_class = 'perp'
-          AND coalesce(dex, '') = ''
+          -- wallet_trades.parquet is already filtered to native perps by the collector.
           AND coin IS NOT NULL
           AND lower(side) IN ('buy', 'sell')
     """)
