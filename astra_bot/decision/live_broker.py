@@ -196,7 +196,13 @@ class LiveClientProto(Protocol):
     async def cancel_all_orders(self, symbol: str) -> int: ...
     async def set_leverage(self, symbol: str, leverage: int, side: str = "LONG") -> None: ...
     async def set_margin_isolated(self, symbol: str) -> None: ...
-    async def close_position(self, symbol: str, quantity: Any = None, price: Any = None) -> bool: ...
+    async def close_position(
+        self,
+        symbol: str,
+        quantity: Any = None,
+        price: Any = None,
+        position_side: str | None = None,
+    ) -> bool: ...
 
 
 def _journal_protect(event: str, **fields) -> None:
@@ -361,6 +367,54 @@ class LiveEntryPlan:
     tp_frac: float = 0.3  # F15: PLAN_TP_FRACTIONS[0]; fallback 0.3
     initial_stop: Decimal | None = None  # F15b: stop at entry; clamp TP from this only
 
+
+
+def _fill_position_side(fill: dict[str, Any]) -> str | None:
+    """Read BingX allFillOrders positionSide without guessing from BUY/SELL."""
+    raw = fill.get("positionSide") or fill.get("position_side")
+    info = fill.get("info")
+    if raw is None and isinstance(info, dict):
+        raw = info.get("positionSide") or info.get("position_side")
+    if raw is None:
+        return None
+    return _normalize_position_side(raw)
+
+
+def _fill_trade_id(fill: dict[str, Any]) -> str | None:
+    """Stable BingX trade fill identifier used to link income rows to one hedge leg."""
+    for key in ("tradeId", "trade_id"):
+        value = fill.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return None
+
+
+def _filter_fills_for_position_side(
+    fills: list[dict[str, Any]], position_side: str
+) -> tuple[list[dict[str, Any]], bool]:
+    """Return fills for one hedge leg; ambiguous side metadata invalidates the batch.
+
+    BUY/SELL alone is insufficient in Hedge Mode: SELL can close LONG or open
+    SHORT, and BUY can close SHORT or open LONG.
+    """
+    normalized = _normalize_position_side(position_side)
+    if normalized is None:
+        return [], True
+    selected: list[dict[str, Any]] = []
+    ambiguous = False
+    for fill in fills or []:
+        if not isinstance(fill, dict):
+            ambiguous = True
+            continue
+        fill_side = _fill_position_side(fill)
+        if fill_side is None:
+            ambiguous = True
+            continue
+        if fill_side == normalized:
+            selected.append(fill)
+    if ambiguous:
+        return [], True
+    return selected, False
 
 
 def _aggregate_exit_fills(
@@ -789,43 +843,86 @@ class LiveBroker:
         if not plans:
             return {"closed": [], "cancelled": 0, "pending_fill": []}
 
-        exchange_syms: set[str] = set()
-        for pos in await self.client.get_positions():
-            qty = getattr(pos, "quantity", None) or Decimal("0")
-            if qty and qty > 0:
-                exchange_syms.add(getattr(pos, "symbol", "") or "")
+        # Hedge mode can hold LONG and SHORT simultaneously for one symbol.
+        # A symbol-level presence check would hide a closed leg while the other
+        # leg remains open, so reconciliation is keyed by (symbol, positionSide).
+        open_position_legs: set[tuple[str, str]] = set()
+        unknown_side_symbols: set[str] = set()
+        for position in await self.client.get_positions():
+            qty = Decimal(str(getattr(position, "quantity", 0) or 0))
+            symbol = str(getattr(position, "symbol", "") or "")
+            if not symbol or qty <= 0:
+                continue
+            position_side = _normalize_position_side(getattr(position, "side", None))
+            if position_side is None:
+                unknown_side_symbols.add(symbol)
+            else:
+                open_position_legs.add((symbol, position_side))
 
         closed: list[str] = []
         pending_fill: list[str] = []
+        pending_cleanup: list[str] = []
         cancelled = 0
         now = _time.time()
 
         for _key, plan in list(plans.items()):
             sym = str(plan.get("symbol") or _key.split("|")[0] or "")
-            if not sym or sym in exchange_syms:
+            raw_side = plan.get("side") or (
+                _key.rsplit("|", 1)[1] if "|" in _key else None
+            )
+            side = _normalize_position_side(raw_side)
+            if not sym or side is None:
+                logger.warning(
+                    "sync_closed: skip destructive reconciliation for %s with unknown plan side",
+                    sym or _key,
+                )
+                continue
+            # If the exchange omitted the side on any live row for this symbol,
+            # do not guess which hedge leg is still open.
+            if sym in unknown_side_symbols or (sym, side) in open_position_legs:
                 continue
             try:
                 orders = await self.client.get_open_orders(sym)
             except Exception as exc:
                 logger.warning("sync_closed: get_open_orders %s: %s", sym, type(exc).__name__)
-                orders = []
-            for o in orders:
-                ot = str(getattr(o, "order_type", "") or "").upper()
-                if "STOP" not in ot and "TAKE_PROFIT" not in ot:
+                # Order state is unknown. Keep the position plan and all protection.
+                continue
+            cleanup_ok = True
+            for order in orders or []:
+                if (
+                    not _order_is_open(order)
+                    or not _order_matches_position_side(order, side)
+                    or _protective_order_kind(order) is None
+                ):
                     continue
-                oid = getattr(o, "id", None)
-                if not oid:
+                order_id = (
+                    getattr(order, "id", None)
+                    or getattr(order, "exchange_order_id", None)
+                    or getattr(order, "order_id", None)
+                )
+                if not order_id:
+                    cleanup_ok = False
                     continue
                 try:
-                    if await self.client.cancel_order(sym, str(oid)):
+                    if await self.client.cancel_order(sym, str(order_id)):
                         cancelled += 1
+                    else:
+                        cleanup_ok = False
                 except Exception as exc:
+                    cleanup_ok = False
                     logger.warning(
-                        "sync_closed: cancel %s %s: %s",
-                        sym, oid, type(exc).__name__,
+                        "sync_closed: cancel %s %s %s: %s",
+                        sym, side, order_id, type(exc).__name__,
                     )
+            if not cleanup_ok:
+                pending_cleanup.append(f"{sym}|{side}")
+                logger.warning(
+                    "sync_closed: %s %s protective-order cleanup incomplete; keep plan for retry",
+                    sym,
+                    side,
+                )
+                continue
 
-            side = str(plan.get("side") or "").lower()
             side_ru = "ЛОНГ" if side == "long" else "ШОРТ" if side == "short" else side.upper()
             base = (sym.split("-")[0] if "-" in sym else sym).replace("USDT", "")
             pending = bool(plan.get("pending_verify"))
@@ -868,11 +965,25 @@ class LiveBroker:
                         continue
                     filtered.append(f)
                 fills = filtered
+
+            fills, fill_side_ambiguous = _filter_fills_for_position_side(fills, side)
+            if fill_side_ambiguous:
+                logger.warning(
+                    "sync_closed: %s %s fill history has missing/invalid positionSide; "
+                    "refusing cross-hedge PnL attribution",
+                    sym,
+                    side,
+                )
+            trade_ids = {
+                trade_id
+                for fill in fills
+                if (trade_id := _fill_trade_id(fill)) is not None
+            }
             exit_fill, fees, exit_reason, qty_closed = _aggregate_exit_fills(
                 fills, side=side, entry_px=entry_px
             )
 
-            # Prefer realizedPnl sum from fill rows when exchange provides it
+            # Only explicit LONG/SHORT fills can contribute realized PnL and fees.
             pnl: float | None = None
             slip_exit: float | None = None
             funding_fee: float = 0.0
@@ -911,13 +1022,29 @@ class LiveBroker:
                     )
 
                     agg = await fetch_income_with_retries(
-                        self.client, sym, start_ms, attempts=3, delay_sec=7.0
+                        self.client,
+                        sym,
+                        start_ms,
+                        attempts=3,
+                        delay_sec=7.0,
+                        position_side=side,
+                        trade_ids=trade_ids,
                     )
+                    if agg.get("ambiguous_position_side"):
+                        logger.warning(
+                            "sync_closed: %s %s income history cannot be mapped to hedge leg; "
+                            "keep exit pending instead of guessing",
+                            sym,
+                            side,
+                        )
                     funding_fee = float(agg.get("funding") or 0.0)
                     fee_signed = float(agg.get("fees") or 0.0)
                     if fees is None or fees == 0:
                         fees = abs(fee_signed)
-                    if agg.get("has_realized") or abs(float(agg.get("net") or 0)) > 1e-9:
+                    if (
+                        not agg.get("ambiguous_position_side")
+                        and (agg.get("has_realized") or abs(float(agg.get("net") or 0)) > 1e-9)
+                    ):
                         from astra_bot.decision.live_income_report import (
                             income_too_small,
                             plan_est_risk,
@@ -974,7 +1101,7 @@ class LiveBroker:
                             await send_tg(msg)
                         except Exception:
                             pass
-                remove_plan(sym, path)
+                remove_plan(sym, path, side=side)
                 closed.append(sym)
                 continue
 
@@ -1005,12 +1132,13 @@ class LiveBroker:
                             "since_ms": start_ms,
                             "reason": exit_reason or "no_fills",
                             "entry": entry_px,
+                            "trade_ids": sorted(trade_ids),
                             "ts": now,
                         }
                     )
                 except Exception as exc:
                     logger.warning("sync_closed enqueue pending: %s", type(exc).__name__)
-                remove_plan(sym, path)
+                remove_plan(sym, path, side=side)
                 closed.append(sym)
                 try:
                     append_live_trade(
@@ -1236,7 +1364,7 @@ class LiveBroker:
             except Exception as hexc:
                 logger.warning("heat.record: %s", type(hexc).__name__)
 
-            remove_plan(sym, path)
+            remove_plan(sym, path, side=side)
             closed.append(sym)
             logger.info(
                 "sync_closed: %s pnl=%.4f exit=%s reason=%s",
@@ -1247,7 +1375,12 @@ class LiveBroker:
             "sync_closed_plans: closed=%s pending_fill=%s cancelled=%d",
             closed, pending_fill, cancelled,
         )
-        return {"closed": closed, "cancelled": cancelled, "pending_fill": pending_fill}
+        return {
+            "closed": closed,
+            "cancelled": cancelled,
+            "pending_fill": pending_fill,
+            "pending_cleanup": pending_cleanup,
+        }
 
     async def restore_missing_stops(
         self,
