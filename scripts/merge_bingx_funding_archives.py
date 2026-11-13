@@ -16,7 +16,6 @@ from typing import Any
 SYMBOLS = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
 DEFAULT_CORE = ("ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
 FIELDS = ("funding_time", "rate")
-GAP_FALLBACK_HOURS = 12.0
 
 
 def _sha256(path: Path) -> str:
@@ -125,8 +124,8 @@ def merge_archives(
     require_days: float = 365.0,
     base_run_id: str = "43213211531",
     base_artifact: str = "15m-pullback-continuation-research",
-    supplemental_run_id: str = "43424403539",
-    supplemental_artifact: str = "bingx-usdm-funding-12m",
+    supplemental_run_id: str = "current-run",
+    supplemental_artifact: str = "bingx-usdm-funding-12m-raw",
 ) -> dict[str, Any]:
     base_manifest = _load_manifest(base_dir)
     supplemental_manifest = _load_manifest(supplemental_dir)
@@ -267,8 +266,8 @@ def main() -> int:
     parser.add_argument("--require-days", type=float, default=365.0)
     parser.add_argument("--base-run-id", default="43213211531")
     parser.add_argument("--base-artifact", default="15m-pullback-continuation-research")
-    parser.add_argument("--supplemental-run-id", default="43424403539")
-    parser.add_argument("--supplemental-artifact", default="bingx-usdm-funding-12m")
+    parser.add_argument("--supplemental-run-id", default="current-run")
+    parser.add_argument("--supplemental-artifact", default="bingx-usdm-funding-12m-raw")
     args = parser.parse_args()
     symbols = tuple(item.strip().upper() for item in args.symbols.split(",") if item.strip())
     core_symbols = tuple(item.strip().upper() for item in args.core_symbols.split(",") if item.strip())
