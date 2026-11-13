@@ -436,7 +436,7 @@ def reconstruct(
         FROM path
         ORDER BY wallet, market, timestamp, tid
     """
-    reader = con.execute(query).fetch_record_batch(rows_per_batch=100_000)
+    reader = con.sql(query).to_arrow_reader(batch_size=100_000)
     for batch in reader:
         for row in batch.to_pylist():
             key = (row["wallet"], row["market"])
