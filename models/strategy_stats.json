@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-13T15:37:17.465225+00:00",
+  "updated": "2026-11-13T18:52:18.971037+00:00",
   "buckets": {
     "scalp5m|UNKNOWN|": {
       "sample_size": 1,
@@ -2688,6 +2688,42 @@
       "sum_mae_r": 1.186293331401456,
       "sum_fees": 0.8376839447999338,
       "last_updated": "2026-11-13T15:37:17.465187+00:00"
+    },
+    "rounded_top|T:RANGE/V:VERY_LOW/L:DEEP|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -1.1033562842807656,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -1.1033562842807656,
+      "sum_mfe_r": 0.0,
+      "sum_mae_r": 0.8801267382501717,
+      "sum_fees": 0.8454463493957058,
+      "last_updated": "2026-11-13T18:52:18.970997+00:00"
+    },
+    "rounded_top|LOW_VOLATILITY|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -1.1033562842807656,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -1.1033562842807656,
+      "sum_mfe_r": 0.0,
+      "sum_mae_r": 0.8801267382501717,
+      "sum_fees": 0.8454463493957058,
+      "last_updated": "2026-11-13T18:52:18.971006+00:00"
+    },
+    "rounded_top|ANY|5m": {
+      "sample_size": 1,
+      "wins": 0,
+      "losses": 1,
+      "sum_r": -1.1033562842807656,
+      "wins_sum_r": 0.0,
+      "losses_sum_r": -1.1033562842807656,
+      "sum_mfe_r": 0.0,
+      "sum_mae_r": 0.8801267382501717,
+      "sum_fees": 0.8454463493957058,
+      "last_updated": "2026-11-13T18:52:18.971009+00:00"
     }
   }
 }
