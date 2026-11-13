@@ -43,7 +43,7 @@ jobs:
           name: 15m-pullback-continuation-research
           repository: \${{ github.repository }}
           run-id: 43213211531
-          github-token: \${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
           path: previous
       - name: Download one year of actual BingX USDT-M funding settlements
         run: |
