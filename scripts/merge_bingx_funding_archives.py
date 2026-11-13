@@ -107,7 +107,7 @@ def _latest_segment(rows: dict[int, str]) -> dict[str, Any]:
         "max_gap_hours_latest_segment": round(max(segment_gaps), 4) if segment_gaps else None,
         "latest_segment_start_ms": segment_times[0],
         "latest_segment_end_ms": segment_times[-1],
-        "coverage_end_ms": int(segment_times[-1] + median_gap * 3_600_000),
+        "coverage_end_ms": int(segment_times[-1]),
         "break_count_before_latest_segment": len(breaks),
     }
 
@@ -168,18 +168,15 @@ def merge_archives(
         segment_end = int(segment["latest_segment_end_ms"])
         cadence_ms = int(round(float(segment["median_gap_hours"]) * 3_600_000))
         coverage_start = max(start_ms, segment_start)
-        coverage_end = min(end_ms, int(segment["coverage_end_ms"]))
+        coverage_end = min(end_ms, segment_end)
         symbol_days = max(0.0, (coverage_end - coverage_start) / 86_400_000)
         first_gap_hours = max(0.0, (segment_start - start_ms) / 3_600_000)
-        last_gap_hours = max(0.0, (end_ms - int(segment["coverage_end_ms"])) / 3_600_000)
+        last_gap_hours = max(0.0, (end_ms - segment_end) / 3_600_000)
         cadence_ok = (
             segment["max_gap_hours_latest_segment"] is None
             or float(segment["max_gap_hours_latest_segment"]) <= float(segment["gap_threshold_hours"])
         )
-        edge_ok = (
-            first_gap_hours <= float(segment["gap_threshold_hours"])
-            and last_gap_hours <= float(segment["gap_threshold_hours"])
-        )
+        edge_ok = segment_start <= start_ms and segment_end >= end_ms
         report = {
             "symbol": symbol,
             "file": str(output_path),
