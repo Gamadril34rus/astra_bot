@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# ruff: noqa: B023
-# Legacy nested async callbacks intentionally close over tick-local state.
 """Zeus LIVE clock — one tick. INACTIVE without ZEUS_LIVE=1.
 
 Paper path (run_paper_zeus / PaperBroker) is never imported here for trading.
