@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from scripts.merge_bingx_funding_archives import merge_archives
 
 
