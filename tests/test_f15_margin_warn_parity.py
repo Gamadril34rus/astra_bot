@@ -84,6 +84,9 @@ def test_restore_tp_failed_journals_and_warns(tmp_path, monkeypatch):
                 SimpleNamespace(
                     symbol="DOT-USDT",
                     order_type="STOP_MARKET",
+                    side="sell",
+                    position_side="long",
+                    status="NEW",
                     id="s1",
                 )
             ]
@@ -140,6 +143,8 @@ def test_tp_parity_place_before_cancel(tmp_path, monkeypatch):
             return [
                 SimpleNamespace(
                     symbol="BTC-USDT",
+                    side="SELL",
+                    position_side="LONG",
                     order_type="TAKE_PROFIT_MARKET",
                     type="TAKE_PROFIT_MARKET",
                     id="old_tp_1",
@@ -196,6 +201,9 @@ def test_tp_parity_old_filled_not_hard_fail(tmp_path, monkeypatch):
         async def get_open_orders(self, symbol=None):
             return [
                 SimpleNamespace(
+                    symbol="ETH-USDT",
+                    side="SELL",
+                    position_side="LONG",
                     order_type="TAKE_PROFIT_MARKET",
                     type="TAKE_PROFIT_MARKET",
                     id="old1",
