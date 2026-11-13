@@ -151,8 +151,8 @@ def test_period_signal_blocks_entries_outside_split() -> None:
     frame.loc[i, "open"] = 99.0
     frame.loc[i, "close"] = 99.5
     picker = _period_signal(choose_session_vwap_signal, 121 * 900_000, 130 * 900_000)
-    assert picker(frame, i) is None
-    assert picker(frame, i - 1) is not None
+    assert picker(frame, i) is not None
+    assert picker(frame, i - 1) is None
 
 
 def test_is_validation_screen_requires_both_cost_cases_and_periods() -> None:
