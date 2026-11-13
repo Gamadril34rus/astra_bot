@@ -103,6 +103,7 @@ class TestRotateAllAndGate:
 
     def test_limits_defined_for_all_live_files(self):
         assert len(LIVE_JSONL_LIMITS) >= 5
+        assert LIVE_JSONL_LIMITS["astra_trade_journal.jsonl"] == 24_000
         for _rel, limit in LIVE_JSONL_LIMITS.items():
             assert limit > 0
 
