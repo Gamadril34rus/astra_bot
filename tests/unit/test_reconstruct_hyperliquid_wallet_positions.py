@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import duckdb
-from scripts.reconstruct_hyperliquid_wallet_positions import reconstruct
+from scripts.reconstruct_hyperliquid_wallet_positions import _positions_match, reconstruct
 
 
 def test_reconstructs_flat_to_flat_episodes_and_censors_unknown_positions(tmp_path: Path) -> None:
@@ -107,3 +107,8 @@ def test_reconstructs_flat_to_flat_episodes_and_censors_unknown_positions(tmp_pa
     assert report["counts"]["wallet_market_groups_boundary_ambiguous"] == 1
     assert report["counts"]["anchor_entry_price_matches_005pct"] == 1
     assert report["counts"]["complete_position_episodes"] == 3
+
+
+def test_position_match_allows_only_small_float_residuals() -> None:
+    assert _positions_match(-6.705522537231445e-08, 3.3527612686157227e-08)
+    assert not _positions_match(0.0001, 0.0)
