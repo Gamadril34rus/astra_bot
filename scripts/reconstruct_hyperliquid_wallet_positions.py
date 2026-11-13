@@ -198,7 +198,7 @@ def reconstruct(
         CREATE TEMP VIEW cohort_fills AS
         SELECT
             lower(wallet) AS wallet,
-            upper(coin) AS market,
+            upper(market) AS market,
             timestamp,
             CAST(price AS DOUBLE) AS price,
             CAST(size AS DOUBLE) AS size,
@@ -212,7 +212,7 @@ def reconstruct(
         FROM read_parquet('{trade_file}')
         WHERE lower(wallet) IN ({address_values})
           -- wallet_trades.parquet is already filtered to native perps by the collector.
-          AND coin IS NOT NULL
+          AND market IS NOT NULL
           AND lower(side) IN ('buy', 'sell')
     """)
 
@@ -511,7 +511,7 @@ def reconstruct(
                 elif action in {"reduce", "close", "reverse"}:
                     current_episode["reduce_count"] += 1
 
-            new_size, new_average, realized, pnl_known = _weighted_average_entry(
+            _new_size, new_average, realized, pnl_known = _weighted_average_entry(
                 before, average_entry, delta, price
             )
             if current_episode is not None and action in {"reduce", "close", "reverse"}:
@@ -558,7 +558,7 @@ def reconstruct(
         ORDER BY a.wallet, a.market
     """).fetchall()
     for row in anchor_only:
-        wallet, market, size, entry, liq, lev_type, lev, funding, account_value, account_mode = row
+        wallet, market, size, entry, liq, lev_type, lev, funding, account_value, _account_mode = row
         if abs(float(size)) <= EPSILON:
             continue
         meta = {
@@ -720,10 +720,10 @@ def reconstruct(
                 f"SELECT count(*) FROM read_parquet('{trade_file}')"
             ).fetchone()[0]),
             "anchor_position_rows_for_cohort": int(con.execute(
-                f"SELECT count(*) FROM anchor_positions"
+                "SELECT count(*) FROM anchor_positions"
             ).fetchone()[0]),
             "wallets_with_anchor_positions": int(con.execute(
-                f"SELECT count(DISTINCT wallet) FROM anchor_positions"
+                "SELECT count(DISTINCT wallet) FROM anchor_positions"
             ).fetchone()[0]),
             "wallet_market_groups_with_fills": len(group_meta),
             "wallet_market_groups_boundary_ambiguous": len(ambiguous_groups),
