@@ -44,6 +44,12 @@ GATE_EMA_MID2 = 100
 GATE_EMA_SLOW = 200
 
 _lazy_bingx_client: BingXClient | None = None
+
+
+def set_bingx_client(client: BingXClient | None) -> None:
+    """Inject the runner-owned client so filters share its limiter and lifecycle."""
+    global _lazy_bingx_client
+    _lazy_bingx_client = client
 _btc_daily_cache: dict[str, Any] = {"timestamp": 0.0, "closes": None}
 
 
