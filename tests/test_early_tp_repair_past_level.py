@@ -37,7 +37,7 @@ def test_repair_past_level_short_markets_and_flags(tmp_path, monkeypatch):
     )
     broker = MagicMock()
     pos = SimpleNamespace(
-        symbol="SOL-USDT", quantity=Decimal("10"), mark_price=Decimal("93")
+        symbol="SOL-USDT", side="short", quantity=Decimal("10"), mark_price=Decimal("93")
     )
     broker.client.get_positions = AsyncMock(return_value=[pos])
     broker.client.get_open_orders = AsyncMock(return_value=[])
@@ -88,7 +88,7 @@ def test_repair_valid_level_places_tp(tmp_path, monkeypatch):
     monkeypatch.setattr("astra_bot.decision.live_arm_wiring.append_journal", lambda row: None)
     broker = MagicMock()
     pos = SimpleNamespace(
-        symbol="ETH-USDT", quantity=Decimal("5"), mark_price=Decimal("96")
+        symbol="ETH-USDT", side="short", quantity=Decimal("5"), mark_price=Decimal("96")
     )
     broker.client.get_positions = AsyncMock(return_value=[pos])
     broker.client.get_open_orders = AsyncMock(return_value=[])
