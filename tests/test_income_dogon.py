@@ -73,6 +73,7 @@ def test_dogon_pending_then_confirm(tmp_path):
             "since_ms": 1,
             "reason": "стоп",
             "est": 200.0,
+            "trade_ids": ["matched-fill-1"],
             "ts": 1000.0,
         },
         path=pending_path,
@@ -85,10 +86,10 @@ def test_dogon_pending_then_confirm(tmp_path):
         async def get_realized_income(self, symbol, start_ms=None, end_ms=None):
             self.n += 1
             if self.n == 1:
-                return [{"_incomeType": "REALIZED_PNL", "income": -3.0, "time": 2}]
+                return [{"_incomeType": "REALIZED_PNL", "income": -3.0, "time": 2, "tradeId": "matched-fill-1"}]
             return [
-                {"_incomeType": "REALIZED_PNL", "income": -150.0, "time": 2},
-                {"_incomeType": "TRADING_FEE", "income": -1.5, "time": 2},
+                {"_incomeType": "REALIZED_PNL", "income": -150.0, "time": 2, "tradeId": "matched-fill-1"},
+                {"_incomeType": "TRADING_FEE", "income": -1.5, "time": 2, "tradeId": "matched-fill-1"},
             ]
 
     client = Client()
