@@ -203,10 +203,26 @@ def migrate_initial_stop_v1() -> dict:
     plans = load_positions(DEFAULT_PATH)
     if not plans:
         return out
-    # index entry stops from journal (best-effort, last wins)
-    entry_stop_by_sid: dict[str, str] = {}
-    entry_stop_by_sym: dict[str, str] = {}
-    parity_old_tp: dict[str, str] = {}
+    # Legacy rows without side are usable only when the symbol has one active plan leg.
+    plan_sides_by_symbol: dict[str, set[str]] = {}
+    for plan_key, plan in plans.items():
+        if not isinstance(plan, dict):
+            continue
+        plan_symbol = str(plan.get("symbol") or plan_key.split("|")[0])
+        plan_side = _normalize_plan_side(plan.get("side") or (
+            plan_key.rsplit("|", 1)[1] if "|" in plan_key else None
+        ))
+        if plan_symbol and plan_side is not None:
+            plan_sides_by_symbol.setdefault(plan_symbol, set()).add(plan_side)
+    unique_plan_side = {
+        symbol: next(iter(sides))
+        for symbol, sides in plan_sides_by_symbol.items()
+        if len(sides) == 1
+    }
+    # Index entry stops by signal and hedge leg (best-effort, last wins).
+    entry_stop_by_sid_side: dict[tuple[str, str], str] = {}
+    entry_stop_by_sym_side: dict[tuple[str, str], str] = {}
+    parity_old_tp_by_sym_side: dict[tuple[str, str], str] = {}
     jpath = Path("models/zeus_live_journal.jsonl")
     tpath = Path("models/zeus_live_trades.jsonl")
     for path in (jpath, tpath):
@@ -225,14 +241,16 @@ def migrate_initial_stop_v1() -> dict:
                     if ev == "entry" and o.get("stop") is not None:
                         sid = str(o.get("signal_id") or "")
                         sym = str(o.get("symbol") or "")
-                        if sid:
-                            entry_stop_by_sid[sid] = str(o["stop"])
-                        if sym:
-                            entry_stop_by_sym[sym] = str(o["stop"])
+                        side = _normalize_plan_side(o.get("side")) or unique_plan_side.get(sym)
+                        if sid and side is not None:
+                            entry_stop_by_sid_side[(sid, side)] = str(o["stop"])
+                        if sym and side is not None:
+                            entry_stop_by_sym_side[(sym, side)] = str(o["stop"])
                     if ev in ("tp_parity_replace", "tp_parity_failed") and o.get("old_tp"):
                         sym = str(o.get("symbol") or "")
-                        if sym and sym not in parity_old_tp:
-                            parity_old_tp[sym] = str(o["old_tp"])
+                        side = _normalize_plan_side(o.get("side")) or unique_plan_side.get(sym)
+                        if sym and side is not None:
+                            parity_old_tp_by_sym_side[(sym, side)] = str(o["old_tp"])
         except Exception:
             pass
     changed = False
@@ -251,19 +269,22 @@ def migrate_initial_stop_v1() -> dict:
             continue
         sym = str(plan.get("symbol") or key.split("|")[0])
         sid = str(plan.get("signal_id") or "")
+        side = _normalize_plan_side(plan.get("side") or (
+            key.rsplit("|", 1)[1] if "|" in key else None
+        ))
         init = None
         src = None
-        if sid and sid in entry_stop_by_sid:
-            init, src = entry_stop_by_sid[sid], "journal_entry_sid"
-        elif sym in entry_stop_by_sym:
-            init, src = entry_stop_by_sym[sym], "journal_entry_sym"
-        elif sym in parity_old_tp and plan.get("entry") is not None:
+        if sid and side is not None and (sid, side) in entry_stop_by_sid_side:
+            init, src = entry_stop_by_sid_side[(sid, side)], "journal_entry_signal_side"
+        elif side is not None and (sym, side) in entry_stop_by_sym_side:
+            init, src = entry_stop_by_sym_side[(sym, side)], "journal_entry_symbol_side"
+        elif side is not None and (sym, side) in parity_old_tp_by_sym_side and plan.get("entry") is not None:
             try:
                 entry = Decimal(str(plan["entry"]))
-                old_tp = Decimal(str(parity_old_tp[sym]))
+                old_tp = Decimal(str(parity_old_tp_by_sym_side[(sym, side)]))
                 # pre-parity TP was ~1.5R from entry with initial stop
                 risk = abs(old_tp - entry) / Decimal("1.5")
-                if plan.get("side", "").lower() == "long":
+                if side == "long":
                     init = str(entry - risk)
                 else:
                     init = str(entry + risk)
@@ -284,6 +305,7 @@ def migrate_initial_stop_v1() -> dict:
             append_journal({
                 "event": "migrate_initial_stop",
                 "symbol": sym,
+                "side": side,
                 "initial_stop": init,
                 "source": src,
                 "ts": time.time(),
@@ -2190,13 +2212,16 @@ async def detect_ghost_positions(
         logger.warning("detect_ghost_positions: setup %s", type(exc).__name__)
         return {"ghosts": [], "error": type(exc).__name__}
 
-    plan_syms: set[str] = set()
+    plan_legs: set[tuple[str, str]] = set()
     for _key, plan in (plans or {}).items():
         if not isinstance(plan, dict):
             continue
         sym = str(plan.get("symbol") or _key.split("|")[0] or "")
-        if sym:
-            plan_syms.add(sym)
+        side = _normalize_plan_side(plan.get("side") or (
+            _key.rsplit("|", 1)[1] if "|" in _key else None
+        ))
+        if sym and side is not None:
+            plan_legs.add((sym, side))
 
     try:
         st = json.loads(flag.read_text(encoding="utf-8")) if flag.exists() else {}
@@ -2216,14 +2241,16 @@ async def detect_ghost_positions(
             qty_d = 0.0
         if not sym or qty_d <= 0:
             continue
-        if sym in plan_syms:
-            continue
         entry = getattr(pos, "entry_price", None) or getattr(pos, "avg_price", None)
-        side = str(getattr(pos, "side", "") or "").lower()
-        last = float(st.get(sym) or 0)
+        side = _normalize_plan_side(getattr(pos, "side", None))
+        side_label = side or "unknown"
+        if side is not None and (sym, side) in plan_legs:
+            continue
+        warning_key = f"{sym}|{side_label}"
+        last = float(st.get(warning_key) or 0)
         row = {
             "symbol": sym,
-            "side": side,
+            "side": side_label,
             "qty": str(qty),
             "entry": str(entry) if entry is not None else None,
         }
@@ -2234,15 +2261,15 @@ async def detect_ghost_positions(
             append_journal({
                 "event": "ghost_position",
                 "symbol": sym,
-                "side": side,
+                "side": side_label,
                 "qty": str(qty),
                 "entry": str(entry) if entry is not None else None,
                 "ts": now,
             })
         except Exception:
             pass
-        st[sym] = now
-        msg = f"⚠️ {sym}: позиция без плана (qty={qty}"
+        st[warning_key] = now
+        msg = f"⚠️ {sym} {side_label}: позиция без плана (qty={qty}"
         if entry is not None:
             msg += f", entry={entry}"
         msg += ") — защита неизвестна"
