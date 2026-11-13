@@ -5,8 +5,6 @@ from decimal import Decimal
 from astra_bot.decision.live_broker import _estimate_tp1_leg, _tp_frac_from_plan
 from astra_bot.decision.live_positions import get_plan, upsert_plan
 
-import pytest
-
 
 def test_upsert_plan_persists_tp1_fraction(tmp_path):
     path = tmp_path / "positions.json"
@@ -61,19 +59,23 @@ def test_upsert_plan_preserves_tp1_fraction_on_followup_write(tmp_path):
     assert _tp_frac_from_plan(plan) == Decimal("0.3")
 
 
-@pytest.mark.parametrize("invalid_fraction", ["0", "1", "-0.1", "nan", "inf"])
-def test_upsert_plan_rejects_invalid_tp1_fraction(tmp_path, invalid_fraction):
-    with pytest.raises(ValueError, match="tp_frac"):
-        upsert_plan(
-            "BTC-USDT",
-            side="long",
-            qty="1",
-            entry="100",
-            stop="98",
-            tp1="103",
-            tp_frac=invalid_fraction,
-            path=tmp_path / "positions.json",
-        )
+def test_upsert_plan_rejects_invalid_tp1_fraction(tmp_path):
+    for invalid_fraction in ("0", "1", "-0.1", "nan", "inf"):
+        try:
+            upsert_plan(
+                "BTC-USDT",
+                side="long",
+                qty="1",
+                entry="100",
+                stop="98",
+                tp1="103",
+                tp_frac=invalid_fraction,
+                path=tmp_path / f"{invalid_fraction}.json",
+            )
+        except ValueError as exc:
+            assert "tp_frac" in str(exc)
+        else:
+            raise AssertionError(f"invalid tp_frac was accepted: {invalid_fraction}")
 
 
 def test_tp1_leg_estimate_uses_configured_fraction_for_long_and_short():
