@@ -166,16 +166,22 @@ def merge_archives(
         segment = _latest_segment(merged)
         segment_start = int(segment["latest_segment_start_ms"])
         segment_end = int(segment["latest_segment_end_ms"])
-        coverage_start = max(start_ms, segment_start)
-        coverage_end = min(end_ms, segment_end)
-        symbol_days = max(0.0, (coverage_end - coverage_start) / 86_400_000)
         first_gap_hours = max(0.0, (segment_start - start_ms) / 3_600_000)
         last_gap_hours = max(0.0, (end_ms - segment_end) / 3_600_000)
+        edge_tolerance_hours = float(segment["gap_threshold_hours"])
         cadence_ok = (
             segment["max_gap_hours_latest_segment"] is None
-            or float(segment["max_gap_hours_latest_segment"]) <= float(segment["gap_threshold_hours"])
+            or float(segment["max_gap_hours_latest_segment"]) <= edge_tolerance_hours
         )
-        edge_ok = segment_start <= start_ms and segment_end >= end_ms
+        # Funding is discrete (typically every 4h or 8h). The final settlement
+        # before an exclusive window boundary still covers the interval when
+        # it is within the symbol's verified cadence tolerance.
+        leading_edge_ok = first_gap_hours <= edge_tolerance_hours
+        trailing_edge_ok = last_gap_hours <= edge_tolerance_hours
+        edge_ok = leading_edge_ok and trailing_edge_ok
+        coverage_start = start_ms if leading_edge_ok else max(start_ms, segment_start)
+        coverage_end = end_ms if trailing_edge_ok else min(end_ms, segment_end)
+        symbol_days = max(0.0, (coverage_end - coverage_start) / 86_400_000)
         report = {
             "symbol": symbol,
             "file": str(output_path),

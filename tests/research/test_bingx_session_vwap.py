@@ -3,7 +3,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import pytest
-
 from scripts import research_adaptive_perp_portfolio as core
 from scripts.research_bingx_session_vwap import (
     _assert_same_population,

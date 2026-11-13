@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 from scripts.merge_bingx_funding_archives import merge_archives
 
-
 SYMBOLS = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
 CORE = ("ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
 START = 1_767_225_600_000  # 2026-01-01T00:00:00Z
@@ -116,9 +115,33 @@ def test_merge_rejects_a_conflicting_duplicate_rate(tmp_path: Path) -> None:
         )
 
 
-def test_merge_rejects_missing_funding_at_the_requested_end(tmp_path: Path) -> None:
+def test_merge_accepts_last_settlement_one_cadence_before_exclusive_end(tmp_path: Path) -> None:
     rows = _fixture_rows()
     rows["INJ-USDT"] = rows["INJ-USDT"][:-1]
+    base_rows = {symbol: values[:3] for symbol, values in rows.items()}
+    supplement_rows = {symbol: values[2:] for symbol, values in rows.items()}
+    base = tmp_path / "base"
+    supplement = tmp_path / "supplement"
+    _write_source(base, base_rows)
+    _write_source(supplement, supplement_rows)
+
+    manifest = merge_archives(
+        base,
+        supplement,
+        tmp_path / "merged",
+        symbols=SYMBOLS,
+        core_symbols=CORE,
+        requested_start="2026-01-01T00:00:00Z",
+        requested_end="2026-01-03T00:00:00Z",
+        require_days=2.0,
+    )
+    assert manifest["core_common_window"]["covers_required_days"] is True
+    assert manifest["core_common_window"]["days"] == pytest.approx(2.0)
+
+
+def test_merge_rejects_missing_funding_at_the_requested_end(tmp_path: Path) -> None:
+    rows = _fixture_rows()
+    rows["INJ-USDT"] = rows["INJ-USDT"][:-2]
     base_rows = {symbol: values[:3] for symbol, values in rows.items()}
     supplement_rows = {symbol: values[2:] for symbol, values in rows.items()}
     base = tmp_path / "base"
