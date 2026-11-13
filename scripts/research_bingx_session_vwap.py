@@ -48,7 +48,7 @@ def add_session_features(m15: pd.DataFrame, h1: pd.DataFrame) -> pd.DataFrame:
     x = core.add_features(m15, h1)
     session_id = pd.to_datetime(x["open_time"], unit="ms", utc=True).dt.strftime("%Y-%m-%d")
     typical_price = (x["high"] + x["low"] + x["close"]) / 3.0
-    volume = x["quote_volume"].where(x["quote_volume"] > 0, x["volume"])
+    volume = x["volume"].astype(float)
     cumulative_volume = volume.groupby(session_id).cumsum()
     cumulative_value = (typical_price * volume).groupby(session_id).cumsum()
     x["session_id"] = session_id
