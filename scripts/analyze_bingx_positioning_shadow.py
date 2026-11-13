@@ -22,23 +22,26 @@ FORWARD_HORIZONS_MIN = (30, 60, 120, 240, 540)
 
 def load_candles(path: Path) -> pd.DataFrame:
     frame = pd.read_csv(path)
-    required = {
-        "open_time", "open", "high", "low", "close", "volume", "quote_volume",
-        "taker_buy_volume", "taker_buy_quote_volume",
-    }
+    required = {"open_time", "open", "high", "low", "close", "volume"}
+    optional = {"quote_volume", "taker_buy_volume", "taker_buy_quote_volume"}
     missing = required - set(frame.columns)
     if missing:
-        raise ValueError(f"{path}: missing required fields {sorted(missing)}")
+        raise ValueError(f"{path}: missing required OHLCV fields {sorted(missing)}")
 
     frame["open_time"] = pd.to_numeric(frame["open_time"], errors="raise").astype("int64")
-    for column in required - {"open_time"}:
+    for column in optional:
+        if column not in frame:
+            frame[column] = np.nan
+    for column in (required - {"open_time"}) | optional:
         frame[column] = pd.to_numeric(frame[column], errors="coerce")
     if frame["open_time"].duplicated().any():
         raise ValueError(f"{path}: duplicate candle open_time")
     frame = frame.sort_values("open_time").reset_index(drop=True)
-    if frame[list(required - {"taker_buy_volume", "taker_buy_quote_volume"})].isna().any().any():
+    if frame[list(required - {"open_time"})].isna().any().any():
         raise ValueError(f"{path}: null OHLCV")
-    if (frame["volume"] < 0).any() or (frame["quote_volume"] < 0).any():
+    if (frame["volume"] < 0).any() or (
+        frame["quote_volume"].notna() & (frame["quote_volume"] < 0)
+    ).any():
         raise ValueError(f"{path}: negative volume")
     gaps = frame["open_time"].diff().dropna()
     if (gaps != BAR_INTERVAL_MS).any():
@@ -120,14 +123,16 @@ def build_symbol_shadow(candles: pd.DataFrame, oi: pd.DataFrame) -> pd.DataFrame
         price_change_pct = (current_close / previous_close - 1.0) * 100.0
 
         taker_share, taker_unit = _taker_buy_share(candle)
-        if not np.isfinite(taker_share):
-            continue
-        taker_imbalance = (2.0 * taker_share - 1.0) * 100.0
+        taker_available = bool(np.isfinite(taker_share))
+        taker_imbalance = (
+            (2.0 * taker_share - 1.0) * 100.0 if taker_available else float("nan")
+        )
 
         price_state = "up" if price_change_pct > 0 else "down" if price_change_pct < 0 else "flat"
         oi_state = "up" if oi_change_pct > 0 else "down" if oi_change_pct < 0 else "flat"
         taker_state = (
-            "buy" if taker_imbalance > 0
+            "unknown" if not taker_available
+            else "buy" if taker_imbalance > 0
             else "sell" if taker_imbalance < 0
             else "balanced"
         )
@@ -145,7 +150,7 @@ def build_symbol_shadow(candles: pd.DataFrame, oi: pd.DataFrame) -> pd.DataFrame
             "open_interest_usdt_est": current_oi * current_close,
             "oi_change_pct": oi_change_pct,
             "price_change_pct": price_change_pct,
-            "taker_buy_share_pct": taker_share * 100.0,
+            "taker_buy_share_pct": taker_share * 100.0 if taker_available else np.nan,
             "taker_imbalance_pct": taker_imbalance,
             "taker_volume_unit": taker_unit,
             "positioning_state": state,
@@ -189,11 +194,18 @@ def summarize_shadow(frame: pd.DataFrame) -> dict:
                 if not values.empty else None
             )
         states[str(state)] = metrics
+    taker_available = (
+        frame["taker_volume_unit"].ne("missing")
+        if "taker_volume_unit" in frame
+        else pd.Series(False, index=frame.index)
+    )
     return {
         "snapshots": len(frame),
         "symbols": sorted(frame["symbol"].unique().tolist()),
         "first_observation_utc": str(frame["observed_at_utc"].min()),
         "last_observation_utc": str(frame["observed_at_utc"].max()),
+        "taker_flow_available_snapshots": int(taker_available.sum()),
+        "taker_flow_coverage_pct": round(float(taker_available.mean() * 100.0), 2),
         "states": states,
         "warning": (
             "Descriptive observational joins only. Total OI and taker-buy volume "
@@ -238,7 +250,8 @@ def main() -> int:
         "oi_join": "latest fully closed 30m candle at or before local OI observation timestamp",
         "max_candle_age_minutes": MAX_SNAPSHOT_CANDLE_AGE_MS / 60_000,
         "max_oi_observation_gap_minutes": MAX_OI_INTERVAL_MS / 60_000,
-        "relative_volume_source": "taker-buy quote volume where available, else base volume",
+        "primary_features": ["closed_30m_price_change", "total_open_interest_change"],
+        "optional_taker_flow": "used only when BingX supplies valid taker-buy volume; missing data remains unknown and does not discard the OI/price observation",
         "forward_horizons_minutes": list(FORWARD_HORIZONS_MIN),
         "strategy_execution": "none; research-only descriptive shadow",
     }
