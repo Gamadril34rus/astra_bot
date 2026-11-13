@@ -8,6 +8,7 @@ import csv
 import hashlib
 import json
 import logging
+import statistics
 from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime, time, timedelta
 from itertools import pairwise
@@ -74,7 +75,11 @@ async def _call_with_cooldown(
     raise RuntimeError(f"{label}: BingX cooldown retries exhausted")
 
 async def download_symbol(
-    client: BingXClient, symbol: str, start_ms: int, end_ms: int
+    client: BingXClient,
+    symbol: str,
+    start_ms: int,
+    end_ms: int,
+    chunk_days: int = CHUNK_DAYS,
 ) -> dict[str, Any]:
     rows: dict[int, str] = {}
     chunk_reports: list[dict[str, Any]] = []
@@ -82,7 +87,7 @@ async def download_symbol(
     while cursor <= end_ms:
         chunk_end = min(
             end_ms,
-            cursor + int(timedelta(days=CHUNK_DAYS).total_seconds() * 1000) - 1,
+            cursor + int(timedelta(days=chunk_days).total_seconds() * 1000) - 1,
         )
         response = await _call_with_cooldown(
             lambda cursor=cursor, chunk_end=chunk_end: client._request(
@@ -132,13 +137,28 @@ async def download_symbol(
         (right_ts - left_ts) / 3_600_000
         for (left_ts, _), (right_ts, _) in pairwise(ordered)
     ]
+    median_gap_hours = statistics.median(gaps) if gaps else None
+    max_gap_hours = max(gaps) if gaps else None
+    first_edge_hours = (ordered[0][0] - start_ms) / 3_600_000 if ordered else None
+    last_edge_hours = (end_ms - ordered[-1][0]) / 3_600_000 if ordered else None
+    gap_limit_hours = max(1.5 * median_gap_hours, median_gap_hours + 1.0) if median_gap_hours else None
+    coverage_ok = bool(ordered) and bool(gap_limit_hours) and (
+        max_gap_hours <= gap_limit_hours
+        and first_edge_hours <= gap_limit_hours
+        and last_edge_hours <= gap_limit_hours
+    )
     return {
         "symbol": symbol,
         "file": str(path),
         "events": len(ordered),
         "first_funding_time": ordered[0][0] if ordered else None,
         "last_funding_time": ordered[-1][0] if ordered else None,
-        "max_gap_hours": max(gaps) if gaps else None,
+        "max_gap_hours": max_gap_hours,
+        "median_gap_hours": median_gap_hours,
+        "first_edge_hours": first_edge_hours,
+        "last_edge_hours": last_edge_hours,
+        "strict_coverage_ok": coverage_ok,
+        "chunk_days": chunk_days,
         "chunks": chunk_reports,
         "sha256": _sha256_file(path),
         "source": "BingX /openApi/swap/v2/quote/fundingRate",
@@ -148,7 +168,11 @@ async def download_symbol(
 async def run(args: argparse.Namespace) -> dict[str, Any]:
     start = datetime.combine(date.fromisoformat(args.start_date), time.min, tzinfo=UTC)
     start_ms = int(start.timestamp() * 1000)
-    end_ms = int(datetime.now(tz=UTC).timestamp() * 1000)
+    if args.end_date:
+        end = datetime.combine(date.fromisoformat(args.end_date), time.min, tzinfo=UTC)
+        end_ms = int(end.timestamp() * 1000) - 1
+    else:
+        end_ms = int(datetime.now(tz=UTC).timestamp() * 1000)
     client = BingXClient(
         {
             "base_url": BINGX_API_BASE,
@@ -161,7 +185,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         reports = []
         for symbol in args.symbols:
             LOGGER.info("downloading funding history for %s", symbol)
-            reports.append(await download_symbol(client, symbol, start_ms, end_ms))
+            reports.append(await download_symbol(client, symbol, start_ms, end_ms, args.chunk_days))
     finally:
         await client.close()
     manifest = {
@@ -171,6 +195,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         "downloaded_through_utc": datetime.fromtimestamp(
             end_ms / 1000, tz=UTC
         ).isoformat(),
+        "chunk_days": args.chunk_days,
+        "strict_contiguous_requested": args.strict_contiguous,
         "reports": reports,
     }
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -178,12 +204,19 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    if args.strict_contiguous:
+        failed = [row["symbol"] for row in reports if not row["strict_coverage_ok"]]
+        if failed:
+            raise RuntimeError(f"funding history has uncovered gaps for: {failed}")
     return manifest
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--start-date", default="2021-01-01")
+    parser.add_argument("--end-date", default=None, help="exclusive UTC date boundary")
+    parser.add_argument("--chunk-days", type=int, default=CHUNK_DAYS)
+    parser.add_argument("--strict-contiguous", action="store_true")
     parser.add_argument("--symbols", default=",".join(SYMBOLS))
     args = parser.parse_args()
     args.symbols = tuple(
