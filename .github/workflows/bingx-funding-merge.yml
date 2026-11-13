@@ -49,7 +49,7 @@ jobs:
         run: |
           python -m scripts.archive_bingx_funding_history \
             --start-date 2025-11-13 \
-            --end-date 2026-11-14 \
+            --end-date 2026-11-13 \
             --chunk-days 7
       - name: Merge, hash-verify and enforce the four-symbol funding window
         run: |
