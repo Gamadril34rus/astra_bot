@@ -166,7 +166,6 @@ def merge_archives(
         segment = _latest_segment(merged)
         segment_start = int(segment["latest_segment_start_ms"])
         segment_end = int(segment["latest_segment_end_ms"])
-        cadence_ms = int(round(float(segment["median_gap_hours"]) * 3_600_000))
         coverage_start = max(start_ms, segment_start)
         coverage_end = min(end_ms, segment_end)
         symbol_days = max(0.0, (coverage_end - coverage_start) / 86_400_000)
