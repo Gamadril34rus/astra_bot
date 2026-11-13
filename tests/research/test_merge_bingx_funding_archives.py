@@ -6,9 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
-
 from scripts.merge_bingx_funding_archives import merge_archives
-
 
 SYMBOLS = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
 CORE = ("ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
