@@ -207,9 +207,7 @@ def _simulate_period(
     return pd.DataFrame(rows), diagnostics
 
 
-def _summary(frame: pd.DataFrame, start_ms: int, end_ms: int) -> dict[str, Any]:
-    first_month, last_month = _period_months(start_ms, end_ms)
-    result = core.summarize(frame, first_month, last_month)
+def _add_notional_pnl(summary: dict[str, Any]) -> dict[str, Any]:
     # Research-normalized PnL in USDT per 1,000 USDT of notional per trade.
     for key, source in (
         ("gross_usdt_per_1000", "gross_sum_pct"),
@@ -219,8 +217,37 @@ def _summary(frame: pd.DataFrame, start_ms: int, end_ms: int) -> dict[str, Any]:
         ("funding_cost_usdt_per_1000", "funding_sum_pct"),
         ("net_usdt_per_1000", "sum_trade_net_pct"),
     ):
-        result[key] = round(float(result.get(source, 0.0)) * 10.0, 4)
-    result["funding_convention"] = "positive funding_sum_pct is paid; negative is received"
+        summary[key] = round(float(summary.get(source, 0.0)) * 10.0, 4)
+    summary["funding_convention"] = "positive funding_sum_pct is paid; negative is received"
+    return summary
+
+
+def _summary(frame: pd.DataFrame, start_ms: int, end_ms: int) -> dict[str, Any]:
+    first_month, last_month = _period_months(start_ms, end_ms)
+    result = _add_notional_pnl(core.summarize(frame, first_month, last_month))
+    if not frame.empty:
+        result["by_symbol"] = {
+            str(symbol): _add_notional_pnl(
+                core.summarize(group, first_month, last_month)
+            )
+            for symbol, group in frame.groupby("symbol", sort=True)
+        }
+        result["by_side"] = {
+            str(side): _add_notional_pnl(
+                core.summarize(group, first_month, last_month)
+            )
+            for side, group in frame.groupby("side", sort=True)
+        }
+        result["by_symbol_side"] = {
+            f"{symbol}:{side}": _add_notional_pnl(
+                core.summarize(group, first_month, last_month)
+            )
+            for (symbol, side), group in frame.groupby(["symbol", "side"], sort=True)
+        }
+    else:
+        result["by_symbol"] = {}
+        result["by_side"] = {}
+        result["by_symbol_side"] = {}
     return result
 
 
@@ -287,6 +314,10 @@ def run_research(args: argparse.Namespace) -> dict[str, Any]:
     if int(candle_manifest.get("complete_utc_days", 0)) < 365:
         raise ValueError("BingX 1m source archive does not contain 365 complete UTC days")
     funding_window = funding_manifest.get("core_common_window", {})
+    if set(funding_manifest.get("promotion_core_symbols", [])) != set(args.symbols):
+        raise ValueError("funding manifest promotion cohort does not match the requested symbol cohort")
+    if not set(args.symbols).issubset(set(candle_manifest.get("symbols", []))):
+        raise ValueError("candle manifest does not contain every requested BingX symbol")
     if (
         not funding_window.get("covers_required_days")
         or not funding_window.get("all_symbols_cadence_and_edges_ok")
