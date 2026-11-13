@@ -41,7 +41,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: 15m-pullback-continuation-research
-          repository: \${{ github.repository }}
+          repository: ${{ github.repository }}
           run-id: 43213211531
           github-token: ${{ github.token }}
           path: previous
