@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import csv
-from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
