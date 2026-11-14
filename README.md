@@ -1,14 +1,12 @@
 # ASTRA BOT — BingX USDT-M / Zeus
 
-<img width="100%" height="360" style="object-fit:cover;object-position:center 35%;" src="docs/assets/repo_cover.png" alt="ASTRA BOT — Zeus, paper, VST demo, COPY_ZEUS read-only; real locked">
+<img width="100%" height="360" style="object-fit:cover;object-position:center 35%;" src="docs/assets/repo_cover.png" alt="ASTRA BOT — Gamadril, BingX VST demo; real locked">
 
-![Bot](https://github.com/Gamadril34rus/astra_bot/actions/workflows/bot.yml/badge.svg)
-![Zeus paper-clock](https://github.com/Gamadril34rus/astra_bot/actions/workflows/zeus-paper-clock.yml/badge.svg)
 ![Zeus live-clock](https://github.com/Gamadril34rus/astra_bot/actions/workflows/zeus-live-clock.yml/badge.svg)
 
-**ASTRA BOT by Gamadril — исследовательская система Zeus для BingX USDT-M.** Проект разделяет бумажный симулятор, демо-торговлю VST и отдельный закрытый контур реального счёта. GitHub Actions исполняет короткие задачи и сохраняет состояние в репозитории; VPS для текущих циклов не требуется.
+**ASTRA BOT by Gamadril — система внутридневной торговли BingX USDT-M perpetual futures.** Приоритетный рабочий контур — DEMO/VST: live-loop, сопровождение демо-позиций, защита ордеров и сбор телеметрии. GitHub Actions исполняет короткие циклы и сохраняет состояние в репозитории; VPS для текущих запусков не требуется.
 
-Путь проекта: от paper-проверки правил — к live VST-циклу, затем к наблюдательным слоям (объёмные зоны и профили сессий) и визуальной отчётности. **COPY_ZEUS архив остановлен:** BingX возвращает API code 100410 для нужных данных копи-трейдинга; workflow оставлен в репозитории, но его job отключён. Сделки между счетами не копируются.
+Бумажные workflow остановлены и больше не занимают регулярные Actions-запуски. Исследовательский код и накопленные данные сохранены отдельно. Следующий этап проекта — доказать устойчивую положительную доходность на VST с учётом комиссий, проскальзывания и funding, не затрагивая REAL-контур. **COPY_ZEUS архив остановлен:** BingX возвращает API code 100410 для нужных данных копи-трейдинга; workflow оставлен в репозитории, но его job отключён. Сделки между счетами не копируются.
 
 Числовые параметры и их источники — в **[SETTINGS.md](SETTINGS.md)**. Это канон; изменения риска, плеча, рабочих контуров и разрешений выполняются только по прямому слову владельца.
 
@@ -16,13 +14,12 @@
 
 | Контур | Что делает | Текущий режим |
 |---|---|---|
-| **Paper** | Симулятор: проверяет стратегии и сопровождение на бумажных позициях. | Отдельный `zeus-paper-clock`; не отправляет реальные ордера. |
 | **Live VST / демо** | Исполняет live-loop на демо-счёте BingX, сопровождает демо-позиции и собирает телеметрию. | Тик примерно раз в **5 минут** через внешний cron-job.org, который вызывает `workflow_dispatch`. GitHub `on.schedule` снят; в YAML оставлен ручной вход. |
 | **Real / реальный счёт** | Контур реального счёта. | **ЗАМОК.** Включение и любой переход к реальным операциям — только отдельным прямым словом владельца. COPY_ZEUS архив отключён. |
 
 `ZEUS_LIVE` — защитный флаг live-workflow: при значении, отличном от `1`, live-адаптер не запускается. Флаги `ZEUS_VST` / `ZEUS_MAINNET`, API-секреты и `ZEUS_ARM` передаются через Actions secrets; секреты не хранятся в исходниках и не должны выводиться в логи.
 
-Paper, VST и real — разные контуры. Демо не является реальным исполнением, а архив реального счёта не является копитрейдингом.
+DEMO/VST и REAL — разные контуры. Демо не является реальным исполнением, а REAL остаётся закрытым.
 
 ## Стратегия и защита
 
@@ -113,8 +110,6 @@ COPY_ZEUS не копирует сделки. Сбор read-only данных о
 
 | Workflow | Триггер по YAML | Назначение |
 |---|---|---|
-| `bot.yml` | workflow_dispatch | Paper/TG-бот: короткая сессия, команды Telegram и сохранение состояния; внешний cron может вызывать dispatch. |
-| `zeus-paper-clock.yml` | workflow_dispatch | Однократный multi-symbol paper-тик Zeus и публикация paper-статуса. |
 | `zeus-live-clock.yml` | workflow_dispatch | Live VST clock, Telegram-команды, защита и сохранение live-state; внешний cron-job.org вызывает примерно раз в 5 минут. |
 | `copy-zeus-archive.yml` | workflow_dispatch, job disabled | Архив COPY_ZEUS остановлен из-за BingX API 100410; внешнее расписание cron-job.org нужно отключить отдельно. |
 | `copy-zeus-probe.yml` | workflow_dispatch | Ручной read-only probe с выбором `vst` / `real` и безопасным отчётом-артефактом. |
