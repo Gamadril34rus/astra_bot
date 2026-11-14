@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-import scripts.archive_bingx_funding_history as archive
+from scripts import archive_bingx_funding_history as archive
 
 
 DAY_MS = 24 * 60 * 60 * 1000
