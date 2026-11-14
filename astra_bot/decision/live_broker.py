@@ -237,12 +237,25 @@ def _tp_frac_from_plan(plan) -> Decimal:
     else:
         v = getattr(plan, "tp_frac", None)
     try:
-        d = Decimal(str(v if v is not None else "0.3"))
+        fraction = Decimal(str(v if v is not None else "0.3"))
     except Exception:
-        d = Decimal("0.3")
-    if d <= 0 or d >= 1:
         return Decimal("0.3")
-    return d
+    if not fraction.is_finite() or not (Decimal("0") < fraction < Decimal("1")):
+        return Decimal("0.3")
+    return fraction
+
+
+def _estimate_tp1_leg(
+    plan: dict[str, Any], entry_price: float, side: str, fallback_qty: float
+) -> float:
+    """Estimate TP1 PnL using the same persisted fraction as the exchange order."""
+    tp1_price = float(plan["tp1"])
+    plan_qty = float(plan.get("qty") or fallback_qty or 0)
+    tp1_qty = plan_qty * float(_tp_frac_from_plan(plan))
+    if str(side).lower() == "long":
+        return (tp1_price - float(entry_price)) * tp1_qty
+    return (float(entry_price) - tp1_price) * tp1_qty
+
 
 @dataclass
 class LiveEntryPlan:
@@ -1106,16 +1119,10 @@ class LiveBroker:
                     "initial_stop": init_stop_f,
                     "mfe_r": mfe_r_v,
                 }
-                # C5: split legs when plan had TP1 partial (40/60 channel parity)
+                # C5: split legs with the same TP1 fraction used by the exchange order.
                 if plan.get("tp1") is not None and entry_px is not None:
                     try:
-                        tp1_px = float(plan["tp1"])
-                        q_plan_f = float(plan.get("qty") or qty_plan or 0)
-                        q_tp1 = q_plan_f * 0.4
-                        if side == "long":
-                            tp1_leg = (tp1_px - entry_px) * q_tp1
-                        else:
-                            tp1_leg = (entry_px - tp1_px) * q_tp1
+                        tp1_leg = _estimate_tp1_leg(plan, entry_px, side, qty_plan or 0)
                         runner_leg = float(pnl) - tp1_leg if plan.get("be_moved") else None
                         trade_row["tp1_leg"] = round(tp1_leg, 4)
                         if runner_leg is not None:
@@ -1692,7 +1699,7 @@ class LiveBroker:
 
         Qty-parity (owner №21a): protections sized from exchange filled qty when
         present; plan.quantity is fail-open fallback. TP already past trigger →
-        market-close 40% leg + be_moved (same geometry, immediate execution).
+        market-close configured TP1 leg + be_moved (same geometry, immediate execution).
         """
         self._assert_can_trade()
         if not self._entries_allowed:
@@ -1852,7 +1859,7 @@ class LiveBroker:
                         reduce_only=False,
                     )
                     if _is_tp_price_past_error(exc):
-                        # Level already through — market-close 40% leg, then stop→entry
+                        # Level already through — market-close configured TP1 leg, then stop→entry
                         logger.warning(
                             "open_with_protection: %s TP price past — market leg qty=%s",
                             plan.symbol,

@@ -1011,6 +1011,7 @@ async def run_arm_entries(
                 entry=fill_px or cand.entry,
                 leverage=plan.leverage,
                 signal_id=sid or None,
+                tp_frac=getattr(plan, "tp_frac", 0.3),
                 be_moved=be_moved,
                 plan_qty=plan_qty,
                 qty_ratio=qty_ratio,
@@ -1150,6 +1151,7 @@ async def run_arm_entries(
                         entry=cand.entry,
                         leverage=plan.leverage,
                         pending_verify=True,
+                        tp_frac=getattr(plan, "tp_frac", 0.3),
                         initial_stop=getattr(plan, "initial_stop", None) or plan.stop_price,
                     )
                 except Exception:

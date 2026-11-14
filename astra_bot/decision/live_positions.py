@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import time
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -67,6 +68,7 @@ def upsert_plan(
     pending_verify: bool = False,
     signal_id: str | None = None,
     tp1: float | str | None = None,
+    tp_frac: float | str | None = None,
     be_moved: bool = False,
     plan_qty: float | str | None = None,
     qty_ratio: float | None = None,
@@ -97,6 +99,14 @@ def upsert_plan(
         "be_moved": bool(be_moved),
         "initial_stop": str(initial_stop) if initial_stop is not None else None,
     }
+    if tp_frac is not None:
+        try:
+            tp_fraction = Decimal(str(tp_frac))
+        except Exception as exc:
+            raise ValueError(f"invalid tp_frac: {tp_frac!r}") from exc
+        if not tp_fraction.is_finite() or not (Decimal("0") < tp_fraction < Decimal("1")):
+            raise ValueError(f"tp_frac must be between 0 and 1, got {tp_frac!r}")
+        row["tp_frac"] = str(tp_fraction)
     # Owner 28.10: opened_at_ms fixed at first entry; never rewrite on BE/ratchet.
     if prev.get("opened_at_ms") is not None:
         row["opened_at_ms"] = prev["opened_at_ms"]
