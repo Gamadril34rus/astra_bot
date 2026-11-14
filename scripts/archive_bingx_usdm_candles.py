@@ -373,6 +373,12 @@ async def _download_pair(
 
 
 async def run(args: argparse.Namespace) -> dict[str, Any]:
+    if args.mode == "daily" and not MANIFEST_PATH.is_file():
+        raise RuntimeError(
+            "missing initial archive manifest; "
+            "run workflow_dispatch with mode=initial first"
+        )
+
     start_date = date.fromisoformat(args.start_date)
     start_ms = int(datetime.combine(start_date, time.min, tzinfo=UTC).timestamp() * 1000)
     now_ms = int(datetime.now(tz=UTC).timestamp() * 1000)

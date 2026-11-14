@@ -27,12 +27,13 @@ Workflow: .github/workflows/bingx-usdm-candle-archive.yml
 
 1. A scheduled run is strictly incremental. If the manifest exists, it appends
    only missing closed bars using the timeframe set recorded in the manifest.
-2. If the manifest is absent, the scheduled run exits safely before making any
-   BingX request. It never infers permission for a full historical backfill from
-   an empty archive.
-3. A full initial archive requires an explicit owner-initiated
-   workflow_dispatch with mode=initial. A manual mode=daily dispatch without a
-   manifest fails closed in the downloader before requesting candles.
+2. If the manifest is absent, the scheduled run exits before archive import or
+   any BingX request. It never infers permission for a full historical backfill
+   from an empty archive. A manual mode=daily dispatch without a manifest is
+   rejected by both the workflow and downloader before client initialization.
+3. A full initial archive requires an explicit workflow_dispatch with
+   mode=initial by the repository owner. The workflow compares github.actor with
+   github.repository_owner and rejects every other initiator before the downloader.
 4. The initial default timeframe set is 5m/15m/1h/4h/1d; a manual initial
    dispatch can explicitly add 1m. Later daily runs inherit the timeframe set
    recorded in the manifest unless explicitly overridden.
