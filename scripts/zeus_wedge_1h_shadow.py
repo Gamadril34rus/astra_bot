@@ -29,6 +29,7 @@ from astra_bot.zeus_wedge_1h_core import (
 )
 
 logger = logging.getLogger(__name__)
+# Keep v1 evidence/state immutable; the corrected simulator writes a separate v2 stream.
 SHADOW_PATH = Path("models/zeus_wedge_1h_signals_v2.jsonl")
 STATE_PATH = Path("models/zeus_wedge_1h_shadow_state_v2.json")
 GEOMS = ("gold", "narrow")
