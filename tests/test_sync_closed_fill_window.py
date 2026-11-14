@@ -1,7 +1,7 @@
 """Closed-plan fill history must start at the immutable entry timestamp."""
 from __future__ import annotations
 
-import pytest
+import asyncio
 import time
 
 from astra_bot.decision.live_broker import LiveBroker
@@ -30,8 +30,7 @@ class EmptyHistoryClient:
         return []
 
 
-@pytest.mark.asyncio
-async def test_sync_closed_uses_original_opened_at_for_fill_history(tmp_path):
+def test_sync_closed_uses_original_opened_at_for_fill_history(tmp_path):
     opened_at_ms = 1_700_000_000_000
     plan_path = tmp_path / "positions.json"
     save_positions(
@@ -54,7 +53,7 @@ async def test_sync_closed_uses_original_opened_at_for_fill_history(tmp_path):
     client = EmptyHistoryClient()
     broker = LiveBroker(client)
 
-    result = await broker.sync_closed_plans(positions_path=plan_path)
+    result = asyncio.run(broker.sync_closed_plans(positions_path=plan_path))
 
     expected_start_ms = opened_at_ms - 60_000
     assert client.fill_starts == [expected_start_ms]
