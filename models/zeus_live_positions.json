@@ -32,7 +32,7 @@
       "stop": "66910.02300",
       "tp": "61903.640858577635",
       "entry": "66977.0",
-      "leverage": 5,
+      "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|BTC-USDT|short|1794628800000",
       "ts": 1794669730.2422178,
@@ -42,9 +42,12 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "tp_frac": "0.3",
-      "peak_low": "65413.9",
+      "peak_low": "65256.0",
       "current_regime": "STRONG_BEAR_TREND",
-      "tp1": "65481.6722575732905"
+      "tp1": "65481.6722575732905",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     },
     "HYPE-USDT|short": {
       "symbol": "HYPE-USDT",
@@ -98,5 +101,5 @@
       "early_tp_repair_v1": true
     }
   },
-  "ts": 1794669748.7277
+  "ts": 1794670011.6023412
 }
