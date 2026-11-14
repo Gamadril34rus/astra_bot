@@ -205,7 +205,9 @@ def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st, htf_closes
             tp1, tp2 = ordered
 
     # Dedup BEFORE blocked_pause rewrite — suppress episode noise while paused
-    if status in ("signal", "signal_pending_entry", "htf_gate_blocked", "rejected_targets") and side:
+    if status in (
+        "signal", "signal_pending_entry", "htf_gate_blocked", "rejected_targets"
+    ) and side:
         dkey = _dedup_key(symbol, geom, side, lb)
         if dkey in done:
             return None
