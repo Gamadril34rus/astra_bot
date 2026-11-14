@@ -38,7 +38,7 @@ The module looks for a mean-reversion opportunity after price stretches away fro
 
 ## Staged validation
 
-1. Require a common, gap-checked 365-day 15m candle window and exact matching funding coverage for ETH, SOL, HYPE and INJ. BTC is separate because its latest uninterrupted funding segment begins 2025-12-06.
+1. Require a common, gap-checked 365-day 15m candle window and exact matching funding coverage for BTC, ETH, SOL, HYPE and INJ. Each symbol must pass its own funding cadence and edge checks before joining the promotion cohort.
 2. Run IS and validation as separate flat simulations. Exclude every trade that crosses a split boundary.
 3. Open OOS only if both IS and validation each have at least 30 trades, PF >=1.0 and positive net expectancy at both base and 1.5x costs.
 4. OOS pass requires net PF >=1.25, positive net expectancy, at least 100 combined trades, >=70% positive calendar months, positive 1.5x stress PF and expectancy, realized equal-notional drawdown no worse than -10%, and trade-sequence drawdown no worse than -20%.
