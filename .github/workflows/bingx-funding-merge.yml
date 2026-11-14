@@ -3,12 +3,9 @@ name: BingX funding archive merge and coverage gate
 on:
   push:
     branches: [research/4h-pullback-continuation]
+    # Funding archive refresh is marker-triggered after code/tests are green.
     paths:
-      - "scripts/archive_bingx_funding_history.py"
-      - "scripts/merge_bingx_funding_archives.py"
-      - "tests/research/test_archive_bingx_funding_history.py"
-      - "tests/research/test_merge_bingx_funding_archives.py"
-      - ".github/workflows/bingx-funding-merge.yml"
+      - "research/trigger_bingx_funding_merge.txt"
   workflow_dispatch:
 
 permissions:

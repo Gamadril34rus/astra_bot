@@ -3,9 +3,9 @@ name: BingX USDT-M funding history 12m refresh
 on:
   push:
     branches: [research/4h-pullback-continuation]
+    # Legacy independent coverage probe; run only when explicitly marked.
     paths:
-      - "scripts/archive_bingx_funding_history.py"
-      - ".github/workflows/bingx-funding-12m-refresh.yml"
+      - "research/trigger_bingx_funding_refresh.txt"
   workflow_dispatch:
 
 permissions:

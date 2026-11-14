@@ -13,6 +13,7 @@ import json
 import time
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError
@@ -272,12 +273,11 @@ def merge_native_overlap(
                 }
 
     aggregate_times = sorted(aggregate)
-    native_times = sorted(native)
     if not aggregate_times:
         raise RuntimeError(f"empty aggregate source: {aggregate_path}")
     if any(timestamp % interval_ms for timestamp in aggregate_times):
         raise RuntimeError(f"misaligned aggregate timestamp in {aggregate_path.name}")
-    if any(right - left != interval_ms for left, right in zip(aggregate_times, aggregate_times[1:])):
+    if any(right - left != interval_ms for left, right in pairwise(aggregate_times)):
         raise RuntimeError(f"aggregate source has a gap: {aggregate_path.name}")
 
     overlap_times = sorted(set(aggregate).intersection(native))
@@ -293,7 +293,7 @@ def merge_native_overlap(
     merged_times = sorted(merged)
     if merged_times != aggregate_times:
         raise RuntimeError("native splice changed the aggregate timestamp population")
-    if any(right - left != interval_ms for left, right in zip(merged_times, merged_times[1:])):
+    if any(right - left != interval_ms for left, right in pairwise(merged_times)):
         raise RuntimeError(f"merged source has a gap: {merged_path.name}")
 
     write_rows(merged_path, [merged[timestamp] for timestamp in merged_times])

@@ -3,10 +3,9 @@ name: BingX 12m 1m OHLCV research archive
 on:
   push:
     branches: [research/4h-pullback-continuation]
+    # Heavy 365-day data download is marker-triggered, not on every code edit.
     paths:
-      - "scripts/archive_bingx_1m_research.py"
-      - "tests/research/test_archive_bingx_1m_research.py"
-      - ".github/workflows/bingx-1m-12m-research.yml"
+      - "research/trigger_bingx_1m_archive.txt"
   workflow_dispatch:
 
 permissions:
