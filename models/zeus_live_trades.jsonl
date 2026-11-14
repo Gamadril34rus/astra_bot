@@ -2670,3 +2670,4 @@
 {"event": "entry", "signal_id": "zeus_channel_boundary|INJ-USDT|long|1794643200000", "symbol": "INJ-USDT", "side": "long", "plan_entry": "7.552", "fill_price": "7.557", "slip_pct": 0.06620762711865442, "slip_r": 0.06620762711864407, "qty": "6620.76271186", "stop": "7.47648", "tp": "7.5935360", "tp_frac": 0.3, "leverage": 6, "ts": 1794666454.4938974}
 {"event": "partial_fill", "symbol": "INJ-USDT", "side": null, "position_side": null, "qty": null, "price": null, "pnl": -336.587, "income_type": "REALIZED_PNL", "income_id": "1794554371927782975_512_38723_PNL", "source": "income_tape", "ts": 1794628969.0}
 {"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2121610963895017472", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794666762.183102}
+{"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2121610926452465664", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794667040.7049057}
