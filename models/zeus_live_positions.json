@@ -1,30 +1,5 @@
 {
   "positions": {
-    "HYPE-USDT|short": {
-      "symbol": "HYPE-USDT",
-      "side": "short",
-      "qty": "131.35698019",
-      "stop": "75.46062",
-      "tp": "66.4320210",
-      "entry": "69.183",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_multi_top_breakdown|HYPE-USDT|short|1794614400000",
-      "ts": 1794640939.2971485,
-      "be_moved": false,
-      "initial_stop": "75.46062",
-      "tp_frac": "0.3",
-      "opened_at_ms": 1794640939297,
-      "plan_qty": "131.35698019",
-      "qty_ratio": 1.0,
-      "tp1": "66.4320210",
-      "initial_stop_v1": true,
-      "tp_parity_v1": true,
-      "early_tp1": true,
-      "peak_low": "69.340",
-      "be_earned": true,
-      "current_regime": "WEAK_BEAR_TREND"
-    },
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
       "side": "short",
@@ -46,7 +21,7 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "1890.45",
+      "peak_low": "1889.39",
       "migrate_stop_v1": true,
       "current_regime": "STRONG_BEAR_TREND",
       "be_earned": true
@@ -55,7 +30,7 @@
       "symbol": "BTC-USDT",
       "side": "short",
       "qty": "0.2429456",
-      "stop": "70152.37142857144",
+      "stop": "70046.27142857143",
       "tp": "65481.6722575732905",
       "entry": "66977.0",
       "leverage": 6,
@@ -72,10 +47,29 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "66668.3",
+      "peak_low": "66562.2",
       "current_regime": "STRONG_BEAR_TREND",
       "be_earned": true
+    },
+    "HYPE-USDT|short": {
+      "symbol": "HYPE-USDT",
+      "side": "short",
+      "qty": "107.66288463",
+      "stop": "75.46062",
+      "tp": "63.6765590",
+      "entry": "67.868",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_multi_top_breakdown|HYPE-USDT|short|1794643200000",
+      "ts": 1794662822.833543,
+      "be_moved": false,
+      "initial_stop": "75.46062",
+      "tp_frac": "0.3",
+      "opened_at_ms": 1794662822833,
+      "plan_qty": "107.66288463",
+      "qty_ratio": 1.0,
+      "tp1": "63.6765590"
     }
   },
-  "ts": 1794662547.201032
+  "ts": 1794662822.833562
 }
