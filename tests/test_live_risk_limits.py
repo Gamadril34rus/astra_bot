@@ -100,25 +100,7 @@ def test_day_loss_deduplicates_repeated_exit(tmp_path: Path) -> None:
     assert check_day_week_limits(Decimal("100"), path=p) is None
 
 
-def test_vst_performance_halt_override_is_endpoint_scoped(monkeypatch) -> None:
-    from astra_bot.decision.live_risk import should_disable_vst_performance_halt
-
-    monkeypatch.setenv("ZEUS_VST", "1")
-    monkeypatch.setenv("ZEUS_MAINNET", "0")
-    monkeypatch.setenv("ZEUS_VST_DISABLE_PERFORMANCE_HALT", "1")
-    monkeypatch.setenv("ZEUS_VST_ENDPOINT_CONFIRMED", "1")
-    assert should_disable_vst_performance_halt()
-
-    monkeypatch.setenv("ZEUS_VST_ENDPOINT_CONFIRMED", "0")
-    assert not should_disable_vst_performance_halt()
-
-    monkeypatch.setenv("ZEUS_VST_ENDPOINT_CONFIRMED", "1")
-    monkeypatch.setenv("ZEUS_MAINNET", "1")
-    assert not should_disable_vst_performance_halt()
-
-
-
-def test_vst_override_ignores_persisted_performance_halt(monkeypatch, tmp_path: Path) -> None:
+def test_vst_environment_cannot_bypass_persisted_halt(monkeypatch, tmp_path: Path) -> None:
     from astra_bot.decision.live_risk import load_kill_halted
 
     monkeypatch.setenv("ZEUS_VST", "1")
@@ -127,15 +109,13 @@ def test_vst_override_ignores_persisted_performance_halt(monkeypatch, tmp_path: 
     monkeypatch.setenv("ZEUS_VST_ENDPOINT_CONFIRMED", "1")
     state = tmp_path / "kill.json"
     state.write_text('{"halted": true, "reason": "PF=0.9"}', encoding="utf-8")
-    assert load_kill_halted(state) is None
+
+    assert load_kill_halted(state) == "PF=0.9"
 
 
-
-def test_vst_override_skips_day_week_and_pf_performance_checks(
+def test_vst_environment_cannot_bypass_day_week_or_pf_halts(
     monkeypatch, tmp_path: Path
 ) -> None:
-    from astra_bot.decision.live_risk import check_pf_kill
-
     monkeypatch.setenv("ZEUS_VST", "1")
     monkeypatch.setenv("ZEUS_MAINNET", "0")
     monkeypatch.setenv("ZEUS_VST_DISABLE_PERFORMANCE_HALT", "1")
@@ -145,18 +125,23 @@ def test_vst_override_skips_day_week_and_pf_performance_checks(
     _write(
         p,
         [
-            {"event": "exit", "trade_id": "loss-1", "pnl": -10.0, "ts": now - 50},
-            {"event": "exit", "trade_id": "loss-2", "pnl": -10.0, "ts": now - 40},
-            {"event": "exit", "trade_id": "loss-3", "pnl": -10.0, "ts": now - 30},
-            {"event": "exit", "trade_id": "loss-4", "pnl": -10.0, "ts": now - 20},
-            {"event": "exit", "trade_id": "loss-5", "pnl": -10.0, "ts": now - 10},
+            {"event": "exit", "trade_id": f"loss-{i}", "pnl": -10.0, "ts": now - 50 + i}
+            for i in range(5)
         ],
     )
-    state = tmp_path / "kill.json"
-    assert check_day_week_limits(Decimal("100"), path=p) is None
-    assert check_pf_kill(path=p, state_path=state) is None
-    assert not state.exists()
 
+    day_reason = check_day_week_limits(Decimal("100"), path=p)
+    assert day_reason is not None and "day_loss" in day_reason
+
+    state = tmp_path / "kill.json"
+    pf_reason = check_pf_kill(path=p, state_path=state)
+    assert pf_reason is not None and "PF=" in pf_reason
+    assert state.exists()
+
+
+def test_live_workflow_does_not_configure_vst_halt_bypass() -> None:
+    workflow = Path(".github/workflows/zeus-live-clock.yml").read_text(encoding="utf-8")
+    assert "ZEUS_VST_DISABLE_PERFORMANCE_HALT" not in workflow
 
 
 def test_exit_dedupe_uses_latest_pnl_but_first_close_timestamp(tmp_path: Path) -> None:
