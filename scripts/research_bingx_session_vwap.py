@@ -13,8 +13,8 @@ import numpy as np
 import pandas as pd
 from scripts import research_adaptive_perp_portfolio as core
 
-DEFAULT_SYMBOLS = ("ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
-ALL_SYMBOLS = ("BTC-USDT", *DEFAULT_SYMBOLS)
+DEFAULT_SYMBOLS = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
+ALL_SYMBOLS = DEFAULT_SYMBOLS
 SIGNAL_TIMEFRAME = "15m"
 CONTEXT_TIMEFRAME = "1h"
 BASE_COSTS = {"fee_bps_per_side": 5.0, "spread_bps_per_side": 1.25, "slippage_bps_per_side": 2.0}
@@ -591,7 +591,7 @@ def main() -> int:
     args = parser.parse_args()
     args.symbols = tuple(item.strip().upper() for item in args.symbols.split(",") if item.strip())
     if not args.symbols or set(args.symbols) - set(DEFAULT_SYMBOLS):
-        raise SystemExit("promotion cohort must be a non-empty subset of ETH, SOL, HYPE and INJ")
+        raise SystemExit("promotion cohort must be a non-empty subset of BTC, ETH, SOL, HYPE and INJ")
     run_research(args)
     return 0
 
