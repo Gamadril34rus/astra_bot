@@ -9,6 +9,7 @@ from scripts.archive_bingx_1m_research import (
     MINUTE_MS,
     aggregate_rows,
     compare_native,
+    merge_native_overlap,
     validate_daily_rows,
     write_rows,
 )
@@ -85,4 +86,36 @@ def test_native_overlap_requires_exact_ohlc_match(tmp_path: Path) -> None:
         writer.writerows(rows)
     result = compare_native(aggregate_path, native_path, minimum_overlap=2)
     assert result["exact_ohlc_match"] is False
+    assert result["price_mismatch_count"] == 1
     assert result["mismatch_samples"][0]["field"] == "close"
+
+
+
+def test_native_overlap_splice_prefers_native_bars_and_preserves_full_series(tmp_path: Path) -> None:
+    start = 1_763_020_800_000
+    aggregate = aggregate_rows(_synthetic_day(start), 15)[:4]
+    aggregate_path = tmp_path / "aggregate.csv"
+    native_path = tmp_path / "native.csv"
+    merged_path = tmp_path / "merged.csv"
+    write_rows(aggregate_path, aggregate)
+
+    native = [dict(row) for row in aggregate[1:3]]
+    native[0]["close"] = native[0]["close"] + Decimal("0.01")
+    write_rows(native_path, native)
+
+    splice = merge_native_overlap(
+        aggregate_path,
+        native_path,
+        merged_path,
+        interval_ms=15 * MINUTE_MS,
+        minimum_overlap=2,
+    )
+    with merged_path.open("r", encoding="utf-8", newline="") as handle:
+        merged = list(csv.DictReader(handle))
+
+    assert len(merged) == 4
+    assert merged[0]["close"] == str(aggregate[0]["close"])
+    assert merged[1]["close"] == str(native[0]["close"])
+    assert merged[3]["close"] == str(aggregate[3]["close"])
+    assert splice["native_overlap_rows"] == 2
+    assert splice["aggregate_only_rows"] == 2

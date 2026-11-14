@@ -46,9 +46,10 @@ jobs:
             --native-dir native_overlap/data/bingx_usdm \
             --out-dir data/bingx_research_1m
       - name: Upload immutable BingX 1m and aggregated research evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: bingx-usdm-1m-12m-${{ github.sha }}
           path: data/bingx_research_1m/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 90

@@ -81,45 +81,84 @@ async def download_symbol(
     end_ms: int,
     chunk_days: int = CHUNK_DAYS,
 ) -> dict[str, Any]:
+    """Download funding in bounded windows, retrying empty windows by UTC day.
+
+    Some successful BingX responses have returned an empty data array for a
+    seven-day range while narrower requests for dates inside that same range
+    contain the expected settlements. Empty parent windows are therefore
+    re-queried one UTC day at a time; unresolved gaps remain visible and are
+    never filled or interpolated.
+    """
     rows: dict[int, str] = {}
     chunk_reports: list[dict[str, Any]] = []
     cursor = start_ms
+
+    async def fetch_window(window_start: int, window_end: int) -> list[dict[str, Any]]:
+        response = await _call_with_cooldown(
+            lambda: client._request(
+                "GET",
+                BINGX_ENDPOINTS["swap"]["funding_rate"],
+                params={
+                    "symbol": symbol,
+                    "startTime": window_start,
+                    "endTime": window_end,
+                    "limit": 1000,
+                },
+            ),
+            label=f"BingX funding {symbol} {window_start}",
+        )
+        return _rows_from_response(response)
+
+    def accept_window(
+        window_rows: list[dict[str, Any]], window_start: int, window_end: int
+    ) -> int:
+        accepted = 0
+        for row in window_rows:
+            timestamp = row["funding_time"]
+            if window_start <= timestamp <= window_end:
+                previous = rows.get(timestamp)
+                if previous is not None and previous != row["rate"]:
+                    raise ValueError(
+                        f"conflicting funding rate for {symbol} at {timestamp}: "
+                        f"{previous} != {row['rate']}"
+                    )
+                rows[timestamp] = row["rate"]
+                accepted += 1
+        return accepted
+
     while cursor <= end_ms:
         chunk_end = min(
             end_ms,
             cursor + int(timedelta(days=chunk_days).total_seconds() * 1000) - 1,
         )
-        response = await _call_with_cooldown(
-            lambda cursor=cursor, chunk_end=chunk_end: client._request(
-                "GET",
-                BINGX_ENDPOINTS["swap"]["funding_rate"],
-                params={
-                    "symbol": symbol,
-                    "startTime": cursor,
-                    "endTime": chunk_end,
-                    "limit": 1000,
-                },
-            ),
-            label=f"BingX funding {symbol} {cursor}",
-        )
-        chunk_rows = _rows_from_response(response)
-        accepted = 0
-        for row in chunk_rows:
-            ts = row["funding_time"]
-            if cursor <= ts <= chunk_end:
-                previous = rows.get(ts)
-                if previous is not None and previous != row["rate"]:
-                    raise ValueError(
-                        f"conflicting funding rate for {symbol} at {ts}: "
-                        f"{previous} != {row['rate']}"
-                    )
-                rows[ts] = row["rate"]
-                accepted += 1
+        chunk_rows = await fetch_window(cursor, chunk_end)
+        accepted_rows = accept_window(chunk_rows, cursor, chunk_end)
+        fallback_subchunks: list[dict[str, Any]] = []
+
+        # A genuinely empty 7-day response is not assumed to prove that the
+        # whole week had no settlements. Probe each day independently once.
+        if not chunk_rows and chunk_end - cursor + 1 > 86_400_000:
+            day_cursor = cursor
+            while day_cursor <= chunk_end:
+                day_end = min(chunk_end, day_cursor + 86_400_000 - 1)
+                day_rows = await fetch_window(day_cursor, day_end)
+                day_accepted = accept_window(day_rows, day_cursor, day_end)
+                accepted_rows += day_accepted
+                fallback_subchunks.append({
+                    "start_time": day_cursor,
+                    "end_time": day_end,
+                    "response_rows": len(day_rows),
+                    "accepted_rows": day_accepted,
+                })
+                day_cursor = day_end + 1
+
         chunk_reports.append({
             "start_time": cursor,
             "end_time": chunk_end,
             "response_rows": len(chunk_rows),
-            "accepted_rows": accepted,
+            "accepted_rows": accepted_rows,
+            "fallback_used": bool(fallback_subchunks),
+            "fallback_subchunks": fallback_subchunks,
         })
         cursor = chunk_end + 1
 
@@ -160,6 +199,9 @@ async def download_symbol(
         "strict_coverage_ok": coverage_ok,
         "chunk_days": chunk_days,
         "chunks": chunk_reports,
+        "empty_chunk_fallback_count": sum(
+            1 for report in chunk_reports if report["fallback_used"]
+        ),
         "sha256": _sha256_file(path),
         "source": "BingX /openApi/swap/v2/quote/fundingRate",
     }

@@ -4,7 +4,9 @@ on:
   push:
     branches: [research/4h-pullback-continuation]
     paths:
+      - "scripts/archive_bingx_funding_history.py"
       - "scripts/merge_bingx_funding_archives.py"
+      - "tests/research/test_archive_bingx_funding_history.py"
       - "tests/research/test_merge_bingx_funding_archives.py"
       - ".github/workflows/bingx-funding-merge.yml"
   workflow_dispatch:
@@ -35,8 +37,8 @@ jobs:
           python -m pip install pytest ruff
       - name: Verify funding merge tests and lint
         run: |
-          python -m pytest -q tests/research/test_merge_bingx_funding_archives.py
-          ruff check scripts/merge_bingx_funding_archives.py tests/research/test_merge_bingx_funding_archives.py
+          python -m pytest -q tests/research/test_archive_bingx_funding_history.py tests/research/test_merge_bingx_funding_archives.py
+          ruff check scripts/archive_bingx_funding_history.py scripts/merge_bingx_funding_archives.py tests/research/test_archive_bingx_funding_history.py tests/research/test_merge_bingx_funding_archives.py
       - name: Download immutable prior BingX funding source
         uses: actions/download-artifact@v4
         with:
@@ -49,7 +51,7 @@ jobs:
         run: |
           python -m scripts.archive_bingx_funding_history \
             --start-date 2025-11-13 \
-            --end-date 2026-11-14 \
+            --end-date 2026-11-13 \
             --chunk-days 7
       - name: Merge, hash-verify and enforce the four-symbol funding window
         run: |
@@ -79,7 +81,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: bingx-usdm-funding-merged-\${{ github.sha }}
+          name: bingx-usdm-funding-merged-${{ github.sha }}
           path: data/bingx_funding_merged/
           if-no-files-found: warn
           retention-days: 90

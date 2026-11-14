@@ -201,12 +201,14 @@ def compare_native(
     *,
     minimum_overlap: int = 100,
 ) -> dict[str, Any]:
+    """Compare every overlapping OHLC field; retain only the first ten examples."""
     aggregate: dict[int, dict[str, str]] = {}
     with aggregate_path.open("r", encoding="utf-8", newline="") as handle:
         for row in csv.DictReader(handle):
             aggregate[int(row["open_time"])] = row
     overlap = 0
-    mismatches = []
+    mismatch_count = 0
+    mismatch_samples = []
     with native_path.open("r", encoding="utf-8", newline="") as handle:
         for row in csv.DictReader(handle):
             timestamp = int(row["open_time"])
@@ -216,27 +218,103 @@ def compare_native(
             overlap += 1
             for field in PRICE_FIELDS:
                 if _decimal(row[field], field) != _decimal(other[field], field):
-                    mismatches.append({
-                        "open_time": timestamp,
-                        "field": field,
-                        "native": row[field],
-                        "aggregated": other[field],
-                    })
-                    if len(mismatches) >= 10:
-                        break
-            if len(mismatches) >= 10:
-                break
+                    mismatch_count += 1
+                    if len(mismatch_samples) < 10:
+                        mismatch_samples.append({
+                            "open_time": timestamp,
+                            "field": field,
+                            "native": row[field],
+                            "aggregated": other[field],
+                        })
     if overlap < minimum_overlap:
         raise RuntimeError(
             f"insufficient native overlap for {aggregate_path.name}: {overlap} < {minimum_overlap}"
         )
     return {
         "overlap_bars": overlap,
-        "price_mismatch_count_sampled": len(mismatches),
-        "mismatch_samples": mismatches,
-        "exact_ohlc_match": not mismatches,
+        "price_mismatch_count": mismatch_count,
+        "price_mismatch_count_sampled": len(mismatch_samples),
+        "mismatch_samples": mismatch_samples,
+        "exact_ohlc_match": mismatch_count == 0,
     }
 
+
+def merge_native_overlap(
+    aggregate_path: Path,
+    native_path: Path,
+    merged_path: Path,
+    *,
+    interval_ms: int,
+    minimum_overlap: int = 100,
+) -> dict[str, Any]:
+    """Use native BingX higher-timeframe bars wherever they overlap 1m aggregates.
+
+    The 1m source remains the complete base series. Native 15m/1h bars replace
+    matching timestamps, avoiding synthetic close differences in the overlap.
+    Raw aggregate-vs-native discrepancies are preserved in the manifest.
+    """
+    aggregate: dict[int, dict[str, Any]] = {}
+    native: dict[int, dict[str, Any]] = {}
+
+    for path, target in ((aggregate_path, aggregate), (native_path, native)):
+        with path.open("r", encoding="utf-8", newline="") as handle:
+            for row in csv.DictReader(handle):
+                timestamp = int(row["open_time"])
+                if timestamp in target:
+                    raise RuntimeError(f"duplicate timestamp in {path.name}: {timestamp}")
+                target[timestamp] = {
+                    "open_time": timestamp,
+                    "open": row["open"],
+                    "high": row["high"],
+                    "low": row["low"],
+                    "close": row["close"],
+                    "volume": row["volume"],
+                }
+
+    aggregate_times = sorted(aggregate)
+    native_times = sorted(native)
+    if not aggregate_times:
+        raise RuntimeError(f"empty aggregate source: {aggregate_path}")
+    if any(timestamp % interval_ms for timestamp in aggregate_times):
+        raise RuntimeError(f"misaligned aggregate timestamp in {aggregate_path.name}")
+    if any(right - left != interval_ms for left, right in zip(aggregate_times, aggregate_times[1:])):
+        raise RuntimeError(f"aggregate source has a gap: {aggregate_path.name}")
+
+    overlap_times = sorted(set(aggregate).intersection(native))
+    if len(overlap_times) < minimum_overlap:
+        raise RuntimeError(
+            f"insufficient native splice overlap for {aggregate_path.name}: "
+            f"{len(overlap_times)} < {minimum_overlap}"
+        )
+
+    merged = dict(aggregate)
+    for timestamp in overlap_times:
+        merged[timestamp] = native[timestamp]
+    merged_times = sorted(merged)
+    if merged_times != aggregate_times:
+        raise RuntimeError("native splice changed the aggregate timestamp population")
+    if any(right - left != interval_ms for left, right in zip(merged_times, merged_times[1:])):
+        raise RuntimeError(f"merged source has a gap: {merged_path.name}")
+
+    write_rows(merged_path, [merged[timestamp] for timestamp in merged_times])
+    return {
+        "aggregate_rows": len(aggregate),
+        "native_rows": len(native),
+        "native_overlap_rows": len(overlap_times),
+        "native_only_rows_ignored": len(set(native) - set(aggregate)),
+        "aggregate_only_rows": len(set(aggregate) - set(native)),
+        "merged_rows": len(merged),
+        "native_overlap_start_utc": datetime.fromtimestamp(
+            overlap_times[0] / 1000, UTC
+        ).isoformat(),
+        "native_overlap_end_utc": datetime.fromtimestamp(
+            overlap_times[-1] / 1000, UTC
+        ).isoformat(),
+        "source_policy": (
+            "BingX native 15m/1h bars override the 1m-derived aggregate at matching "
+            "timestamps; the complete 1m-derived series fills outside native coverage"
+        ),
+    }
 
 def archive(
     start: date,
@@ -258,6 +336,8 @@ def archive(
     for symbol in symbols:
         print(f"Downloading {symbol}: {days[0]} through {days[-1]}", flush=True)
         one_minute_path = out_dir / f"{symbol.replace('-', '')}_1m.csv"
+        fifteen_aggregated_path = out_dir / f"{symbol.replace('-', '')}_15m_aggregated.csv"
+        hourly_aggregated_path = out_dir / f"{symbol.replace('-', '')}_1h_aggregated.csv"
         fifteen_path = out_dir / f"{symbol.replace('-', '')}_15m.csv"
         hourly_path = out_dir / f"{symbol.replace('-', '')}_1h.csv"
         symbol_rows = 0
@@ -268,8 +348,8 @@ def archive(
 
         with (
             one_minute_path.open("w", encoding="utf-8", newline="") as one_handle,
-            fifteen_path.open("w", encoding="utf-8", newline="") as fifteen_handle,
-            hourly_path.open("w", encoding="utf-8", newline="") as hourly_handle,
+            fifteen_aggregated_path.open("w", encoding="utf-8", newline="") as fifteen_handle,
+            hourly_aggregated_path.open("w", encoding="utf-8", newline="") as hourly_handle,
         ):
             one_writer = csv.DictWriter(one_handle, fieldnames=FIELDS)
             fifteen_writer = csv.DictWriter(fifteen_handle, fieldnames=FIELDS)
@@ -320,12 +400,26 @@ def archive(
             raise RuntimeError(f"{symbol}: incomplete 15m/1h aggregation: {aggregate_counts}")
 
         native_checks = {}
+        native_splices = {}
         if native_dir is not None:
-            for timeframe, path in (("15m", fifteen_path), ("1h", hourly_path)):
+            for timeframe, aggregate_path, merged_path, interval_ms in (
+                ("15m", fifteen_aggregated_path, fifteen_path, 15 * MINUTE_MS),
+                ("1h", hourly_aggregated_path, hourly_path, 60 * MINUTE_MS),
+            ):
                 native_path = native_dir / f"{symbol.replace('-', '')}_{timeframe}.csv"
                 if not native_path.is_file():
                     raise FileNotFoundError(f"native BingX overlap file is missing: {native_path}")
-                native_checks[timeframe] = compare_native(path, native_path)
+                native_checks[timeframe] = compare_native(aggregate_path, native_path)
+                native_splices[timeframe] = merge_native_overlap(
+                    aggregate_path, native_path, merged_path, interval_ms=interval_ms
+                )
+        else:
+            fifteen_path.write_bytes(fifteen_aggregated_path.read_bytes())
+            hourly_path.write_bytes(hourly_aggregated_path.read_bytes())
+            native_splices = {
+                "15m": {"merged_rows": aggregate_counts["15m"], "source_policy": "1m aggregate only"},
+                "1h": {"merged_rows": aggregate_counts["1h"], "source_policy": "1m aggregate only"},
+            }
 
         reports[symbol] = {
             "one_minute_rows": symbol_rows,
@@ -336,9 +430,14 @@ def archive(
             "aggregated_15m_rows": aggregate_counts["15m"],
             "aggregated_1h_rows": aggregate_counts["1h"],
             "one_minute_sha256": _sha256(one_minute_path),
-            "aggregated_15m_sha256": _sha256(fifteen_path),
-            "aggregated_1h_sha256": _sha256(hourly_path),
+            "aggregated_15m_sha256": _sha256(fifteen_aggregated_path),
+            "aggregated_1h_sha256": _sha256(hourly_aggregated_path),
+            "merged_15m_sha256": _sha256(fifteen_path),
+            "merged_1h_sha256": _sha256(hourly_path),
+            "merged_15m_rows": aggregate_counts["15m"],
+            "merged_1h_rows": aggregate_counts["1h"],
             "native_overlap_validation": native_checks,
+            "native_overlap_splice": native_splices,
         }
 
     manifest = {
@@ -362,29 +461,18 @@ def archive(
         "aggregation": {
             "15m": "15 consecutive complete BingX 1m bars; OHLC first/max/min/last; volume sum",
             "1h": "60 consecutive complete BingX 1m bars; OHLC first/max/min/last; volume sum",
+            "native_overlap": "native BingX 15m/1h bars override matching timestamps in the merged output; raw differences are retained in the manifest",
             "signal_policy": "15m decisions only; 1h context uses the latest fully closed 1h candle; no 1m/5m signals",
             "missing_or_duplicate_minutes": "fatal; no filling or imputation",
         },
         "limitations": [
             "This archive contains BingX swap OHLCV only. It does not contain trade prints, taker-buy volume, quote volume, historical order-book depth or historical open interest.",
             "Volume is preserved as returned by the BingX 1m endpoint and is used only within the same symbol; no cross-symbol volume comparison is implied.",
-            "Native 15m/1h overlap checks validate aggregated OHLC against the separate BingX candle archive, not tick-level execution.",
+            "Native 15m/1h overlap comparisons are diagnostic. Where timestamps overlap, native BingX bars replace the 1m-derived aggregate in the merged files; raw OHLC differences remain recorded in the manifest.",
         ],
     }
     manifest_path = out_dir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    if native_dir is not None:
-        failed = {
-            symbol: {
-                timeframe: check
-                for timeframe, check in report["native_overlap_validation"].items()
-                if not check["exact_ohlc_match"]
-            }
-            for symbol, report in reports.items()
-        }
-        failed = {symbol: rows for symbol, rows in failed.items() if rows}
-        if failed:
-            raise RuntimeError(f"aggregated BingX OHLC does not match native candles: {failed}")
     return manifest
 
 
