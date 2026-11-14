@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+
 from scripts import archive_bingx_funding_history as archive
 
 
