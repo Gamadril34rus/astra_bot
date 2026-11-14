@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
-from astra_bot.zeus_wedge_1h_core import evaluate_bars_with_lag, htf_bias_4h
+from astra_bot.zeus_wedge_1h_core import htf_bias_4h
 
 
 def test_htf_bias_4h_up_down_neutral():
@@ -144,8 +143,8 @@ def test_htf_gate_passes_neutral_and_unknown(monkeypatch):
 
 
 def test_htf_blocked_row_written_to_jsonl(tmp_path, monkeypatch):
-    from scripts import zeus_wedge_1h_shadow as sh
     from astra_bot import zeus_wedge_1h_core as core
+    from scripts import zeus_wedge_1h_shadow as sh
 
     monkeypatch.chdir(tmp_path)
     (tmp_path / "models").mkdir()
