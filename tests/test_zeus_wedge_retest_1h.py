@@ -570,7 +570,7 @@ def test_shadow_v2_same_bar_tp1_and_initial_stop_is_stop_first(tmp_path, monkeyp
     }
     sh.update_open_shadows(
         symbol="BTC-USDT",
-        bars_1h=closed_bars + [stop_and_tp1, forming],
+        bars_1h=[*closed_bars, stop_and_tp1, forming],
     )
 
     rows = [json.loads(line) for line in sh.SHADOW_PATH.read_text().splitlines() if line.strip()]
