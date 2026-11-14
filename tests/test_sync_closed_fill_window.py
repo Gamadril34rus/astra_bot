@@ -1,9 +1,8 @@
 """Closed-plan fill history must start at the immutable entry timestamp."""
 from __future__ import annotations
 
-import time
-
 import pytest
+import time
 
 from astra_bot.decision.live_broker import LiveBroker
 from astra_bot.decision.live_positions import save_positions
