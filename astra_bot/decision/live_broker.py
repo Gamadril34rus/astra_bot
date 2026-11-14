@@ -963,13 +963,24 @@ class LiveBroker:
             except (TypeError, ValueError):
                 qty_plan = None
 
+            # Query the complete trade lifetime. ts is rewritten by BE/ratchet
+            # plan updates; opened_at_ms is immutable from the original entry.
             start_ms = None
             try:
-                ts = float(plan.get("ts") or 0)
-                if ts > 1e12:
-                    ts /= 1000.0
-                if ts > 0:
-                    start_ms = int((ts - 60) * 1000)
+                opened_raw = plan.get("opened_at_ms")
+                if opened_raw is not None:
+                    opened_value = float(opened_raw)
+                    if opened_value > 0:
+                        if opened_value > 1e12:
+                            start_ms = max(0, int(opened_value - 60_000))
+                        else:
+                            start_ms = max(0, int((opened_value - 60) * 1000))
+                if start_ms is None:
+                    ts = float(plan.get("ts") or 0)
+                    if ts > 1e12:
+                        ts /= 1000.0
+                    if ts > 0:
+                        start_ms = max(0, int((ts - 60) * 1000))
             except (TypeError, ValueError):
                 start_ms = None
 
