@@ -154,6 +154,18 @@ def _dedup_key(symbol: str, geom: str, side: str, lb: int) -> str:
     return f"{symbol}|{geom}|{side}|{int(lb)}"
 
 
+def _ordered_targets(side: str, entry: float, raw_tp1: float, raw_tp2: float):
+    """Return (nearer TP1, farther TP2); reject targets not beyond entry."""
+    if side == "long":
+        if raw_tp1 <= entry or raw_tp2 <= entry or raw_tp1 == raw_tp2:
+            return None
+        return min(raw_tp1, raw_tp2), max(raw_tp1, raw_tp2)
+    if side == "short":
+        if raw_tp1 >= entry or raw_tp2 >= entry or raw_tp1 == raw_tp2:
+            return None
+        return max(raw_tp1, raw_tp2), min(raw_tp1, raw_tp2)
+    return None
+
 def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st, htf_closes=None):
     result = evaluate_bars_with_lag(
         o, h, l, c, lb=lb, geom=geom,
@@ -178,8 +190,22 @@ def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st, htf_closes
     retest_ts = ts[retest_i] if retest_i is not None and retest_i < len(ts) else None
     entry_ts = ts[entry_i] if entry_i is not None and entry_i < len(ts) else None
 
+    raw_tp1 = result.get("tp1")
+    raw_tp2 = result.get("tp2")
+    entry = result.get("entry")
+    stop = result.get("stop")
+    tp1, tp2 = raw_tp1, raw_tp2
+    if status == "signal":
+        ordered = None
+        if entry is not None and raw_tp1 is not None and raw_tp2 is not None:
+            ordered = _ordered_targets(side, float(entry), float(raw_tp1), float(raw_tp2))
+        if ordered is None:
+            status = "rejected_targets"
+        else:
+            tp1, tp2 = ordered
+
     # Dedup BEFORE blocked_pause rewrite — suppress episode noise while paused
-    if status in ("signal", "signal_pending_entry", "htf_gate_blocked") and side:
+    if status in ("signal", "signal_pending_entry", "htf_gate_blocked", "rejected_targets") and side:
         dkey = _dedup_key(symbol, geom, side, lb)
         if dkey in done:
             return None
@@ -211,13 +237,17 @@ def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st, htf_closes
         span = form.form_end - form.form_start
         breakout_pos = (breakout_i - form.form_start) / span if span else None
 
+    risk = abs(float(entry) - float(stop)) if entry is not None and stop is not None else 0.0
+    rr_to_tp2 = abs(float(tp2) - float(entry)) / risk if risk > 0 and tp2 is not None else None
     row = {
+        "simulation_version": 2,
         "signal_id": sid, "ts": now_ms, "symbol": symbol, "side": side, "lb": lb, "geom": geom,
         "w0": result.get("w0"), "wE": result.get("wE"),
         "touches_up": result.get("touches_up"), "touches_dn": result.get("touches_dn"),
-        "status": status, "breakout_ts": breakout_ts, "retest_ts": retest_ts,
-        "entry": result.get("entry"), "stop": result.get("stop"),
-        "tp1": result.get("tp1"), "tp2": result.get("tp2"), "rr_to_tp2": result.get("rr_to_tp2"),
+        "status": status, "breakout_ts": breakout_ts, "retest_ts": retest_ts, "entry_ts": entry_ts,
+        "entry": entry, "stop": stop,
+        "tp1": tp1, "tp2": tp2, "raw_tp1": raw_tp1, "raw_tp2": raw_tp2,
+        "rr_to_tp2": rr_to_tp2, "raw_rr_to_tp2": result.get("rr_to_tp2"),
         "div": result.get("div"), "div_zeus": result.get("div_zeus"),
         "hour_utc": time.gmtime().tm_hour,
         "btc_ema50_4h_dist": btc.get("btc_ema50_4h_dist"),
@@ -231,16 +261,17 @@ def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st, htf_closes
         "htf_bias": result.get("htf_bias") or "unknown",
     }
     _append(row)
-    if status == "htf_gate_blocked" and side:
+    if status in ("htf_gate_blocked", "rejected_targets") and side:
         dkey = _dedup_key(symbol, geom, side, lb)
         done[dkey] = now_ms
         _save_state(st)
-    if status == "signal" and side and result.get("entry") is not None and entry_ts is not None:
+    if status == "signal" and side and entry is not None and entry_ts is not None:
         key_open = _dedup_key(symbol, geom, side, lb)
         open_map[key_open] = {
+            "simulation_version": 2,
             "signal_id": sid, "side": side, "geom": geom, "lb": int(lb),
-            "entry": result["entry"], "stop": result["stop"],
-            "tp1": result["tp1"], "tp2": result["tp2"],
+            "entry": float(entry), "stop": float(stop),
+            "tp1": float(tp1), "tp2": float(tp2),
             "entry_ts": entry_ts, "breakout_ts": breakout_ts,
             "ts": now_ms, "symbol": symbol,
         }
