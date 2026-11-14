@@ -115,8 +115,8 @@ def test_produce_dedup_seen_ids(tmp_path, monkeypatch):
 def test_produce_labels_local_plan_as_unreconciled(tmp_path, monkeypatch):
     async def _():
         import astra_bot.decision.live_arm_feed as feed
-        import astra_bot.decision.live_positions as live_positions
         import astra_bot.decision.live_arm_wiring as live_arm_wiring
+        import astra_bot.decision.live_positions as live_positions
 
         events = []
         scan_calls = []
