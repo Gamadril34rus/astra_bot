@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -15,13 +16,32 @@ from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
 
+def _verified_trade_environment() -> str | None:
+    """Return an environment label only after LiveBingXClient confirms its endpoint."""
+    endpoint_confirmed = (os.environ.get("ZEUS_VST_ENDPOINT_CONFIRMED") or "").strip()
+    mainnet = (os.environ.get("ZEUS_MAINNET") or "").strip().lower()
+    if endpoint_confirmed == "1":
+        return "VST"
+    if endpoint_confirmed == "0" and mainnet in {"1", "true", "yes", "on"}:
+        return "REAL"
+    return None
+
+
 def append_live_trade(row: dict[str, Any], path: Path | None = None) -> None:
-    """Append one exit/entry row to models/zeus_live_trades.jsonl."""
+    """Append one exit/entry row with verified environment provenance when available."""
     p = path or Path("models/zeus_live_trades.jsonl")
     p.parent.mkdir(parents=True, exist_ok=True)
-    import json as _json
+    payload = dict(row)
+    environment_keys = (
+        "environment", "env", "contour", "account_environment",
+        "is_vst", "vst", "is_real", "mainnet",
+    )
+    if not any(key in payload for key in environment_keys):
+        environment = _verified_trade_environment()
+        if environment is not None:
+            payload["environment"] = environment
     with p.open("a", encoding="utf-8") as f:
-        f.write(_json.dumps(row, ensure_ascii=False, default=str) + "\n")
+        f.write(json.dumps(payload, ensure_ascii=False, default=str) + "\n")
 
 
 HARD_CAP_USD = Decimal("100")
