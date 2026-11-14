@@ -12,6 +12,7 @@ from astra_bot.decision.live_arm import (
     MAX_OPEN,
     SignalCandidate,
     _cooldown_key,
+    arm_block_reason,
     arm_enabled,
     conflict_blocks,
     cooldown_blocks,
@@ -159,6 +160,36 @@ def test_arm_flag(monkeypatch):
     assert arm_enabled() is False
     monkeypatch.setenv("ZEUS_ARM", "1")
     assert arm_enabled() is True
+
+
+def test_arm_block_reason_distinguishes_session_gate(monkeypatch):
+    import astra_bot.decision.live_session as live_session
+    from astra_bot.decision.live_session import SessionProfile
+
+    monkeypatch.setenv("ZEUS_ARM", "1")
+    monkeypatch.setenv("ZEUS_SESSION_PROFILE", "1")
+    monkeypatch.setattr(
+        live_session,
+        "get_session_profile",
+        lambda: SessionProfile("off", False, 0.30, 0.45),
+    )
+
+    assert arm_block_reason() == "session_profile=off"
+    assert arm_enabled() is False
+
+    monkeypatch.setattr(
+        live_session,
+        "get_session_profile",
+        lambda: SessionProfile("normal", True, 0.40, 0.55),
+    )
+    assert arm_block_reason() is None
+    assert arm_enabled() is True
+
+
+def test_arm_block_reason_reports_owner_switch_first(monkeypatch):
+    monkeypatch.delenv("ZEUS_ARM", raising=False)
+    monkeypatch.setenv("ZEUS_SESSION_PROFILE", "1")
+    assert arm_block_reason() == "ZEUS_ARM!=1"
 
 
 def test_zeus_arm_absent_no_entry(monkeypatch, tmp_path):
