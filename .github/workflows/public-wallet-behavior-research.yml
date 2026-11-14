@@ -1,0 +1,45 @@
+name: Public wallet behaviour research (read-only)
+
+on:
+  push:
+    branches: [research/4h-pullback-continuation]
+    paths:
+      - "scripts/public_wallet_behavior_research.py"
+      - "tests/unit/test_public_wallet_behavior_research.py"
+      - "tests/unit/test_public_wallet_behavior_rate_limit.py"
+      - ".github/workflows/public-wallet-behavior-research.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-wallet-behaviour-research
+  cancel-in-progress: true
+
+jobs:
+  wallet-panel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.11"
+      - name: Run unit tests
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest ruff
+          python -m pytest tests/unit/test_public_wallet_behavior_research.py tests/unit/test_public_wallet_behavior_rate_limit.py -q --confcutdir=tests/unit
+          python -m ruff check --config pyproject.toml scripts/public_wallet_behavior_research.py tests/unit/test_public_wallet_behavior_research.py tests/unit/test_public_wallet_behavior_rate_limit.py
+      - name: Collect prospective public wallet cohort and fills
+        run: |
+          python scripts/public_wallet_behavior_research.py --limit 10 --window-hours 24 --pause-seconds 6.2
+      - name: Upload immutable read-only evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-wallet-behaviour-panel
+          path: reports/public_wallet_panel/
+          if-no-files-found: warn
+          retention-days: 90

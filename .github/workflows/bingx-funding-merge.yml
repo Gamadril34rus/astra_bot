@@ -1,0 +1,84 @@
+name: BingX funding archive merge and coverage gate
+
+on:
+  push:
+    branches: [research/4h-pullback-continuation]
+    # Funding archive refresh is marker-triggered after code/tests are green.
+    paths:
+      - "research/trigger_bingx_funding_merge.txt"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: bingx-funding-merge
+  cancel-in-progress: false
+
+jobs:
+  funding-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install research dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pytest ruff
+      - name: Verify funding merge tests and lint
+        run: |
+          python -m pytest -q tests/research/test_archive_bingx_funding_history.py tests/research/test_merge_bingx_funding_archives.py
+          ruff check scripts/archive_bingx_funding_history.py scripts/merge_bingx_funding_archives.py tests/research/test_archive_bingx_funding_history.py tests/research/test_merge_bingx_funding_archives.py
+      - name: Download immutable prior BingX funding source
+        uses: actions/download-artifact@v4
+        with:
+          name: 15m-pullback-continuation-research
+          repository: ${{ github.repository }}
+          run-id: 43213211531
+          github-token: ${{ github.token }}
+          path: previous
+      - name: Download one year of actual BingX USDT-M funding settlements
+        run: |
+          python -m scripts.archive_bingx_funding_history \
+            --start-date 2025-11-13 \
+            --end-date 2026-11-13 \
+            --chunk-days 7
+      - name: Merge, hash-verify and enforce the four-symbol funding window
+        run: |
+          python -m scripts.merge_bingx_funding_archives \
+            --base-dir previous/data/bingx_usdm \
+            --supplemental-dir data/bingx_usdm \
+            --out-dir data/bingx_funding_merged \
+            --core-symbols BTC-USDT,ETH-USDT,SOL-USDT,HYPE-USDT,INJ-USDT \
+            --requested-start 2025-11-13T00:00:00Z \
+            --requested-end 2026-11-13T00:00:00Z \
+            --require-days 365 \
+            --base-run-id 43213211531 \
+            --base-artifact 15m-pullback-continuation-research \
+            --supplemental-run-id $GITHUB_RUN_ID \
+            --supplemental-artifact bingx-usdm-funding-12m-raw
+      - name: Upload raw BingX funding refresh
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bingx-usdm-funding-12m-raw
+          path: |
+            data/bingx_usdm/funding_*.csv
+            data/bingx_usdm/funding_manifest.json
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Upload merged funding evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bingx-usdm-funding-merged-${{ github.sha }}
+          path: data/bingx_funding_merged/
+          if-no-files-found: warn
+          retention-days: 90

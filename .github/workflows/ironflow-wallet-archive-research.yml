@@ -1,0 +1,99 @@
+name: Hyperliquid wallet archive and 15m flow event study
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: "First UTC daily Parquet file (YYYY-MM-DD)"
+        type: string
+        default: "2026-10-03"
+        required: true
+      end_date:
+        description: "Last UTC daily Parquet file (YYYY-MM-DD)"
+        type: string
+        default: "2026-11-08"
+        required: true
+  push:
+    branches:
+      - "research/4h-pullback-continuation"
+    paths:
+      - "scripts/collect_ironflow_wallet_archive.py"
+      - "scripts/analyze_ironflow_wallet_flow.py"
+      - "tests/unit/test_collect_ironflow_wallet_archive.py"
+      - "tests/unit/test_analyze_ironflow_wallet_flow.py"
+      - ".github/workflows/ironflow-wallet-archive-research.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ironflow-wallet-archive-research
+  cancel-in-progress: true
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout research branch
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install isolated research dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyarrow duckdb pytest ruff
+      - name: Run archive-filter tests and lint
+        run: |
+          python -m pytest tests/unit/test_collect_ironflow_wallet_archive.py tests/unit/test_analyze_ironflow_wallet_flow.py -q --confcutdir=tests/unit
+          python -m ruff check --config pyproject.toml scripts/collect_ironflow_wallet_archive.py scripts/analyze_ironflow_wallet_flow.py tests/unit/test_collect_ironflow_wallet_archive.py tests/unit/test_analyze_ironflow_wallet_flow.py
+      - name: Download frozen 100-wallet leaderboard cohort
+        uses: actions/download-artifact@v4
+        with:
+          name: public-wallet-behaviour-panel
+          run-id: 43221654045
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: cohort_input
+      - name: Filter 37 days of public native-perp trades
+        env:
+          IRONFLOW_START_DATE: ${{ inputs.start_date || '2026-10-03' }}
+          IRONFLOW_END_DATE: ${{ inputs.end_date || '2026-11-08' }}
+        run: |
+          python scripts/collect_ironflow_wallet_archive.py \
+            --cohort-path cohort_input/leaderboard_snapshot.json \
+            --cohort-manifest-path cohort_input/wallet_panel_manifest.json \
+            --start-date "$IRONFLOW_START_DATE" \
+            --end-date "$IRONFLOW_END_DATE" \
+            --out-dir reports/hyperliquid_wallet_archive
+      - name: Build 15m wallet flow and forward price-response study
+        run: |
+          python scripts/analyze_ironflow_wallet_flow.py \
+            --wallet-trades reports/hyperliquid_wallet_archive/wallet_trades.parquet \
+            --market-bars reports/hyperliquid_wallet_archive/market_15m.parquet \
+            --manifest reports/hyperliquid_wallet_archive/wallet_archive_manifest.json \
+            --out-dir reports/hyperliquid_wallet_flow
+      - name: Upload compact wallet behaviour summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperliquid-wallet-archive-summary
+          path: |
+            reports/hyperliquid_wallet_archive/wallet_archive_manifest.json
+            reports/hyperliquid_wallet_flow/wallet_flow_analysis.json
+            reports/hyperliquid_wallet_flow/cohort_flow_event_study.csv
+          retention-days: 90
+      - name: Upload filtered wallet trade-level evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperliquid-wallet-archive-research
+          path: |
+            reports/hyperliquid_wallet_archive/wallet_trades.parquet
+            reports/hyperliquid_wallet_archive/market_15m.parquet
+            reports/hyperliquid_wallet_flow/wallet_flow_15m.parquet
+            reports/hyperliquid_wallet_flow/cohort_flow_15m.parquet
+            reports/hyperliquid_wallet_flow/cohort_flow_forward_returns.parquet
+          retention-days: 90

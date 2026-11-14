@@ -1,0 +1,83 @@
+name: BingX 15m session VWAP staged research
+
+on:
+  push:
+    branches: [research/4h-pullback-continuation]
+    paths:
+      - "research/trigger_session_vwap_run.txt"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: bingx-session-vwap-research
+  cancel-in-progress: false
+
+jobs:
+  session-vwap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BINGX_1M_RUN_ID: "43424503286"
+      BINGX_1M_ARTIFACT: "bingx-usdm-1m-12m-3077c370b0174363d6b3a22b500f381e74c8664c"
+      BINGX_FUNDING_RUN_ID: "43429336665"
+      BINGX_FUNDING_ARTIFACT: "bingx-usdm-funding-merged-91e36f21a9300d8220df100ff71fe72c42bd00e1"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install research dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pytest ruff
+      - name: Download immutable 365-day BingX 1m source and 15m/1h aggregates
+        uses: actions/download-artifact@v4
+        with:
+          name: \${{ env.BINGX_1M_ARTIFACT }}
+          repository: \${{ github.repository }}
+          run-id: \${{ env.BINGX_1M_RUN_ID }}
+          github-token: \${{ secrets.GITHUB_TOKEN }}
+          path: data/bingx_research_1m
+      - name: Download merged, hash-verified BingX funding history
+        uses: actions/download-artifact@v4
+        with:
+          name: \${{ env.BINGX_FUNDING_ARTIFACT }}
+          repository: \${{ github.repository }}
+          run-id: \${{ env.BINGX_FUNDING_RUN_ID }}
+          github-token: \${{ secrets.GITHUB_TOKEN }}
+          path: data/bingx_funding_merged
+      - name: Prepare only 15m/1h bars and merged funding for the backtest
+        run: |
+          mkdir -p data/bingx_usdm
+          cp data/bingx_research_1m/*_15m.csv data/bingx_usdm/
+          cp data/bingx_research_1m/*_1h.csv data/bingx_usdm/
+          cp data/bingx_funding_merged/funding_*.csv data/bingx_usdm/
+      - name: Verify causal signal, split and cost-gate tests
+        run: |
+          python -m pytest -q tests/research/test_bingx_session_vwap.py
+          ruff check scripts/research_bingx_session_vwap.py scripts/research_adaptive_perp_portfolio.py tests/research/test_bingx_session_vwap.py
+      - name: Run staged BingX-only session VWAP research
+        run: |
+          python -m scripts.research_bingx_session_vwap \
+            --data-dir data/bingx_usdm \
+            --candle-manifest data/bingx_research_1m/manifest.json \
+            --funding-manifest data/bingx_funding_merged/funding_manifest.json \
+            --symbols ETH-USDT,SOL-USDT,HYPE-USDT,INJ-USDT \
+            --out-dir reports/session_vwap_reclaim
+      - name: Upload immutable session VWAP research evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bingx-session-vwap-research-\${{ github.sha }}
+          path: |
+            reports/session_vwap_reclaim/
+            data/bingx_research_1m/manifest.json
+            data/bingx_funding_merged/funding_manifest.json
+          if-no-files-found: warn
+          retention-days: 90
