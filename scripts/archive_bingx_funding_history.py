@@ -144,11 +144,53 @@ async def download_symbol(
                 day_rows = await fetch_window(day_cursor, day_end)
                 day_accepted = accept_window(day_rows, day_cursor, day_end)
                 accepted_rows += day_accepted
+                fallback_8h: list[dict[str, Any]] = []
+
+                # If a daily query is also empty, probe three aligned 8h
+                # windows. This matches the common settlement cadence while
+                # still allowing 4h HYPE settlements inside each window.
+                if not day_rows and day_end - day_cursor + 1 > 8 * 3_600_000:
+                    slot_cursor = day_cursor
+                    while slot_cursor <= day_end:
+                        slot_end = min(day_end, slot_cursor + 8 * 3_600_000 - 1)
+                        slot_rows = await fetch_window(slot_cursor, slot_end)
+                        slot_accepted = accept_window(slot_rows, slot_cursor, slot_end)
+                        accepted_rows += slot_accepted
+                        fallback_4h: list[dict[str, Any]] = []
+
+                        # A final 4h probe can recover a settlement hidden by
+                        # a successful-but-empty wider response. Empty results
+                        # remain gaps in the manifest; nothing is imputed.
+                        if not slot_rows and slot_end - slot_cursor + 1 > 4 * 3_600_000:
+                            half_cursor = slot_cursor
+                            while half_cursor <= slot_end:
+                                half_end = min(slot_end, half_cursor + 4 * 3_600_000 - 1)
+                                half_rows = await fetch_window(half_cursor, half_end)
+                                half_accepted = accept_window(half_rows, half_cursor, half_end)
+                                accepted_rows += half_accepted
+                                fallback_4h.append({
+                                    "start_time": half_cursor,
+                                    "end_time": half_end,
+                                    "response_rows": len(half_rows),
+                                    "accepted_rows": half_accepted,
+                                })
+                                half_cursor = half_end + 1
+
+                        fallback_8h.append({
+                            "start_time": slot_cursor,
+                            "end_time": slot_end,
+                            "response_rows": len(slot_rows),
+                            "accepted_rows": slot_accepted,
+                            "fallback_4h": fallback_4h,
+                        })
+                        slot_cursor = slot_end + 1
+
                 fallback_subchunks.append({
                     "start_time": day_cursor,
                     "end_time": day_end,
                     "response_rows": len(day_rows),
                     "accepted_rows": day_accepted,
+                    "fallback_8h": fallback_8h,
                 })
                 day_cursor = day_end + 1
 
@@ -201,6 +243,19 @@ async def download_symbol(
         "chunks": chunk_reports,
         "empty_chunk_fallback_count": sum(
             1 for report in chunk_reports if report["fallback_used"]
+        ),
+        "empty_day_fallback_count": sum(
+            1
+            for report in chunk_reports
+            for day in report["fallback_subchunks"]
+            if day["fallback_8h"]
+        ),
+        "empty_8h_fallback_count": sum(
+            1
+            for report in chunk_reports
+            for day in report["fallback_subchunks"]
+            for slot in day["fallback_8h"]
+            if slot["fallback_4h"]
         ),
         "sha256": _sha256_file(path),
         "source": "BingX /openApi/swap/v2/quote/fundingRate",

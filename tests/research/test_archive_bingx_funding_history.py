@@ -13,7 +13,7 @@ class _EmptyWideWindowClient:
     async def _request(self, method: str, endpoint: str, *, params: dict):
         start = int(params["startTime"])
         end = int(params["endTime"])
-        if end - start + 1 > DAY_MS:
+        if end - start + 1 > 8 * 60 * 60 * 1000:
             return {"code": 0, "data": []}
         rows = []
         timestamp = ((start + EIGHT_HOURS_MS - 1) // EIGHT_HOURS_MS) * EIGHT_HOURS_MS
@@ -48,5 +48,7 @@ def test_empty_seven_day_window_is_retried_as_daily_windows(
     assert result["empty_chunk_fallback_count"] == 1
     assert result["chunks"][0]["fallback_used"] is True
     assert len(result["chunks"][0]["fallback_subchunks"]) == 7
+    assert all(len(day["fallback_8h"]) == 3 for day in result["chunks"][0]["fallback_subchunks"])
+    assert result["empty_day_fallback_count"] == 7
     assert result["chunks"][0]["accepted_rows"] == 21
     assert (tmp_path / "funding_BTCUSDT.csv").is_file()
