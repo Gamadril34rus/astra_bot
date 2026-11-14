@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 SYMBOLS = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
-DEFAULT_CORE = ("ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
+DEFAULT_CORE = SYMBOLS
 FIELDS = ("funding_time", "rate")
 
 
