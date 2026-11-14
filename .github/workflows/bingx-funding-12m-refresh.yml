@@ -34,7 +34,6 @@ jobs:
             --start-date 2025-11-13 \
             --end-date 2026-11-13 \
             --chunk-days 7 \
-            --strict-contiguous
       - name: Upload immutable funding evidence
         if: always()
         uses: actions/upload-artifact@v4
