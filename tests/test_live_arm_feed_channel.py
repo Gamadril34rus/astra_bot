@@ -112,6 +112,44 @@ def test_produce_dedup_seen_ids(tmp_path, monkeypatch):
     asyncio.run(_())
 
 
+def test_produce_labels_local_plan_as_unreconciled(tmp_path, monkeypatch):
+    async def _():
+        import astra_bot.decision.live_arm_feed as feed
+        import astra_bot.decision.live_positions as live_positions
+        import astra_bot.decision.live_arm_wiring as live_arm_wiring
+
+        events = []
+        scan_calls = []
+        monkeypatch.setattr(
+            live_positions,
+            "load_positions",
+            lambda path=None: {
+                "BTC-USDT|short": {
+                    "symbol": "BTC-USDT",
+                    "side": "short",
+                    "signal_id": "old-signal",
+                }
+            },
+        )
+        monkeypatch.setattr(
+            feed,
+            "scan_symbol",
+            lambda *args, **kwargs: scan_calls.append(args) or None,
+        )
+        monkeypatch.setattr(live_arm_wiring, "append_journal", lambda row: events.append(row))
+
+        out = await produce_pending(
+            object(), ["BTC-USDT"], path=tmp_path / "pending.jsonl", seen_ids=set()
+        )
+
+        assert out == []
+        assert scan_calls == []
+        summary = next(row for row in events if row.get("event") == "arm_scan_summary")
+        assert summary["outcomes"]["BTC-USDT"] == "plan_unreconciled"
+
+    asyncio.run(_())
+
+
 def test_stale_not_fresh():
     row = signal_to_row(_sig(), bar_ts=1, now=time.time() - 3600)
     assert not is_fresh(row, max_sec=600)
