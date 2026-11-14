@@ -4,7 +4,7 @@
   "market": "USDT-M perpetual swaps",
   "source_endpoint": "/openApi/swap/v2/quote/openInterest",
   "unit": "base asset quantity as returned by BingX",
-  "generated_at_utc": "2026-11-14T06:05:12.969432+00:00",
+  "generated_at_utc": "2026-11-14T06:35:12.693649+00:00",
   "symbols": [
     "BTC-USDT",
     "ETH-USDT",
@@ -16,52 +16,52 @@
     "BTC-USDT": {
       "symbol": "BTC-USDT",
       "path": "data/bingx_usdm/open_interest/BTCUSDT_open_interest.csv",
-      "source_time": 1794636275981,
-      "source_time_utc": "2026-11-14T06:04:35.981000+00:00",
-      "observed_at_ms": 1794636276067,
-      "open_interest_base": "627421342.6",
-      "snapshot_count": 169,
-      "sha256": "1df05417996d5511e019a58e1245efe0763ce7c667eee662db351ce3fa52f79b"
+      "source_time": 1794638075844,
+      "source_time_utc": "2026-11-14T06:34:35.844000+00:00",
+      "observed_at_ms": 1794638075930,
+      "open_interest_base": "629930858.2",
+      "snapshot_count": 170,
+      "sha256": "d3286ed18569de42844a4b90b28b71f94e45fdc493fd4cff19212c1618710e0f"
     },
     "ETH-USDT": {
       "symbol": "ETH-USDT",
       "path": "data/bingx_usdm/open_interest/ETHUSDT_open_interest.csv",
-      "source_time": 1794636285199,
-      "source_time_utc": "2026-11-14T06:04:45.199000+00:00",
-      "observed_at_ms": 1794636285291,
-      "open_interest_base": "428868468.86",
-      "snapshot_count": 169,
-      "sha256": "87b246d5bf53a04872146326e8a250cdf4815cae3ec317cb9b34220fa698a370"
+      "source_time": 1794638085028,
+      "source_time_utc": "2026-11-14T06:34:45.028000+00:00",
+      "observed_at_ms": 1794638085113,
+      "open_interest_base": "428821887.82",
+      "snapshot_count": 170,
+      "sha256": "195442d4bf90dee8a677dcdcdc9caab0b63200ead34fa1c589793e2a0d7eddad"
     },
     "SOL-USDT": {
       "symbol": "SOL-USDT",
       "path": "data/bingx_usdm/open_interest/SOLUSDT_open_interest.csv",
-      "source_time": 1794636294484,
-      "source_time_utc": "2026-11-14T06:04:54.484000+00:00",
-      "observed_at_ms": 1794636294573,
-      "open_interest_base": "68822643.015",
-      "snapshot_count": 169,
-      "sha256": "dd4174c1ba81365f04341f67b38fe195e2af11059a7723e6f23026fbc32847c2"
+      "source_time": 1794638094212,
+      "source_time_utc": "2026-11-14T06:34:54.212000+00:00",
+      "observed_at_ms": 1794638094298,
+      "open_interest_base": "68620937.579",
+      "snapshot_count": 170,
+      "sha256": "dea8d32d0386e5a69f1a155d9a50cbe0011c08ff38fbdf2677e07d0f2f24a547"
     },
     "HYPE-USDT": {
       "symbol": "HYPE-USDT",
       "path": "data/bingx_usdm/open_interest/HYPEUSDT_open_interest.csv",
-      "source_time": 1794636303693,
-      "source_time_utc": "2026-11-14T06:05:03.693000+00:00",
-      "observed_at_ms": 1794636303779,
-      "open_interest_base": "35357918.540",
-      "snapshot_count": 169,
-      "sha256": "b86c1c4ff6c216ed8eedf940a51ab3788141cb277036332a8ad2491806043379"
+      "source_time": 1794638103406,
+      "source_time_utc": "2026-11-14T06:35:03.406000+00:00",
+      "observed_at_ms": 1794638103496,
+      "open_interest_base": "35735239.821",
+      "snapshot_count": 170,
+      "sha256": "92ae48c9dd8bf37bcc3328ee19edd3e0c9a3f40428064bc75fc8cf14c8101c79"
     },
     "INJ-USDT": {
       "symbol": "INJ-USDT",
       "path": "data/bingx_usdm/open_interest/INJUSDT_open_interest.csv",
-      "source_time": 1794636312873,
-      "source_time_utc": "2026-11-14T06:05:12.873000+00:00",
-      "observed_at_ms": 1794636312967,
-      "open_interest_base": "3431891.732",
-      "snapshot_count": 169,
-      "sha256": "af1af20bd4d719e24668dabf7d0fada3c2cf2f292864e3774b99b5824714460a"
+      "source_time": 1794638112601,
+      "source_time_utc": "2026-11-14T06:35:12.601000+00:00",
+      "observed_at_ms": 1794638112691,
+      "open_interest_base": "3561796.731",
+      "snapshot_count": 170,
+      "sha256": "25f207dbfb1e72106f9638e0fc78a632dfe3aefde7ddd341d6f800ef957ca440"
     }
   },
   "warning": "BingX endpoint is a current snapshot, not historical OHLC. This archive is prospective from the first collection time."
