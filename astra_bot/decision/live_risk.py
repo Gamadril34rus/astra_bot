@@ -310,19 +310,6 @@ def write_week_loss_reset(ts: float | None = None, path: Path | None = None) -> 
     return t
 
 
-def should_disable_vst_performance_halt() -> bool:
-    """Allow only the explicit VST experiment to bypass automatic PnL halts.
-
-    ZEUS_VST_ENDPOINT_CONFIRMED is set by LiveBingXClient from its resolved
-    base URL, not by workflow input or a user-controlled secret.
-    """
-    return (
-        os.environ.get("ZEUS_VST_ENDPOINT_CONFIRMED", "").strip() == "1"
-        and os.environ.get("ZEUS_VST", "").strip() == "1"
-        and os.environ.get("ZEUS_MAINNET", "").strip() == "0"
-        and os.environ.get("ZEUS_VST_DISABLE_PERFORMANCE_HALT", "").strip() == "1"
-    )
-
 
 def check_day_week_limits(
     equity: Decimal,
@@ -335,8 +322,6 @@ def check_day_week_limits(
     week window so pre-reset exits do not count toward the 6% week limit.
     Day window unchanged unless reset_at is newer than day start.
     """
-    if should_disable_vst_performance_halt():
-        return None
     if equity <= 0:
         return None
     reset_at = load_week_loss_reset()
@@ -363,8 +348,6 @@ def check_pf_kill(path: Path = TRADES_PATH, state_path: Path = KILL_STATE_PATH) 
     Owner 28.10: reset_kill writes pf_window_reset_at so halt does not re-arm
     on the same pre-reset losses.
     """
-    if should_disable_vst_performance_halt():
-        return None
     win = kill_pf_window_size()
     # Owner 28.10: floor = max(kill_epoch_ts, pf_window_reset_at) so reset_kill
     # drops pre-reset losers from the sliding window without changing thresholds.
@@ -398,8 +381,6 @@ def check_pf_kill(path: Path = TRADES_PATH, state_path: Path = KILL_STATE_PATH) 
 
 
 def load_kill_halted(state_path: Path = KILL_STATE_PATH) -> str | None:
-    if should_disable_vst_performance_halt():
-        return None
     if not state_path.exists():
         return None
     try:
