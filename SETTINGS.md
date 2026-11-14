@@ -1,6 +1,6 @@
 # SETTINGS — канон live/paper Zeus
 
-Дата среза: **05.11.2026**. Этот файл описывает именно Zeus. Не использовать его как замену общему конфигу проекта и наоборот. См. [карту конфигурации](docs/CONFIGURATION_MAP.md).
+Дата среза: **14.11.2026**. Этот файл описывает именно Zeus. Не использовать его как замену общему конфигу проекта и наоборот. См. [карту конфигурации](docs/CONFIGURATION_MAP.md).
 
 **Не менять риск, плечо, exit-engine, флаги окружения и стоп-краны без прямого слова владельца.** Источник чисел — отмеченный код или workflow. Столбец «Live workflow» показывает значение в `.github/workflows/zeus-live-clock.yml`, а не обещает, что секреты владельца имеют определённые значения.
 
@@ -14,8 +14,8 @@
 | INJ_SLOT_RESERVE | `live_arm.py` | 2 свободных слота для major | 2 |
 | Cooldown входа | `live_arm.py` | 20 минут на strategy / symbol / side | 20 минут |
 | FRESH_MAX_SEC | `live_arm_wiring.py` | 2700 секунд (45 минут) | 2700 секунд |
-| Дневной / недельный убыток | `live_risk.py` | 4% / 6% от equity | VST experiment: автоматический day/week HALT отключён; ручная блокировка и защита позиций остаются |
-| Kill PF threshold | `live_risk.py` | HALT при n ≥ 5 и PF < 1 | VST experiment: PF auto-HALT отключён; аудит считает уникальные финальные выходы |
+| Дневной / недельный убыток | `live_risk.py` | 4% / 6% от equity | Активны в VST; при срабатывании блокируют новые входы |
+| Kill PF threshold | `live_risk.py` | HALT при n ≥ 5 и PF < 1 | Активен в VST; окно — 20 последних подходящих exits после reset/epoch |
 | ZEUS_KILL_PF_WINDOW | `live_risk.py` + live workflow | 0 / пусто = cumulative | 20 последних подходящих exits после reset/epoch |
 | MAX_LEVERAGE | `LiveBrokerConfig` | 10 | `ZEUS_LIVE_MAX_LEVERAGE=10` |
 | Default leverage | `LiveBrokerConfig`, candidate | 5 до расчёта / override | Входы принудительно используют `ZEUS_LIVE_FORCE_LEVERAGE=6` |
@@ -67,12 +67,12 @@
 | `BINGX_API_KEY`, `BINGX_API_SECRET` | GitHub Actions Secrets | Передаются в процесс; не печатать и не сохранять в git |
 | `TELEGRAM_LIVE_BOT_TOKEN`, `TELEGRAM_ADMIN_ID`, `TELEGRAM_CHAT_ID` | GitHub Actions Secrets | Telegram-команды и уведомления |
 | `TG_TEST` | GitHub Actions Secret | Передаётся live clock |
-| `ZEUS_RETEST_V1`, `ZONE_SHADOW`, `ZONE_TRADE_FILTER` | YAML | `shadow`, `1`, `1` (последний флаг только в PR #358 до merge) |
+| `ZEUS_RETEST_V1`, `ZONE_SHADOW`, `ZONE_TRADE_FILTER` | YAML | `shadow`, `1`, `1` |
 | `ZEUS_LIVE_FORCE_LEVERAGE`, `ZEUS_LIVE_MAX_LEVERAGE` | YAML | `6`, `10` |
 | `ZEUS_KILL_PF_WINDOW` | YAML | `20` |
 | `ZEUS_LIVE_EXIT_ENGINE`, `ZEUS_LIVE_TRAIL_POLICY` | YAML | `on`, `atr` |
 | `ZEUS_BE_TRIGGER_R`, `ZEUS_SESSION_PROFILE`, `ZEUS_TP1_RR` | YAML | `0.5`, `1`, `0.6` (BE/TP1 подчиняются профилю сессии, см. выше) |
-| `ZEUS_VST_DISABLE_PERFORMANCE_HALT` | YAML | `1` (только при подтверждённом VST endpoint) |
+
 | `ZEUS_STOP_PULL_PCT` | YAML | `0` |
 | `ZEUS_PF_SKIP_SCRATCHED` | YAML | `1` |
 | `ZEUS_MIN_STOP_PCT` | YAML | `0.01` |
@@ -84,9 +84,9 @@
 
 `config/settings.yaml` — общий конфиг ASTRA BOT. В нём есть `risk_per_trade=0.004` (0.4%), `daily_loss_limit=0.02` (2%) и `weekly_loss_limit=0.04` (4%). **Эти значения не заменяют Zeus-канон 4% дневного / 6% недельного ограничения, Zeus risk ladder и Zeus-параметры.** Не копировать значения в обе стороны. Бумажный Zeus отдельно описан в `config/paper_zeus_clock.yaml`.
 
-## VST experimental mode
+## VST / HALT
 
-В live workflow принудительно заданы ZEUS_VST=1 и ZEUS_MAINNET=0. ZEUS_VST_DISABLE_PERFORMANCE_HALT=1 отключает только автоматические дневной/недельный/PF HALT, и только когда сам созданный клиент подтверждает VST endpoint. Риск на сделку, плечо, MAX_OPEN, same-side/cluster caps, margin gates, ручная блокировка входов, ручной kill-switch и сопровождение/защита открытых позиций не отключаются. На mainnet этот override не действует. Старый файл PF HALT не удаляется и не сбрасывается; в VST он игнорируется только в этом явно разрешённом режиме.
+В live workflow принудительно заданы ZEUS_VST=1 и ZEUS_MAINNET=0. Эти значения выбирают только VST endpoint и не отключают защитные ограничения. Дневной/недельный HALT (4% / 6%) и PF HALT (n ≥ 5, PF < 1, окно 20 после максимума kill epoch / PF reset) действуют и в VST. Существующий `models/kill_switch_state.json` остаётся авторитетным: восстановление текущего PF само по себе не удаляет persisted HALT. Никакого автоматического сброса или VST-обхода нет.
 
 PF и дневной/недельный PnL теперь считают только финальные event=exit строки. partial_fill не добавляется вторым разом: итоговый exit уже агрегирует realized PnL позиции. Повторные exit для одного trade_id схлопываются до последней записи.
 
