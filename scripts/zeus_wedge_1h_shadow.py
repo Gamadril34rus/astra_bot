@@ -1,7 +1,8 @@
-"""Shadow logger for zeus_wedge_retest_1h — append-only jsonl, never trades.
+"""Versioned shadow logger for zeus_wedge_retest_1h — append-only, never trades.
 
-Primary geometry: gold (brief). Optional: narrow. Field geom tags stream.
-result_r: 50% at tp1 + remainder at be_stop/tp2/stop; costs 0.0015/side.
+V2 uses the nearer structural target as TP1 and the farther as TP2, resolves
+same-bar initial-stop conflicts stop-first, and records auditable entry/exit bars.
+V1 files are left untouched. Costs remain 0.0015 per side.
 Loss streak cumulative (wins/zeros do NOT reset); pause per strategy+symbol.
 
 Production signal path uses lag-scan (formation ends k bars ago) so breakout
@@ -28,8 +29,8 @@ from astra_bot.zeus_wedge_1h_core import (
 )
 
 logger = logging.getLogger(__name__)
-SHADOW_PATH = Path("models/zeus_wedge_1h_signals.jsonl")
-STATE_PATH = Path("models/zeus_wedge_1h_shadow_state.json")
+SHADOW_PATH = Path("models/zeus_wedge_1h_signals_v2.jsonl")
+STATE_PATH = Path("models/zeus_wedge_1h_shadow_state_v2.json")
 GEOMS = ("gold", "narrow")
 LOOKBACKS: tuple[int, ...] = (48, 72)
 DONE_TTL_MS = 48 * 3600 * 1000
