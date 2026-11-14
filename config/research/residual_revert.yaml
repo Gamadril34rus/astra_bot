@@ -1,0 +1,30 @@
+# Research / shadow only. Do not wire into live Zeus without owner word.
+strategy: residual_revert
+market: BingX USDT-M perpetual
+timeframe: 30m
+symbols:
+  - ETH-USDT
+  - SOL-USDT
+  - HYPE-USDT
+  - INJ-USDT
+btc_factor: BTC-USDT
+
+params:
+  resid_window: 6
+  resid_threshold: 0.03
+  clv_long: 0.55
+  clv_short: 0.45
+  atr_period: 14
+  atr_ma_period: 48
+  atr_ratio_cap: 2.0
+  stop_atr: 2.0
+  take_rr: 2.5
+  max_hold_bars: 18
+
+risk:
+  risk_frac: 0.01
+  fee_bps: 4
+  slip_bps: 2
+
+status: NOT_PASSED_MULTI_SYMBOL_OOS
+report: docs/research/NEW_STRATEGY_PROTOCOL_20261111.md
