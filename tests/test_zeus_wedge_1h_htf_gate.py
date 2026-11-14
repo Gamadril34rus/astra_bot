@@ -196,7 +196,7 @@ def test_htf_blocked_row_written_to_jsonl(tmp_path, monkeypatch):
         htf_closes=down,
         lbs=[48],
     )
-    path = tmp_path / "models" / "zeus_wedge_1h_signals.jsonl"
+    path = tmp_path / "models" / "zeus_wedge_1h_signals_v2.jsonl"
     assert path.exists()
     rows = [json.loads(x) for x in path.read_text().splitlines() if x.strip()]
     blocked = [r for r in rows if r.get("status") == "htf_gate_blocked"]
