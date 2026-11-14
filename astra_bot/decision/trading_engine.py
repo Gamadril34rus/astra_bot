@@ -237,18 +237,13 @@ class TradingEngine:
                 MeanReversionStrategy,
                 MomentumStrategy,
                 PullbackStrategy,
-                Scalp5mStrategy,
-                ScalpStrategy,
                 TimeSeriesMomentumConfig,
                 TimeSeriesMomentumStrategy,
             )
             from .config import DecisionConfig
             from .strategy_stats import StrategyStatsStore
-            # Пороги согласованы со стратегиями. Scalp даёт много мелких
-            # сделок на 15m для быстрого обучения; Pullback — крупнее на 1h;
-            # ts_momentum — флипы по 45-дневному импульсу на 4h, плюс
-            # вариант с ADX-подтверждением (оба проверены walk-forward'ом
-            # в scripts/strategy_lab.py).
+            # Торговый набор без скальпинга: Pullback/Momentum/MeanReversion
+            # и среднесрочный ts_momentum (4h, 45-дневный импульс).
             cfg = DecisionConfig()
             cfg.min_rr = 2.0  # Owner 24.09: align with clamp_take_rr 2.0–2.3
             cfg.min_ml_probability = 0.0
@@ -373,8 +368,6 @@ class TradingEngine:
                 cfg,
                 stats_store=stats_store,
                 strategies=[
-                    Scalp5mStrategy(),
-                    ScalpStrategy(),
                     PullbackStrategy(),
                     MomentumStrategy(),
                     MeanReversionStrategy(),
@@ -390,17 +383,17 @@ class TradingEngine:
             )
             # Громкая проверка загрузки (урок блока 9: стратегии молча
             # не грузились месяцами). Фактический состав (13.09.2026):
-            # 7 ядро + 20 паттернов + 14 новых = 41; число НЕ дублируем
+            # 5 ядро (без scalp) + 20 паттернов + 14 новых = 39; число НЕ дублируем
             # константой в тексте (устаревало), считаем от самого списка.
             _names = [getattr(s, "name", type(s).__name__) for s in pipeline.strategies]
             if len(pipeline.strategies) < 29:
                 logger.error(
                     "Загружено стратегий %d — состав неполный "
-                    "(7 ядро + 20 паттернов + 14 новых = 41): %s",
+                    "(5 ядро без scalp + 20 паттернов + 14 новых = 39): %s",
                     len(pipeline.strategies), _names,
                 )
             else:
-                logger.info("Загружено стратегий %d (7 ядро + 20 паттернов + 14 новых = 41)", len(pipeline.strategies))
+                logger.info("Загружено стратегий %d (5 ядро без scalp + 20 паттернов + 14 новых = 39)", len(pipeline.strategies))
         self.pipeline = pipeline
         # Аудит эпохи-2 (блок A): пер-стратегийный килл-свитч из статистики
         # (пересчёт каждую сессию = самовосстановление).
