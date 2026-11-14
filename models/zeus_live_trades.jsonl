@@ -2653,3 +2653,4 @@
 {"event": "protect_place", "ts": 1794662822.5594945, "symbol": "HYPE-USDT", "kind": "stop", "stop_price": "75.46062", "qty": "107.66288463", "close_position": true, "order_id": "2121595765259853824"}
 {"event": "protect_place", "ts": 1794662822.8332584, "symbol": "HYPE-USDT", "kind": "tp", "stop_price": "63.6765590", "qty": "32.29886538", "reduce_only": false, "order_id": "2121595766404898816"}
 {"event": "entry", "signal_id": "zeus_multi_top_breakdown|HYPE-USDT|short|1794643200000", "symbol": "HYPE-USDT", "side": "short", "plan_entry": "67.858", "fill_price": "67.868", "slip_pct": -0.0147366559580166, "slip_r": 0.0013153360288953018, "qty": "107.66288463", "stop": "75.46062", "tp": "63.6765590", "tp_frac": 0.3, "leverage": 6, "ts": 1794662822.8342314}
+{"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2121595765259853824", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794663156.4687116}
