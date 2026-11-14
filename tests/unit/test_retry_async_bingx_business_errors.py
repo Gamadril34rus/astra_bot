@@ -42,9 +42,9 @@ async def test_transient_exchange_errors_still_use_retry_backoff(monkeypatch):
     async def fake_sleep(delay):
         sleeps.append(delay)
 
-    monkeypatch.setattr(retry_module.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(retry_asyncio, "sleep", fake_sleep)
 
-    @retry_module.retry_async(attempts=3, delays=(2.0, 5.0, 15.0), log_errors=False)
+    @retry_async(attempts=3, delays=(2.0, 5.0, 15.0), log_errors=False)
     async def transient_request():
         nonlocal calls
         calls += 1
