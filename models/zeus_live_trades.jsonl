@@ -2659,3 +2659,5 @@
 {"event": "order_cancel", "symbol": "ETH-USDT", "order_id": "2121514222789156864", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794664951.194938}
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2121595733622218752", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794664963.6416624}
 {"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2121603439628214272", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794664973.3451219}
+{"event": "leverage_reconcile", "symbol": "ETH-USDT", "side": "short", "old_leverage": 5, "exchange_leverage": 6, "source": "bingx_position", "signal_id": "zeus_channel_boundary|ETH-USDT|short|1794628800000", "ts": 1794665208.834785}
+{"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2121604787463610368", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794665225.3138845}
