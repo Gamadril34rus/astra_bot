@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import importlib
-
 import pytest
 
 from astra_bot.core.exceptions import ExchangeError
-
-retry_module = importlib.import_module("astra_bot.utils.retry")
+from astra_bot.utils.retry import asyncio as retry_asyncio, retry_async
 
 
 @pytest.mark.asyncio
@@ -17,9 +14,9 @@ async def test_position_sl_already_exists_is_not_retried(monkeypatch):
     async def fake_sleep(delay):
         sleeps.append(delay)
 
-    monkeypatch.setattr(retry_module.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(retry_asyncio, "sleep", fake_sleep)
 
-    @retry_module.retry_async(attempts=3, delays=(2.0, 5.0, 15.0), log_errors=False)
+    @retry_async(attempts=3, delays=(2.0, 5.0, 15.0), log_errors=False)
     async def place_stop():
         nonlocal calls
         calls += 1
