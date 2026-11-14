@@ -58,7 +58,7 @@
       "stop": "67.8001320",
       "tp": "63.6765590",
       "entry": "67.868",
-      "leverage": 5,
+      "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_multi_top_breakdown|HYPE-USDT|short|1794643200000",
       "ts": 1794676322.9894605,
@@ -68,9 +68,12 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "tp_frac": "0.3",
-      "peak_low": "65.212",
+      "peak_low": "64.956",
       "current_regime": "WEAK_BEAR_TREND",
-      "tp1": "63.6765590"
+      "tp1": "63.6765590",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     },
     "INJ-USDT|long": {
       "symbol": "INJ-USDT",
@@ -99,5 +102,5 @@
       "early_tp_repair_v1": true
     }
   },
-  "ts": 1794676396.7712119
+  "ts": 1794676690.6904657
 }

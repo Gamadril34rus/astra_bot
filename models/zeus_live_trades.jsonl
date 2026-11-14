@@ -2696,3 +2696,4 @@
 {"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2121641254978150400", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794673955.4413502}
 {"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2121642461075431424", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794674893.2370038}
 {"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2121646394716020736", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794676322.4567804}
+{"event": "leverage_reconcile", "symbol": "HYPE-USDT", "side": "short", "old_leverage": 5, "exchange_leverage": 6, "source": "bingx_position", "signal_id": "zeus_multi_top_breakdown|HYPE-USDT|short|1794643200000", "ts": 1794676611.3166223}
