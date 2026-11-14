@@ -63,6 +63,7 @@ def test_scale_out_when_mfe_past_early_and_far_tp(tmp_path, monkeypatch):
     broker = MagicMock()
     pos = SimpleNamespace(
         symbol="SOL-USDT",
+        side="short",
         quantity=Decimal("10"),
         mark_price=Decimal("93"),  # mfe 0.7R
     )

@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# ruff: noqa: B023
-# Legacy nested async callbacks intentionally close over tick-local state.
 """Zeus LIVE clock — one tick. INACTIVE without ZEUS_LIVE=1.
 
 Paper path (run_paper_zeus / PaperBroker) is never imported here for trading.
@@ -131,6 +129,63 @@ _TP_PARITY_DONE = "tp_parity_v1"
 _INITIAL_STOP_DONE = "initial_stop_v1"
 
 
+def _normalize_plan_side(value: object) -> str | None:
+    side = str(value or "").strip().lower()
+    return side if side in ("long", "short") else None
+
+
+def _positions_by_hedge_leg(positions) -> dict[tuple[str, str], object]:
+    """Index unique positive exchange legs by (symbol, positionSide)."""
+    result: dict[tuple[str, str], object] = {}
+    duplicates: set[tuple[str, str]] = set()
+    for position in positions or []:
+        symbol = str(getattr(position, "symbol", None) or getattr(position, "symbol_name", None) or "").strip()
+        side = _normalize_plan_side(getattr(position, "side", None))
+        try:
+            quantity = Decimal(str(getattr(position, "quantity", None) or getattr(position, "qty", None) or 0))
+        except Exception:
+            continue
+        if not symbol or side is None or quantity <= 0:
+            continue
+        key = (symbol, side)
+        if key in result:
+            duplicates.add(key)
+        else:
+            result[key] = position
+    for key in duplicates:
+        result[key] = None
+    return result
+
+
+def _position_for_hedge_leg(positions_by_leg, symbol: str, side: str):
+    normalized = _normalize_plan_side(side)
+    if normalized is None:
+        return None
+    return positions_by_leg.get((str(symbol), normalized))
+
+
+def _order_matches_hedge_leg(order, symbol: str, side: str) -> bool:
+    if str(getattr(order, "symbol", "") or "") != str(symbol):
+        return False
+    normalized = _normalize_plan_side(side)
+    if normalized is None:
+        return False
+    from astra_bot.decision.live_broker import _order_matches_position_side
+    return _order_matches_position_side(order, normalized)
+
+
+def _open_orders_for_hedge_leg(orders, symbol: str, side: str, kind: str | None = None) -> list:
+    from astra_bot.decision.live_broker import _order_is_open, _protective_order_kind
+    return [
+        order
+        for order in orders or []
+        if _order_is_open(order)
+        and _order_matches_hedge_leg(order, symbol, side)
+        and (kind is None or _protective_order_kind(order) == kind)
+    ]
+
+
+
 def migrate_initial_stop_v1() -> dict:
     """One-shot: fill plan.initial_stop for open plans (F15b).
 
@@ -146,10 +201,26 @@ def migrate_initial_stop_v1() -> dict:
     plans = load_positions(DEFAULT_PATH)
     if not plans:
         return out
-    # index entry stops from journal (best-effort, last wins)
-    entry_stop_by_sid: dict[str, str] = {}
-    entry_stop_by_sym: dict[str, str] = {}
-    parity_old_tp: dict[str, str] = {}
+    # Legacy rows without side are usable only when the symbol has one active plan leg.
+    plan_sides_by_symbol: dict[str, set[str]] = {}
+    for plan_key, plan in plans.items():
+        if not isinstance(plan, dict):
+            continue
+        plan_symbol = str(plan.get("symbol") or plan_key.split("|")[0])
+        plan_side = _normalize_plan_side(plan.get("side") or (
+            plan_key.rsplit("|", 1)[1] if "|" in plan_key else None
+        ))
+        if plan_symbol and plan_side is not None:
+            plan_sides_by_symbol.setdefault(plan_symbol, set()).add(plan_side)
+    unique_plan_side = {
+        symbol: next(iter(sides))
+        for symbol, sides in plan_sides_by_symbol.items()
+        if len(sides) == 1
+    }
+    # Index entry stops by signal and hedge leg (best-effort, last wins).
+    entry_stop_by_sid_side: dict[tuple[str, str], str] = {}
+    entry_stop_by_sym_side: dict[tuple[str, str], str] = {}
+    parity_old_tp_by_sym_side: dict[tuple[str, str], str] = {}
     jpath = Path("models/zeus_live_journal.jsonl")
     tpath = Path("models/zeus_live_trades.jsonl")
     for path in (jpath, tpath):
@@ -168,14 +239,16 @@ def migrate_initial_stop_v1() -> dict:
                     if ev == "entry" and o.get("stop") is not None:
                         sid = str(o.get("signal_id") or "")
                         sym = str(o.get("symbol") or "")
-                        if sid:
-                            entry_stop_by_sid[sid] = str(o["stop"])
-                        if sym:
-                            entry_stop_by_sym[sym] = str(o["stop"])
+                        side = _normalize_plan_side(o.get("side")) or unique_plan_side.get(sym)
+                        if sid and side is not None:
+                            entry_stop_by_sid_side[(sid, side)] = str(o["stop"])
+                        if sym and side is not None:
+                            entry_stop_by_sym_side[(sym, side)] = str(o["stop"])
                     if ev in ("tp_parity_replace", "tp_parity_failed") and o.get("old_tp"):
                         sym = str(o.get("symbol") or "")
-                        if sym and sym not in parity_old_tp:
-                            parity_old_tp[sym] = str(o["old_tp"])
+                        side = _normalize_plan_side(o.get("side")) or unique_plan_side.get(sym)
+                        if sym and side is not None:
+                            parity_old_tp_by_sym_side[(sym, side)] = str(o["old_tp"])
         except Exception:
             pass
     changed = False
@@ -194,19 +267,22 @@ def migrate_initial_stop_v1() -> dict:
             continue
         sym = str(plan.get("symbol") or key.split("|")[0])
         sid = str(plan.get("signal_id") or "")
+        side = _normalize_plan_side(plan.get("side") or (
+            key.rsplit("|", 1)[1] if "|" in key else None
+        ))
         init = None
         src = None
-        if sid and sid in entry_stop_by_sid:
-            init, src = entry_stop_by_sid[sid], "journal_entry_sid"
-        elif sym in entry_stop_by_sym:
-            init, src = entry_stop_by_sym[sym], "journal_entry_sym"
-        elif sym in parity_old_tp and plan.get("entry") is not None:
+        if sid and side is not None and (sid, side) in entry_stop_by_sid_side:
+            init, src = entry_stop_by_sid_side[(sid, side)], "journal_entry_signal_side"
+        elif side is not None and (sym, side) in entry_stop_by_sym_side:
+            init, src = entry_stop_by_sym_side[(sym, side)], "journal_entry_symbol_side"
+        elif side is not None and (sym, side) in parity_old_tp_by_sym_side and plan.get("entry") is not None:
             try:
                 entry = Decimal(str(plan["entry"]))
-                old_tp = Decimal(str(parity_old_tp[sym]))
+                old_tp = Decimal(str(parity_old_tp_by_sym_side[(sym, side)]))
                 # pre-parity TP was ~1.5R from entry with initial stop
                 risk = abs(old_tp - entry) / Decimal("1.5")
-                if plan.get("side", "").lower() == "long":
+                if side == "long":
                     init = str(entry - risk)
                 else:
                     init = str(entry + risk)
@@ -227,6 +303,7 @@ def migrate_initial_stop_v1() -> dict:
             append_journal({
                 "event": "migrate_initial_stop",
                 "symbol": sym,
+                "side": side,
                 "initial_stop": init,
                 "source": src,
                 "ts": time.time(),
@@ -260,12 +337,7 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
         positions = await broker.client.get_positions()
     except Exception as exc:
         return {**out, "error": type(exc).__name__}
-    by_sym = {}
-    for p in positions or []:
-        sym = getattr(p, "symbol", None) or getattr(p, "symbol_name", None)
-        if not sym:
-            continue
-        by_sym[str(sym)] = p
+    by_leg = _positions_by_hedge_leg(positions)
     for key, plan in list(plans.items()):
         if not isinstance(plan, dict):
             continue
@@ -273,7 +345,12 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
             out["skipped"] += 1
             continue
         sym = plan.get("symbol") or key.split("|")[0]
-        side = (plan.get("side") or "").lower()
+        side = _normalize_plan_side(plan.get("side") or (
+            key.rsplit("|", 1)[1] if "|" in key else None
+        ))
+        if side is None:
+            out["skipped"] += 1
+            continue
         entry = plan.get("entry")
         stop = plan.get("stop")
         tp = plan.get("tp") or plan.get("tp1")
@@ -326,7 +403,10 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
                 continue
             # rr > 2.3 only: clamp down to corridor
             new_tp = clamp_take_rr(entry_d, init_d, tp_d, side, 2.0, 2.3)
-            pos = by_sym.get(sym)
+            pos = _position_for_hedge_leg(by_leg, sym, side)
+            if pos is None:
+                out["skipped"] += 1
+                continue
             exch_qty = Decimal(
                 str(
                     getattr(pos, "quantity", None)
@@ -351,14 +431,12 @@ async def apply_tp_parity_v1(broker, send_tg=None) -> dict:
             try:
                 if hasattr(broker, "client") and hasattr(broker.client, "get_open_orders"):
                     orders = await broker.client.get_open_orders(sym)
-                    for o in orders or []:
-                        ot = str(
-                            getattr(o, "type", "") or getattr(o, "order_type", "") or ""
-                        ).upper()
-                        if "TAKE_PROFIT" in ot:
-                            oid = getattr(o, "id", None) or getattr(o, "order_id", None)
-                            if oid:
-                                old_tp_ids.append(str(oid))
+                    for o in _open_orders_for_hedge_leg(
+                        orders, sym, side, kind="take_profit"
+                    ):
+                        oid = getattr(o, "id", None) or getattr(o, "order_id", None)
+                        if oid:
+                            old_tp_ids.append(str(oid))
             except Exception:
                 old_tp_ids = []
             ps = "LONG" if side == "long" else "SHORT"
@@ -500,11 +578,7 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
         positions = await broker.client.get_positions()
     except Exception as exc:
         return {**out, "error": type(exc).__name__}
-    by_sym: dict = {}
-    for p in positions or []:
-        sym = getattr(p, "symbol", None) or getattr(p, "symbol_name", None)
-        if sym:
-            by_sym[str(sym)] = p
+    by_leg = _positions_by_hedge_leg(positions)
 
     def _mark_of(pos) -> Decimal | None:
         if pos is None:
@@ -537,7 +611,12 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
             out["skipped"] += 1
             continue
         sym = plan.get("symbol") or key.split("|")[0]
-        side = (plan.get("side") or "").lower()
+        side = _normalize_plan_side(plan.get("side") or (
+            key.rsplit("|", 1)[1] if "|" in key else None
+        ))
+        if side is None:
+            out["skipped"] += 1
+            continue
         entry = plan.get("entry")
         init_raw = plan.get("initial_stop") or plan.get("stop")
         tp = plan.get("tp") or plan.get("tp1")
@@ -565,7 +644,10 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
                 new_tp = entry_d + risk * early_rr
             else:
                 new_tp = entry_d - risk * early_rr
-            pos = by_sym.get(sym)
+            pos = _position_for_hedge_leg(by_leg, sym, side)
+            if pos is None:
+                out["skipped"] += 1
+                continue
             mark = _mark_of(pos)
             exch_qty = Decimal(
                 str(
@@ -586,22 +668,19 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
             ps = "LONG" if side == "long" else "SHORT"
             stop_side = "SELL" if side == "long" else "BUY"
 
-            async def _cancel_old_tps() -> None:
+            async def _cancel_old_tps(sym=sym, side=side) -> None:
                 try:
                     if not (hasattr(broker, "client") and hasattr(broker.client, "get_open_orders")):
                         return
                     orders = await broker.client.get_open_orders(sym)
-                    for o in orders or []:
-                        ot = str(
-                            getattr(o, "type", "") or getattr(o, "order_type", "") or ""
-                        ).upper()
-                        if "TAKE_PROFIT" not in ot:
-                            continue
+                    for o in _open_orders_for_hedge_leg(
+                        orders, sym, side, kind="take_profit"
+                    ):
                         oid = getattr(o, "id", None) or getattr(o, "order_id", None)
                         if not oid:
                             continue
                         try:
-                            await broker.client.cancel_order(sym, str(oid))
+                                await broker.client.cancel_order(sym, str(oid))
                         except Exception as cexc:
                             append_journal(
                                 {
@@ -615,7 +694,21 @@ async def repair_early_tp_after_parity(broker, send_tg=None) -> dict:
                 except Exception:
                     pass
 
-            async def _past_level_market() -> bool:
+            async def _past_level_market(
+                sym=sym,
+                side=side,
+                stop_side=stop_side,
+                q_tp=q_tp,
+                ps=ps,
+                exch_qty=exch_qty,
+                entry_d=entry_d,
+                plan=plan,
+                new_tp=new_tp,
+                risk=risk,
+                key=key,
+                old_tp=old_tp,
+                mark=mark,
+            ) -> bool:
                 """Market-close frac leg + BE stop; always marks repair done."""
                 market_ok = False
                 be_ok = False
@@ -847,11 +940,7 @@ async def heal_ratchet_and_runner_tp(broker, send_tg=None) -> dict:
         positions = await broker.client.get_positions()
     except Exception as exc:
         return {**out, "error": type(exc).__name__}
-    by_sym: dict = {}
-    for p in positions or []:
-        sym = getattr(p, "symbol", None) or getattr(p, "symbol_name", None)
-        if sym:
-            by_sym[str(sym)] = p
+    by_leg = _positions_by_hedge_leg(positions)
 
     def _mark(pos):
         if pos is None:
@@ -872,10 +961,12 @@ async def heal_ratchet_and_runner_tp(broker, send_tg=None) -> dict:
         if not isinstance(plan, dict):
             continue
         sym = plan.get("symbol") or key.split("|")[0]
-        side = (plan.get("side") or "").lower()
+        side = _normalize_plan_side(plan.get("side") or (
+            key.rsplit("|", 1)[1] if "|" in key else None
+        ))
         entry = plan.get("entry")
         init_raw = plan.get("initial_stop") or plan.get("stop")
-        if entry is None or init_raw is None or side not in ("long", "short"):
+        if entry is None or init_raw is None or side is None:
             out["skipped"] += 1
             continue
         try:
@@ -889,7 +980,10 @@ async def heal_ratchet_and_runner_tp(broker, send_tg=None) -> dict:
         if risk <= 0:
             out["skipped"] += 1
             continue
-        pos = by_sym.get(sym)
+        pos = _position_for_hedge_leg(by_leg, sym, side)
+        if pos is None:
+            out["skipped"] += 1
+            continue
         mark = _mark(pos)
         qty = Decimal(
             str(
@@ -1047,11 +1141,9 @@ async def heal_ratchet_and_runner_tp(broker, send_tg=None) -> dict:
         if need_tp and not plan.get("runner_tp_healed_v1"):
             try:
                 orders = await broker.client.get_open_orders(sym)
-                n_tp = 0
-                for o in orders or []:
-                    ot = str(getattr(o, "type", "") or getattr(o, "order_type", "") or "").upper()
-                    if "TAKE_PROFIT" in ot:
-                        n_tp += 1
+                n_tp = len(
+                    _open_orders_for_hedge_leg(orders, sym, side, kind="take_profit")
+                )
                 if n_tp == 0:
                     if side == "long":
                         runner_tp = entry_d + risk * Decimal("1.5")
@@ -1139,11 +1231,7 @@ async def scale_out_early_if_due(broker, send_tg=None) -> dict:
         positions = await broker.client.get_positions()
     except Exception as exc:
         return {**out, "error": type(exc).__name__}
-    by_sym: dict = {}
-    for p in positions or []:
-        sym = getattr(p, "symbol", None) or getattr(p, "symbol_name", None)
-        if sym:
-            by_sym[str(sym)] = p
+    by_leg = _positions_by_hedge_leg(positions)
 
     def _mark(pos):
         if pos is None:
@@ -1170,7 +1258,12 @@ async def scale_out_early_if_due(broker, send_tg=None) -> dict:
                 out["skipped"] += 1
                 continue
         sym = plan.get("symbol") or key.split("|")[0]
-        side = (plan.get("side") or "").lower()
+        side = _normalize_plan_side(plan.get("side") or (
+            key.rsplit("|", 1)[1] if "|" in key else None
+        ))
+        if side is None:
+            out["skipped"] += 1
+            continue
         entry = plan.get("entry")
         init_raw = plan.get("initial_stop") or plan.get("stop")
         tp = plan.get("tp") or plan.get("tp1")
@@ -1184,7 +1277,10 @@ async def scale_out_early_if_due(broker, send_tg=None) -> dict:
             if risk <= 0:
                 out["skipped"] += 1
                 continue
-            pos = by_sym.get(sym)
+            pos = _position_for_hedge_leg(by_leg, sym, side)
+            if pos is None:
+                out["skipped"] += 1
+                continue
             mark = _mark(pos)
             if mark is None:
                 out["skipped"] += 1
@@ -1239,15 +1335,15 @@ async def scale_out_early_if_due(broker, send_tg=None) -> dict:
                 # cancel far TP legs
                 try:
                     orders = await broker.client.get_open_orders(sym)
-                    for o in orders or []:
-                        ot = str(getattr(o, "type", "") or getattr(o, "order_type", "") or "").upper()
-                        if "TAKE_PROFIT" in ot:
-                            oid = getattr(o, "id", None) or getattr(o, "order_id", None)
-                            if oid:
-                                try:
-                                    await broker.client.cancel_order(sym, str(oid))
-                                except Exception:
-                                    pass
+                    for o in _open_orders_for_hedge_leg(
+                        orders, sym, side, kind="take_profit"
+                    ):
+                        oid = getattr(o, "id", None) or getattr(o, "order_id", None)
+                        if oid:
+                            try:
+                                await broker.client.cancel_order(sym, str(oid))
+                            except Exception:
+                                pass
                 except Exception:
                     pass
                 new_qty = exch_qty - q_tp
@@ -1447,12 +1543,8 @@ async def sync_partial_breakeven(
     if not plans:
         return {"moved": [], "skipped": []}
 
-    by_sym: dict[str, object] = {}
-    for p in positions:
-        sym = getattr(p, "symbol", "") or ""
-        qty = getattr(p, "quantity", None) or Decimal("0")
-        if sym and qty and qty > 0:
-            by_sym[sym] = p
+    by_leg = _positions_by_hedge_leg(positions)
+
 
     for _key, plan in list(plans.items()):
         sym = str(plan.get("symbol") or _key.split("|")[0] or "")
@@ -1460,17 +1552,22 @@ async def sync_partial_breakeven(
             continue
         if plan.get("be_moved"):
             continue
+        side = _normalize_plan_side(plan.get("side") or (
+            _key.rsplit("|", 1)[1] if "|" in _key else None
+        ))
+        if side is None:
+            skipped.append(f"{sym}|unknown")
+            continue
         if plan.get("entry") is None or plan.get("stop") is None:
             skipped.append(sym)
             continue
-        pos = by_sym.get(sym)
+        pos = _position_for_hedge_leg(by_leg, sym, side)
         if pos is None:
             continue
         try:
             exch_qty = Decimal(str(getattr(pos, "quantity", 0) or 0))
             entry_px = Decimal(str(plan["entry"]))
             stop_px = Decimal(str(plan["stop"]))
-            side = str(plan.get("side") or "long").lower()
             plan_qty_raw = plan.get("plan_qty") or plan.get("qty") or plan.get("quantity")
             try:
                 plan_qty = Decimal(str(plan_qty_raw)) if plan_qty_raw is not None else Decimal("0")
@@ -1758,7 +1855,6 @@ async def sync_partial_breakeven(
                 r_abs = abs(entry_px - stop_px)
             if r_abs <= 0 or exch_qty <= 0:
                 continue
-            side = str(plan.get("side") or "long").lower()
             if side == "long":
                 mfe_r = float((mark_px - entry_px) / r_abs)
             else:
@@ -1912,12 +2008,7 @@ async def heal_dead_tp_legs(broker, *, positions_path: Path | None = None) -> di
         logger.warning("heal_dead_tp_legs setup failed: %s", type(exc).__name__)
         return {"healed": [], "error": type(exc).__name__}
 
-    by_sym: dict[str, object] = {}
-    for p in positions:
-        sym = getattr(p, "symbol", "") or ""
-        qty = getattr(p, "quantity", None) or Decimal("0")
-        if sym and qty and qty > 0:
-            by_sym[sym] = p
+    by_leg = _positions_by_hedge_leg(positions)
 
     try:
         st = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {}
@@ -1928,9 +2019,14 @@ async def heal_dead_tp_legs(broker, *, positions_path: Path | None = None) -> di
 
     for _key, plan in list(plans.items()):
         sym = str(plan.get("symbol") or _key.split("|")[0] or "")
-        if not sym or sym not in by_sym:
+        side = _normalize_plan_side(plan.get("side") or (
+            _key.rsplit("|", 1)[1] if "|" in _key else None
+        ))
+        if not sym or side is None:
             continue
-        pos = by_sym[sym]
+        pos = _position_for_hedge_leg(by_leg, sym, side)
+        if pos is None:
+            continue
         mark = (
             getattr(pos, "mark_price", None)
             or getattr(pos, "markPrice", None)
@@ -1940,7 +2036,6 @@ async def heal_dead_tp_legs(broker, *, positions_path: Path | None = None) -> di
         if mark is None:
             continue
         mark_px = Decimal(str(mark))
-        side = str(plan.get("side") or "long").lower()
         tp_level = plan.get("tp1") or plan.get("tp") or plan.get("take_profit_price")
         if tp_level is None:
             continue
@@ -1951,13 +2046,7 @@ async def heal_dead_tp_legs(broker, *, positions_path: Path | None = None) -> di
             logger.warning("heal_dead_tp: get_open_orders %s: %s", sym, type(exc).__name__)
             continue
         tp_orders = []
-        for o in orders or []:
-            ot = str(getattr(o, "order_type", "") or "").upper()
-            if "TAKE_PROFIT" not in ot:
-                continue
-            st_o = str(getattr(o, "status_raw", None) or getattr(o, "status", None) or "").upper()
-            if st_o and st_o not in ("NEW", "PENDING", ""):
-                continue
+        for o in _open_orders_for_hedge_leg(orders or [], sym, side, kind="take_profit"):
             stop_p = getattr(o, "stop_price", None) or getattr(o, "price", None)
             if stop_p is None:
                 continue
@@ -2041,7 +2130,7 @@ async def detect_position_missing_with_orders(broker, *, positions_path: Path | 
         logger.warning("detect_position_missing: setup %s", type(exc).__name__)
         return {"missing": [], "error": type(exc).__name__}
 
-    by_sym = {getattr(p, "symbol", "") for p in positions if getattr(p, "symbol", "")}
+    by_leg = _positions_by_hedge_leg(positions)
     try:
         st = json.loads(flag.read_text(encoding="utf-8")) if flag.exists() else {}
     except Exception:
@@ -2052,35 +2141,40 @@ async def detect_position_missing_with_orders(broker, *, positions_path: Path | 
 
     for _key, plan in list(plans.items()):
         sym = str(plan.get("symbol") or _key.split("|")[0] or "")
-        if not sym or sym in by_sym:
+        side = _normalize_plan_side(plan.get("side") or (
+            _key.rsplit("|", 1)[1] if "|" in _key else None
+        ))
+        if not sym or side is None or (sym, side) in by_leg:
             continue
         try:
             orders = await broker.client.get_open_orders(sym)
         except Exception:
             continue
-        n_prot = 0
-        for o in orders or []:
-            ot = str(getattr(o, "order_type", "") or "").upper()
-            if "STOP" in ot or "TAKE_PROFIT" in ot:
-                n_prot += 1
+        leg_orders = _open_orders_for_hedge_leg(orders, sym, side)
+        from astra_bot.decision.live_broker import _protective_order_kind
+        n_prot = sum(
+            _protective_order_kind(order) in ("stop", "take_profit")
+            for order in leg_orders
+        )
         if n_prot <= 0:
             continue
-        last = float(st.get(sym) or 0)
+        warning_key = f"{sym}|{side}"
+        last = float(st.get(warning_key) or 0)
         if now - last < 3600:
-            missing.append(sym)
+            missing.append(f"{sym}|{side}")
             continue
         try:
             append_journal({
                 "event": "position_missing_with_open_orders",
                 "symbol": sym,
-                "side": plan.get("side"),
+                "side": side,
                 "n_protect_orders": n_prot,
                 "ts": now,
             })
         except Exception:
             pass
-        st[sym] = now
-        missing.append(sym)
+        st[warning_key] = now
+        missing.append(f"{sym}|{side}")
         logger.warning(
             "position_missing_with_open_orders: %s n_orders=%s (no TG)",
             sym, n_prot,
@@ -2116,13 +2210,16 @@ async def detect_ghost_positions(
         logger.warning("detect_ghost_positions: setup %s", type(exc).__name__)
         return {"ghosts": [], "error": type(exc).__name__}
 
-    plan_syms: set[str] = set()
+    plan_legs: set[tuple[str, str]] = set()
     for _key, plan in (plans or {}).items():
         if not isinstance(plan, dict):
             continue
         sym = str(plan.get("symbol") or _key.split("|")[0] or "")
-        if sym:
-            plan_syms.add(sym)
+        side = _normalize_plan_side(plan.get("side") or (
+            _key.rsplit("|", 1)[1] if "|" in _key else None
+        ))
+        if sym and side is not None:
+            plan_legs.add((sym, side))
 
     try:
         st = json.loads(flag.read_text(encoding="utf-8")) if flag.exists() else {}
@@ -2142,14 +2239,16 @@ async def detect_ghost_positions(
             qty_d = 0.0
         if not sym or qty_d <= 0:
             continue
-        if sym in plan_syms:
-            continue
         entry = getattr(pos, "entry_price", None) or getattr(pos, "avg_price", None)
-        side = str(getattr(pos, "side", "") or "").lower()
-        last = float(st.get(sym) or 0)
+        side = _normalize_plan_side(getattr(pos, "side", None))
+        side_label = side or "unknown"
+        if side is not None and (sym, side) in plan_legs:
+            continue
+        warning_key = f"{sym}|{side_label}"
+        last = float(st.get(warning_key) or 0)
         row = {
             "symbol": sym,
-            "side": side,
+            "side": side_label,
             "qty": str(qty),
             "entry": str(entry) if entry is not None else None,
         }
@@ -2160,15 +2259,15 @@ async def detect_ghost_positions(
             append_journal({
                 "event": "ghost_position",
                 "symbol": sym,
-                "side": side,
+                "side": side_label,
                 "qty": str(qty),
                 "entry": str(entry) if entry is not None else None,
                 "ts": now,
             })
         except Exception:
             pass
-        st[sym] = now
-        msg = f"⚠️ {sym}: позиция без плана (qty={qty}"
+        st[warning_key] = now
+        msg = f"⚠️ {sym} {side_label}: позиция без плана (qty={qty}"
         if entry is not None:
             msg += f", entry={entry}"
         msg += ") — защита неизвестна"

@@ -15,6 +15,7 @@ from typing import Any
 from astra_bot.adapters.base import Order, Position
 from astra_bot.adapters.bingx.client import BINGX_SWAP_V2_PREFIX, BingXClient
 from astra_bot.adapters.bingx.live_env import _redact, resolve_base_url
+from astra_bot.core.exceptions import ExchangeError
 from astra_bot.utils.retry import is_exchange_endpoint_cooldown_error
 
 logger = logging.getLogger(__name__)
@@ -173,6 +174,13 @@ def _parse_order(data: dict[str, Any], symbol: str = "") -> Order:
     )
     try:
         order._raw_order_keys = [str(k) for k in list(d.keys())[:24]]
+    except Exception:
+        pass
+    # Preserve hedge identity so protection changes cannot touch the opposite leg.
+    try:
+        position_side = d.get("positionSide") or d.get("position_side")
+        if position_side is not None:
+            object.__setattr__(order, "position_side", str(position_side).strip().lower())
     except Exception:
         pass
     # F7.3b: expose trigger fields for order_audit
@@ -669,22 +677,50 @@ class LiveBingXClient(BingXClient):
         symbol: str,
         quantity: Decimal | None = None,
         price: Decimal | None = None,
+        position_side: str | None = None,
     ) -> bool:
-        """Market close via reduce-only opposite side."""
+        """Market-close one exact hedge leg; ambiguous symbol-only close is refused."""
         positions = await self.get_positions()
-        pos = next((p for p in positions if p.symbol == symbol), None)
-        if not pos or pos.quantity <= 0:
+        matches = [position for position in positions if position.symbol == symbol]
+        normalized_side = str(position_side or "").strip().lower()
+        if normalized_side:
+            if normalized_side not in {"long", "short"}:
+                raise ValueError(f"invalid position_side: {position_side!r}")
+            matches = [position for position in matches if position.side == normalized_side]
+        elif len(matches) > 1:
+            raise ExchangeError(
+                f"ambiguous hedge close for {symbol}: pass position_side",
+                exchange="bingx",
+                operation="close_position",
+            )
+        if not matches:
             return True
-        qty = quantity if quantity is not None else pos.quantity
-        side = "SELL" if pos.side == "long" else "BUY"
-        ps = "LONG" if pos.side == "long" else "SHORT"
-        # Hedge mode: reduceOnly forbidden (109400). Close via positionSide + qty.
+        if len(matches) > 1:
+            raise ExchangeError(
+                f"multiple {normalized_side or 'unspecified'} hedge rows for {symbol}: "
+                "refusing ambiguous close",
+                exchange="bingx",
+                operation="close_position",
+            )
+        position = matches[0]
+        if position.quantity <= 0:
+            return True
+        qty = position.quantity if quantity is None else Decimal(str(quantity))
+        if qty <= 0:
+            return True
+        if qty > position.quantity:
+            raise ValueError(
+                f"close quantity {qty} exceeds {symbol} {position.side} position {position.quantity}"
+            )
+        order_side = "SELL" if position.side == "long" else "BUY"
+        exchange_side = "LONG" if position.side == "long" else "SHORT"
+        # Hedge mode rejects reduceOnly (109400); positionSide scopes the close.
         await self.place_order(
             symbol=symbol,
-            side=side,
+            side=order_side,
             order_type="MARKET",
             quantity=qty,
-            position_side=ps,
+            position_side=exchange_side,
             reduce_only=False,
         )
         return True

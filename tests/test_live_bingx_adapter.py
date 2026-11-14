@@ -80,9 +80,22 @@ class MockClient:
     async def set_margin_isolated(self, symbol: str) -> None:
         return None
 
-    async def close_position(self, symbol: str, quantity=None, price=None) -> bool:
+    async def close_position(
+        self,
+        symbol: str,
+        quantity=None,
+        price=None,
+        position_side=None,
+    ) -> bool:
         self.closed.append(symbol)
-        self._positions = [p for p in self._positions if p.symbol != symbol]
+        self._positions = [
+            position
+            for position in self._positions
+            if not (
+                position.symbol == symbol
+                and (position_side is None or position.side == position_side)
+            )
+        ]
         return True
 
 

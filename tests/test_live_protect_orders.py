@@ -80,7 +80,7 @@ async def test_ensure_get_open_orders_fail_aborts_no_close(tmp_path):
     )
     closed = []
 
-    async def close_position(symbol, quantity=None):
+    async def close_position(symbol, quantity=None, position_side=None):
         closed.append(symbol)
         return True
 
@@ -113,7 +113,7 @@ async def test_ensure_verify_fail_after_place_does_not_close(tmp_path):
     closed = []
     cancels = []
 
-    async def close_position(symbol, quantity=None):
+    async def close_position(symbol, quantity=None, position_side=None):
         closed.append(symbol)
         return True
 
@@ -168,8 +168,8 @@ async def test_ensure_two_confirmed_rejects_closes_only_that_symbol(tmp_path):
     cancels = []
     close_order = []
 
-    async def close_position(symbol, quantity=None):
-        close_order.append("close")
+    async def close_position(symbol, quantity=None, position_side=None):
+        close_order.append(f"close:{symbol}:{position_side}")
         closed.append(symbol)
         return True
 
@@ -204,8 +204,10 @@ async def test_ensure_two_confirmed_rejects_closes_only_that_symbol(tmp_path):
     out2 = await broker.ensure_protection(positions_path=path, bare_state_path=bare)
     # both ADA and BTC are bare with confirmed reject → both may close on 2nd tick
     assert "ADA-USDT" in out2.get("closed", [])
-    # cancel only after close
-    assert close_order.index("close") < close_order.index("cancel")
+    assert "BTC-USDT" in out2.get("closed", [])
+    assert close_order == ["close:ADA-USDT:short", "close:BTC-USDT:short"]
+    # The exact hedge legs were closed; no symbol-wide order cancellation occurred.
+    assert cancels == []
 
 
 @pytest.mark.asyncio
@@ -223,7 +225,7 @@ async def test_ensure_cancel_not_before_close(tmp_path):
     )
     cancels = []
 
-    async def close_position(symbol, quantity=None):
+    async def close_position(symbol, quantity=None, position_side=None):
         raise RuntimeError("close failed")
 
     async def cancel_all_orders(symbol):
@@ -248,3 +250,126 @@ async def test_ensure_cancel_not_before_close(tmp_path):
     await broker.ensure_protection(positions_path=path, bare_state_path=bare)
     await broker.ensure_protection(positions_path=path, bare_state_path=bare)
     assert cancels == []
+
+
+@pytest.mark.asyncio
+async def test_ensure_protection_resets_bare_streak_after_unknown_order_state(tmp_path):
+    from astra_bot.decision import live_positions as lp
+    from astra_bot.decision.live_broker import LiveBroker, LiveBrokerConfig
+
+    positions_path = tmp_path / "pos.json"
+    bare_path = tmp_path / "bare.json"
+    lp.upsert_plan(
+        symbol="LINK-USDT",
+        side="long",
+        entry=Decimal("100"),
+        stop=Decimal("90"),
+        qty=Decimal("1"),
+        path=positions_path,
+    )
+    position = SimpleNamespace(
+        symbol="LINK-USDT",
+        quantity=Decimal("1"),
+        side="long",
+        entry_price=Decimal("100"),
+        mark_price=Decimal("100"),
+    )
+    unscoped_stop = SimpleNamespace(
+        id="unknown-stop",
+        symbol="LINK-USDT",
+        order_type="STOP_MARKET",
+        side="",
+        position_side="",
+        status="NEW",
+    )
+    tick = {"n": 0}
+    close_calls = []
+    is_closed = {"value": False}
+
+    async def get_positions():
+        return [] if is_closed["value"] else [position]
+
+    async def get_open_orders(symbol=None):
+        tick["n"] += 1
+        return [unscoped_stop] if tick["n"] == 2 else []
+
+    async def move_stop(*args, **kwargs):
+        raise RuntimeError("place_order rejected code=101 msg=Insufficient margin")
+
+    async def close_position(symbol, quantity=None, position_side=None):
+        close_calls.append((symbol, position_side))
+        is_closed["value"] = True
+        return True
+
+    client = SimpleNamespace(
+        get_positions=get_positions,
+        get_open_orders=get_open_orders,
+        close_position=close_position,
+        cancel_order=AsyncMock(return_value=True),
+    )
+    broker = LiveBroker(client=client, config=LiveBrokerConfig())
+    broker.move_stop = move_stop  # type: ignore[method-assign]
+
+    # One confirmed reject increments the counter.
+    first = await broker.ensure_protection(
+        positions_path=positions_path, bare_state_path=bare_path
+    )
+    assert first["bare"]["LINK-USDT|long"] == 1
+    assert close_calls == []
+
+    # An unscoped STOP makes order ownership unknown and breaks the streak.
+    second = await broker.ensure_protection(
+        positions_path=positions_path, bare_state_path=bare_path
+    )
+    assert second["bare"] == {}
+    assert close_calls == []
+
+    # The next reject is tick 1 again, not tick 2.
+    third = await broker.ensure_protection(
+        positions_path=positions_path, bare_state_path=bare_path
+    )
+    assert third["bare"]["LINK-USDT|long"] == 1
+    assert close_calls == []
+
+    fourth = await broker.ensure_protection(
+        positions_path=positions_path, bare_state_path=bare_path
+    )
+    assert fourth["closed_legs"] == ["LINK-USDT|long"]
+    assert close_calls == [("LINK-USDT", "long")]
+
+@pytest.mark.asyncio
+async def test_reconcile_counts_missing_stop_for_each_hedge_leg():
+    from astra_bot.decision.live_broker import LiveBroker, LiveBrokerConfig
+
+    short_stop = SimpleNamespace(
+        id="short-stop",
+        symbol="BTC-USDT",
+        order_type="STOP_MARKET",
+        side="BUY",
+        position_side="SHORT",
+        status="NEW",
+    )
+    client = SimpleNamespace(
+        get_positions=AsyncMock(
+            return_value=[
+                SimpleNamespace(
+                    symbol="BTC-USDT",
+                    side="long",
+                    quantity=Decimal("0.01"),
+                ),
+                SimpleNamespace(
+                    symbol="BTC-USDT",
+                    side="short",
+                    quantity=Decimal("0.02"),
+                ),
+            ]
+        ),
+        get_open_orders=AsyncMock(return_value=[short_stop]),
+    )
+    broker = LiveBroker(client=client, config=LiveBrokerConfig())
+    broker.equity = AsyncMock(return_value=Decimal("100"))
+
+    result = await broker.reconcile()
+
+    # The SHORT STOP must not hide the unprotected LONG hedge leg.
+    assert result["missing_stops"] == 1

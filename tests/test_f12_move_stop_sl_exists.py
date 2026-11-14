@@ -4,7 +4,6 @@ from __future__ import annotations
 import asyncio
 from decimal import Decimal
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
 
 
 def test_already_exists_cancel_then_place(tmp_path, monkeypatch):
@@ -17,7 +16,7 @@ def test_already_exists_cancel_then_place(tmp_path, monkeypatch):
             self.places = 0
             self.cancelled = []
             self.orders = [
-                SimpleNamespace(id="old-sl", order_type="STOP_MARKET", position_side="LONG"),
+                SimpleNamespace(id="old-sl", order_type="STOP_MARKET", side="SELL", position_side="LONG"),
             ]
 
         async def place_order(self, **kwargs):
@@ -25,7 +24,7 @@ def test_already_exists_cancel_then_place(tmp_path, monkeypatch):
             if self.places == 1:
                 raise RuntimeError("BingX API error: Position SL order already exists (code=101406)")
             oid = f"new-{self.places}"
-            self.orders = [SimpleNamespace(id=oid, order_type="STOP_MARKET", position_side="LONG")]
+            self.orders = [SimpleNamespace(id=oid, order_type="STOP_MARKET", side="SELL", position_side="LONG")]
             return SimpleNamespace(id=oid)
 
         async def get_open_orders(self, symbol=None):
@@ -36,8 +35,8 @@ def test_already_exists_cancel_then_place(tmp_path, monkeypatch):
             self.orders = [o for o in self.orders if str(o.id) != str(order_id)]
             return True
 
-    from astra_bot.decision.live_broker import LiveBroker, LiveBrokerConfig
     from astra_bot.decision import live_arm_wiring as law
+    from astra_bot.decision.live_broker import LiveBroker, LiveBrokerConfig
 
     monkeypatch.setattr(law, "append_journal", lambda row: journal.append(row))
     broker = LiveBroker(LiveBrokerConfig())
@@ -67,7 +66,7 @@ def test_second_call_no_extra_when_place_ok(tmp_path, monkeypatch):
             return SimpleNamespace(id=f"s{self.places}")
 
         async def get_open_orders(self, symbol=None):
-            return [SimpleNamespace(id=f"s{self.places}", order_type="STOP_MARKET", position_side="LONG")]
+            return [SimpleNamespace(id=f"s{self.places}", order_type="STOP_MARKET", side="SELL", position_side="LONG")]
 
         async def cancel_order(self, symbol, order_id):
             return True

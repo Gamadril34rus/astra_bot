@@ -4,18 +4,17 @@ from __future__ import annotations
 import asyncio
 import json
 from decimal import Decimal
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 
 def test_ghost_position_journals_and_warns(tmp_path, monkeypatch):
+    from astra_bot.decision.live_positions import upsert_plan
     from scripts import zeus_live_clock as z
 
     monkeypatch.chdir(tmp_path)
     (tmp_path / "models").mkdir()
     # plan only for BTC — SOL is ghost on exchange
-    from astra_bot.decision.live_positions import upsert_plan, save_positions
 
     pos_path = tmp_path / "models" / "zeus_live_positions.json"
     upsert_plan(
@@ -83,7 +82,7 @@ def test_ghost_dedup_no_spam(tmp_path, monkeypatch):
     pos_path.write_text(json.dumps({"positions": {}, "ts": 0}), encoding="utf-8")
     flag = tmp_path / "models" / "zeus_ghost_position_warn.json"
     import time
-    flag.write_text(json.dumps({"ETH-USDT": time.time()}), encoding="utf-8")
+    flag.write_text(json.dumps({"ETH-USDT|long": time.time()}), encoding="utf-8")
 
     pos = SimpleNamespace(
         symbol="ETH-USDT", quantity=Decimal("1"), side="long", entry_price=Decimal("3000"),
@@ -150,3 +149,75 @@ def test_entry_save_failure_surfaces_as_ghost_next_tick(tmp_path, monkeypatch):
     assert out["ghosts"][0]["symbol"] == "ADA-USDT"
     assert any(j.get("event") == "ghost_position" for j in journal)
     assert any("ADA-USDT" in m for m in tg)
+
+
+
+def test_ghost_position_detects_unplanned_opposite_hedge_leg(tmp_path, monkeypatch):
+    from astra_bot.decision.live_positions import upsert_plan
+    from scripts import zeus_live_clock as z
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "models").mkdir()
+    pos_path = tmp_path / "models" / "zeus_live_positions.json"
+    upsert_plan(
+        "BTC-USDT",
+        side="long",
+        qty="1",
+        stop="90",
+        entry="100",
+        path=pos_path,
+    )
+
+    long_position = SimpleNamespace(
+        symbol="BTC-USDT",
+        quantity=Decimal("1"),
+        side="long",
+        entry_price=Decimal("100"),
+    )
+    short_position = SimpleNamespace(
+        symbol="BTC-USDT",
+        quantity=Decimal("2"),
+        side="short",
+        entry_price=Decimal("100"),
+    )
+
+    class Client:
+        async def get_positions(self):
+            return [long_position, short_position]
+
+    class Broker:
+        client = Client()
+
+    journal = []
+    sent = []
+
+    async def send_tg(message):
+        sent.append(message)
+
+    with patch(
+        "astra_bot.decision.live_arm_wiring.append_journal",
+        side_effect=lambda row, path=None: journal.append(row),
+    ):
+        result = asyncio.run(
+            z.detect_ghost_positions(
+                Broker(), positions_path=pos_path, send_tg=send_tg
+            )
+        )
+
+    assert result["ghosts"] == [
+        {
+            "symbol": "BTC-USDT",
+            "side": "short",
+            "qty": "2",
+            "entry": "100",
+        }
+    ]
+    assert len(sent) == 1 and "BTC-USDT short" in sent[0]
+    assert any(
+        row.get("event") == "ghost_position" and row.get("side") == "short"
+        for row in journal
+    )
+    state = json.loads(
+        (tmp_path / "models" / "zeus_ghost_position_warn.json").read_text()
+    )
+    assert "BTC-USDT|short" in state
