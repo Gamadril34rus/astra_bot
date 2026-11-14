@@ -61,7 +61,6 @@ jobs:
           ZEUS_LIVE: ${{ secrets.ZEUS_LIVE }}
           ZEUS_VST: "1"
           ZEUS_MAINNET: "0"
-          ZEUS_VST_DISABLE_PERFORMANCE_HALT: "1"
           ZEUS_ARM: ${{ secrets.ZEUS_ARM }}
           ZEUS_RETEST_V1: "shadow"
           ZONE_SHADOW: "1"
