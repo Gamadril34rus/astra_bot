@@ -3,7 +3,8 @@ from __future__ import annotations
 import pytest
 
 from astra_bot.core.exceptions import ExchangeError
-from astra_bot.utils.retry import asyncio as retry_asyncio, retry_async
+from astra_bot.utils.retry import asyncio as retry_asyncio
+from astra_bot.utils.retry import retry_async
 
 
 @pytest.mark.asyncio
