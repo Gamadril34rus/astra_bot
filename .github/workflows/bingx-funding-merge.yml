@@ -56,7 +56,7 @@ jobs:
             --base-dir previous/data/bingx_usdm \
             --supplemental-dir data/bingx_usdm \
             --out-dir data/bingx_funding_merged \
-            --core-symbols ETH-USDT,SOL-USDT,HYPE-USDT,INJ-USDT \
+            --core-symbols BTC-USDT,ETH-USDT,SOL-USDT,HYPE-USDT,INJ-USDT \
             --requested-start 2025-11-13T00:00:00Z \
             --requested-end 2026-11-13T00:00:00Z \
             --require-days 365 \
