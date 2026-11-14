@@ -93,3 +93,42 @@ def test_summary_labels_are_descriptive_only() -> None:
     assert summary["snapshots"] == 1
     assert summary["states"]["price_up_oi_up_taker_buy"]["n_30m"] == 1
     assert "do not reveal participant identity" in summary["warning"]
+
+
+def test_missing_taker_flow_keeps_valid_oi_price_observations() -> None:
+    candles = _candles()
+    candles["quote_volume"] = 0.0
+    candles["taker_buy_volume"] = float("nan")
+    candles["taker_buy_quote_volume"] = float("nan")
+    observations = _oi(
+        [60 * 60_000 + 2 * 60_000, 2 * 60 * 60_000 + 2 * 60_000],
+        [99.0, 100.0],
+    )
+
+    frame = build_symbol_shadow(candles, observations)
+
+    assert len(frame) == 1
+    row = frame.iloc[0]
+    assert row["positioning_state"] == "price_up_oi_up_taker_unknown"
+    assert pd.isna(row["taker_buy_share_pct"])
+    assert pd.isna(row["taker_imbalance_pct"])
+
+    summary = summarize_shadow(frame)
+    assert summary["snapshots"] == 1
+    assert summary["taker_flow_available_snapshots"] == 0
+    assert summary["taker_flow_coverage_pct"] == 0.0
+
+
+def test_candle_files_without_optional_taker_columns_are_accepted(tmp_path) -> None:
+    from scripts.analyze_bingx_positioning_shadow import load_candles
+
+    path = tmp_path / "BTCUSDT_30m.csv"
+    _candles().drop(
+        columns=["quote_volume", "taker_buy_volume", "taker_buy_quote_volume"]
+    ).to_csv(path, index=False)
+
+    frame = load_candles(path)
+
+    assert len(frame) == 12
+    assert frame["taker_buy_volume"].isna().all()
+    assert frame["taker_buy_quote_volume"].isna().all()
