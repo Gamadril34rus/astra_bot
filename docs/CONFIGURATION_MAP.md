@@ -1,6 +1,6 @@
 # Карта конфигурации ASTRA BOT
 
-Срез: **05.11.2026**. Этот документ показывает, где живут настройки разных контуров и какой источник главнее. Он не меняет конфигурацию и не включает никаких режимов.
+Срез: **14.11.2026**. Этот документ показывает, где живут настройки разных контуров и какой источник главнее. Он не меняет конфигурацию и не включает никаких режимов.
 
 ## Главное правило: конфиги не взаимозаменяемы
 
@@ -29,7 +29,7 @@
 | Secret / значение | Где используется | Назначение |
 |---|---|---|
 | `ZEUS_LIVE` | `zeus-live-clock.yml` | Защитный допуск live-clock. Если значение не `1`, шаг guard завершает запуск без live-адаптера. |
-| `ZEUS_VST`, `ZEUS_MAINNET` | `zeus-live-clock.yml` | Выбор среды BingX. Для mainnet необходима явная конфигурация, соответствующая guard в коде; не считать пустой secret разрешением на real. |
+| `ZEUS_VST`, `ZEUS_MAINNET` | `zeus-live-clock.yml` | YAML жёстко задаёт `1` / `0`; mainnet не выбирается Secrets и не разрешён этим workflow. |
 | `ZEUS_ARM` | `zeus-live-clock.yml` | Разрешение arm-входов. Это отдельный флаг от запуска самого clock. |
 | `BINGX_API_KEY`, `BINGX_API_SECRET` | live-clock и COPY_ZEUS archive | Учетные данные BingX. Значения — только в Secrets. Для COPY_ZEUS используются текущие ключи, новый ключ не создаётся. |
 | `TELEGRAM_LIVE_BOT_TOKEN`, `TELEGRAM_ADMIN_ID`, `TELEGRAM_CHAT_ID` | live-clock | Telegram-команды и уведомления live-контура. |
@@ -44,14 +44,14 @@
 На 05.11.2026 `zeus-live-clock.yml` содержит:
 
 - `ENVIRONMENT=live`, но запуск дополнительно защищён secret `ZEUS_LIVE`.
-- VST/mainnet выбираются флагами `ZEUS_VST` и `ZEUS_MAINNET`; значения этих Secrets не видны из репозитория.
+- Live workflow жёстко задаёт `ZEUS_VST=1` и `ZEUS_MAINNET=0`; эти значения не поступают из Secrets.
 - `ZONE_SHADOW=1`, `ZEUS_SESSION_PROFILE=1`.
 - `ZEUS_LIVE_EXIT_ENGINE=on`, хотя default модуля — `shadow`.
 - `ZEUS_LIVE_TRAIL_POLICY=atr`.
 - `ZEUS_LIVE_FORCE_LEVERAGE=6`, `ZEUS_LIVE_MAX_LEVERAGE=10`.
 - `ZEUS_KILL_PF_WINDOW=20`.
 - `ZEUS_PF_SKIP_SCRATCHED=1`.
-- VST-only: `ZEUS_VST=1`, `ZEUS_MAINNET=0`, `ZEUS_VST_DISABLE_PERFORMANCE_HALT=1`; override отключает только автоматические day/week/PF HALT при подтверждённом VST endpoint.
+- VST-only: `ZEUS_VST=1`, `ZEUS_MAINNET=0`; автоматические day/week/PF HALT остаются включёнными. Отдельного VST-обхода HALT нет.
 
 Live workflow запускается через `workflow_dispatch`. Внешний cron-job.org вызывает его примерно раз в 5 минут. GitHub schedule в live workflow отсутствует.
 
