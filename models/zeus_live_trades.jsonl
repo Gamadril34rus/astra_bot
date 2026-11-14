@@ -2672,3 +2672,7 @@
 {"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2121610963895017472", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794666762.183102}
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2121610926452465664", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794667040.7049057}
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2121613458511847424", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794667332.8786387}
+{"event": "qty_reconcile", "symbol": "INJ-USDT", "side": "long", "old_qty": 6620.76271186, "new_qty": 4634.0, "rel_diff": 0.300081, "signal_id": "zeus_channel_boundary|INJ-USDT|long|1794643200000", "ts": 1794667603.2148592}
+{"event": "order_cancel", "symbol": "INJ-USDT", "order_id": "2121610997432672256", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794667623.8623607}
+{"event": "partial_fill", "symbol": "INJ-USDT", "side": "long", "qty": "3376.76271186", "exch_qty": "3244.000", "plan_qty": "6620.76271186", "price": null, "ts": 1794667624.4298682, "source": "be_catchup_qty_gap"}
+{"event": "order_cancel", "symbol": "INJ-USDT", "order_id": "2121615904550248448", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794667661.8900325}
