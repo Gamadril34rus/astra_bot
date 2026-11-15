@@ -3,9 +3,7 @@ name: BingX native 15m order-flow research archive
 on:
   push:
     branches: [research/bingx-15m-orderflow-regimes]
-    # The multi-month public-data download is marker-triggered, not run on every edit.
-    paths:
-      - "research/trigger_bingx_15m_orderflow_archive.txt"
+    # Temporary one-time run to validate the new data archive on the fixed branch head.
   workflow_dispatch:
 
 permissions:
