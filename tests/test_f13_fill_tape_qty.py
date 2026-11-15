@@ -38,6 +38,26 @@ def test_parse_income_fill_only_realized():
     assert f["source"] == "income_tape"
     assert f["pnl"] == -12.5
     assert f["income_id"] == "A"
+    assert f["trade_id"] is None
+    assert f["signal_id"] is None
+
+
+def test_parse_income_fill_preserves_explicit_trade_and_signal_linkage():
+    f = _parse_income_fill(
+        {
+            "_incomeType": "REALIZED_PNL",
+            "income": 4.25,
+            "time": 1_700_000_000_000,
+            "tranId": "INCOME-7",
+            "tradeId": "TRADE-9",
+            "signal_id": "zeus_channel_boundary_4h|BTC-USDT|long",
+        },
+        "BTC-USDT",
+    )
+    assert f is not None
+    assert f["income_id"] == "INCOME-7"
+    assert f["trade_id"] == "TRADE-9"
+    assert f["signal_id"] == "zeus_channel_boundary_4h|BTC-USDT|long"
 
 
 @pytest.mark.asyncio

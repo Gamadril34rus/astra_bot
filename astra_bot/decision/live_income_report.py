@@ -699,6 +699,7 @@ def _parse_income_fill(row: dict, symbol: str) -> dict | None:
         px_f = float(price) if price is not None else None
     except (TypeError, ValueError):
         px_f = None
+    signal_id = row.get("signal_id") or row.get("signalId")
     return {
         "event": "partial_fill",
         "symbol": symbol,
@@ -709,6 +710,9 @@ def _parse_income_fill(row: dict, symbol: str) -> dict | None:
         "pnl": amount,
         "income_type": it,
         "income_id": _income_row_id(row),
+        # Preserve only explicit exchange/internal linkage; never infer by symbol/time.
+        "trade_id": _income_trade_id(row),
+        "signal_id": str(signal_id).strip() if signal_id is not None and str(signal_id).strip() else None,
         "source": "income_tape",
         "ts": ts,
     }
