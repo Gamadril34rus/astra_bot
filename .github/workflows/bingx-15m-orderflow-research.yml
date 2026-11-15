@@ -1,0 +1,72 @@
+name: BingX native 15m order-flow research archive
+
+on:
+  push:
+    branches: [research/bingx-15m-orderflow-regimes]
+    # The multi-month public-data download is marker-triggered, not run on every edit.
+    paths:
+      - "research/trigger_bingx_15m_orderflow_archive.txt"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: bingx-15m-orderflow-regimes
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.11"
+      - name: Install research checks
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest ruff
+      - name: Unit tests and lint
+        run: |
+          python -m pytest tests/unit/test_archive_bingx_15m_orderflow.py -q
+          python -m ruff check scripts/archive_bingx_15m_orderflow.py tests/unit/test_archive_bingx_15m_orderflow.py
+      - name: Download prior immutable BingX 1m/15m/1h OHLCV archive for cross-check
+        uses: actions/download-artifact@v4
+        with:
+          name: bingx-usdm-1m-12m-ef6627ec256ba9be32ae8caaf16a8213618af4b5
+          repository: \${{ github.repository }}
+          run-id: 43589812031
+          github-token: \${{ secrets.GITHUB_TOKEN }}
+          path: legacy
+      - name: Download verified 365-day BingX historical funding
+        uses: actions/download-artifact@v4
+        with:
+          name: bingx-usdm-funding-merged-63fcfec57e4104bcb1449a75bb22debc81c28819
+          repository: \${{ github.repository }}
+          run-id: 43595094141
+          github-token: \${{ secrets.GITHUB_TOKEN }}
+          path: funding
+      - name: Download native BingX 15m/1h candles with quote volume and taker-buy fields
+        run: |
+          python -m scripts.archive_bingx_15m_orderflow \
+            --start-date 2025-11-13 \
+            --end-date 2026-11-13 \
+            --qps 0.8 \
+            --out-dir data/bingx_usdm_orderflow \
+            --legacy-dir legacy \
+            --funding-dir funding \
+            --legacy-run-id 43589812031 \
+            --funding-run-id 43595094141
+      - name: Upload immutable native BingX order-flow research evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bingx-usdm-15m-orderflow-\${{ github.sha }}
+          path: |
+            data/bingx_usdm_orderflow/
+            funding/
+          if-no-files-found: warn
+          retention-days: 90
