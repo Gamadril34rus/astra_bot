@@ -8,6 +8,7 @@ import pytest
 from scripts import research_adaptive_perp_portfolio as core
 from scripts.research_bingx_session_vwap import (
     _assert_same_population,
+    _fresh_oos_window,
     _oos_gate,
     _period_signal,
     _screen_passes,
@@ -386,4 +387,21 @@ def test_symbol_input_hashes_match_bingx_manifests(tmp_path) -> None:
         _verify_symbol_input_hashes(
             "BTC-USDT", archive_dir, data_dir, candle_meta, funding_meta, complete_days=1
         )
+
+
+def test_fresh_oos_waits_for_90_days_after_retired_holdout() -> None:
+    frozen_start = int(pd.Timestamp("2025-11-13T00:00:00Z").timestamp() * 1000)
+    fresh_start = int(pd.Timestamp("2026-11-13T00:00:00Z").timestamp() * 1000)
+    short_end = fresh_start + 89 * 86_400_000
+    window, days = _fresh_oos_window(frozen_start, short_end)
+    assert window is None
+    assert days == pytest.approx(89.0)
+
+    long_end = fresh_start + 90 * 86_400_000
+    window, days = _fresh_oos_window(frozen_start, long_end)
+    assert window == (fresh_start, long_end)
+    assert days == pytest.approx(90.0)
+
+    with pytest.raises(ValueError, match="frozen BingX research window start"):
+        _fresh_oos_window(frozen_start + 1, long_end)
 
