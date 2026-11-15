@@ -38,7 +38,7 @@ class BingXVolumeImpactTests(unittest.TestCase):
 
     def test_trend_continuation_requires_volume_and_hourly_trend_alignment(self) -> None:
         rows = []
-        for i in range(5):
+        for i in range(6):
             rows.append({
                 "atr14": 1.0, "h1_adx14": 28.0, "h1_ema20": 105.0, "h1_ema50": 100.0,
                 "h1_ema20_rising": True, "h1_ema20_falling": False,
@@ -72,14 +72,15 @@ class BingXVolumeImpactTests(unittest.TestCase):
              "body_atr": 0.3, "close_location": 0.85, "close": 103.0,
              "low": 102.0, "high": 103.2},
         ]
+        rows.append(dict(rows[-1]))
         signal = choose_volume_absorption_release(pd.DataFrame(rows), 3)
         self.assertIsNotNone(signal)
         self.assertEqual(signal["family"], "VOLUME_ABSORPTION_RELEASE")
         self.assertEqual(signal["side"], 1)
 
     def test_router_stays_flat_in_neutral_adx_band(self) -> None:
-        frame = pd.DataFrame([{"h1_adx14": 20.0}])
-        self.assertIsNone(choose_volume_regime_router(frame, 0))
+        frame = pd.DataFrame([{"h1_adx14": 20.0}, {"h1_adx14": 20.0}])
+        self.assertIsNone(choose_volume_regime_router(frame, 1))
 
 
 if __name__ == "__main__":
