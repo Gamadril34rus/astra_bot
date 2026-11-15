@@ -3,7 +3,6 @@ from __future__ import annotations
 import unittest
 
 import pandas as pd
-
 from scripts.research_bingx_volume_impact import (
     add_volume_features,
     choose_volume_absorption_release,
