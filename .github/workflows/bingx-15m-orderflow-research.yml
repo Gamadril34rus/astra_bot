@@ -31,7 +31,7 @@ jobs:
           python -m pip install pytest ruff
       - name: Unit tests and lint
         run: |
-          python -m pytest tests/unit/test_archive_bingx_15m_orderflow.py -q
+          python -m pytest tests/unit/test_archive_bingx_15m_orderflow.py -q --confcutdir=tests/unit
           python -m ruff check scripts/archive_bingx_15m_orderflow.py tests/unit/test_archive_bingx_15m_orderflow.py
       - name: Download prior immutable BingX 1m/15m/1h OHLCV archive for cross-check
         uses: actions/download-artifact@v4
