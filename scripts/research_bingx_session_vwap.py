@@ -27,6 +27,12 @@ MIN_POSITIVE_MONTH_SHARE_PCT = 70.0
 MAX_REALIZED_EQUAL_NOTIONAL_DRAWDOWN_PCT = 10.0
 MAX_TRADE_SEQUENCE_DRAWDOWN_PCT = 20.0
 
+FROZEN_WINDOW_START_UTC = "2025-11-13T00:00:00+00:00"
+FROZEN_VALIDATION_START_UTC = "2026-06-20T00:00:00+00:00"
+FROZEN_VALIDATION_END_UTC = "2026-09-01T00:00:00+00:00"
+FRESH_OOS_START_UTC = "2026-11-13T00:00:00+00:00"
+MIN_FRESH_OOS_DAYS = 90.0
+
 EXTREME_DEVIATION_ATR = 1.25
 RECLAIM_MIN_DEVIATION_ATR = 0.15
 RECLAIM_MAX_DEVIATION_ATR = 0.75
@@ -42,6 +48,20 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _fresh_oos_window(common_start_ms: int, common_end_ms: int) -> tuple[tuple[int, int] | None, float]:
+    """Return only a forward OOS window after the retired historical holdout."""
+    frozen_start_ms = int(pd.Timestamp(FROZEN_WINDOW_START_UTC).timestamp() * 1000)
+    fresh_start_ms = int(pd.Timestamp(FRESH_OOS_START_UTC).timestamp() * 1000)
+    if common_start_ms != frozen_start_ms:
+        raise ValueError("the frozen BingX research window start changed")
+    if common_end_ms <= fresh_start_ms:
+        return None, 0.0
+    days = (common_end_ms - fresh_start_ms) / 86_400_000
+    if days < MIN_FRESH_OOS_DAYS:
+        return None, days
+    return (fresh_start_ms, common_end_ms), days
 
 
 def add_session_features(m15: pd.DataFrame, h1: pd.DataFrame) -> pd.DataFrame:
@@ -496,14 +516,27 @@ def run_research(args: argparse.Namespace) -> dict[str, Any]:
         )
     common_start_ms = int(pd.Timestamp(common["common_start_utc"]).timestamp() * 1000)
     common_end_ms = int(pd.Timestamp(common["common_end_utc"]).timestamp() * 1000)
-    span = common_end_ms - common_start_ms
-    validation_start_ms = common_start_ms + int(span * 0.60)
-    oos_start_ms = common_start_ms + int(span * 0.80)
+    frozen_start_ms = int(pd.Timestamp(FROZEN_WINDOW_START_UTC).timestamp() * 1000)
+    validation_start_ms = int(pd.Timestamp(FROZEN_VALIDATION_START_UTC).timestamp() * 1000)
+    validation_end_ms = int(pd.Timestamp(FROZEN_VALIDATION_END_UTC).timestamp() * 1000)
+    fresh_oos_start_ms = int(pd.Timestamp(FRESH_OOS_START_UTC).timestamp() * 1000)
+    if common_start_ms != frozen_start_ms or common_end_ms < validation_end_ms:
+        raise ValueError("verified BingX history does not cover the frozen IS/validation window")
+    if not common_start_ms < validation_start_ms < validation_end_ms < fresh_oos_start_ms:
+        raise ValueError("frozen chronological split boundaries are invalid")
+    fresh_oos_window, fresh_oos_days = _fresh_oos_window(common_start_ms, common_end_ms)
+    oos_start_ms = fresh_oos_window[0] if fresh_oos_window else fresh_oos_start_ms
+    oos_end_ms = fresh_oos_window[1] if fresh_oos_window else common_end_ms
     boundaries = {
         "is_start": pd.to_datetime(common_start_ms, unit="ms", utc=True).isoformat(),
         "validation_start": pd.to_datetime(validation_start_ms, unit="ms", utc=True).isoformat(),
-        "oos_start": pd.to_datetime(oos_start_ms, unit="ms", utc=True).isoformat(),
-        "oos_end": pd.to_datetime(common_end_ms, unit="ms", utc=True).isoformat(),
+        "validation_end": pd.to_datetime(validation_end_ms, unit="ms", utc=True).isoformat(),
+        "retired_historical_oos_start": pd.to_datetime(validation_end_ms, unit="ms", utc=True).isoformat(),
+        "retired_historical_oos_end": pd.to_datetime(fresh_oos_start_ms, unit="ms", utc=True).isoformat(),
+        "fresh_oos_start": pd.to_datetime(fresh_oos_start_ms, unit="ms", utc=True).isoformat(),
+        "fresh_oos_end": pd.to_datetime(common_end_ms, unit="ms", utc=True).isoformat(),
+        "fresh_oos_days_available": round(fresh_oos_days, 2),
+        "minimum_fresh_oos_days": MIN_FRESH_OOS_DAYS,
     }
 
     base_costs = dict(BASE_COSTS)
@@ -522,7 +555,7 @@ def run_research(args: argparse.Namespace) -> dict[str, Any]:
     }
     periods = {
         "IS": (common_start_ms, validation_start_ms),
-        "VALIDATION": (validation_start_ms, oos_start_ms),
+        "VALIDATION": (validation_start_ms, validation_end_ms),
     }
     for cost_case, costs in (("base", base_costs), ("stress_1_5x", stress_costs)):
         for period, (period_start, period_end) in periods.items():
@@ -615,7 +648,7 @@ def run_research(args: argparse.Namespace) -> dict[str, Any]:
             "session_vwap": "cumulative from current UTC session using only completed 15m bars",
             "volume_baseline": "prior 20 closed 15m bars; current signal bar excluded from denominator",
             "funding": "actual BingX settlement timestamps; no forward-fill or imputation",
-            "split_boundary": "each period simulated separately; trades crossing a split boundary are excluded",
+            "split_boundary": "IS and validation are clipped at fixed exclusive ends; the 2026-09-01 to 2026-11-13 historical OOS is retired and never used for promotion; fresh OOS starts 2026-11-13",
         },
         "screen": screen,
         "screen_diagnostics": screen_diagnostics,
@@ -632,16 +665,16 @@ def run_research(args: argparse.Namespace) -> dict[str, Any]:
         ),
     }
 
-    if screen_passed:
+    if screen_passed and fresh_oos_window is not None:
         oos_base, diag_base = _simulate_period(
-            prepared, oos_start_ms, common_end_ms, base_costs
+            prepared, oos_start_ms, oos_end_ms, base_costs
         )
         oos_stress, diag_stress = _simulate_period(
-            prepared, oos_start_ms, common_end_ms, stress_costs
+            prepared, oos_start_ms, oos_end_ms, stress_costs
         )
-        _assert_same_population(oos_base, oos_stress, "OOS replay")
-        oos_base_summary = _summary(oos_base, oos_start_ms, common_end_ms)
-        oos_stress_summary = _summary(oos_stress, oos_start_ms, common_end_ms)
+        _assert_same_population(oos_base, oos_stress, "fresh OOS replay")
+        oos_base_summary = _summary(oos_base, oos_start_ms, oos_end_ms)
+        oos_stress_summary = _summary(oos_stress, oos_start_ms, oos_end_ms)
         long_count = int((oos_base["side"] == "LONG").sum()) if not oos_base.empty else 0
         short_count = int((oos_base["side"] == "SHORT").sum()) if not oos_base.empty else 0
         gate = _oos_gate(oos_base_summary, oos_stress_summary, long_count, short_count)
@@ -657,10 +690,22 @@ def run_research(args: argparse.Namespace) -> dict[str, Any]:
         )
         oos_base.to_csv(args.out_dir / "trades_oos_base.csv", index=False)
         oos_stress.to_csv(args.out_dir / "trades_oos_stress_1_5x.csv", index=False)
+    elif screen_passed:
+        report["status"] = "IS_VALIDATION_PASS_FRESH_OOS_PENDING"
+        report["oos"] = {
+            "status": "UNOPENED",
+            "reason": (
+                f"fresh OOS has {fresh_oos_days:.1f} days; {MIN_FRESH_OOS_DAYS:.0f} days are required. "
+                "The 2026-09-01 to 2026-11-13 historical holdout is retired."
+            ),
+        }
     else:
         report["oos"] = {
             "status": "UNOPENED",
-            "reason": "IS/validation screen failed; OOS data was not simulated or summarized",
+            "reason": (
+                "IS/validation screen failed; OOS was not simulated. "
+                "The 2026-09-01 to 2026-11-13 historical holdout is retired."
+            ),
         }
 
     (args.out_dir / "summary.json").write_text(
