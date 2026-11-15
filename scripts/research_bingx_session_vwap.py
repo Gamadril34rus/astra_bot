@@ -638,6 +638,14 @@ def run_research(args: argparse.Namespace) -> dict[str, Any]:
                 "source_artifacts": funding_manifest.get("source_artifacts"),
                 "core_common_window": funding_window,
             },
+            "retired_historical_oos": {
+                "start_utc": FROZEN_VALIDATION_END_UTC,
+                "end_utc": FRESH_OOS_START_UTC,
+                "reason": (
+                    "an exploratory raw-signal diagnostic traversed this historical window; "
+                    "it is excluded from future candidate selection and promotion"
+                ),
+            },
             "input_hashes": source_hashes,
             "volume_source": "BingX base-asset volume only; quote volume, trade count and taker-buy fields are not assumed",
         },
