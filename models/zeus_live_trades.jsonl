@@ -2723,3 +2723,4 @@
 {"event":"partial_fill","symbol":"BTC-USDT","side":null,"position_side":null,"qty":null,"price":null,"pnl":27.0637,"income_type":"REALIZED_PNL","income_id":"1794554371927782975_512_100841_PNL","source":"income_tape","ts":1794728875.0}
 {"event":"partial_fill","symbol":"ETH-USDT","side":null,"position_side":null,"qty":null,"price":null,"pnl":-15.30216,"income_type":"REALIZED_PNL","income_id":"1794554371927782975_512_101045_PNL","source":"income_tape","ts":1794729152.0}
 {"event":"exit","symbol":"SOL-USDT","side":"short","entry":70.188,"exit":null,"exit_reason":"no_fills","pnl":-21.09245,"signal_id":"zeus_channel_boundary|SOL-USDT|short|1794700800000","ts":1794748015.9027424,"pnl_source":"income_backfill","backfill_ts":1794748669.6292045}
+{"event": "exit", "symbol": "BTC-USDT", "side": "short", "entry": 63945.1, "exit": null, "exit_reason": "no_fills", "pnl": null, "signal_id": "zeus_channel_boundary|BTC-USDT|short|1794700800000", "ts": 1794750409.8500738}
