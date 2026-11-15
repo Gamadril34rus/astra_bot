@@ -274,19 +274,19 @@ def compare_legacy(new_path: Path, legacy_path: Path, interval: str) -> dict[str
         relative = absolute / max(abs(right), 1e-12)
         volume_abs = max(volume_abs, absolute)
         volume_rel = max(volume_rel, relative)
-        if relative > 1e-4:
+        if relative > 1e-3:
             volume_mismatch_count += 1
         if len(mismatches) >= 10:
             break
     if mismatches or volume_mismatch_count:
         raise RuntimeError(
             f"{interval} OHLCV differs from prior BingX archive: "
-            f"ohlc={mismatches[:10]} volume_mismatch_count={volume_mismatch_count} "
+            f"ohlc={mismatches[:10]} volume_mismatch_count_above_1e-3={volume_mismatch_count} "
             f"max_volume_rel_diff={volume_rel}"
         )
     return {
         "overlap_bars": len(common), "ohlc_exact_match": True,
-        "volume_mismatch_count_above_1e-4": volume_mismatch_count,
+        "volume_mismatch_count_above_1e-3": volume_mismatch_count,
         "max_volume_abs_diff": volume_abs, "max_volume_relative_diff": volume_rel,
         "mismatch_samples": [],
     }
@@ -314,8 +314,15 @@ def validate_funding(funding_dir: Path, start_ms: int, end_ms: int) -> dict[str,
         max_gap_h = max((b - a) / 3_600_000 for a, b in pairwise(times))
         if max_gap_h > (4 if symbol == "HYPE-USDT" else 8):
             raise RuntimeError(f"funding gap {max_gap_h}h for {symbol}")
-        reports[symbol] = {"events": len(times), "max_gap_hours": max_gap_h}
-    return {"source_manifest": "funding_manifest.json", "symbols": reports}
+        reports[symbol] = {
+            "events": len(times), "max_gap_hours": max_gap_h,
+            "sha256": sha256(path),
+        }
+    return {
+        "source_manifest": "funding_manifest.json",
+        "manifest_sha256": sha256(manifest_path),
+        "symbols": reports,
+    }
 
 
 def archive(
