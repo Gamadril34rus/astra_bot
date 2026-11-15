@@ -9,6 +9,7 @@ from scripts.research_bingx_session_vwap import (
     _oos_gate,
     _period_signal,
     _screen_passes,
+    _simulate_period,
     add_session_features,
     choose_session_vwap_signal,
 )
@@ -239,3 +240,93 @@ def test_base_and_stress_cost_cases_must_share_trade_population() -> None:
     stress.loc[0, "exit_time"] = 201
     with pytest.raises(RuntimeError, match="identical trade population"):
         _assert_same_population(base, stress, "test")
+
+
+def test_period_simulation_clips_future_candles_and_funding(monkeypatch) -> None:
+    observed: list[tuple[int, int]] = []
+
+    def fake_simulate(
+        _symbol,
+        features,
+        funding,
+        _fee,
+        _spread,
+        _slippage,
+        **_kwargs,
+    ):
+        observed.append((
+            int(features["decision_time"].max()),
+            int(funding["funding_time"].max()),
+        ))
+        return []
+
+    monkeypatch.setattr(core, "simulate_symbol", fake_simulate)
+    features = pd.DataFrame({
+        "open_time": [0, 900_000, 1_800_000, 2_700_000],
+        "decision_time": [900_000, 1_800_000, 2_700_000, 3_600_000],
+    })
+    funding = pd.DataFrame({
+        "funding_time": [0, 900_000, 1_800_000, 2_700_000, 3_600_000],
+        "rate": [0.0] * 5,
+    })
+    _simulate_period(
+        [("ETH-USDT", features, funding)],
+        start_ms=900_000,
+        end_ms=2_700_000,
+        costs={"fee_bps_per_side": 5.0, "spread_bps_per_side": 1.25, "slippage_bps_per_side": 2.0},
+    )
+    assert observed == [(2_700_000, 2_700_000)]
+
+
+def test_funding_settlement_at_entry_is_not_charged() -> None:
+    interval = 900_000
+    count = 160
+    open_times = np.arange(count, dtype=np.int64) * interval
+    bars = pd.DataFrame({
+        "open_time": open_times,
+        "decision_time": open_times + interval,
+        "open": np.full(count, 100.0),
+        "high": np.full(count, 100.5),
+        "low": np.full(count, 99.5),
+        "close": np.full(count, 100.0),
+        "atr14": np.full(count, 1.0),
+    })
+    signal_index = 120
+    bars.loc[signal_index + 1, "high"] = 102.0
+    bars.loc[signal_index + 1, "close"] = 101.0
+    entry_time = int(open_times[signal_index + 1])
+    exit_time = entry_time + interval
+    funding_times = np.array([
+        0,
+        8 * 3_600_000,
+        16 * 3_600_000,
+        24 * 3_600_000,
+        entry_time,
+        exit_time,
+        32 * 3_600_000,
+    ], dtype=np.int64)
+    funding = pd.DataFrame({
+        "funding_time": funding_times,
+        "rate": [0.0, 0.0, 0.0, 0.0, 0.001, 0.0002, 0.0],
+    })
+
+    def pick(_features: pd.DataFrame, index: int):
+        if index == signal_index:
+            return {"family": "TEST", "side": 1, "stop": 99.0, "target_price": 101.0}
+        return None
+
+    trades = core.simulate_symbol(
+        "ETH-USDT",
+        bars,
+        funding,
+        fee_bps=0.0,
+        spread_bps=0.0,
+        slippage_bps=0.0,
+        bar_minutes=15,
+        signal_fn=pick,
+    )
+    assert len(trades) == 1
+    assert trades[0]["entry_time"] == entry_time
+    assert trades[0]["exit_time"] == exit_time
+    assert trades[0]["funding_pct"] == pytest.approx(0.02)
+
