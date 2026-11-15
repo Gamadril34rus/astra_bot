@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import numpy as np
 import pandas as pd
 import pytest
@@ -10,6 +11,7 @@ from scripts.research_bingx_session_vwap import (
     _period_signal,
     _screen_passes,
     _simulate_period,
+    _verify_symbol_input_hashes,
     add_session_features,
     choose_session_vwap_signal,
 )
@@ -329,4 +331,58 @@ def test_funding_settlement_at_entry_is_not_charged() -> None:
     assert trades[0]["entry_time"] == entry_time
     assert trades[0]["exit_time"] == exit_time
     assert trades[0]["funding_pct"] == pytest.approx(0.02)
+
+
+def test_symbol_input_hashes_match_bingx_manifests(tmp_path) -> None:
+    archive_dir = tmp_path / "archive"
+    data_dir = tmp_path / "data"
+    archive_dir.mkdir()
+    data_dir.mkdir()
+    paths = {
+        "1m": archive_dir / "BTCUSDT_1m.csv",
+        "15m": data_dir / "BTCUSDT_15m.csv",
+        "1h": data_dir / "BTCUSDT_1h.csv",
+        "funding": data_dir / "funding_BTCUSDT.csv",
+    }
+    for label, path in paths.items():
+        path.write_bytes(f"verified-{label}".encode())
+    digest = {
+        label: hashlib.sha256(path.read_bytes()).hexdigest()
+        for label, path in paths.items()
+    }
+    candle_meta = {
+        "missing_minute_bars": 0,
+        "duplicate_minute_bars": 0,
+        "one_minute_rows": 1440,
+        "merged_15m_rows": 96,
+        "merged_1h_rows": 24,
+        "one_minute_sha256": digest["1m"],
+        "merged_15m_sha256": digest["15m"],
+        "merged_1h_sha256": digest["1h"],
+        "native_overlap_splice": {
+            "15m": {"source_policy": "BingX native 15m bars override matching timestamps"},
+            "1h": {"source_policy": "BingX native 1h bars override matching timestamps"},
+        },
+    }
+    funding_meta = {
+        "sha256": digest["funding"],
+        "cadence_ok": True,
+        "requested_window_edges_ok": True,
+        "coverage_days_in_requested_window": 1.0,
+    }
+    result = _verify_symbol_input_hashes(
+        "BTC-USDT", archive_dir, data_dir, candle_meta, funding_meta, complete_days=1
+    )
+    assert result == {
+        "1m_sha256": digest["1m"],
+        "15m_sha256": digest["15m"],
+        "1h_sha256": digest["1h"],
+        "funding_sha256": digest["funding"],
+    }
+
+    candle_meta["merged_15m_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="15m SHA-256"):
+        _verify_symbol_input_hashes(
+            "BTC-USDT", archive_dir, data_dir, candle_meta, funding_meta, complete_days=1
+        )
 
