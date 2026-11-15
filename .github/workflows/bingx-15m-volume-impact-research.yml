@@ -1,0 +1,66 @@
+name: BingX 15m volume-impact IS and validation research
+
+on:
+  push:
+    branches: [research/bingx-15m-volume-impact]
+    paths:
+      - "scripts/research_bingx_volume_impact.py"
+      - "tests/unit/test_research_bingx_volume_impact.py"
+      - ".github/workflows/bingx-15m-volume-impact-research.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: bingx-15m-volume-impact-research
+  cancel-in-progress: false
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.11"
+      - name: Install research dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy pandas pytest ruff
+      - name: Unit tests and lint
+        run: |
+          python -m pytest tests/unit/test_research_bingx_volume_impact.py -q --confcutdir=tests/unit
+          python -m ruff check scripts/research_bingx_volume_impact.py tests/unit/test_research_bingx_volume_impact.py
+      - name: Download immutable BingX USDT-M 365-day OHLCV archive
+        uses: actions/download-artifact@v4
+        with:
+          name: bingx-usdm-1m-12m-ef6627ec256ba9be32ae8caaf16a8213618af4b5
+          repository: ${{ github.repository }}
+          run-id: 43589812031
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: candles
+      - name: Download verified BingX 365-day historical funding
+        uses: actions/download-artifact@v4
+        with:
+          name: bingx-usdm-funding-merged-63fcfec57e4104bcb1449a75bb22debc81c28819
+          repository: ${{ github.repository }}
+          run-id: 43595094141
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: funding
+      - name: Run frozen IS and validation screens only
+        run: |
+          python -m scripts.research_bingx_volume_impact \
+            --data-dir candles \
+            --funding-dir funding \
+            --out-dir reports/bingx_volume_impact
+      - name: Upload immutable IS/validation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bingx-volume-impact-research-${{ github.sha }}
+          path: reports/bingx_volume_impact/
+          if-no-files-found: warn
+          retention-days: 90
