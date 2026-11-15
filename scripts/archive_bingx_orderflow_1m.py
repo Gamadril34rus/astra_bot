@@ -11,7 +11,8 @@ import csv
 import hashlib
 import json
 import time
-from datetime import UTC, date, datetime, time as dt_time
+from datetime import UTC, date, datetime
+from datetime import time as dt_time
 from decimal import Decimal, InvalidOperation
 from itertools import pairwise
 from pathlib import Path
