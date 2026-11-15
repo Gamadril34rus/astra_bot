@@ -343,8 +343,10 @@ def simulate_symbol(
         fee_cost = 2 * fee_bps / 10_000
         spread_cost = 2 * spread_bps / 10_000
         slippage_cost = 2 * slippage_bps / 10_000
+        # A position opened exactly at a settlement timestamp is opened after
+        # that settlement snapshot; charge only later settlements crossed.
         crossed = funding[
-            (funding["funding_time"] >= entry_time)
+            (funding["funding_time"] > entry_time)
             & (funding["funding_time"] <= exit_time)
         ]
         funding_cost = funding_cost_fraction(side, crossed["rate"])
