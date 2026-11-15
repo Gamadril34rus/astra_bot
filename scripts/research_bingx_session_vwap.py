@@ -335,23 +335,93 @@ def _load_provenance(path: Path, expected_market: str) -> dict[str, Any]:
     }
 
 
+def _verify_symbol_input_hashes(
+    symbol: str,
+    archive_dir: Path,
+    data_dir: Path,
+    candle_meta: dict[str, Any],
+    funding_meta: dict[str, Any],
+    complete_days: int,
+) -> dict[str, str]:
+    """Bind every used CSV to its immutable BingX archive manifest."""
+    stem = symbol.replace("-", "")
+    paths = {
+        "1m": archive_dir / f"{stem}_1m.csv",
+        "15m": data_dir / f"{stem}_15m.csv",
+        "1h": data_dir / f"{stem}_1h.csv",
+        "funding": data_dir / f"funding_{stem}.csv",
+    }
+    for label, path in paths.items():
+        if not path.is_file():
+            raise FileNotFoundError(f"{symbol}: missing {label} provenance input: {path}")
+    if int(candle_meta.get("missing_minute_bars", -1)) != 0:
+        raise ValueError(f"{symbol}: BingX 1m archive reports missing minute bars")
+    if int(candle_meta.get("duplicate_minute_bars", -1)) != 0:
+        raise ValueError(f"{symbol}: BingX 1m archive reports duplicate minute bars")
+    if int(candle_meta.get("one_minute_rows", 0)) != complete_days * 1440:
+        raise ValueError(f"{symbol}: BingX 1m row count does not match complete UTC days")
+    if int(candle_meta.get("merged_15m_rows", 0)) != complete_days * 96:
+        raise ValueError(f"{symbol}: merged BingX 15m row count is incomplete")
+    if int(candle_meta.get("merged_1h_rows", 0)) != complete_days * 24:
+        raise ValueError(f"{symbol}: merged BingX 1h row count is incomplete")
+    for timeframe in ("15m", "1h"):
+        splice = candle_meta.get("native_overlap_splice", {}).get(timeframe, {})
+        policy = str(splice.get("source_policy", ""))
+        if "BingX native" not in policy or "override" not in policy:
+            raise ValueError(f"{symbol}: {timeframe} native-overlap source policy is not verified")
+    if not funding_meta.get("cadence_ok") or not funding_meta.get("requested_window_edges_ok"):
+        raise ValueError(f"{symbol}: funding manifest does not prove cadence and window edges")
+    if float(funding_meta.get("coverage_days_in_requested_window", 0.0)) < complete_days:
+        raise ValueError(f"{symbol}: funding coverage is shorter than the candle window")
+    expected = {
+        "1m": candle_meta.get("one_minute_sha256"),
+        "15m": candle_meta.get("merged_15m_sha256"),
+        "1h": candle_meta.get("merged_1h_sha256"),
+        "funding": funding_meta.get("sha256"),
+    }
+    actual = {label: _sha256(path) for label, path in paths.items()}
+    for label, digest in expected.items():
+        if not digest or actual[label] != digest:
+            raise ValueError(f"{symbol}: {label} SHA-256 does not match its BingX manifest")
+    return {f"{label}_sha256": digest for label, digest in actual.items()}
+
+
 def run_research(args: argparse.Namespace) -> dict[str, Any]:
     candle_provenance = _load_provenance(args.candle_manifest, "USDT-M perpetual swaps")
     funding_provenance = _load_provenance(args.funding_manifest, "USDT-M perpetual swaps")
     candle_manifest = candle_provenance["manifest"]
     funding_manifest = funding_provenance["manifest"]
-    if int(candle_manifest.get("complete_utc_days", 0)) < 365:
+    complete_days = int(candle_manifest.get("complete_utc_days", 0))
+    if complete_days < 365:
         raise ValueError("BingX 1m source archive does not contain 365 complete UTC days")
+    if candle_manifest.get("source_endpoint") != "/openApi/swap/v3/quote/klines":
+        raise ValueError("candle provenance does not identify the BingX swap kline endpoint")
+    if funding_manifest.get("source_endpoint") != "/openApi/swap/v2/quote/fundingRate":
+        raise ValueError("funding provenance does not identify the BingX swap funding endpoint")
+    if (
+        candle_manifest.get("requested_start_utc") != funding_manifest.get("requested_start_utc")
+        or candle_manifest.get("exclusive_end_utc") != funding_manifest.get("requested_end_utc")
+    ):
+        raise ValueError("candle and funding manifests do not share identical UTC window edges")
     funding_window = funding_manifest.get("core_common_window", {})
     if set(funding_manifest.get("promotion_core_symbols", [])) != set(args.symbols):
         raise ValueError("funding manifest promotion cohort does not match the requested symbol cohort")
-    if not set(args.symbols).issubset(set(candle_manifest.get("symbols", []))):
+    if not set(args.symbols).issubset(set(candle_manifest.get("symbols", {}))):
         raise ValueError("candle manifest does not contain every requested BingX symbol")
     if (
         not funding_window.get("covers_required_days")
         or not funding_window.get("all_symbols_cadence_and_edges_ok")
     ):
         raise ValueError("merged BingX funding manifest does not prove the required common window")
+    if (
+        funding_window.get("start_utc") != candle_manifest.get("requested_start_utc")
+        or funding_window.get("end_utc") != candle_manifest.get("exclusive_end_utc")
+    ):
+        raise ValueError("funding common window does not match the 365-day candle window")
+    funding_reports = {
+        item["symbol"]: item for item in funding_manifest.get("reports", [])
+        if isinstance(item, dict) and item.get("symbol")
+    }
 
     prepared: list[tuple[str, pd.DataFrame, pd.DataFrame]] = []
     coverage: dict[str, dict[str, Any]] = {}
@@ -361,15 +431,34 @@ def run_research(args: argparse.Namespace) -> dict[str, Any]:
         m15_path = args.data_dir / f"{stem}_15m.csv"
         h1_path = args.data_dir / f"{stem}_1h.csv"
         funding_path = args.data_dir / f"funding_{stem}.csv"
-        for path in (m15_path, h1_path, funding_path):
-            if not path.is_file():
-                raise FileNotFoundError(f"required BingX research input is missing: {path}")
+        candle_meta = candle_manifest["symbols"][symbol]
+        funding_meta = funding_reports.get(symbol)
+        if funding_meta is None:
+            raise ValueError(f"{symbol}: funding manifest report is missing")
+        source_hashes[symbol] = _verify_symbol_input_hashes(
+            symbol,
+            args.candle_manifest.parent,
+            args.data_dir,
+            candle_meta,
+            funding_meta,
+            complete_days,
+        )
         m15 = core.load_bars(m15_path, "15m")
         h1 = core.load_bars(h1_path, "1h")
+        if len(m15) != int(candle_meta["merged_15m_rows"]):
+            raise ValueError(f"{symbol}: merged BingX 15m row count differs from manifest")
+        if len(h1) != int(candle_meta["merged_1h_rows"]):
+            raise ValueError(f"{symbol}: merged BingX 1h row count differs from manifest")
         raw_funding = core.load_funding(funding_path, symbol)
         funding, excluded = core.latest_contiguous_funding_segment(raw_funding)
         if funding.empty:
             raise ValueError(f"{symbol}: no contiguous BingX funding segment")
+        if (
+            int(funding["funding_time"].iloc[0]) != int(funding_meta["latest_segment_start_ms"])
+            or int(funding["funding_time"].iloc[-1]) != int(funding_meta["latest_segment_end_ms"])
+            or len(funding) != int(funding_meta["events_latest_segment"])
+        ):
+            raise ValueError(f"{symbol}: selected funding segment differs from verified manifest")
         recent_gaps = np.diff(funding["funding_time"].to_numpy(dtype="int64")) / 3_600_000
         if len(recent_gaps):
             median_gap = float(np.median(recent_gaps[-min(200, len(recent_gaps)):]))
@@ -398,11 +487,6 @@ def run_research(args: argparse.Namespace) -> dict[str, Any]:
             "funding_max_gap_hours": (
                 round(float(recent_gaps.max()), 4) if len(recent_gaps) else None
             ),
-        }
-        source_hashes[symbol] = {
-            "15m_sha256": _sha256(m15_path),
-            "1h_sha256": _sha256(h1_path),
-            "funding_sha256": _sha256(funding_path),
         }
 
     common = core.common_15m_coverage_window(coverage, "15m")
