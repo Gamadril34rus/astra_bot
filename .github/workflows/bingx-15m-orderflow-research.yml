@@ -37,17 +37,17 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: bingx-usdm-1m-12m-ef6627ec256ba9be32ae8caaf16a8213618af4b5
-          repository: \${{ github.repository }}
+          repository: ${{ github.repository }}
           run-id: 43589812031
-          github-token: \${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           path: legacy
       - name: Download verified 365-day BingX historical funding
         uses: actions/download-artifact@v4
         with:
           name: bingx-usdm-funding-merged-63fcfec57e4104bcb1449a75bb22debc81c28819
-          repository: \${{ github.repository }}
+          repository: ${{ github.repository }}
           run-id: 43595094141
-          github-token: \${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           path: funding
       - name: Download native BingX 15m/1h candles with quote volume and taker-buy fields
         run: |
@@ -64,7 +64,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: bingx-usdm-15m-orderflow-\${{ github.sha }}
+          name: bingx-usdm-15m-orderflow-${{ github.sha }}
           path: |
             data/bingx_usdm_orderflow/
             funding/
