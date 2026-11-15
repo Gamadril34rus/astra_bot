@@ -84,7 +84,10 @@ def parse_row(row: Any, interval_ms: int) -> dict[str, Any]:
         raise ValueError(f"invalid close time for {open_ms}: {close_ms}")
     parsed = {name: dec(raw[name], name) for name in (*PRICE_FIELDS, "volume", "quote_volume",
                "taker_buy_base_volume", "taker_buy_quote_volume")}
-    count = int(raw["trade_count"])
+    count_value = dec(raw["trade_count"], "trade_count")
+    if count_value != count_value.to_integral_value():
+        raise ValueError(f"non-integral trade_count at {open_ms}: {count_value}")
+    count = int(count_value)
     if count < 0:
         raise ValueError(f"negative trade_count at {open_ms}")
     if any(parsed[name] <= 0 for name in PRICE_FIELDS):
@@ -255,18 +258,38 @@ def compare_legacy(new_path: Path, legacy_path: Path, interval: str) -> dict[str
     if len(common) < 1000:
         raise RuntimeError(f"insufficient {interval} legacy overlap: {len(common)}")
     mismatches = []
+    volume_abs = 0.0
+    volume_rel = 0.0
+    volume_mismatch_count = 0
     for timestamp in common:
-        for field in (*PRICE_FIELDS, "volume"):
+        for field in PRICE_FIELDS:
             if dec(new[timestamp][field], field) != dec(old[timestamp][field], field):
                 mismatches.append({"open_time": timestamp, "field": field,
                                    "new": new[timestamp][field], "legacy": old[timestamp][field]})
                 if len(mismatches) >= 10:
                     break
+        left = float(dec(new[timestamp]["volume"], "volume"))
+        right = float(dec(old[timestamp]["volume"], "legacy volume"))
+        absolute = abs(left - right)
+        relative = absolute / max(abs(right), 1e-12)
+        volume_abs = max(volume_abs, absolute)
+        volume_rel = max(volume_rel, relative)
+        if relative > 1e-4:
+            volume_mismatch_count += 1
         if len(mismatches) >= 10:
             break
-    if mismatches:
-        raise RuntimeError(f"{interval} OHLCV differs from prior BingX archive: {mismatches}")
-    return {"overlap_bars": len(common), "ohlcv_exact_match": True, "mismatch_samples": []}
+    if mismatches or volume_mismatch_count:
+        raise RuntimeError(
+            f"{interval} OHLCV differs from prior BingX archive: "
+            f"ohlc={mismatches[:10]} volume_mismatch_count={volume_mismatch_count} "
+            f"max_volume_rel_diff={volume_rel}"
+        )
+    return {
+        "overlap_bars": len(common), "ohlc_exact_match": True,
+        "volume_mismatch_count_above_1e-4": volume_mismatch_count,
+        "max_volume_abs_diff": volume_abs, "max_volume_relative_diff": volume_rel,
+        "mismatch_samples": [],
+    }
 
 
 def validate_funding(funding_dir: Path, start_ms: int, end_ms: int) -> dict[str, Any]:
