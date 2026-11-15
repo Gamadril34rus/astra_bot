@@ -239,3 +239,49 @@ async def test_refresh_optional_fields_refetches_full_existing_history(
     assert [start for start, _ in client.ranges] == [0, 2 * interval]
     assert all(row["taker_buy_volume"] == "6" for row in enriched.values())
     assert all(row["taker_buy_quote_volume"] == "600" for row in enriched.values())
+
+
+@pytest.mark.asyncio
+async def test_daily_without_manifest_fails_before_client_initialization(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    import scripts.archive_bingx_usdm_candles as archive
+
+    monkeypatch.setattr(archive, "MANIFEST_PATH", tmp_path / "manifest.json")
+
+    def unexpected_client(*_args, **_kwargs):
+        raise AssertionError("BingX client must not be constructed without a daily manifest")
+
+    monkeypatch.setattr(archive, "BingXClient", unexpected_client)
+    args = SimpleNamespace(
+        start_date="2021-01-01",
+        mode="daily",
+        symbols=("BTC-USDT",),
+        timeframes=("5m",),
+        refresh_optional_fields=False,
+    )
+
+    with pytest.raises(RuntimeError, match="missing initial archive manifest"):
+        await archive.run(args)
+
+
+def test_archive_workflow_guards_run_before_archive_import_or_download() -> None:
+    workflow_path = (
+        Path(__file__).resolve().parents[1]
+        / ".github"
+        / "workflows"
+        / "bingx-usdm-candle-archive.yml"
+    )
+    workflow = workflow_path.read_text(encoding="utf-8")
+
+    assert "INITIATOR: ${{ github.actor }}" in workflow
+    assert "REPOSITORY_OWNER: ${{ github.repository_owner }}" in workflow
+    assert 'if [[ "$ARCHIVE_MODE" == "initial" && "$INITIATOR" != "$REPOSITORY_OWNER" ]]; then' in workflow
+    assert 'if [[ "$ARCHIVE_MODE" == "daily" && ! -f data/bingx_usdm/manifest.json ]]; then' in workflow
+
+    import_index = workflow.index("python -c 'from astra_bot.adapters.bingx.client")
+    assert workflow.index('if [[ -z "$ARCHIVE_MODE" ]]') < import_index
+    assert workflow.index('if [[ "$ARCHIVE_MODE" == "daily"') < import_index
+    assert workflow.index('if [[ "$ARCHIVE_MODE" == "initial"') < import_index
