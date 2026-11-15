@@ -73,6 +73,7 @@ class BingXVolumeImpactTests(unittest.TestCase):
              "low": 102.0, "high": 103.2},
         ]
         rows.append(dict(rows[-1]))
+        rows.append(dict(rows[-1]))
         signal = choose_volume_absorption_release(pd.DataFrame(rows), 3)
         self.assertIsNotNone(signal)
         self.assertEqual(signal["family"], "VOLUME_ABSORPTION_RELEASE")
