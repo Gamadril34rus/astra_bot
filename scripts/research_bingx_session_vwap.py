@@ -188,11 +188,24 @@ def _simulate_period(
     diagnostics: dict[str, Any] = {}
     picker = _period_signal(choose_session_vwap_signal, start_ms, end_ms)
     for symbol, features, funding in prepared:
+        # Do not let an IS/validation simulation inspect bars or settlements
+        # beyond its exclusive end. Keep pre-start rows only for causal warmup;
+        # the picker blocks entries before start_ms. The core runner also
+        # reserves a full 9h horizon, so boundary-crossing trades are excluded.
+        period_features = features.loc[
+            features["decision_time"] <= end_ms
+        ].copy().reset_index(drop=True)
+        period_funding = funding.loc[
+            funding["funding_time"] <= end_ms
+        ].copy().reset_index(drop=True)
+        if period_features.empty:
+            diagnostics[symbol] = {"skipped": "no bars before split end"}
+            continue
         symbol_diagnostics: dict[str, Any] = {}
         trades = core.simulate_symbol(
             symbol,
-            features,
-            funding,
+            period_features,
+            period_funding,
             costs["fee_bps_per_side"],
             costs["spread_bps_per_side"],
             costs["slippage_bps_per_side"],
@@ -206,7 +219,6 @@ def _simulate_period(
         )
         diagnostics[symbol] = symbol_diagnostics
     return pd.DataFrame(rows), diagnostics
-
 
 def _add_notional_pnl(summary: dict[str, Any]) -> dict[str, Any]:
     # Research-normalized PnL in USDT per 1,000 USDT of notional per trade.
