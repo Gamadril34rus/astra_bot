@@ -81,28 +81,24 @@
     "SOL-USDT|short": {
       "symbol": "SOL-USDT",
       "side": "short",
-      "qty": "698.29476418",
-      "stop": "72.31903",
+      "qty": "698.29",
+      "stop": "71.5473810",
       "tp": "71.2807865",
       "entry": "71.619",
-      "leverage": 6,
+      "leverage": 5,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|SOL-USDT|short|1794844800000",
-      "ts": 1794859436.1826565,
-      "be_moved": false,
+      "ts": 1794860228.7871811,
+      "be_moved": true,
       "initial_stop": "72.31903",
-      "tp_frac": "0.3",
       "opened_at_ms": 1794859436182,
-      "plan_qty": "698.29476418",
-      "qty_ratio": 1.0,
-      "tp1": "71.2807865",
-      "initial_stop_v1": true,
       "tp_parity_v1": true,
-      "early_tp1": true,
-      "peak_low": "71.606",
       "be_earned": true,
-      "current_regime": "STRONG_BEAR_TREND"
+      "tp_frac": "0.3",
+      "peak_low": "71.396",
+      "current_regime": "STRONG_BEAR_TREND",
+      "tp1": "71.2807865"
     }
   },
-  "ts": 1794859999.5344324
+  "ts": 1794860278.5478318
 }
