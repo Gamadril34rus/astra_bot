@@ -498,6 +498,38 @@ def patch_trade_exit_pnl(
     return True
 
 
+def _find_confirmed_exit_row(
+    symbol: str,
+    signal_id: str | None,
+    path: Path = TRADES_PATH,
+) -> dict[str, Any] | None:
+    """Find an already backfilled/confirmed exit for this exact signal."""
+    sid = str(signal_id or "")
+    if not sid or not path.exists():
+        return None
+    match: dict[str, Any] | None = None
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if (
+                str(row.get("event") or "") == "exit"
+                and str(row.get("symbol") or "") == symbol
+                and str(row.get("signal_id") or "") == sid
+                and row.get("pnl") is not None
+                and str(row.get("pnl_source") or "")
+                in {"income_backfill", "income_confirmed", "income_corrected"}
+            ):
+                match = row
+    except Exception as exc:
+        logger.warning("confirmed exit lookup %s: %s", symbol, type(exc).__name__)
+    return match
+
+
 async def resolve_pending_dogon(
     client: Any,
     send_tg: Any = None,
@@ -534,6 +566,41 @@ async def resolve_pending_dogon(
             )
             remaining.append(item)
             continue
+
+        # The independent income-backfill worker may already have resolved this
+        # exact exit row. Consume that confirmed ledger result instead of polling
+        # an ambiguous symbol-wide income endpoint forever.
+        confirmed_row = _find_confirmed_exit_row(sym, str(sid) if sid is not None else None, trades_path)
+        if confirmed_row is not None:
+            if send_tg is None:
+                remaining.append(item)
+                continue
+            source = str(confirmed_row.get("pnl_source") or "")
+            try:
+                amount = float(confirmed_row.get("pnl") or 0.0)
+                if source == "income_backfill":
+                    msg = (
+                        f"уточнение: 🏁 {sym.replace('-USDT', '')} {side.upper()}: "
+                        f"закрыта {format_usd(amount)} после торговых комиссий "
+                        "(funding не включён: backfill не подтвердил его отдельно)"
+                    )
+                else:
+                    funding = float(confirmed_row.get("funding_fee") or 0.0)
+                    msg = format_rocket_correction(
+                        sym,
+                        side,
+                        net=amount + funding,
+                        reason=reason,
+                        funding=funding,
+                        fees=float(confirmed_row.get("fees") or 0.0),
+                    )
+                await send_tg(msg)
+                sent += 1
+            except Exception as exc:
+                logger.warning("dogon backfill TG %s: %s", sym, type(exc).__name__)
+                remaining.append(item)
+            continue
+
         try:
             agg = await exit_net_from_client(
                 client,
