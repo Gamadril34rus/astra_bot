@@ -170,6 +170,58 @@ def test_dogon_uses_existing_income_backfill_exit_row(tmp_path):
     assert load_pending(pending_path) == []
 
 
+
+def test_dogon_uses_existing_income_exit_row(tmp_path):
+    pending_path = tmp_path / "pending.json"
+    trades_path = tmp_path / "trades.jsonl"
+    signal_id = "zeus_channel_boundary|INJ-USDT|long|1794585600000"
+    trades_path.write_text(
+        json.dumps({
+            "event": "exit",
+            "symbol": "INJ-USDT",
+            "side": "long",
+            "signal_id": signal_id,
+            "pnl": -4.1883,
+            "pnl_source": "income",
+            "fees": 8.208216,
+            "funding_fee": 0,
+            "ts": 1794629210.766544,
+        }) + "\\n",
+        encoding="utf-8",
+    )
+    enqueue_pending(
+        {
+            "symbol": "INJ-USDT",
+            "side": "long",
+            "signal_id": signal_id,
+            "since_ms": 1,
+            "reason": "стоп",
+            "ts": 1794629210.766544,
+        },
+        path=pending_path,
+    )
+
+    class Client:
+        async def get_realized_income(self, symbol, start_ms=None, end_ms=None):
+            raise AssertionError("confirmed ledger row should avoid ambiguous exchange polling")
+
+    sent = []
+
+    async def tg(msg):
+        sent.append(msg)
+
+    n = asyncio.run(
+        resolve_pending_dogon(
+            Client(), tg, path=pending_path, trades_path=trades_path,
+            now=1794629300.0,
+        )
+    )
+    assert n == 1
+    assert len(sent) == 1
+    assert sent[0].startswith("уточнение: ")
+    assert "-4.19$" in sent[0]
+    assert load_pending(pending_path) == []
+
 def test_dogon_24h_estimate(tmp_path):
     pending_path = tmp_path / "pending.json"
     trades_path = tmp_path / "trades.jsonl"
