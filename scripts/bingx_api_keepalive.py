@@ -19,7 +19,7 @@ import os
 import sys
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -74,7 +74,7 @@ async def _run() -> int:
     )
     await client.initialize()
     lines: list[str] = []
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     lines.append(f"ASTRA keep-alive · {now}")
     lines.append(f"API host: {base.replace('https://', '')}")
 
