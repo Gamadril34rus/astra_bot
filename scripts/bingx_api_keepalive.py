@@ -17,10 +17,11 @@ import json
 import logging
 import os
 import sys
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-# repo root on PYTHONPATH
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -34,20 +35,19 @@ log = logging.getLogger("bingx_keepalive")
 
 def _tg_send(text: str) -> None:
     token = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
-    chat = (os.environ.get("TELEGRAM_ADMIN_ID") or os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
+    chat = (
+        os.environ.get("TELEGRAM_ADMIN_ID") or os.environ.get("TELEGRAM_CHAT_ID") or ""
+    ).strip()
     if not token or not chat:
         log.info("Telegram secrets missing — skip notify")
         return
-    import urllib.parse
-    import urllib.request
-
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     body = urllib.parse.urlencode(
         {"chat_id": chat, "text": text, "disable_web_page_preview": "1"}
     ).encode()
     req = urllib.request.Request(url, data=body, method="POST")
-    with urllib.request.urlopen(req, timeout=20) as r:
-        r.read()
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        resp.read()
     log.info("Telegram notify sent")
 
 
@@ -78,7 +78,6 @@ async def _run() -> int:
     lines.append(f"ASTRA keep-alive · {now}")
     lines.append(f"API host: {base.replace('https://', '')}")
 
-    equity = None
     try:
         if hasattr(client, "get_balance_usdt"):
             equity = await client.get_balance_usdt()
@@ -86,10 +85,10 @@ async def _run() -> int:
             log.info("get_balance_usdt -> %s", equity)
         elif hasattr(client, "get_account_balance"):
             bals = await client.get_account_balance()
-            lines.append(f"Balances: { {k: str(v.total) for k, v in bals.items()} }")
-            log.info("get_account_balance -> %s", bals)
+            parsed = {k: str(v.total) for k, v in bals.items()}
+            lines.append(f"Balances: {parsed}")
+            log.info("get_account_balance -> %s", parsed)
         else:
-            # raw fallback
             resp = await client._request(
                 "GET",
                 "/openApi/swap/v2/user/balance",
