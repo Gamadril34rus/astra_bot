@@ -965,12 +965,21 @@ class LiveBroker:
 
             start_ms = None
             try:
-                ts = float(plan.get("ts") or 0)
-                if ts > 1e12:
-                    ts /= 1000.0
-                if ts > 0:
-                    start_ms = int((ts - 60) * 1000)
-            except (TypeError, ValueError):
+                # ts is mutable: BE/ratchet upserts refresh it. Use the immutable
+                # first-entry timestamp so earlier partial fills/income are not lost.
+                opened_at_ms = plan.get("opened_at_ms")
+                if opened_at_ms is not None:
+                    opened_ms = int(float(opened_at_ms))
+                    if opened_ms > 0:
+                        start_ms = max(0, opened_ms - 60_000)
+                else:
+                    # Legacy plans have no opened_at_ms; retain the old ts fallback.
+                    ts = float(plan.get("ts") or 0)
+                    if ts > 1e12:
+                        ts /= 1000.0
+                    if ts > 0:
+                        start_ms = int((ts - 60) * 1000)
+            except (TypeError, ValueError, OverflowError):
                 start_ms = None
 
             fills: list = []
