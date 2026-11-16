@@ -186,7 +186,7 @@ def test_dogon_uses_existing_income_exit_row(tmp_path):
             "fees": 8.208216,
             "funding_fee": 0,
             "ts": 1794629210.766544,
-        }) + "\\n",
+        }) + "\n",
         encoding="utf-8",
     )
     enqueue_pending(
