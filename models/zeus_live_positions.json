@@ -85,7 +85,7 @@
       "stop": "71.5473810",
       "tp": "71.2807865",
       "entry": "71.619",
-      "leverage": 5,
+      "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|SOL-USDT|short|1794844800000",
       "ts": 1794860228.7871811,
@@ -95,10 +95,13 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "tp_frac": "0.3",
-      "peak_low": "71.396",
+      "peak_low": "71.355",
       "current_regime": "STRONG_BEAR_TREND",
-      "tp1": "71.2807865"
+      "tp1": "71.2807865",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     }
   },
-  "ts": 1794860278.5478318
+  "ts": 1794860515.0760262
 }
