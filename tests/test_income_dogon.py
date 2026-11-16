@@ -156,10 +156,27 @@ def test_dogon_24h_estimate(tmp_path):
             now=1.0 + 25 * 3600,
         )
     )
-    # Owner 31.10: TTL drops silently — no fake −1R TG
+    # Missing exchange income must not silently erase the promised follow-up.
     assert n == 0
+    assert len(sent) == 1
+    assert "не подтверждён" in sent[0]
+    pending = load_pending(pending_path)
+    assert len(pending) == 1
+    assert pending[0]["last_notice_ts"] == 1.0 + 25 * 3600
+
+    # Repeated ticks inside the 24h reminder interval do not spam Telegram.
+    sent.clear()
+    asyncio.run(
+        resolve_pending_dogon(
+            Client(),
+            tg,
+            path=pending_path,
+            trades_path=trades_path,
+            now=1.0 + 26 * 3600,
+        )
+    )
     assert sent == []
-    assert load_pending(pending_path) == []
+    assert len(load_pending(pending_path)) == 1
 
 
 def test_backfill_correct_tiny(tmp_path):
