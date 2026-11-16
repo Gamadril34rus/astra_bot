@@ -121,6 +121,55 @@ def test_dogon_pending_then_confirm(tmp_path):
     assert row["pnl"] is not None
 
 
+def test_dogon_uses_existing_income_backfill_exit_row(tmp_path):
+    pending_path = tmp_path / "pending.json"
+    trades_path = tmp_path / "trades.jsonl"
+    signal_id = "zeus_multi_top_breakdown|BTC-USDT|short|1794787200000"
+    trades_path.write_text(
+        json.dumps({
+            "event": "exit",
+            "symbol": "BTC-USDT",
+            "side": "short",
+            "signal_id": signal_id,
+            "pnl": 15.091121,
+            "pnl_source": "income_backfill",
+            "ts": 1794830536.0,
+        }) + "\\n",
+        encoding="utf-8",
+    )
+    enqueue_pending(
+        {
+            "symbol": "BTC-USDT",
+            "side": "short",
+            "signal_id": signal_id,
+            "since_ms": 1,
+            "reason": "стоп",
+            "ts": 1794830536.0,
+        },
+        path=pending_path,
+    )
+
+    class Client:
+        async def get_realized_income(self, symbol, start_ms=None, end_ms=None):
+            return []
+
+    sent = []
+
+    async def tg(msg):
+        sent.append(msg)
+
+    n = asyncio.run(
+        resolve_pending_dogon(
+            Client(), tg, path=pending_path, trades_path=trades_path, now=1794830600.0
+        )
+    )
+    assert n == 1
+    assert len(sent) == 1
+    assert "+15.09$" in sent[0]
+    assert "funding не включён" in sent[0]
+    assert load_pending(pending_path) == []
+
+
 def test_dogon_24h_estimate(tmp_path):
     pending_path = tmp_path / "pending.json"
     trades_path = tmp_path / "trades.jsonl"
