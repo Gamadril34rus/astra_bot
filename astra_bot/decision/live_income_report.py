@@ -583,7 +583,9 @@ async def resolve_pending_dogon(
                 if source == "income_backfill":
                     msg = (
                         f"уточнение: 🏁 {sym.replace('-USDT', '')} {side.upper()}: "
-                        f"закрыта {format_usd(amount) or '0.00
+                        f"закрыта {format_usd(amount) or '0.00$'} "
+                        "после торговых комиссий (funding не включён: "
+                        "backfill не подтвердил его отдельно)"
                         "(funding не включён: backfill не подтвердил его отдельно)"
                     )
                 else:
