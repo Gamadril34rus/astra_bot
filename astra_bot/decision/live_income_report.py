@@ -682,7 +682,12 @@ async def resolve_pending_dogon(
         )
         if confirmed_row is not None:
             source = str(confirmed_row.get("pnl_source") or "")
-            amount = float(confirmed_row.get("pnl") or 0.0)
+            try:
+                amount = float(confirmed_row.get("pnl") or 0.0)
+            except (TypeError, ValueError):
+                logger.warning("dogon backfill has invalid PnL %s", sym)
+                remaining.append(item)
+                continue
             if source == "income_backfill":
                 msg = (
                     f"уточнение: 🏁 {sym.replace('-USDT', '')} {side.upper()}: "
