@@ -584,27 +584,6 @@ async def resolve_pending_dogon(
                     msg = (
                         f"уточнение: 🏁 {sym.replace('-USDT', '')} {side.upper()}: "
                         f"закрыта {format_usd(amount) or '0.00
-                        "(funding не включён: backfill не подтвердил его отдельно)"
-                    )
-                else:
-                    funding = float(confirmed_row.get("funding_fee") or 0.0)
-                    msg = format_rocket_correction(
-                        sym,
-                        side,
-                        net=amount + funding,
-                        reason=reason,
-                        funding=funding,
-                        fees=float(confirmed_row.get("fees") or 0.0),
-                    )
-                await send_tg(msg)
-                sent += 1
-            except Exception as exc:
-                logger.warning("dogon backfill TG %s: %s", sym, type(exc).__name__)
-                remaining.append(item)
-            continue
-
-        try:
-            agg = await exit_net_from_client(
                 client,
                 sym,
                 since_ms,
