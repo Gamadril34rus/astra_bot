@@ -328,3 +328,154 @@ def test_stop_reason_marker():
     msg_e = format_estimate_rocket("X", "long", est=1.0, reason="стоп")
     assert "стоп" in msg_e
     assert "1.00$" not in msg_e
+
+
+def test_dogon_backfill_sends_exit_card_once(tmp_path, monkeypatch):
+    from astra_bot.decision import trade_viz
+
+    pending_path = tmp_path / "pending.json"
+    trades_path = tmp_path / "trades.jsonl"
+    signal_id = "strategy|ETH-USDT|short|123456"
+    trades_path.write_text(
+        json.dumps({
+            "event": "exit",
+            "symbol": "ETH-USDT",
+            "side": "short",
+            "signal_id": signal_id,
+            "pnl": 12.0,
+            "pnl_source": "income_backfill",
+            "ts": 1_700_000_000.0,
+        }) + "\\n",
+        encoding="utf-8",
+    )
+    enqueue_pending(
+        {
+            "symbol": "ETH-USDT",
+            "side": "short",
+            "signal_id": signal_id,
+            "since_ms": 1,
+            "entry": 2000.0,
+            "qty": 2.0,
+            "leverage": 5,
+            "stop": 2050.0,
+            "target": 1900.0,
+            "closed_at": 1_700_000_000.0,
+            "ts": 1_700_000_000.0,
+        },
+        path=pending_path,
+    )
+
+    calls = []
+
+    async def fake_card(**kwargs):
+        calls.append(kwargs)
+        return True
+
+    monkeypatch.setattr(trade_viz, "notify_exit_stats_card", fake_card)
+
+    class Client:
+        async def get_realized_income(self, *args, **kwargs):
+            raise AssertionError("confirmed backfill row should be sufficient")
+
+    sent = []
+
+    async def tg(message):
+        sent.append(message)
+
+    async def run():
+        first = await resolve_pending_dogon(
+            Client(), tg, path=pending_path, trades_path=trades_path,
+            now=1_700_000_001.0,
+        )
+        second = await resolve_pending_dogon(
+            Client(), tg, path=pending_path, trades_path=trades_path,
+            now=1_700_000_002.0,
+        )
+        return first, second
+
+    first, second = asyncio.run(run())
+    assert first == 1
+    assert second == 0
+    assert len(calls) == 1
+    assert calls[0]["symbol"] == "ETH-USDT"
+    assert calls[0]["side"] == "short"
+    assert calls[0]["entry"] == 2000.0
+    assert calls[0]["qty"] == 2.0
+    assert calls[0]["leverage"] == 5.0
+    assert calls[0]["pnl"] == 12.0
+    assert calls[0]["exit_price"] == 1994.0
+    assert len(sent) == 1
+    assert load_pending(pending_path) == []
+
+
+def test_dogon_retries_failed_card_without_duplicate_text(tmp_path, monkeypatch):
+    from astra_bot.decision import trade_viz
+
+    pending_path = tmp_path / "pending.json"
+    trades_path = tmp_path / "trades.jsonl"
+    signal_id = "strategy|BTC-USDT|long|123457"
+    trades_path.write_text(
+        json.dumps({
+            "event": "exit",
+            "symbol": "BTC-USDT",
+            "side": "long",
+            "signal_id": signal_id,
+            "pnl": 10.0,
+            "pnl_source": "income_backfill",
+            "ts": 1_700_000_000.0,
+        }) + "\\n",
+        encoding="utf-8",
+    )
+    enqueue_pending(
+        {
+            "symbol": "BTC-USDT",
+            "side": "long",
+            "signal_id": signal_id,
+            "since_ms": 1,
+            "entry": 100.0,
+            "qty": 2.0,
+            "leverage": 3,
+            "closed_at": 1_700_000_000.0,
+            "ts": 1_700_000_000.0,
+        },
+        path=pending_path,
+    )
+
+    outcomes = iter((False, True))
+    card_calls = []
+
+    async def fake_card(**kwargs):
+        card_calls.append(kwargs)
+        return next(outcomes)
+
+    monkeypatch.setattr(trade_viz, "notify_exit_stats_card", fake_card)
+
+    class Client:
+        async def get_realized_income(self, *args, **kwargs):
+            raise AssertionError("confirmed backfill row should be sufficient")
+
+    sent = []
+
+    async def tg(message):
+        sent.append(message)
+
+    async def run():
+        first = await resolve_pending_dogon(
+            Client(), tg, path=pending_path, trades_path=trades_path,
+            now=1_700_000_001.0,
+        )
+        pending_after_first = load_pending(pending_path)
+        second = await resolve_pending_dogon(
+            Client(), tg, path=pending_path, trades_path=trades_path,
+            now=1_700_000_002.0,
+        )
+        return first, pending_after_first, second
+
+    first, pending_after_first, second = asyncio.run(run())
+    assert first == 0
+    assert len(pending_after_first) == 1
+    assert pending_after_first[0]["followup_sent"] is True
+    assert second == 1
+    assert len(card_calls) == 2
+    assert len(sent) == 1
+    assert load_pending(pending_path) == []
