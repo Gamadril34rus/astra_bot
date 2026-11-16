@@ -345,7 +345,7 @@ def test_dogon_backfill_sends_exit_card_once(tmp_path, monkeypatch):
             "pnl": 12.0,
             "pnl_source": "income_backfill",
             "ts": 1_700_000_000.0,
-        }) + "\\n",
+        }) + "\n",
         encoding="utf-8",
     )
     enqueue_pending(
@@ -423,7 +423,7 @@ def test_dogon_retries_failed_card_without_duplicate_text(tmp_path, monkeypatch)
             "pnl": 10.0,
             "pnl_source": "income_backfill",
             "ts": 1_700_000_000.0,
-        }) + "\\n",
+        }) + "\n",
         encoding="utf-8",
     )
     enqueue_pending(
