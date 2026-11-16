@@ -21,16 +21,16 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "64621.2",
+      "peak_low": "64480.1",
       "current_regime": "STRONG_BEAR_TREND",
       "be_earned": true
     },
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
       "side": "short",
-      "qty": "27.441",
+      "qty": 19.209,
       "stop": "1819.618560",
-      "tp": "1812.068505",
+      "tp": "1793.13365",
       "entry": "1821.44",
       "leverage": 6,
       "pending_verify": false,
@@ -42,14 +42,16 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "tp_frac": "0.3",
-      "peak_low": "1814.02",
+      "peak_low": "1811.27",
       "current_regime": "STRONG_BEAR_TREND",
       "tp1": "1812.068505",
       "migrate_stop_v1": true,
       "initial_stop_v1": true,
       "early_tp1": true,
-      "early_tp_repair_v1": true
+      "early_tp_repair_v1": true,
+      "runner_tp_rr": 1.5,
+      "runner_tp_healed_v1": true
     }
   },
-  "ts": 1794808036.7545404
+  "ts": 1794808332.238188
 }
