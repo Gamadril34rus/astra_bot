@@ -2735,3 +2735,5 @@
 {"event": "leverage_reconcile", "symbol": "ETH-USDT", "side": "short", "old_leverage": 5, "exchange_leverage": 6, "source": "bingx_position", "signal_id": "zeus_channel_boundary|ETH-USDT|short|1794772800000", "ts": 1794808006.821344}
 {"event": "qty_reconcile", "symbol": "ETH-USDT", "side": "short", "old_qty": 27.441, "new_qty": 19.209, "rel_diff": 0.299989, "signal_id": "zeus_channel_boundary|ETH-USDT|short|1794772800000", "ts": 1794808303.40812}
 {"event": "partial_fill", "symbol": "ETH-USDT", "side": null, "position_side": null, "qty": null, "price": null, "pnl": 64.25918418, "income_type": "REALIZED_PNL", "income_id": "1794554371927782975_512_133960_PNL", "source": "income_tape", "ts": 1794808041.0}
+{"event": "order_cancel", "symbol": "ETH-USDT", "order_id": "2122203558127951872", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794808629.1821167}
+{"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2122136969902907392", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794808640.8755927}
