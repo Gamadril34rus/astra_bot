@@ -80,7 +80,26 @@
       "early_tp1": true,
       "early_tp_repair_v1": true,
       "runner_tp_healed_v1": true
+    },
+    "INJ-USDT|long": {
+      "symbol": "INJ-USDT",
+      "side": "long",
+      "qty": "3392.10598417",
+      "stop": "6.580812",
+      "tp": "7.0027316",
+      "entry": "6.832",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_multi_top_breakdown|INJ-USDT|long|1794844800000",
+      "ts": 1794848549.9605658,
+      "be_moved": false,
+      "initial_stop": "6.580812",
+      "tp_frac": "0.3",
+      "opened_at_ms": 1794848549960,
+      "plan_qty": "3392.10598417",
+      "qty_ratio": 1.0,
+      "tp1": "7.0027316"
     }
   },
-  "ts": 1794848251.4691265
+  "ts": 1794848549.960581
 }
