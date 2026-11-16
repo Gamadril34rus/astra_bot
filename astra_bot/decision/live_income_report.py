@@ -530,6 +530,115 @@ def _find_confirmed_exit_row(
     return match
 
 
+def _pending_exit_card_metadata(
+    item: dict[str, Any], trades_path: Path,
+) -> dict[str, Any]:
+    """Fill missing card fields from the matching immutable entry row only."""
+    details = dict(item)
+    sid = str(details.get("signal_id") or "")
+    if not sid or not trades_path.exists():
+        return details
+    needed = ("entry", "qty", "leverage", "stop", "target")
+    if all(details.get(key) not in (None, "") for key in needed[:3]):
+        return details
+    try:
+        for line in trades_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if (
+                str(row.get("event") or "") == "entry"
+                and str(row.get("symbol") or "") == str(details.get("symbol") or "")
+                and str(row.get("signal_id") or "") == sid
+            ):
+                for key in needed:
+                    if details.get(key) in (None, ""):
+                        candidate = row.get(key)
+                        if candidate in (None, "") and key == "entry":
+                            candidate = row.get("plan_entry") or row.get("fill_price")
+                        if candidate in (None, "") and key == "target":
+                            candidate = row.get("tp")
+                        if candidate not in (None, ""):
+                            details[key] = candidate
+                break
+    except Exception as exc:
+        logger.warning("dogon card metadata lookup %s: %s", details.get("symbol"), type(exc).__name__)
+    return details
+
+
+async def _send_pending_exit_card(
+    item: dict[str, Any], pnl: float, *, trades_path: Path,
+) -> bool | None:
+    """Send a delayed EXIT card from exact-signal metadata; None means insufficient data."""
+    details = _pending_exit_card_metadata(item, trades_path)
+    try:
+        symbol = str(details.get("symbol") or "")
+        side = str(details.get("side") or "").strip().lower()
+        entry = float(details.get("entry") or 0)
+        qty = abs(float(details.get("qty") or details.get("quantity") or 0))
+        leverage = float(details.get("leverage") or details.get("lev") or 0)
+        closed_at = float(details.get("closed_at") or details.get("ts") or 0) or None
+        if (
+            not symbol or side not in {"long", "short"} or entry <= 0
+            or qty <= 0 or leverage <= 0
+        ):
+            logger.warning(
+                "viz_error event=exit_card_deferred_missing_metadata symbol=%s signal_id=%s",
+                symbol, details.get("signal_id"),
+            )
+            return None
+        from astra_bot.decision.trade_viz import derive_exit_price, notify_exit_stats_card
+        exit_price = derive_exit_price(
+            side=side, entry=entry, pnl=float(pnl), qty=qty,
+        )
+        if exit_price <= 0:
+            raise ValueError("derived_exit_price_not_positive")
+        return bool(await notify_exit_stats_card(
+            symbol=symbol, side=side, entry=entry, exit_price=exit_price,
+            pnl=float(pnl), qty=qty, leverage=leverage,
+            closed_at=closed_at, virtual=True,
+        ))
+    except Exception as exc:
+        logger.warning(
+            "viz_error event=exit_card_deferred_failed symbol=%s error=%s",
+            item.get("symbol"), type(exc).__name__,
+        )
+        return False
+
+
+async def _deliver_pending_exit_followup(
+    item: dict[str, Any], *, pnl: float, message: str,
+    send_tg: Any, trades_path: Path,
+) -> tuple[dict[str, Any], bool]:
+    """Deliver card + exact text once each; retain the queue if card delivery fails."""
+    updated = dict(item)
+    if not updated.get("card_sent"):
+        card_result = await _send_pending_exit_card(
+            updated, pnl, trades_path=trades_path,
+        )
+        # Legacy pending rows may not contain enough entry metadata. Do not
+        # fabricate a chart; preserve the historical text-only completion.
+        if card_result is None:
+            updated["card_sent"] = True
+            updated["card_skipped_missing_metadata"] = True
+        elif card_result:
+            updated["card_sent"] = True
+
+    if not updated.get("followup_sent"):
+        if send_tg is None:
+            return updated, False
+        try:
+            await send_tg(message)
+            updated["followup_sent"] = True
+        except Exception as exc:
+            logger.warning("dogon followup TG %s: %s", updated.get("symbol"), type(exc).__name__)
+            return updated, False
+    return updated, bool(updated.get("card_sent"))
+
+
 async def resolve_pending_dogon(
     client: Any,
     send_tg: Any = None,
@@ -574,34 +683,38 @@ async def resolve_pending_dogon(
             sym, str(sid) if sid is not None else None, trades_path
         )
         if confirmed_row is not None:
-            if send_tg is None:
-                remaining.append(item)
-                continue
             source = str(confirmed_row.get("pnl_source") or "")
             try:
                 amount = float(confirmed_row.get("pnl") or 0.0)
-                if source == "income_backfill":
-                    msg = (
-                        f"уточнение: 🏁 {sym.replace('-USDT', '')} {side.upper()}: "
-                        f"закрыта {format_usd(amount)} "
-                        "после торговых комиссий (funding не включён: "
-                        "backfill не подтвердил его отдельно)"
-                    )
-                else:
-                    funding = float(confirmed_row.get("funding_fee") or 0.0)
-                    msg = format_rocket_correction(
-                        sym,
-                        side,
-                        net=amount + funding,
-                        reason=reason,
-                        funding=funding,
-                        fees=float(confirmed_row.get("fees") or 0.0),
-                    )
-                await send_tg(msg)
-                sent += 1
-            except Exception as exc:
-                logger.warning("dogon backfill TG %s: %s", sym, type(exc).__name__)
+            except (TypeError, ValueError):
+                logger.warning("dogon backfill has invalid PnL %s", sym)
                 remaining.append(item)
+                continue
+            if source == "income_backfill":
+                msg = (
+                    f"уточнение: 🏁 {sym.replace('-USDT', '')} {side.upper()}: "
+                    f"закрыта {format_usd(amount)} "
+                    "после торговых комиссий (funding не включён: "
+                    "backfill не подтвердил его отдельно)"
+                )
+            else:
+                funding = float(confirmed_row.get("funding_fee") or 0.0)
+                msg = format_rocket_correction(
+                    sym,
+                    side,
+                    net=amount + funding,
+                    reason=reason,
+                    funding=funding,
+                    fees=float(confirmed_row.get("fees") or 0.0),
+                )
+            updated, delivered = await _deliver_pending_exit_followup(
+                item, pnl=amount, message=msg, send_tg=send_tg,
+                trades_path=trades_path,
+            )
+            if delivered:
+                sent += 1
+            else:
+                remaining.append(updated)
             continue
 
         try:
@@ -652,14 +765,6 @@ async def resolve_pending_dogon(
                 funding=float(agg.get("funding") or 0),
                 fees=float(agg.get("fees") or 0),
             )
-            if send_tg is not None:
-                try:
-                    await send_tg(msg)
-                    sent += 1
-                except Exception as exc:
-                    logger.warning("dogon TG %s: %s", sym, type(exc).__name__)
-                    remaining.append(item)
-                    continue
             trade_pnl = float(agg.get("pnl") or 0) + float(agg.get("fees") or 0)
             try:
                 patch_trade_exit_pnl(
@@ -673,6 +778,14 @@ async def resolve_pending_dogon(
                 )
             except Exception as exc:
                 logger.warning("dogon patch %s: %s", sym, type(exc).__name__)
+            updated, delivered = await _deliver_pending_exit_followup(
+                item, pnl=trade_pnl, message=msg, send_tg=send_tg,
+                trades_path=trades_path,
+            )
+            if delivered:
+                sent += 1
+            else:
+                remaining.append(updated)
             continue
 
         # Never silently discard a closed trade whose exchange income is still
