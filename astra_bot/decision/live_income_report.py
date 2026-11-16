@@ -503,7 +503,7 @@ def _find_confirmed_exit_row(
     signal_id: str | None,
     path: Path = TRADES_PATH,
 ) -> dict[str, Any] | None:
-    """Find an already backfilled/confirmed exit for this exact signal."""
+    """Find an already income-confirmed exit for this exact signal."""
     sid = str(signal_id or "")
     if not sid or not path.exists():
         return None
@@ -522,7 +522,7 @@ def _find_confirmed_exit_row(
                 and str(row.get("signal_id") or "") == sid
                 and row.get("pnl") is not None
                 and str(row.get("pnl_source") or "")
-                in {"income_backfill", "income_confirmed", "income_corrected"}
+                in {"income", "income_backfill", "income_confirmed", "income_corrected"}
             ):
                 match = row
     except Exception as exc:
