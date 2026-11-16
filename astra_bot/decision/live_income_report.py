@@ -552,7 +552,21 @@ async def resolve_pending_dogon(
                 sym,
                 side,
             )
-            remaining.append(item)
+            updated_item = dict(item)
+            if age >= DOGON_TTL_SEC:
+                last_notice = float(updated_item.get("last_notice_ts") or 0.0)
+                if now_ts - last_notice >= DOGON_TTL_SEC and send_tg is not None:
+                    try:
+                        age_hours = max(0, int(age // 3600))
+                        await send_tg(
+                            f"⚠️ {sym} {side.upper()}: биржевые строки дохода нельзя "
+                            f"однозначно связать со сделкой спустя {age_hours} ч. "
+                            "Запись сохранена для повторной сверки; сумму не угадываю."
+                        )
+                        updated_item["last_notice_ts"] = now_ts
+                    except Exception as exc:
+                        logger.warning("dogon ambiguous notice %s: %s", sym, type(exc).__name__)
+            remaining.append(updated_item)
             continue
 
         rp = abs(float(agg.get("pnl") or 0))
@@ -591,20 +605,24 @@ async def resolve_pending_dogon(
                 logger.warning("dogon patch %s: %s", sym, type(exc).__name__)
             continue
 
+        # Never silently discard a closed trade whose exchange income is still
+        # unavailable. Keep it durable and notify at most once per 24h after TTL.
+        updated_item = dict(item)
         if age >= DOGON_TTL_SEC:
-            # Owner 31.10: do NOT TG fake −1R estimates. Drop quietly; UI is source of truth.
-            try:
-                logger.info(
-                    "dogon drop TTL %s est=%s reason=%s (no fake TG)",
-                    sym,
-                    est_f,
-                    reason,
-                )
-            except Exception:
-                pass
-            continue
-
-        remaining.append(item)
+            last_notice = float(updated_item.get("last_notice_ts") or 0.0)
+            if now_ts - last_notice >= DOGON_TTL_SEC and send_tg is not None:
+                try:
+                    age_hours = max(0, int(age // 3600))
+                    await send_tg(
+                        f"⚠️ {sym} {side.upper()}: финансовый итог закрытой сделки "
+                        f"не подтверждён биржей спустя {age_hours} ч. "
+                        "Сделка оставлена в очереди, проверка продолжится; "
+                        "неподтверждённую сумму не подставляю."
+                    )
+                    updated_item["last_notice_ts"] = now_ts
+                except Exception as exc:
+                    logger.warning("dogon pending notice %s: %s", sym, type(exc).__name__)
+        remaining.append(updated_item)
 
     try:
         save_pending(remaining, path)
