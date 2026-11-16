@@ -557,6 +557,8 @@ def _pending_exit_card_metadata(
                 for key in needed:
                     if details.get(key) in (None, ""):
                         candidate = row.get(key)
+                        if candidate in (None, "") and key == "entry":
+                            candidate = row.get("plan_entry") or row.get("fill_price")
                         if candidate in (None, "") and key == "target":
                             candidate = row.get("tp")
                         if candidate not in (None, ""):
