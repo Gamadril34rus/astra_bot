@@ -134,7 +134,7 @@ def test_dogon_uses_existing_income_backfill_exit_row(tmp_path):
             "pnl": 15.091121,
             "pnl_source": "income_backfill",
             "ts": 1794830536.0,
-        }) + "\\n",
+        }) + "\n",
         encoding="utf-8",
     )
     enqueue_pending(
