@@ -172,6 +172,15 @@ def is_exchange_endpoint_cooldown_error(exc: BaseException) -> bool:
     )
 
 
+def is_bingx_position_sl_conflict_error(exc: BaseException) -> bool:
+    """Detect BingX's deterministic position-level SL conflict.
+
+    LiveBroker.move_stop handles this by cancelling the matching hedge-side STOP
+    and placing one replacement. Retrying the same POST cannot resolve the conflict.
+    """
+    return "position sl order already exists" in str(exc).lower()
+
+
 def retry_async(
     attempts: int = 3,
     delays: tuple[float, ...] = (2.0, 5.0, 15.0),
@@ -227,6 +236,15 @@ def retry_async(
                             "%s stopped retrying: BingX endpoint returned 100410 (system busy/cooldown): %s",
                             func.__name__,
                             exc,
+                        )
+                        if fallback is not None:
+                            return fallback
+                        raise
+                    if is_bingx_position_sl_conflict_error(exc):
+                        logger.info(
+                            "%s stopped retrying: BingX position SL already exists; "
+                            "caller must reconcile the existing protection order",
+                            func.__name__,
                         )
                         if fallback is not None:
                             return fallback
