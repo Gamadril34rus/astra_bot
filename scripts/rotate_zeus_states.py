@@ -54,7 +54,8 @@ logger = logging.getLogger("rotate_zeus_states")
 STATE_FILES = (
     "models/zeus_trade_journal.jsonl",  # 104.8 МБ — виновник GH001
     "models/zeus_paper_trades.jsonl",
-    "models/zeus_wedge_1h_signals.jsonl",  # реальный «signals»
+    "models/zeus_wedge_1h_signals.jsonl",  # v1 research archive
+    "models/zeus_wedge_1h_signals_v2.jsonl",  # auditable v2 shadow stream
     "models/zeus_no_trade_observations.jsonl",
     "models/zeus_no_trade_outcomes.jsonl",
     "models/zeus_pattern_exit_shadow.jsonl",  # тень паттерн-выходов (инвариант)

@@ -130,3 +130,22 @@ def test_outcomes_keep_full_cap_and_do_not_evict_ids_in_observations(tmp_path):
     assert log.pending(limit=25_000) == []
     assert log.enrich({}) == []
     assert src.read_text().splitlines() == kept
+
+
+def test_wedge_shadow_v2_journal_has_rotation_and_size_gate(tmp_path):
+    rel = "models/zeus_wedge_1h_signals_v2.jsonl"
+    assert rel in rot.STATE_FILES
+    assert rot.LIVE_JSONL_LIMITS["zeus_wedge_1h_signals_v2.jsonl"] == 24_000
+    src = tmp_path / rel
+    _write(src, 25_000)
+    assert src.stat().st_size < rot.MAX_BYTES
+
+    result = rot.rotate_all((rel,), root=tmp_path)[0]
+
+    assert result["rotated"] is True
+    assert result["archived_lines"] == 5_000
+    assert result["kept_lines"] == 20_000
+    kept = src.read_text(encoding="utf-8").splitlines()
+    assert len(kept) == 20_000
+    assert kept[0] == '{"i": 5000}'
+    assert kept[-1] == '{"i": 24999}'

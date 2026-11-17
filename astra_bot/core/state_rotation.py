@@ -41,6 +41,7 @@ LIVE_JSONL_LIMITS: dict[str, int] = {
     # Keep an outcome tail >= observation cap to avoid re-enrichment after eviction.
     "zeus_no_trade_outcomes.jsonl": 24_000,
     "zeus_wedge_1h_signals.jsonl": 24_000,
+    "zeus_wedge_1h_signals_v2.jsonl": 24_000,
     "zeus_paper_trades.jsonl": 24_000,
     "zeus_live_entries.jsonl": 24_000,
     "zeus_live_trades.jsonl": 24_000,

@@ -6,6 +6,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
@@ -475,3 +477,111 @@ def test_dual_lb_short_bars_skips_only_that_window(tmp_path, monkeypatch):
     lbs_seen = {r.get("lb") for r in lines}
     assert 48 in lbs_seen, lines
     assert 72 not in lbs_seen, lines
+
+
+def test_shadow_v2_orders_targets_and_records_entry_ts(tmp_path, monkeypatch):
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import zeus_wedge_1h_shadow as sh
+
+    monkeypatch.setattr(sh, "SHADOW_PATH", tmp_path / "signals_v2.jsonl")
+    monkeypatch.setattr(sh, "STATE_PATH", tmp_path / "state_v2.json")
+    o, h, l, c, _form = _narrow_series()
+    base_ts = 1_700_000_000
+    pad = [
+        {
+            "open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0,
+            "volume": 500.0, "open_time": base_ts + i * 3600,
+        }
+        for i in range(40)
+    ]
+    bars = pad + [
+        {
+            "open": o[i], "high": h[i], "low": l[i], "close": c[i],
+            "volume": 1000.0, "open_time": base_ts + (40 + i) * 3600,
+        }
+        for i in range(len(o))
+    ]
+    bars.append({
+        "open": c[-1], "high": c[-1], "low": c[-1], "close": c[-1],
+        "volume": 1.0, "open_time": base_ts + (40 + len(o)) * 3600,
+    })
+
+    sh.log_wedge_1h_shadow(symbol="BTC-USDT", bars_1h=bars, lb=48)
+    rows = [json.loads(line) for line in sh.SHADOW_PATH.read_text().splitlines() if line.strip()]
+    signals = [row for row in rows if row.get("status") == "signal"]
+    assert signals
+    for row in signals:
+        assert row["simulation_version"] == 2
+        assert row["entry_ts"] is not None
+        if row["side"] == "long":
+            assert 0 < row["tp1"] - row["entry"] <= row["tp2"] - row["entry"]
+        else:
+            assert 0 < row["entry"] - row["tp1"] <= row["entry"] - row["tp2"]
+        risk = abs(row["entry"] - row["stop"])
+        assert row["rr_to_tp2"] == pytest.approx(abs(row["tp2"] - row["entry"]) / risk)
+
+
+def test_shadow_v2_same_bar_tp1_and_initial_stop_is_stop_first(tmp_path, monkeypatch):
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import zeus_wedge_1h_shadow as sh
+
+    monkeypatch.setattr(sh, "SHADOW_PATH", tmp_path / "signals_v2.jsonl")
+    monkeypatch.setattr(sh, "STATE_PATH", tmp_path / "state_v2.json")
+    o, h, l, c, _form = _narrow_series()
+    base_ts = 1_700_000_000
+    pad = [
+        {
+            "open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0,
+            "volume": 500.0, "open_time": base_ts + i * 3600,
+        }
+        for i in range(40)
+    ]
+    bars = pad + [
+        {
+            "open": o[i], "high": h[i], "low": l[i], "close": c[i],
+            "volume": 1000.0, "open_time": base_ts + (40 + i) * 3600,
+        }
+        for i in range(len(o))
+    ]
+    bars.append({
+        "open": c[-1], "high": c[-1], "low": c[-1], "close": c[-1],
+        "volume": 1.0, "open_time": base_ts + (40 + len(o)) * 3600,
+    })
+
+    sh.log_wedge_1h_shadow(symbol="BTC-USDT", bars_1h=bars, lb=48)
+    state = sh._load_state()
+    open_map = (state.get("by_lb") or {}).get("48", {}).get("open") or {}
+    assert len(open_map) == 1
+    _key, pos = next(iter(open_map.items()))
+    entry_ts = int(pos["entry_ts"])
+    entry = float(pos["entry"])
+    stop = float(pos["stop"])
+    tp1 = float(pos["tp1"])
+
+    closed_bars = bars[:-1]
+    next_open_s = entry_ts // 1000 + 3600
+    stop_and_tp1 = {
+        "open": entry, "high": tp1 * 1.01, "low": stop * 0.99, "close": entry,
+        "volume": 2000.0, "open_time": next_open_s,
+    }
+    forming = {
+        "open": entry, "high": entry, "low": entry, "close": entry,
+        "volume": 1.0, "open_time": next_open_s + 3600,
+    }
+    sh.update_open_shadows(
+        symbol="BTC-USDT",
+        bars_1h=[*closed_bars, stop_and_tp1, forming],
+    )
+
+    rows = [json.loads(line) for line in sh.SHADOW_PATH.read_text().splitlines() if line.strip()]
+    closed = [row for row in rows if row.get("status") == "closed"]
+    assert len(closed) == 1
+    result = closed[0]
+    assert result["exit_reason"] == "stop"
+    assert result["result_r"] < -0.9
+    assert result["entry_ts"] == entry_ts
+    assert result["hold_bars"] == 1
+    assert result["exit_bar_open_ts"] == entry_ts + 3_600_000
+    assert result["exit_bar_close_ts"] == entry_ts + 7_200_000
+    assert result["hold_hours_min"] == pytest.approx(1.0)
+    assert result["hold_hours_max"] == pytest.approx(2.0)

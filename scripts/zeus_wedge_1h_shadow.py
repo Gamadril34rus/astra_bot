@@ -1,7 +1,8 @@
-"""Shadow logger for zeus_wedge_retest_1h — append-only jsonl, never trades.
+"""Versioned shadow logger for zeus_wedge_retest_1h — append-only, never trades.
 
-Primary geometry: gold (brief). Optional: narrow. Field geom tags stream.
-result_r: 50% at tp1 + remainder at be_stop/tp2/stop; costs 0.0015/side.
+V2 uses the nearer structural target as TP1 and the farther as TP2, resolves
+same-bar initial-stop conflicts stop-first, and records auditable entry/exit bars.
+V1 files are left untouched. Costs remain 0.0015 per side.
 Loss streak cumulative (wins/zeros do NOT reset); pause per strategy+symbol.
 
 Production signal path uses lag-scan (formation ends k bars ago) so breakout
@@ -28,8 +29,9 @@ from astra_bot.zeus_wedge_1h_core import (
 )
 
 logger = logging.getLogger(__name__)
-SHADOW_PATH = Path("models/zeus_wedge_1h_signals.jsonl")
-STATE_PATH = Path("models/zeus_wedge_1h_shadow_state.json")
+# Keep v1 evidence/state immutable; the corrected simulator writes a separate v2 stream.
+SHADOW_PATH = Path("models/zeus_wedge_1h_signals_v2.jsonl")
+STATE_PATH = Path("models/zeus_wedge_1h_shadow_state_v2.json")
 GEOMS = ("gold", "narrow")
 LOOKBACKS: tuple[int, ...] = (48, 72)
 DONE_TTL_MS = 48 * 3600 * 1000
@@ -153,6 +155,18 @@ def _dedup_key(symbol: str, geom: str, side: str, lb: int) -> str:
     return f"{symbol}|{geom}|{side}|{int(lb)}"
 
 
+def _ordered_targets(side: str, entry: float, raw_tp1: float, raw_tp2: float):
+    """Return (nearer TP1, farther TP2); reject targets not beyond entry."""
+    if side == "long":
+        if raw_tp1 <= entry or raw_tp2 <= entry or raw_tp1 == raw_tp2:
+            return None
+        return min(raw_tp1, raw_tp2), max(raw_tp1, raw_tp2)
+    if side == "short":
+        if raw_tp1 >= entry or raw_tp2 >= entry or raw_tp1 == raw_tp2:
+            return None
+        return max(raw_tp1, raw_tp2), min(raw_tp1, raw_tp2)
+    return None
+
 def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st, htf_closes=None):
     result = evaluate_bars_with_lag(
         o, h, l, c, lb=lb, geom=geom,
@@ -177,8 +191,24 @@ def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st, htf_closes
     retest_ts = ts[retest_i] if retest_i is not None and retest_i < len(ts) else None
     entry_ts = ts[entry_i] if entry_i is not None and entry_i < len(ts) else None
 
+    raw_tp1 = result.get("tp1")
+    raw_tp2 = result.get("tp2")
+    entry = result.get("entry")
+    stop = result.get("stop")
+    tp1, tp2 = raw_tp1, raw_tp2
+    if status == "signal":
+        ordered = None
+        if entry is not None and raw_tp1 is not None and raw_tp2 is not None:
+            ordered = _ordered_targets(side, float(entry), float(raw_tp1), float(raw_tp2))
+        if ordered is None:
+            status = "rejected_targets"
+        else:
+            tp1, tp2 = ordered
+
     # Dedup BEFORE blocked_pause rewrite — suppress episode noise while paused
-    if status in ("signal", "signal_pending_entry", "htf_gate_blocked") and side:
+    if status in (
+        "signal", "signal_pending_entry", "htf_gate_blocked", "rejected_targets"
+    ) and side:
         dkey = _dedup_key(symbol, geom, side, lb)
         if dkey in done:
             return None
@@ -210,13 +240,17 @@ def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st, htf_closes
         span = form.form_end - form.form_start
         breakout_pos = (breakout_i - form.form_start) / span if span else None
 
+    risk = abs(float(entry) - float(stop)) if entry is not None and stop is not None else 0.0
+    rr_to_tp2 = abs(float(tp2) - float(entry)) / risk if risk > 0 and tp2 is not None else None
     row = {
+        "simulation_version": 2,
         "signal_id": sid, "ts": now_ms, "symbol": symbol, "side": side, "lb": lb, "geom": geom,
         "w0": result.get("w0"), "wE": result.get("wE"),
         "touches_up": result.get("touches_up"), "touches_dn": result.get("touches_dn"),
-        "status": status, "breakout_ts": breakout_ts, "retest_ts": retest_ts,
-        "entry": result.get("entry"), "stop": result.get("stop"),
-        "tp1": result.get("tp1"), "tp2": result.get("tp2"), "rr_to_tp2": result.get("rr_to_tp2"),
+        "status": status, "breakout_ts": breakout_ts, "retest_ts": retest_ts, "entry_ts": entry_ts,
+        "entry": entry, "stop": stop,
+        "tp1": tp1, "tp2": tp2, "raw_tp1": raw_tp1, "raw_tp2": raw_tp2,
+        "rr_to_tp2": rr_to_tp2, "raw_rr_to_tp2": result.get("rr_to_tp2"),
         "div": result.get("div"), "div_zeus": result.get("div_zeus"),
         "hour_utc": time.gmtime().tm_hour,
         "btc_ema50_4h_dist": btc.get("btc_ema50_4h_dist"),
@@ -230,16 +264,17 @@ def _log_one(*, symbol, o, h, l, c, v, ts, btc, lb, regime, geom, st, htf_closes
         "htf_bias": result.get("htf_bias") or "unknown",
     }
     _append(row)
-    if status == "htf_gate_blocked" and side:
+    if status in ("htf_gate_blocked", "rejected_targets") and side:
         dkey = _dedup_key(symbol, geom, side, lb)
         done[dkey] = now_ms
         _save_state(st)
-    if status == "signal" and side and result.get("entry") is not None and entry_ts is not None:
+    if status == "signal" and side and entry is not None and entry_ts is not None:
         key_open = _dedup_key(symbol, geom, side, lb)
         open_map[key_open] = {
+            "simulation_version": 2,
             "signal_id": sid, "side": side, "geom": geom, "lb": int(lb),
-            "entry": result["entry"], "stop": result["stop"],
-            "tp1": result["tp1"], "tp2": result["tp2"],
+            "entry": float(entry), "stop": float(stop),
+            "tp1": float(tp1), "tp2": float(tp2),
             "entry_ts": entry_ts, "breakout_ts": breakout_ts,
             "ts": now_ms, "symbol": symbol,
         }
@@ -302,7 +337,7 @@ def log_wedge_1h_shadow(
 
 
 def update_open_shadows(*, symbol: str, bars_1h: Sequence[Any]) -> None:
-    """Close open shadows using entry_ts (stable across sliding windows)."""
+    """Close open shadows with conservative bar ordering and auditable timestamps."""
     st = _load_state()
     by_lb = st.get("by_lb") or {}
     if not by_lb:
@@ -325,10 +360,13 @@ def update_open_shadows(*, symbol: str, bars_1h: Sequence[Any]) -> None:
                 continue
             pos = open_map[key]
             side = pos["side"]
-            entry, stop = float(pos["entry"]), float(pos["stop"])
+            entry = float(pos["entry"])
+            initial_stop = float(pos["stop"])
+            stop = initial_stop
             tp1, tp2 = float(pos["tp1"]), float(pos["tp2"])
-            risk = abs(entry - stop) or 1e-12
-            entry_ts = pos.get("entry_ts")
+            risk = abs(entry - initial_stop) or 1e-12
+            entry_ts = int(pos["entry_ts"]) if pos.get("entry_ts") is not None else None
+
             if entry_ts is not None:
                 entry_i = None
                 for i, t in enumerate(ts):
@@ -337,58 +375,79 @@ def update_open_shadows(*, symbol: str, bars_1h: Sequence[Any]) -> None:
                     else:
                         break
                 if entry_i is None:
-                    exit_px = float(c[-1])
+                    exit_index = len(c) - 1
+                    exit_px = float(c[exit_index])
                     if side == "long":
                         result_r = (exit_px - entry) / risk - 2 * COST_PER_SIDE * entry / risk
                     else:
                         result_r = (entry - exit_px) / risk - 2 * COST_PER_SIDE * entry / risk
+                    exit_open_ts = int(ts[exit_index])
+                    exit_close_ts = exit_open_ts + 3_600_000
                     _append({
+                        "simulation_version": 2,
                         "signal_id": pos["signal_id"], "ts": int(time.time() * 1000),
                         "symbol": symbol, "side": side, "geom": pos.get("geom"),
-                        "lb": pos.get("lb"),
-                        "status": "closed", "result_r": result_r, "mfe_r": 0.0, "mae_r": 0.0,
-                        "hold_hours": None, "exit_reason": "eod",
+                        "lb": pos.get("lb"), "status": "closed", "result_r": result_r,
+                        "mfe_r": 0.0, "mae_r": 0.0, "entry": entry,
+                        "initial_stop": initial_stop, "tp1": tp1, "tp2": tp2,
+                        "entry_ts": entry_ts, "exit_bar_open_ts": exit_open_ts,
+                        "exit_bar_close_ts": exit_close_ts, "hold_bars": None,
+                        "hold_hours_min": max(0.0, (exit_open_ts - entry_ts) / 3_600_000),
+                        "hold_hours_max": max(0.0, (exit_close_ts - entry_ts) / 3_600_000),
+                        "exit_reason": "eod",
                     })
                     del open_map[key]
                     changed = True
                     continue
             else:
                 entry_i = 0
+
             exit_reason = None
             exit_px = None
+            exit_index = None
             tp1_hit = False
-            be = False
             mfe = mae = 0.0
             for i in range(entry_i + 1, len(c)):
                 hi, lo = h[i], l[i]
                 if side == "long":
                     mfe = max(mfe, (hi - entry) / risk)
                     mae = min(mae, (lo - entry) / risk)
-                    if not tp1_hit and hi >= tp1:
-                        tp1_hit = be = True
-                        stop = entry
+                    # Initial/BE stop is checked before a newly touched TP1.
                     if lo <= stop:
-                        exit_reason = "be_stop" if be and stop == entry else "stop"
+                        exit_reason = "be_stop" if tp1_hit else "stop"
                         exit_px = stop
+                        exit_index = i
                         break
+                    if not tp1_hit and hi >= tp1:
+                        tp1_hit = True
+                        stop = entry
+                        if lo <= stop:
+                            exit_reason, exit_px, exit_index = "be_stop", stop, i
+                            break
                     if hi >= tp2:
-                        exit_reason, exit_px = "tp2", tp2
+                        exit_reason, exit_px, exit_index = "tp2", tp2, i
                         break
                 else:
                     mfe = max(mfe, (entry - lo) / risk)
                     mae = min(mae, (entry - hi) / risk)
-                    if not tp1_hit and lo <= tp1:
-                        tp1_hit = be = True
-                        stop = entry
+                    # Initial/BE stop is checked before a newly touched TP1.
                     if hi >= stop:
-                        exit_reason = "be_stop" if be and stop == entry else "stop"
+                        exit_reason = "be_stop" if tp1_hit else "stop"
                         exit_px = stop
+                        exit_index = i
                         break
+                    if not tp1_hit and lo <= tp1:
+                        tp1_hit = True
+                        stop = entry
+                        if hi >= stop:
+                            exit_reason, exit_px, exit_index = "be_stop", stop, i
+                            break
                     if lo <= tp2:
-                        exit_reason, exit_px = "tp2", tp2
+                        exit_reason, exit_px, exit_index = "tp2", tp2, i
                         break
-            if exit_reason is None:
+            if exit_reason is None or exit_index is None:
                 continue
+
             cost_r = 2 * COST_PER_SIDE * entry / risk
             if side == "long":
                 r_tp1 = (tp1 - entry) / risk
@@ -398,17 +457,34 @@ def update_open_shadows(*, symbol: str, bars_1h: Sequence[Any]) -> None:
                 r_final = (entry - float(exit_px)) / risk
             if tp1_hit:
                 if exit_reason == "be_stop":
-                    result_r = 0.5 * r_tp1 + 0.5 * 0.0 - cost_r
+                    result_r = 0.5 * r_tp1 - cost_r
                 else:
                     result_r = 0.5 * r_tp1 + 0.5 * r_final - cost_r
             else:
                 result_r = r_final - cost_r
+
+            exit_open_ts = int(ts[exit_index])
+            exit_close_ts = exit_open_ts + 3_600_000
+            hold_bars = max(0, exit_index - entry_i)
+            hold_hours_min = (
+                max(0.0, (exit_open_ts - entry_ts) / 3_600_000)
+                if entry_ts is not None else None
+            )
+            hold_hours_max = (
+                max(0.0, (exit_close_ts - entry_ts) / 3_600_000)
+                if entry_ts is not None else None
+            )
             _append({
+                "simulation_version": 2,
                 "signal_id": pos["signal_id"], "ts": int(time.time() * 1000),
                 "symbol": symbol, "side": side, "geom": pos.get("geom"),
-                "lb": pos.get("lb"),
-                "status": "closed", "result_r": result_r, "mfe_r": mfe, "mae_r": mae,
-                "hold_hours": max(0, len(c) - entry_i - 1), "exit_reason": exit_reason,
+                "lb": pos.get("lb"), "status": "closed", "result_r": result_r,
+                "mfe_r": mfe, "mae_r": mae, "entry": entry,
+                "initial_stop": initial_stop, "stop_at_exit": stop,
+                "tp1": tp1, "tp2": tp2, "entry_ts": entry_ts,
+                "exit_bar_open_ts": exit_open_ts, "exit_bar_close_ts": exit_close_ts,
+                "hold_bars": hold_bars, "hold_hours_min": hold_hours_min,
+                "hold_hours_max": hold_hours_max, "exit_reason": exit_reason,
             })
             key_sym = f"zeus_wedge_retest_1h|{symbol}"
             if result_r < 0:
@@ -420,7 +496,6 @@ def update_open_shadows(*, symbol: str, bars_1h: Sequence[Any]) -> None:
             changed = True
     if changed:
         _save_state(st)
-
 
 async def observe_wedge_1h_shadow(
     *,
