@@ -692,7 +692,9 @@ class LiveBingXClient(BingXClient):
             )
         if not isinstance(data, list):
             return []
-        return [dict(row) for row in data if isinstance(row, dict)]
+        rows = [dict(row) for row in data if isinstance(row, dict)]
+        logger.info("get_position_history: %s rows=%d", symbol, len(rows))
+        return rows
 
     @property
     def income_endpoint_cooldown_active(self) -> bool:
