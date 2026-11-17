@@ -679,6 +679,186 @@ def _select_exit_row_by_context(
     return candidates[0] if len(candidates) == 1 else None
 
 
+def backfill_unqueued_exit_rows(
+    *,
+    trades_path: Path = TRADES_PATH,
+    pending_path: Path = PENDING_PATH,
+    flags_path: Path = Path("models/zeus_live_tg_flags.json"),
+    entry_events_by_key: dict[tuple[str, str], list[dict[str, Any]]] | None = None,
+    now: float | None = None,
+    max_age_days: int = 13,
+) -> dict[str, int]:
+    """Requeue recent exits missing PnL or close price, using exact entry context."""
+    from astra_bot.decision.live_tg_flags import already_sent
+
+    now_ts = float(now if now is not None else time.time())
+    now_ms = int(now_ts * 1000)
+    entry_events = entry_events_by_key or load_entry_events(trades_path)
+    pending = load_pending(pending_path)
+    try:
+        lines = trades_path.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        return {"added": 0, "updated": 0, "ambiguous": 0, "expired": 0}
+    except Exception as exc:
+        logger.warning("orphan exit backfill load: %s", type(exc).__name__)
+        return {"added": 0, "updated": 0, "ambiguous": 0, "expired": 0}
+
+    stats = {"added": 0, "updated": 0, "ambiguous": 0, "expired": 0}
+    max_age_ms = max(1, int(max_age_days)) * 24 * 3600 * 1000
+    changed = False
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if str(row.get("event") or "") != "exit":
+            continue
+        if row.get("pnl") is not None and (
+            row.get("exit_price") is not None or row.get("exit") is not None
+        ):
+            continue
+
+        symbol = str(row.get("symbol") or "")
+        side = str(row.get("side") or "").strip().lower()
+        signal_id = str(row.get("signal_id") or "")
+        if not symbol or not side or not signal_id:
+            continue
+        entry_events_for_row = entry_events.get((symbol, signal_id), [])
+        entry_event = select_entry_event(
+            entry_events_for_row,
+            entry=row.get("entry") or row.get("entry_price"),
+            qty=row.get("qty"),
+        )
+        if entry_event is None:
+            stats["ambiguous"] += 1
+            continue
+        entry_open_ms = int(entry_event["open_ms"])
+        if entry_open_ms < now_ms - max_age_ms:
+            stats["expired"] += 1
+            continue
+        if entry_open_ms > now_ms + 60_000:
+            stats["ambiguous"] += 1
+            continue
+
+        since_ms = max(0, entry_open_ms - 60_000)
+        entry_price = row.get("entry") or row.get("entry_price") or entry_event.get("entry")
+        qty = row.get("qty") or entry_event.get("qty")
+        exit_price = row.get("exit_price")
+        if exit_price is None:
+            exit_price = row.get("exit")
+        raw_reason = str(row.get("reason") or row.get("exit_reason") or "")
+        reason = (
+            "закрытие по биржевой истории"
+            if raw_reason.strip().lower() in {"", "no_fills", "unknown"}
+            else raw_reason
+        )
+        trade_ids = row.get("trade_ids")
+        if not isinstance(trade_ids, list):
+            trade_ids = []
+        flag_sent = already_sent(symbol, "exit", signal_id, flags_path)
+
+        match_index = None
+        for index, existing in enumerate(pending):
+            if (
+                str(existing.get("symbol") or "") != symbol
+                or str(existing.get("signal_id") or "") != signal_id
+            ):
+                continue
+            old_entry = _float_or_none(existing.get("entry"))
+            new_entry = _float_or_none(entry_price)
+            if (
+                old_entry is not None
+                and new_entry is not None
+                and abs(old_entry - new_entry) / new_entry > 0.005
+            ):
+                continue
+            old_qty = _float_or_none(existing.get("qty"))
+            new_qty = _float_or_none(qty)
+            if (
+                old_qty is not None
+                and new_qty is not None
+                and abs(old_qty - new_qty) / new_qty > 0.05
+            ):
+                continue
+            if (
+                old_entry is None
+                and new_entry is None
+                and old_qty is None
+                and new_qty is None
+            ):
+                try:
+                    old_since = int(float(existing.get("since_ms") or 0))
+                except (TypeError, ValueError, OverflowError):
+                    old_since = 0
+                if abs(old_since - since_ms) > 120_000:
+                    continue
+            match_index = index
+            break
+
+        if match_index is not None:
+            existing = dict(pending[match_index])
+            old_since = int(float(existing.get("since_ms") or 0))
+            if old_since != since_ms:
+                existing["since_ms"] = since_ms
+                existing["opened_at_ms"] = entry_open_ms
+                existing["ts"] = now_ts
+                changed = True
+            for key, value in (
+                ("entry", entry_price),
+                ("qty", qty),
+                ("exit_price", exit_price),
+                ("reason", reason),
+                ("trade_ids", trade_ids),
+            ):
+                if value is not None and (not existing.get(key) or key == "trade_ids" and not existing.get(key)):
+                    existing[key] = value
+                    changed = True
+            if row.get("tg_card_sent"):
+                existing["card_sent"] = True
+            if row.get("tg_followup_sent") or flag_sent:
+                existing["followup_sent"] = True
+            pending[match_index] = existing
+            if old_since == since_ms:
+                stats["updated"] += 0
+            else:
+                stats["updated"] += 1
+            continue
+
+        pending.append(
+            {
+                "symbol": symbol,
+                "side": side,
+                "signal_id": signal_id,
+                "since_ms": since_ms,
+                "opened_at_ms": entry_open_ms,
+                "reason": reason,
+                "entry": entry_price,
+                "qty": qty,
+                "trade_ids": trade_ids,
+                "exit_price": exit_price,
+                "ts": now_ts,
+                "card_sent": bool(row.get("tg_card_sent")),
+                "followup_sent": bool(row.get("tg_followup_sent") or flag_sent),
+            }
+        )
+        stats["added"] += 1
+        changed = True
+
+    if changed:
+        save_pending(pending, pending_path)
+    if any(stats.values()):
+        logger.info(
+            "orphan exit backfill added=%d updated=%d ambiguous=%d expired=%d",
+            stats["added"],
+            stats["updated"],
+            stats["ambiguous"],
+            stats["expired"],
+        )
+    return stats
+
+
 def mark_exit_delivery(
     item: dict[str, Any],
     *,
