@@ -880,9 +880,9 @@ class LiveBroker:
         import time as _time
         from pathlib import Path as _Path
 
+        from astra_bot.decision.live_income_report import match_position_history
         from astra_bot.decision.live_positions import load_positions, remove_plan
         from astra_bot.decision.live_tg_flags import try_claim
-        from astra_bot.decision.live_income_report import match_position_history
         from astra_bot.decision.zeus_heat import DEFAULT_HEAT_PATH, ZeusHeatGovernor
 
         path = positions_path or _Path("models/zeus_live_positions.json")
