@@ -544,11 +544,19 @@ def _find_confirmed_exit_row(
     return match
 
 
-def load_entry_open_times(
+def _float_or_none(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if number > 0 else None
+
+
+def load_entry_events(
     path: Path = TRADES_PATH,
-) -> dict[tuple[str, str], int]:
-    """Load immutable execution timestamps from exact entry ledger events."""
-    result: dict[tuple[str, str], int] = {}
+) -> dict[tuple[str, str], list[dict[str, Any]]]:
+    """Load execution timestamps and sizing from immutable entry ledger events."""
+    result: dict[tuple[str, str], list[dict[str, Any]]] = {}
     if not path.exists():
         return result
     try:
@@ -570,11 +578,120 @@ def load_entry_open_times(
                 opened_ms = _row_time_ms({"time": row.get("ts")})
             if opened_ms is None:
                 continue
-            key = (symbol, signal_id)
-            result[key] = min(opened_ms, result.get(key, opened_ms))
+            event = {
+                "open_ms": opened_ms,
+                "entry": _float_or_none(
+                    row.get("fill_price") or row.get("entry") or row.get("plan_entry")
+                ),
+                "qty": _float_or_none(row.get("qty")),
+            }
+            result.setdefault((symbol, signal_id), []).append(event)
     except Exception as exc:
-        logger.warning("entry open-time lookup: %s", type(exc).__name__)
+        logger.warning("entry event lookup: %s", type(exc).__name__)
+    for events in result.values():
+        events.sort(key=lambda event: int(event["open_ms"]))
     return result
+
+
+def select_entry_event(
+    events: list[dict[str, Any]],
+    *,
+    entry: Any = None,
+    qty: Any = None,
+    opened_at_ms: Any = None,
+    since_ms: Any = None,
+) -> dict[str, Any] | None:
+    """Select one entry event by price/size, then an unambiguous nearby timestamp."""
+    candidates = list(events or [])
+    if not candidates:
+        return None
+
+    entry_target = _float_or_none(entry)
+    if entry_target is not None:
+        price_matches = [
+            event
+            for event in candidates
+            if event.get("entry") is not None
+            and abs(float(event["entry"]) - entry_target) / entry_target <= 0.005
+        ]
+        if price_matches:
+            candidates = price_matches
+
+    qty_target = _float_or_none(qty)
+    if qty_target is not None:
+        qty_matches = [
+            event
+            for event in candidates
+            if event.get("qty") is not None
+            and abs(float(event["qty"]) - qty_target) / qty_target <= 0.05
+        ]
+        if qty_matches:
+            candidates = qty_matches
+
+    if len(candidates) == 1:
+        return candidates[0]
+
+    target_ms = _row_time_ms({"time": opened_at_ms})
+    if target_ms is None and since_ms is not None:
+        since_value = _row_time_ms({"time": since_ms})
+        if since_value is not None:
+            target_ms = since_value + 60_000
+    if target_ms is None:
+        return None
+
+    ranked = sorted(
+        candidates,
+        key=lambda event: abs(int(event["open_ms"]) - target_ms),
+    )
+    best_distance = abs(int(ranked[0]["open_ms"]) - target_ms)
+    second_distance = abs(int(ranked[1]["open_ms"]) - target_ms)
+    if best_distance <= 120_000 and second_distance - best_distance >= 120_000:
+        return ranked[0]
+    return None
+
+
+def _select_exit_row_by_context(
+    rows: list[dict[str, Any]],
+    *,
+    entry: Any = None,
+    qty: Any = None,
+) -> dict[str, Any] | None:
+    candidates = list(rows or [])
+    if not candidates:
+        return None
+
+    entry_target = _float_or_none(entry)
+    if entry_target is not None:
+        comparable = [
+            row for row in candidates
+            if _float_or_none(row.get("entry") or row.get("entry_price")) is not None
+        ]
+        if comparable:
+            matches = [
+                row for row in comparable
+                if abs(
+                    float(row.get("entry") or row.get("entry_price")) - entry_target
+                ) / entry_target <= 0.005
+            ]
+            if not matches:
+                return None
+            candidates = matches
+
+    qty_target = _float_or_none(qty)
+    if qty_target is not None:
+        comparable = [
+            row for row in candidates if _float_or_none(row.get("qty")) is not None
+        ]
+        if comparable:
+            matches = [
+                row for row in comparable
+                if abs(float(row["qty"]) - qty_target) / qty_target <= 0.05
+            ]
+            if not matches:
+                return None
+            candidates = matches
+
+    return candidates[0] if len(candidates) == 1 else None
 
 
 def match_position_history(
