@@ -53,9 +53,9 @@
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
       "side": "short",
-      "qty": "27.48763056",
+      "qty": 19.241,
       "stop": "1837.19",
-      "tp": "1808.9955",
+      "tp": "1786.665",
       "entry": "1816.98",
       "leverage": 6,
       "pending_verify": false,
@@ -66,15 +66,17 @@
       "tp_frac": "0.3",
       "opened_at_ms": 1794916974475,
       "plan_qty": "27.48763056",
-      "qty_ratio": 1.0,
+      "qty_ratio": 0.6999875801590372,
       "tp1": "1808.9955",
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "1812.51",
+      "peak_low": "1809.48",
       "be_earned": true,
       "migrate_stop_v1": true,
-      "current_regime": "STRONG_BEAR_TREND"
+      "current_regime": "STRONG_BEAR_TREND",
+      "runner_tp_rr": 1.5,
+      "runner_tp_healed_v1": true
     },
     "SOL-USDT|short": {
       "symbol": "SOL-USDT",
@@ -97,10 +99,10 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "73.797",
+      "peak_low": "73.593",
       "be_earned": true,
       "current_regime": "RANGE"
     }
   },
-  "ts": 1794927136.5911326
+  "ts": 1794927417.1127512
 }
