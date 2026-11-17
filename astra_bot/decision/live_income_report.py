@@ -1143,8 +1143,16 @@ async def resolve_pending_dogon(
     items = load_pending(path)
     if not items:
         return 0
-    items.sort(key=lambda item: int(float(item.get("since_ms") or 0)))
-    batch = items[: max(1, int(max_items))]
+
+    def _pending_sort_key(item: dict[str, Any]) -> int:
+        try:
+            return int(float(item.get("since_ms") or 0))
+        except (TypeError, ValueError, OverflowError):
+            return 0
+
+    items.sort(key=_pending_sort_key)
+    batch_limit = max(1, int(max_items))
+    batch = items[:batch_limit]
     remaining: list[dict[str, Any]] = list(items[len(batch):])
     sent = 0
     position_history_cache: dict[str, list[dict[str, Any]]] = {}
