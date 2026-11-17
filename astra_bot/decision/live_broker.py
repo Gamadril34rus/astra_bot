@@ -1305,15 +1305,19 @@ class LiveBroker:
                 funding=float(funding_fee or 0),
                 fees=-abs(float(fees or 0)),
             )
+            followup_sent = False
             if try_claim(sym, "exit", signal_id):
                 if send_tg is not None:
                     try:
                         await send_tg(msg)
+                        followup_sent = True
                     except Exception as exc:
                         logger.warning("sync_closed TG: %s", type(exc).__name__)
             else:
                 logger.info("sync_closed: skip dup TG %s", sym)
+                followup_sent = True
             # Cosmetic exit card: reconciled data only; no exchange reads.
+            card_sent = False
             try:
                 card_qty = float(qty_closed or qty_plan or 0)
                 raw_leverage = plan.get("leverage") or plan.get("lev")
@@ -1347,11 +1351,16 @@ class LiveBroker:
                         card_exit = float(exit_fill)
                     if card_exit is not None and card_exit > 0:
                         from astra_bot.decision.trade_viz import notify_exit_stats_card
-                        await notify_exit_stats_card(
+                        card_sent = bool(await notify_exit_stats_card(
                             symbol=sym, side=side, entry=card_entry,
                             exit_price=card_exit, pnl=card_pnl, qty=card_qty,
                             leverage=card_leverage, closed_at=now, virtual=True,
-                        )
+                        ))
+                        if not card_sent:
+                            logger.warning(
+                                "viz_error event=viz_error phase=EXIT_CARD symbol=%s reason=send_failed",
+                                sym,
+                            )
                     elif exit_fill is not None:
                         logger.warning(
                             "viz_error event=viz_error phase=EXIT_CARD symbol=%s reason=cannot_derive_exit",
@@ -1364,13 +1373,14 @@ class LiveBroker:
             try:
                 from astra_bot.decision.live_income_report import strategy_from_signal_id
                 # Owner 28.10: classify income exits + R observability
-                exchange_fill_type = "UNKNOWN"
-                if reason in ("стоп", "stop", "stop_loss"):
-                    exchange_fill_type = "ENGINE_STOP"
-                elif reason in ("тейк", "tp", "take_profit") or (reason and "тейк" in str(reason)):
-                    exchange_fill_type = "ENGINE_TP"
-                elif reason == "income":
-                    exchange_fill_type = "UNKNOWN"
+                exchange_fill_type = "POSITION_HISTORY" if pnl_source_override == "position_history" else "UNKNOWN"
+                if pnl_source_override != "position_history":
+                    if reason in ("стоп", "stop", "stop_loss"):
+                        exchange_fill_type = "ENGINE_STOP"
+                    elif reason in ("тейк", "tp", "take_profit") or (reason and "тейк" in str(reason)):
+                        exchange_fill_type = "ENGINE_TP"
+                    elif reason == "income":
+                        exchange_fill_type = "UNKNOWN"
                 r_multiple = None
                 try:
                     risk_px = plan.get("initial_stop") or plan.get("stop")
@@ -1486,8 +1496,37 @@ class LiveBroker:
                     except (TypeError, ValueError, ZeroDivisionError):
                         pass
                 append_live_trade(trade_row)
+                trade_row_written = True
             except Exception as tex:
                 logger.warning("append_live_trade: %s", type(tex).__name__)
+                trade_row_written = False
+
+            if trade_row_written and (not card_sent or not followup_sent):
+                try:
+                    from astra_bot.decision.live_income_report import enqueue_pending
+
+                    retry_item = {
+                        "symbol": sym,
+                        "side": side,
+                        "signal_id": signal_id,
+                        "since_ms": start_ms,
+                        "reason": reason,
+                        "entry": entry_px,
+                        "qty": float(qty_closed or qty_plan or 0) or None,
+                        "leverage": plan.get("leverage") or plan.get("lev"),
+                        "stop": plan.get("initial_stop") or plan.get("stop"),
+                        "target": plan.get("tp") or plan.get("target"),
+                        "closed_at": now,
+                        "trade_ids": sorted(trade_ids),
+                        "ts": now,
+                        "card_sent": card_sent,
+                        "followup_sent": followup_sent,
+                    }
+                    if exit_fill is not None:
+                        retry_item["exit_price"] = float(exit_fill)
+                    enqueue_pending(retry_item)
+                except Exception as exc:
+                    logger.warning("sync_closed exit delivery queue %s: %s", sym, type(exc).__name__)
 
             try:
                 heat = ZeusHeatGovernor(state_path=DEFAULT_HEAT_PATH)
