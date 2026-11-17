@@ -544,6 +544,39 @@ def _find_confirmed_exit_row(
     return match
 
 
+def load_entry_open_times(
+    path: Path = TRADES_PATH,
+) -> dict[tuple[str, str], int]:
+    """Load immutable execution timestamps from exact entry ledger events."""
+    result: dict[tuple[str, str], int] = {}
+    if not path.exists():
+        return result
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if str(row.get("event") or "") != "entry":
+                continue
+            symbol = str(row.get("symbol") or "")
+            signal_id = str(row.get("signal_id") or "")
+            if not symbol or not signal_id:
+                continue
+            opened_ms = _row_time_ms({"time": row.get("opened_at_ms")})
+            if opened_ms is None:
+                opened_ms = _row_time_ms({"time": row.get("ts")})
+            if opened_ms is None:
+                continue
+            key = (symbol, signal_id)
+            result[key] = min(opened_ms, result.get(key, opened_ms))
+    except Exception as exc:
+        logger.warning("entry open-time lookup: %s", type(exc).__name__)
+    return result
+
+
 def match_position_history(
     rows: list[dict[str, Any]],
     *,
@@ -736,24 +769,33 @@ async def resolve_pending_dogon(
     now_ts = float(now if now is not None else time.time())
     remaining: list[dict[str, Any]] = []
     sent = 0
+    entry_open_times = load_entry_open_times(trades_path)
     position_history_cache: dict[str, list[dict[str, Any]]] = {}
     position_history_start_by_symbol: dict[str, int] = {}
     for queued in items:
         queued_symbol = str(queued.get("symbol") or "")
+        queued_signal_id = str(queued.get("signal_id") or "")
         try:
             queued_since = int(float(queued.get("since_ms") or 0))
         except (TypeError, ValueError):
             queued_since = 0
-        if queued_symbol and queued_since > 0:
+        entry_open_ms = entry_open_times.get((queued_symbol, queued_signal_id))
+        candidate_starts = [value for value in (
+            queued_since,
+            max(0, entry_open_ms - 60_000) if entry_open_ms is not None else 0,
+        ) if value > 0]
+        if queued_symbol and candidate_starts:
+            candidate_start = min(candidate_starts)
             position_history_start_by_symbol[queued_symbol] = min(
-                queued_since,
-                position_history_start_by_symbol.get(queued_symbol, queued_since),
+                candidate_start,
+                position_history_start_by_symbol.get(queued_symbol, candidate_start),
             )
     for item in items:
         sym = str(item.get("symbol") or "")
         side = str(item.get("side") or "").strip().lower()
         sid = item.get("signal_id")
         since_ms = item.get("since_ms")
+        entry_open_ms = entry_open_times.get((sym, str(sid) if sid is not None else ""))
         reason = str(item.get("reason") or "стоп")
         try:
             est_f = float(item["est"]) if item.get("est") is not None else None
@@ -844,13 +886,18 @@ async def resolve_pending_dogon(
         # identifiers. Match only one exact symbol/side/open-time record.
         if (
             not confirmed
-            and since_ms is not None
+            and (since_ms is not None or entry_open_ms is not None)
             and hasattr(client, "get_position_history")
         ):
             try:
-                since_value = int(float(since_ms))
+                since_value = int(float(since_ms)) if since_ms is not None else 0
                 if sym not in position_history_cache:
-                    history_start = position_history_start_by_symbol.get(sym, since_value)
+                    fallback_start = (
+                        max(0, entry_open_ms - 60_000)
+                        if entry_open_ms is not None
+                        else since_value
+                    )
+                    history_start = position_history_start_by_symbol.get(sym, fallback_start)
                     history_end = int(now_ts * 1000)
                     history_start = max(
                         history_start,
@@ -863,7 +910,11 @@ async def resolve_pending_dogon(
                         page_index=0,
                         page_size=100,
                     )
-                target_open_ms = int(float(item.get("opened_at_ms") or (since_value + 60_000)))
+                target_open_ms = int(
+                    entry_open_ms
+                    or item.get("opened_at_ms")
+                    or (since_value + 60_000)
+                )
                 history = match_position_history(
                     position_history_cache[sym],
                     symbol=sym,
