@@ -478,3 +478,4 @@ def test_pending_dogon_resolves_ambiguous_income_from_position_history(tmp_path,
     assert row["funding_fee"] == -0.1
     assert row["exit"] == 99.5
     assert row["exit_price"] == 99.5
+    assert row["position_id"] == "position-1"
