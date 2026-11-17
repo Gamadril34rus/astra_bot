@@ -376,7 +376,8 @@ def test_pending_dogon_resolves_ambiguous_income_from_position_history(tmp_path,
     pending_path = tmp_path / "pending.json"
     trades_path = tmp_path / "trades.jsonl"
     opened_at_ms = 1_700_000_000_000
-    since_ms = opened_at_ms - 60_000
+    # Legacy plan timestamp was populated hours after the actual entry.
+    since_ms = opened_at_ms + 3 * 60 * 60 * 1000
     enqueue_pending(
         {
             "symbol": "BTC-USDT",
@@ -394,20 +395,28 @@ def test_pending_dogon_resolves_ambiguous_income_from_position_history(tmp_path,
         },
         path=pending_path,
     )
+    entry_row = {
+        "event": "entry",
+        "symbol": "BTC-USDT",
+        "side": "long",
+        "signal_id": "signal-long",
+        "ts": opened_at_ms / 1000.0,
+        "entry": 100.0,
+        "qty": 1.0,
+        "leverage": 3.0,
+    }
+    exit_row = {
+        "event": "exit",
+        "symbol": "BTC-USDT",
+        "side": "long",
+        "signal_id": "signal-long",
+        "entry": 100.0,
+        "exit": None,
+        "pnl": None,
+        "pnl_source": "pending_dogon",
+    }
     trades_path.write_text(
-        json.dumps(
-            {
-                "event": "exit",
-                "symbol": "BTC-USDT",
-                "side": "long",
-                "signal_id": "signal-long",
-                "entry": 100.0,
-                "exit": None,
-                "pnl": None,
-                "pnl_source": "pending_dogon",
-            }
-        )
-        + "\n",
+        json.dumps(entry_row) + "\n" + json.dumps(exit_row) + "\n",
         encoding="utf-8",
     )
 
@@ -429,7 +438,7 @@ def test_pending_dogon_resolves_ambiguous_income_from_position_history(tmp_path,
         ):
             self.history_calls += 1
             assert symbol == "BTC-USDT"
-            assert start_ms == since_ms
+            assert start_ms == opened_at_ms - 60_000
             return [
                 {
                     "symbol": "BTC-USDT",
@@ -471,7 +480,11 @@ def test_pending_dogon_resolves_ambiguous_income_from_position_history(tmp_path,
     assert pnl == -2.1
     assert "Position History" in message
 
-    row = json.loads(trades_path.read_text(encoding="utf-8").splitlines()[0])
+    rows = [
+        json.loads(line)
+        for line in trades_path.read_text(encoding="utf-8").splitlines()
+    ]
+    row = next(item for item in rows if item.get("event") == "exit")
     assert row["pnl_source"] == "position_history"
     assert row["pnl"] == -2.1
     assert row["fees"] == -0.1
