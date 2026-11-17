@@ -1115,19 +1115,30 @@ async def resolve_pending_dogon(
     *,
     path: Path = PENDING_PATH,
     trades_path: Path = TRADES_PATH,
+    flags_path: Path = Path("models/zeus_live_tg_flags.json"),
     now: float | None = None,
+    max_items: int = 5,
 ) -> int:
     """Resolve pending exits from confirmed ledger/income; never discard silently."""
+    now_ts = float(now if now is not None else time.time())
+    entry_events_by_key = load_entry_events(trades_path)
+    backfill_unqueued_exit_rows(
+        trades_path=trades_path,
+        pending_path=path,
+        flags_path=flags_path,
+        entry_events_by_key=entry_events_by_key,
+        now=now_ts,
+    )
     items = load_pending(path)
     if not items:
         return 0
-    now_ts = float(now if now is not None else time.time())
-    remaining: list[dict[str, Any]] = []
+    items.sort(key=lambda item: int(float(item.get("since_ms") or 0)))
+    batch = items[: max(1, int(max_items))]
+    remaining: list[dict[str, Any]] = list(items[len(batch):])
     sent = 0
-    entry_events_by_key = load_entry_events(trades_path)
     position_history_cache: dict[str, list[dict[str, Any]]] = {}
     position_history_start_by_symbol: dict[str, int] = {}
-    for queued in items:
+    for queued in batch:
         queued_symbol = str(queued.get("symbol") or "")
         queued_signal_id = str(queued.get("signal_id") or "")
         queued_entry_events = entry_events_by_key.get(
@@ -1155,7 +1166,7 @@ async def resolve_pending_dogon(
                 candidate_start,
                 position_history_start_by_symbol.get(queued_symbol, candidate_start),
             )
-    for item in items:
+    for item in batch:
         sym = str(item.get("symbol") or "")
         side = str(item.get("side") or "").strip().lower()
         sid = item.get("signal_id")
