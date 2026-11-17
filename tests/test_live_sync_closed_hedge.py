@@ -338,9 +338,8 @@ def test_protective_order_with_explicit_hedge_side_is_scoped():
 async def test_sync_closed_plans_uses_position_history_when_fills_and_income_are_ambiguous(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from astra_bot.decision import live_income_report
+    from astra_bot.decision import live_income_report, trade_viz
     from astra_bot.decision.live_positions import plan_key, save_positions
-    from astra_bot.decision import trade_viz
 
     monkeypatch.chdir(tmp_path)
     positions_path = tmp_path / "models" / "zeus_live_positions.json"
