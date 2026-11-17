@@ -295,6 +295,8 @@ class LiveBingXClient(BingXClient):
         super().__init__(cfg)
         self._income_cooldown_until = 0.0
         self._positions_cooldown_until = 0.0
+        self._positions_cache_until = 0.0
+        self._positions_cache: list[Position] = []
         self._is_vst = "vst" in (self.base_url or "").lower()
         # Internal process-local proof consumed by live_risk; never supplied by Secrets.
         os.environ["ZEUS_VST_ENDPOINT_CONFIRMED"] = "1" if self._is_vst else "0"
@@ -370,6 +372,8 @@ class LiveBingXClient(BingXClient):
             msg = str(resp.get("msg") or "order rejected")
             raise RuntimeError(f"place_order rejected code={code} msg={msg}")
         data = resp.get("data") or resp
+        if order_type.upper() == "MARKET":
+            self._invalidate_positions_cache()
         return _parse_order(data if isinstance(data, dict) else {}, symbol)
 
     async def cancel_order(self, symbol: str, order_id: str) -> bool:
@@ -410,15 +414,22 @@ class LiveBingXClient(BingXClient):
         """True while this process is avoiding repeated BingX 100410 position reads."""
         return time.monotonic() < float(getattr(self, "_positions_cooldown_until", 0.0))
 
+    def _invalidate_positions_cache(self) -> None:
+        self._positions_cache_until = 0.0
+        self._positions_cache = []
+
     async def get_positions(self) -> list[Position]:
         """Return all open hedge positions (including partial remains).
 
         F9: never drop a non-zero row because one field is empty; try several
         qty keys; bad rows → warning + skip, rest still returned.
-        A 100410 endpoint cooldown is process-local: fail closed for 15 seconds
-        instead of immediately hammering the same disabled positions endpoint
-        from restore/ensure/reconcile calls in one live tick.
+        Coalesce read-only calls for one second within a live tick. Market orders
+        invalidate the snapshot. A 100410 endpoint cooldown then fails closed for
+        15 seconds instead of hammering the same disabled endpoint.
         """
+        now_mono = time.monotonic()
+        if now_mono < self._positions_cache_until:
+            return list(self._positions_cache)
         if self.positions_endpoint_cooldown_active:
             raise ExchangeError(
                 "BingX positions endpoint is in local 100410 cooldown",
@@ -471,7 +482,9 @@ class LiveBingXClient(BingXClient):
             )
         except Exception:
             pass
-        return out
+        self._positions_cache = list(out)
+        self._positions_cache_until = time.monotonic() + 1.0
+        return list(out)
 
     async def get_balance_usdt(self) -> Decimal:
         """Wallet equity in USDT or VST only (A-014).
