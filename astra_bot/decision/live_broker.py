@@ -880,7 +880,10 @@ class LiveBroker:
         import time as _time
         from pathlib import Path as _Path
 
-        from astra_bot.decision.live_income_report import match_position_history
+        from astra_bot.decision.live_income_report import (
+            load_entry_open_times,
+            match_position_history,
+        )
         from astra_bot.decision.live_positions import load_positions, remove_plan
         from astra_bot.decision.live_tg_flags import try_claim
         from astra_bot.decision.zeus_heat import DEFAULT_HEAT_PATH, ZeusHeatGovernor
@@ -911,22 +914,26 @@ class LiveBroker:
         pending_cleanup: list[str] = []
         cancelled = 0
         now = _time.time()
+        entry_open_times = load_entry_open_times()
         position_history_cache: dict[str, list[dict[str, Any]]] = {}
         position_history_start_by_symbol: dict[str, int] = {}
         for history_plan in plans.values():
             history_symbol = str(history_plan.get("symbol") or "")
-            try:
-                history_opened = history_plan.get("opened_at_ms")
-                if history_opened is not None:
-                    history_open_ms = int(float(history_opened))
-                else:
-                    history_ts = float(history_plan.get("ts") or 0)
-                    if history_ts > 1e12:
-                        history_ts /= 1000.0
-                    history_open_ms = int(history_ts * 1000) if history_ts > 0 else 0
-            except (TypeError, ValueError, OverflowError):
-                history_open_ms = 0
-            if history_symbol and history_open_ms > 0:
+            history_signal_id = str(history_plan.get("signal_id") or "")
+            history_open_ms = entry_open_times.get((history_symbol, history_signal_id))
+            if history_open_ms is None:
+                try:
+                    history_opened = history_plan.get("opened_at_ms")
+                    if history_opened is not None:
+                        history_open_ms = int(float(history_opened))
+                    else:
+                        history_ts = float(history_plan.get("ts") or 0)
+                        if history_ts > 1e12:
+                            history_ts /= 1000.0
+                        history_open_ms = int(history_ts * 1000) if history_ts > 0 else 0
+                except (TypeError, ValueError, OverflowError):
+                    history_open_ms = 0
+            if history_symbol and history_open_ms and history_open_ms > 0:
                 history_start = max(0, history_open_ms - 60_000)
                 position_history_start_by_symbol[history_symbol] = min(
                     history_start,
@@ -1023,6 +1030,14 @@ class LiveBroker:
                         start_ms = int((ts - 60) * 1000)
             except (TypeError, ValueError, OverflowError):
                 start_ms = None
+
+            entry_open_ms = entry_open_times.get(
+                (sym, str(plan.get("signal_id") or ""))
+            )
+            if entry_open_ms is not None:
+                # The immutable entry event wins over legacy plan timestamps that
+                # may have been populated later by a reconciliation upsert.
+                start_ms = max(0, int(entry_open_ms) - 60_000)
 
             fills: list = []
             try:
@@ -1172,7 +1187,11 @@ class LiveBroker:
                         position_history_cache[sym],
                         symbol=sym,
                         side=side,
-                        target_open_ms=int(start_ms) + 60_000,
+                        target_open_ms=(
+                            int(entry_open_ms)
+                            if entry_open_ms is not None
+                            else int(start_ms) + 60_000
+                        ),
                     )
                     if history_match is not None:
                         pnl = float(history_match["pnl"])
