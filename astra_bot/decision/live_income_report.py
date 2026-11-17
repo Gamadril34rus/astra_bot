@@ -910,6 +910,8 @@ def _parse_income_fill(row: dict, symbol: str) -> dict | None:
         "pnl": amount,
         "income_type": it,
         "income_id": _income_row_id(row),
+        "trade_id": _income_trade_id(row),
+        "signal_id": str(row.get("signal_id") or row.get("signalId") or "").strip() or None,
         "source": "income_tape",
         "ts": ts,
     }

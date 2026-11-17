@@ -1,19 +1,14 @@
 """F13: fill-tape, qty reconcile, strategy_from_signal_id, restore cancel journal."""
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-
 from astra_bot.decision.live_income_report import (
     _income_row_id,
     _parse_income_fill,
-    load_fill_tape_seen,
     process_income_fill_tape,
-    save_fill_tape_seen,
     strategy_from_signal_id,
 )
 
@@ -38,6 +33,26 @@ def test_parse_income_fill_only_realized():
     assert f["source"] == "income_tape"
     assert f["pnl"] == -12.5
     assert f["income_id"] == "A"
+    assert f["trade_id"] is None
+    assert f["signal_id"] is None
+
+
+def test_parse_income_fill_preserves_explicit_trade_and_signal_linkage():
+    f = _parse_income_fill(
+        {
+            "_incomeType": "REALIZED_PNL",
+            "income": 4.25,
+            "time": 1_700_000_000_000,
+            "tranId": "INCOME-7",
+            "tradeId": "TRADE-9",
+            "signal_id": "zeus_channel_boundary_4h|BTC-USDT|long",
+        },
+        "BTC-USDT",
+    )
+    assert f is not None
+    assert f["income_id"] == "INCOME-7"
+    assert f["trade_id"] == "TRADE-9"
+    assert f["signal_id"] == "zeus_channel_boundary_4h|BTC-USDT|long"
 
 
 @pytest.mark.asyncio
@@ -61,7 +76,7 @@ async def test_fill_tape_dedup(tmp_path):
 @pytest.mark.asyncio
 async def test_reconcile_plan_qty_threshold(tmp_path, monkeypatch):
     from astra_bot.decision.live_broker import LiveBroker, LiveBrokerConfig
-    from astra_bot.decision.live_positions import save_positions, plan_key
+    from astra_bot.decision.live_positions import plan_key, save_positions
 
     pos_path = tmp_path / "pos.json"
     save_positions({
