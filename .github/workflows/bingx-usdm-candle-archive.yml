@@ -45,18 +45,28 @@ jobs:
         env:
           ARCHIVE_MODE: ${{ inputs.mode || '' }}
           ARCHIVE_TIMEFRAMES: ${{ inputs.timeframes || '' }}
+          INITIATOR: ${{ github.actor }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
-          export PYTHONPATH="$GITHUB_WORKSPACE${PYTHONPATH:+:$PYTHONPATH}"
-          python -c 'from astra_bot.adapters.bingx.client import BingXClient; print("archive imports OK")'
           if [[ -z "$ARCHIVE_MODE" ]]; then
             if [[ -f data/bingx_usdm/manifest.json ]]; then
               ARCHIVE_MODE=daily
             else
-              echo "::warning::No candle manifest exists; scheduled run is safely skipped. A full initial archive requires an explicit owner-initiated workflow_dispatch with mode=initial."
+              echo "::warning::No candle manifest exists; scheduled run is safely skipped before archive initialization or any BingX request."
               exit 0
             fi
           fi
+          if [[ "$ARCHIVE_MODE" == "daily" && ! -f data/bingx_usdm/manifest.json ]]; then
+            echo "::error::Daily mode requires an existing manifest; run mode=initial as the repository owner first."
+            exit 1
+          fi
+          if [[ "$ARCHIVE_MODE" == "initial" && "$INITIATOR" != "$REPOSITORY_OWNER" ]]; then
+            echo "::error::Initial archive mode is restricted to workflow_dispatch by the repository owner."
+            exit 1
+          fi
+          export PYTHONPATH="$GITHUB_WORKSPACE${PYTHONPATH:+:$PYTHONPATH}"
+          python -c 'from astra_bot.adapters.bingx.client import BingXClient; print("archive imports OK")'
           args=(--mode "$ARCHIVE_MODE")
           if [[ -n "$ARCHIVE_TIMEFRAMES" ]]; then
             args+=(--timeframes "$ARCHIVE_TIMEFRAMES")
