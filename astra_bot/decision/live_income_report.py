@@ -865,11 +865,19 @@ async def resolve_pending_dogon(
                 remaining.append(updated)
             continue
 
+        income_since_ms = since_ms
+        if entry_open_ms is not None:
+            income_since_ms = max(0, int(entry_open_ms) - 60_000)
+        elif since_ms is not None:
+            try:
+                income_since_ms = int(float(since_ms))
+            except (TypeError, ValueError, OverflowError):
+                income_since_ms = None
         try:
             agg = await exit_net_from_client(
                 client,
                 sym,
-                since_ms,
+                income_since_ms,
                 position_side=side,
                 trade_ids=item.get("trade_ids"),
             )
