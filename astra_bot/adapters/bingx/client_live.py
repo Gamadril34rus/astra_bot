@@ -294,6 +294,7 @@ class LiveBingXClient(BingXClient):
         cfg.setdefault("api_secret", os.environ.get("BINGX_API_SECRET", ""))
         super().__init__(cfg)
         self._income_cooldown_until = 0.0
+        self._positions_cooldown_until = 0.0
         self._is_vst = "vst" in (self.base_url or "").lower()
         # Internal process-local proof consumed by live_risk; never supplied by Secrets.
         os.environ["ZEUS_VST_ENDPOINT_CONFIRMED"] = "1" if self._is_vst else "0"
@@ -404,14 +405,39 @@ class LiveBingXClient(BingXClient):
                 out.append(_parse_order(item, symbol or ""))
         return out
 
+    @property
+    def positions_endpoint_cooldown_active(self) -> bool:
+        """True while this process is avoiding repeated BingX 100410 position reads."""
+        return time.monotonic() < float(getattr(self, "_positions_cooldown_until", 0.0))
+
     async def get_positions(self) -> list[Position]:
         """Return all open hedge positions (including partial remains).
 
         F9: never drop a non-zero row because one field is empty; try several
         qty keys; bad rows → warning + skip, rest still returned.
+        A 100410 endpoint cooldown is process-local: fail closed for 15 seconds
+        instead of immediately hammering the same disabled positions endpoint
+        from restore/ensure/reconcile calls in one live tick.
         """
+        if self.positions_endpoint_cooldown_active:
+            raise ExchangeError(
+                "BingX positions endpoint is in local 100410 cooldown",
+                exchange="bingx",
+                operation=_TRADE["positions"],
+                code=100410,
+            )
         params = {"timestamp": int(time.time() * 1000)}
-        resp = await self._request("GET", _TRADE["positions"], params=params, signed=True)
+        try:
+            resp = await self._request("GET", _TRADE["positions"], params=params, signed=True)
+        except Exception as exc:
+            if is_exchange_endpoint_cooldown_error(exc):
+                self._positions_cooldown_until = time.monotonic() + 15.0
+                logger.warning(
+                    "get_positions: BingX 100410; local cooldown %.1fs",
+                    15.0,
+                )
+            raise
+        self._positions_cooldown_until = 0.0
         data = resp.get("data") or []
         if isinstance(data, dict):
             data = data.get("positions") or data.get("position") or data.get("list") or []
