@@ -1,4 +1,24 @@
 {
-  "positions": {},
-  "ts": 1794944233.5352848
+  "positions": {
+    "BTC-USDT|short": {
+      "symbol": "BTC-USDT",
+      "side": "short",
+      "qty": "0.63488175",
+      "stop": "64321.143000000004",
+      "tp": "63397.72064999999820",
+      "entry": "63707.8",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|BTC-USDT|short|1794931200000",
+      "ts": 1794945785.191412,
+      "be_moved": false,
+      "initial_stop": "64321.143000000004",
+      "tp_frac": "0.3",
+      "opened_at_ms": 1794945785191,
+      "plan_qty": "0.63488175",
+      "qty_ratio": 1.0,
+      "tp1": "63397.72064999999820"
+    }
+  },
+  "ts": 1794945785.1914337
 }
