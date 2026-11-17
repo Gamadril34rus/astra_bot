@@ -807,7 +807,10 @@ def backfill_unqueued_exit_rows(
                 old_since = int(float(existing.get("since_ms") or 0))
             except (TypeError, ValueError, OverflowError):
                 old_since = 0
-            if old_since != since_ms:
+            if (
+                old_since != since_ms
+                or int(float(existing.get("opened_at_ms") or 0)) != entry_open_ms
+            ):
                 existing["since_ms"] = since_ms
                 existing["opened_at_ms"] = entry_open_ms
                 item_changed = True
