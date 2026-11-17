@@ -338,7 +338,7 @@ def main() -> int:
     hashes["funding_manifest.json"] = sha256_file(args.funding_dir / "funding_manifest.json")
     for symbol in SYMBOLS:
         meta = candle_manifest["symbols"][symbol.replace("USDT", "-USDT")]
-        for tf, interval, field in (
+        for tf, _interval, field in (
             ("1m", 60_000, "one_minute_sha256"),
             ("15m", BAR_MS, "merged_15m_sha256"),
             ("1h", H1_MS, "merged_1h_sha256"),
@@ -380,7 +380,7 @@ def main() -> int:
             "funding_max_gap_hours": float(funding.funding_time.diff().max() / 3_600_000),
         }
 
-    is_start, is_end, val_end, retired_end = map(_ms, (IS_START, IS_END, VAL_END, RETIRED_END))
+    is_start, is_end, val_end = map(_ms, (IS_START, IS_END, VAL_END))
     report = {
         "status": "IS_VALIDATION_ONLY_NO_OOS",
         "strategy": "15m residual mean reversion vs BTC with closed 1h regime filters",
