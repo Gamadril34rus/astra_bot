@@ -881,8 +881,9 @@ class LiveBroker:
         from pathlib import Path as _Path
 
         from astra_bot.decision.live_income_report import (
-            load_entry_open_times,
+            load_entry_events,
             match_position_history,
+            select_entry_event,
         )
         from astra_bot.decision.live_positions import load_positions, remove_plan
         from astra_bot.decision.live_tg_flags import try_claim
@@ -914,13 +915,21 @@ class LiveBroker:
         pending_cleanup: list[str] = []
         cancelled = 0
         now = _time.time()
-        entry_open_times = load_entry_open_times()
+        entry_events_by_key = load_entry_events()
         position_history_cache: dict[str, list[dict[str, Any]]] = {}
         position_history_start_by_symbol: dict[str, int] = {}
         for history_plan in plans.values():
             history_symbol = str(history_plan.get("symbol") or "")
             history_signal_id = str(history_plan.get("signal_id") or "")
-            history_open_ms = entry_open_times.get((history_symbol, history_signal_id))
+            history_entry_event = select_entry_event(
+                entry_events_by_key.get((history_symbol, history_signal_id), []),
+                entry=history_plan.get("entry"),
+                qty=history_plan.get("qty"),
+                opened_at_ms=history_plan.get("opened_at_ms"),
+            )
+            history_open_ms = (
+                int(history_entry_event["open_ms"]) if history_entry_event else None
+            )
             if history_open_ms is None:
                 try:
                     history_opened = history_plan.get("opened_at_ms")
@@ -1031,8 +1040,16 @@ class LiveBroker:
             except (TypeError, ValueError, OverflowError):
                 start_ms = None
 
-            entry_open_ms = entry_open_times.get(
-                (sym, str(plan.get("signal_id") or ""))
+            entry_event = select_entry_event(
+                entry_events_by_key.get(
+                    (sym, str(plan.get("signal_id") or "")), []
+                ),
+                entry=plan.get("entry"),
+                qty=plan.get("qty"),
+                opened_at_ms=plan.get("opened_at_ms"),
+            )
+            entry_open_ms = (
+                int(entry_event["open_ms"]) if entry_event else None
             )
             if entry_open_ms is not None:
                 # The immutable entry event wins over legacy plan timestamps that
