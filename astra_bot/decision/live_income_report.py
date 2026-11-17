@@ -822,7 +822,11 @@ def backfill_unqueued_exit_rows(
                 ("reason", reason),
                 ("trade_ids", trade_ids),
             ):
-                if value is not None and not existing.get(key):
+                if key == "trade_ids":
+                    should_fill = bool(value) and not existing.get(key)
+                else:
+                    should_fill = value is not None and not existing.get(key)
+                if should_fill:
                     existing[key] = value
                     item_changed = True
             if row.get("tg_card_sent") and not existing.get("card_sent"):
