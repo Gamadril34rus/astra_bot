@@ -1204,7 +1204,12 @@ class LiveBroker:
 
             # slip vs plan stop/tp (all exit branches — not only income)
             if exit_fill is not None:
-                ref = plan.get("stop") if exit_reason == "стоп" else plan.get("tp")
+                if exit_reason in ("стоп", "stop", "stop_loss"):
+                    ref = plan.get("stop")
+                elif exit_reason in ("тейк", "tp", "take_profit"):
+                    ref = plan.get("tp")
+                else:
+                    ref = None
                 try:
                     if ref is not None and float(ref) > 0:
                         slip_exit = (exit_fill - float(ref)) / float(ref) * 100.0
