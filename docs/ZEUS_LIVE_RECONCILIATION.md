@@ -15,7 +15,9 @@
 3. **BingX Position History** (/openApi/swap/v1/trade/positionHistory):
    позиционный fallback, когда fill history пустая, а income неоднозначен.
    Совпадение принимается только при единственной записи с теми же symbol,
-   positionSide и openTime в пределах 120 секунд от времени открытия плана.
+   positionSide и openTime в пределах 120 секунд от времени фактического входа.
+   Время берётся из неизменяемого event=entry в zeus_live_trades.jsonl; для
+   старых записей без такого события используется opened_at_ms/since_ms плана.
 
 Для Position History используются netProfit, positionCommission,
 totalFunding, avgClosePrice и positionId. netProfit уже включает комиссии и
