@@ -139,18 +139,22 @@ def load_funding(path: Path, symbol: str, max_gap_hours: float) -> pd.DataFrame:
     return frame
 
 
-def signal_side(row: pd.Series, mode: str) -> int:
+def raw_signal_side(row: pd.Series) -> int:
     if any(pd.isna(row.get(key)) for key in
            ("resid_sum6", "clv", "atr14", "atr_ratio", "h1_adx14", "ret1",
             "h1_ema20", "h1_ema50")):
         return 0
-    side = 0
     if (row.resid_sum6 < -0.03 and row.clv > 0.55 and
             row.atr_ratio < 2.0 and row.ret1 > -0.008):
-        side = 1
-    elif (row.resid_sum6 > 0.03 and row.clv < 0.45 and
-          row.atr_ratio < 2.0 and row.ret1 < 0.008):
-        side = -1
+        return 1
+    if (row.resid_sum6 > 0.03 and row.clv < 0.45 and
+            row.atr_ratio < 2.0 and row.ret1 < 0.008):
+        return -1
+    return 0
+
+
+def signal_side(row: pd.Series, mode: str) -> int:
+    side = raw_signal_side(row)
     if not side:
         return 0
     if mode == "adx_range":
@@ -187,12 +191,11 @@ def simulate_period(
             i += 1
             continue
         row = frame.iloc[i]
+        raw_side = raw_signal_side(row)
         side = signal_side(row, mode)
+        if raw_side and not side:
+            rejected += 1
         if not side:
-            # Count only valid residual triggers rejected by the selected 1h regime.
-            raw = signal_side(row, "adx_range") if mode == "trend_aligned" else 0
-            if raw:
-                rejected += 1
             i += 1
             continue
         signals += 1
@@ -321,7 +324,8 @@ def main() -> int:
     funding_manifest = json.loads((args.funding_dir / "funding_manifest.json").read_text())
     if candle_manifest.get("exchange") != "BingX" or funding_manifest.get("exchange") != "BingX":
         raise SystemExit("Only BingX source manifests are accepted")
-    if candle_manifest.get("market") != "USDT-M perpetual swaps":
+    if (candle_manifest.get("market") != "USDT-M perpetual swaps" or
+            funding_manifest.get("market") != "USDT-M perpetual swaps"):
         raise SystemExit("Non-USDT-M source data is not accepted")
     if candle_manifest.get("requested_start_utc") != "2025-11-13T00:00:00+00:00":
         raise SystemExit("Unexpected candle archive start")
@@ -330,6 +334,8 @@ def main() -> int:
 
     btc = load_bars(args.data_dir / "BTCUSDT_15m.csv", BAR_MS)
     prepared, hashes, coverage = [], {}, {}
+    hashes["manifest.json"] = sha256_file(args.data_dir / "manifest.json")
+    hashes["funding_manifest.json"] = sha256_file(args.funding_dir / "funding_manifest.json")
     for symbol in SYMBOLS:
         meta = candle_manifest["symbols"][symbol.replace("USDT", "-USDT")]
         for tf, interval, field in (
@@ -354,8 +360,15 @@ def main() -> int:
         funding_path = args.funding_dir / f"funding_{symbol}.csv"
         if sha256_file(funding_path) != funding_meta["sha256"]:
             raise SystemExit(f"funding SHA-256 mismatch: {funding_path}")
+        if (not funding_meta.get("cadence_ok") or
+                not funding_meta.get("requested_window_edges_ok") or
+                funding_meta.get("coverage_start_utc") != IS_START or
+                funding_meta.get("coverage_end_utc") != RETIRED_END):
+            raise SystemExit(f"{symbol}: funding manifest coverage is not complete")
         hashes[funding_path.name] = funding_meta["sha256"]
-        funding = load_funding(funding_path, symbol, 6.0 if symbol == "HYPEUSDT" else 12.0)
+        funding = load_funding(
+            funding_path, symbol, float(funding_meta["max_gap_hours_latest_segment"])
+        )
         features = add_closed_h1_context(m15, h1)
         features = add_residual_features(features, btc)
         prepared.append((symbol, features, funding))
