@@ -1,0 +1,53 @@
+name: Inspect frozen Hyperliquid wallet flow evidence
+
+on:
+  push:
+    branches: [research/4h-pullback-continuation]
+    paths:
+      - ".github/workflows/inspect-wallet-flow-evidence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download completed 37-day wallet-flow summary
+        uses: actions/download-artifact@v4
+        with:
+          name: hyperliquid-wallet-archive-summary
+          run-id: 43250750091
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: evidence
+      - name: Print source counts and forward-return event study
+        run: |
+          python - <<'PY'
+          import csv, json
+          from pathlib import Path
+
+          root = Path("evidence")
+          for p in root.rglob("*.json"):
+              data = json.loads(p.read_text())
+              print(f"\n=== {p.name} ===")
+              if "counts" in data:
+                  print(json.dumps(data["counts"], indent=2))
+              if "source" in data:
+                  src = data["source"]
+                  print(json.dumps({k: src.get(k) for k in ("start_date_utc", "end_date_utc", "total_source_rows", "source_row_count_matches_dataset_card", "market_15m_rows")}, indent=2))
+              if "event_study" in data:
+                  print(json.dumps(data["event_study"], indent=2))
+              if "coverage" in data:
+                  print(json.dumps(data["coverage"], indent=2))
+          for p in root.rglob("cohort_flow_event_study.csv"):
+              print(f"\n=== {p.name} ===")
+              with p.open(newline="") as f:
+                  for row in csv.DictReader(f):
+                      print(json.dumps(row, sort_keys=True))
+          PY

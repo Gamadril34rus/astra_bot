@@ -1,0 +1,4 @@
+2026-11-15: run the frozen BingX 15m SESSION_VWAP_RECLAIM screen using verified 365-day candle and funding artifacts; OOS remains gated by IS/validation.
+2026-11-15 provenance-hardening: rerun after adding manifest SHA and funding-segment checks.
+2026-11-15 lint-fix: rerun staged research after import-order correction.
+2026-11-15 holdout-hardening: verify fixed IS/validation dates, retired historical OOS, and fresh-forward OOS wait gate.

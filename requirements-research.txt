@@ -1,0 +1,4 @@
+# Optional dependencies for isolated research jobs and their unit tests
+# Keep these out of the production/runtime requirements.
+duckdb>=1.4
+pyarrow>=20.0

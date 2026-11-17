@@ -1,0 +1,46 @@
+name: BingX USDT-M funding history 12m refresh
+
+on:
+  push:
+    branches: [research/4h-pullback-continuation]
+    # Legacy independent coverage probe; run only when explicitly marked.
+    paths:
+      - "research/trigger_bingx_funding_refresh.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bingx-funding-12m-refresh
+  cancel-in-progress: false
+
+jobs:
+  funding:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.11"
+      - name: Install BingX research dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Download 12 months of actual BingX USDT-M funding settlements
+        run: |
+          python -m scripts.archive_bingx_funding_history \
+            --start-date 2025-11-13 \
+            --end-date 2026-11-13 \
+            --chunk-days 7 \
+      - name: Upload immutable funding evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bingx-usdm-funding-12m
+          path: |
+            data/bingx_usdm/funding_*.csv
+            data/bingx_usdm/funding_manifest.json
+          if-no-files-found: error
+          retention-days: 90

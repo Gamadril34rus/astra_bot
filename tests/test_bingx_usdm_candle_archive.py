@@ -4,9 +4,11 @@ import json
 from pathlib import Path
 
 import pytest
+from scripts import archive_bingx_usdm_candles as candle_archive
 from scripts.archive_bingx_usdm_candles import (
     DEFAULT_TIMEFRAMES,
     TIMEFRAME_MS,
+    _call_with_cooldown,
     _coverage,
     _merge_rows,
     _read_rows,
@@ -27,6 +29,31 @@ def _row(open_time: int, close: str = "100") -> dict[str, str]:
         "quote_volume": "1000",
         "trades_count": "3",
     }
+
+@pytest.mark.asyncio
+async def test_candle_archive_cooldown_uses_bounded_backoff(monkeypatch) -> None:
+    sleeps: list[float] = []
+    calls = 0
+
+    async def fake_sleep(delay: float) -> None:
+        sleeps.append(delay)
+
+    async def flaky_operation() -> str:
+        nonlocal calls
+        calls += 1
+        if calls < 4:
+            raise RuntimeError("simulated BingX 100410 cooldown")
+        return "ok"
+
+    monkeypatch.setattr(candle_archive.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(
+        candle_archive, "is_exchange_endpoint_cooldown_error", lambda exc: True
+    )
+
+    assert await _call_with_cooldown(flaky_operation, label="test candle page") == "ok"
+    assert calls == 4
+    assert sleeps == [5.0, 30.0, 60.0]
+
 
 def test_merge_is_sorted_and_idempotent() -> None:
     existing = {0: _row(0), 60_000: _row(60_000)}

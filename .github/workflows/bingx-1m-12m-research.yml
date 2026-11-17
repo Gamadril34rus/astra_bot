@@ -1,0 +1,54 @@
+name: BingX 12m 1m OHLCV research archive
+
+on:
+  push:
+    branches: [research/4h-pullback-continuation]
+    # Heavy 365-day data download is marker-triggered, not on every code edit.
+    paths:
+      - "research/trigger_bingx_1m_archive.txt"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: bingx-1m-12m-research
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.11"
+      - name: Install test runner
+        run: python -m pip install pytest
+      - name: Test strict aggregation and native overlap validation
+        run: python -m pytest tests/research/test_archive_bingx_1m_research.py -q --confcutdir=tests/research
+      - name: Download prior native BingX 15m/1h overlap evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: 15m-pullback-continuation-research
+          run-id: 43213211531
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: native_overlap
+      - name: Archive 365 complete UTC days of BingX 1m swap OHLCV and aggregate 15m/1h
+        run: |
+          python -m scripts.archive_bingx_1m_research \
+            --start-date 2025-11-13 \
+            --end-date 2026-11-13 \
+            --qps 0.5 \
+            --native-dir native_overlap/data/bingx_usdm \
+            --out-dir data/bingx_research_1m
+      - name: Upload immutable BingX 1m and aggregated research evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bingx-usdm-1m-12m-${{ github.sha }}
+          path: data/bingx_research_1m/
+          if-no-files-found: warn
+          retention-days: 90

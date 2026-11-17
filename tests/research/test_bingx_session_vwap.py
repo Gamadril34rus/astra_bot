@@ -1,0 +1,407 @@
+from __future__ import annotations
+
+import hashlib
+
+import numpy as np
+import pandas as pd
+import pytest
+from scripts import research_adaptive_perp_portfolio as core
+from scripts.research_bingx_session_vwap import (
+    _assert_same_population,
+    _fresh_oos_window,
+    _oos_gate,
+    _period_signal,
+    _screen_passes,
+    _simulate_period,
+    _verify_symbol_input_hashes,
+    add_session_features,
+    choose_session_vwap_signal,
+)
+
+
+def _bars(times: list[int], interval_ms: int) -> pd.DataFrame:
+    values = np.arange(len(times), dtype=float)
+    frame = pd.DataFrame({
+        "open_time": times,
+        "open": 100.0 + values * 0.01,
+        "high": 102.0 + values * 0.01,
+        "low": 99.0 + values * 0.01,
+        "close": 101.0 + values * 0.01,
+        "volume": 10.0 + values,
+        "quote_volume": np.zeros(len(times)),
+    })
+    frame["decision_time"] = frame["open_time"] + interval_ms
+    return frame
+
+
+def _signal_frame() -> pd.DataFrame:
+    count = 140
+    frame = pd.DataFrame({
+        "open_time": np.arange(count, dtype=np.int64) * 900_000,
+        "decision_time": (np.arange(count, dtype=np.int64) + 1) * 900_000,
+        "open": np.full(count, 100.0),
+        "high": np.full(count, 101.0),
+        "low": np.full(count, 99.0),
+        "close": np.full(count, 100.0),
+        "atr14": np.full(count, 1.0),
+        "h1_adx14": np.full(count, 15.0),
+        "session_vwap": np.full(count, 100.0),
+        "vwap_deviation_atr": np.zeros(count),
+        "volume_ratio_prior": np.full(count, 1.2),
+        "session_id": ["2026-01-01"] * count,
+    })
+    return frame
+
+
+def test_session_vwap_and_volume_baseline_are_causal() -> None:
+    interval = 900_000
+    m15 = _bars([i * interval for i in range(30)], interval)
+    h1 = _bars([i * 3_600_000 for i in range(30)], 3_600_000)
+    full = add_session_features(m15, h1)
+    truncated = add_session_features(m15.iloc[:22].copy(), h1)
+    pd.testing.assert_series_equal(
+        full.loc[:20, "session_vwap"].reset_index(drop=True),
+        truncated.loc[:20, "session_vwap"].reset_index(drop=True),
+    )
+    prior_mean = m15["volume"].iloc[:20].mean()
+    assert full.loc[20, "volume_ratio_prior"] == pytest.approx(
+        m15.loc[20, "volume"] / prior_mean
+    )
+    expected_vwap = (
+        ((m15["high"].iloc[:21] + m15["low"].iloc[:21] + m15["close"].iloc[:21]) / 3)
+        * m15["volume"].iloc[:21]
+    ).sum() / m15["volume"].iloc[:21].sum()
+    assert full.loc[20, "session_vwap"] == pytest.approx(expected_vwap)
+
+
+def test_15m_bar_uses_only_last_fully_closed_1h_context() -> None:
+    m15 = _bars([i * 900_000 for i in range(48)], 900_000)
+    h1 = _bars([i * 3_600_000 for i in range(30)], 3_600_000)
+    merged = core.add_features(m15, h1)
+    target = merged.loc[merged["decision_time"] == 10 * 3_600_000 + 45 * 60_000].iloc[0]
+    hourly = h1.copy()
+    hourly["ema20"] = hourly["close"].ewm(span=20, adjust=False).mean()
+    expected = hourly.loc[hourly["decision_time"] <= 10 * 3_600_000, "ema20"].iloc[-1]
+    assert target["h1_ema20"] == pytest.approx(expected)
+
+
+def test_session_vwap_long_reclaim_signal() -> None:
+    frame = _signal_frame()
+    i = 120
+    frame.loc[i - 1, "vwap_deviation_atr"] = -1.5
+    frame.loc[i, "vwap_deviation_atr"] = -0.5
+    frame.loc[i, "open"] = 99.0
+    frame.loc[i, "close"] = 99.5
+    frame.loc[i - 2 : i, "low"] = [98.8, 98.9, 99.0]
+    signal = choose_session_vwap_signal(frame, i)
+    assert signal is not None
+    assert signal["family"] == "SESSION_VWAP_RECLAIM"
+    assert signal["side"] == 1
+    assert signal["stop"] == pytest.approx(98.65)
+    assert signal["target_price"] == 100.0
+
+
+def test_session_vwap_short_reclaim_signal() -> None:
+    frame = _signal_frame()
+    i = 120
+    frame.loc[i - 1, "vwap_deviation_atr"] = 1.5
+    frame.loc[i, "vwap_deviation_atr"] = 0.5
+    frame.loc[i, "open"] = 101.0
+    frame.loc[i, "close"] = 100.5
+    frame.loc[i - 2 : i, "high"] = [101.0, 101.1, 101.2]
+    signal = choose_session_vwap_signal(frame, i)
+    assert signal is not None
+    assert signal["family"] == "SESSION_VWAP_RECLAIM"
+    assert signal["side"] == -1
+    assert signal["stop"] == pytest.approx(101.35)
+    assert signal["target_price"] == 100.0
+
+
+@pytest.mark.parametrize("boundary", ["previous", "next", "swing"])
+def test_session_vwap_signal_does_not_cross_utc_session_boundary(boundary: str) -> None:
+    frame = _signal_frame()
+    i = 120
+    frame.loc[i - 1, "vwap_deviation_atr"] = -1.5
+    frame.loc[i, "vwap_deviation_atr"] = -0.5
+    frame.loc[i, "open"] = 99.0
+    frame.loc[i, "close"] = 99.5
+    if boundary == "previous":
+        frame.loc[i - 1, "session_id"] = "2025-12-31"
+    elif boundary == "next":
+        frame.loc[i + 1, "session_id"] = "2026-01-02"
+    else:
+        frame.loc[i - 2, "session_id"] = "2025-12-31"
+    assert choose_session_vwap_signal(frame, i) is None
+
+
+def test_session_vwap_rejects_trend_or_sub_average_volume() -> None:
+    frame = _signal_frame()
+    i = 120
+    frame.loc[i - 1, "vwap_deviation_atr"] = -1.5
+    frame.loc[i, "vwap_deviation_atr"] = -0.5
+    frame.loc[i, "open"] = 99.0
+    frame.loc[i, "close"] = 99.5
+    frame.loc[i, "h1_adx14"] = 21.0
+    assert choose_session_vwap_signal(frame, i) is None
+    frame.loc[i, "h1_adx14"] = 15.0
+    frame.loc[i, "volume_ratio_prior"] = 0.99
+    assert choose_session_vwap_signal(frame, i) is None
+
+
+def test_period_signal_blocks_entries_outside_split() -> None:
+    frame = _signal_frame()
+    i = 120
+    frame.loc[i - 1, "vwap_deviation_atr"] = -1.5
+    frame.loc[i, "vwap_deviation_atr"] = -0.5
+    frame.loc[i, "open"] = 99.0
+    frame.loc[i, "close"] = 99.5
+    picker = _period_signal(choose_session_vwap_signal, 121 * 900_000, 130 * 900_000)
+    assert picker(frame, i) is not None
+    assert picker(frame, i - 1) is None
+
+
+def test_is_validation_screen_requires_both_cost_cases_and_periods() -> None:
+    good = {"trades": 30, "pf": 1.1, "net_expectancy_pct": 0.02}
+    screen = {
+        "base": {"IS": good, "VALIDATION": good},
+        "stress_1_5x": {"IS": good, "VALIDATION": good},
+    }
+    assert _screen_passes(screen) == (True, [])
+    bad = {"trades": 30, "pf": 0.99, "net_expectancy_pct": 0.02}
+    screen["stress_1_5x"]["VALIDATION"] = bad
+    passed, failures = _screen_passes(screen)
+    assert not passed
+    assert "stress_1_5x.VALIDATION:net_pf<1.0" in failures
+
+
+def test_oos_gate_requires_100_trades_1_25_pf_months_and_stress() -> None:
+    base = {
+        "trades": 120,
+        "pf": 1.3,
+        "net_expectancy_pct": 0.03,
+        "positive_month_share_pct": 75.0,
+        "realized_equal_notional_drawdown_pct": -8.0,
+        "trade_sequence_drawdown_pct": -15.0,
+    }
+    stress = {
+        "trades": 120,
+        "pf": 1.05,
+        "net_expectancy_pct": 0.005,
+        "positive_month_share_pct": 75.0,
+        "realized_equal_notional_drawdown_pct": -9.0,
+        "trade_sequence_drawdown_pct": -18.0,
+    }
+    result = _oos_gate(base, stress, long_trades=60, short_trades=60)
+    assert result["passed"] is True
+    assert result["side_specific_claims_allowed"] is True
+    stress["net_expectancy_pct"] = -0.001
+    assert _oos_gate(base, stress, 60, 60)["passed"] is False
+    stress["net_expectancy_pct"] = 0.005
+    stress["trade_sequence_drawdown_pct"] = -21.0
+    assert _oos_gate(base, stress, 60, 60)["passed"] is False
+
+
+def test_backtest_engine_accepts_isolated_signal_function(monkeypatch) -> None:
+    monkeypatch.setattr(
+        core,
+        "choose_signal",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("router was called")),
+    )
+    count = 200
+    interval = 900_000
+    times = np.arange(count, dtype=np.int64) * interval
+    bars = pd.DataFrame({
+        "open_time": times,
+        "decision_time": times + interval,
+        "open": np.full(count, 100.0),
+        "high": np.full(count, 101.0),
+        "low": np.full(count, 99.0),
+        "close": np.full(count, 100.0),
+        "atr14": np.full(count, 1.0),
+    })
+    funding = pd.DataFrame({
+        "funding_time": np.arange(0, 7 * 8 * 3_600_000, 8 * 3_600_000, dtype=np.int64),
+        "rate": np.full(7, 0.0001),
+    })
+    trades = core.simulate_symbol(
+        "ETH-USDT",
+        bars,
+        funding,
+        5.0,
+        1.25,
+        2.0,
+        signal_fn=lambda _x, _i: None,
+    )
+    assert trades == []
+
+
+def test_base_and_stress_cost_cases_must_share_trade_population() -> None:
+    base = pd.DataFrame([
+        {"symbol": "ETH-USDT", "side": "LONG", "entry_time": 100, "exit_time": 200}
+    ])
+    stress = base.copy()
+    _assert_same_population(base, stress, "test")
+    stress.loc[0, "exit_time"] = 201
+    with pytest.raises(RuntimeError, match="identical trade population"):
+        _assert_same_population(base, stress, "test")
+
+
+def test_period_simulation_clips_future_candles_and_funding(monkeypatch) -> None:
+    observed: list[tuple[int, int]] = []
+
+    def fake_simulate(
+        _symbol,
+        features,
+        funding,
+        _fee,
+        _spread,
+        _slippage,
+        **_kwargs,
+    ):
+        observed.append((
+            int(features["decision_time"].max()),
+            int(funding["funding_time"].max()),
+        ))
+        return []
+
+    monkeypatch.setattr(core, "simulate_symbol", fake_simulate)
+    features = pd.DataFrame({
+        "open_time": [0, 900_000, 1_800_000, 2_700_000],
+        "decision_time": [900_000, 1_800_000, 2_700_000, 3_600_000],
+    })
+    funding = pd.DataFrame({
+        "funding_time": [0, 900_000, 1_800_000, 2_700_000, 3_600_000],
+        "rate": [0.0] * 5,
+    })
+    _simulate_period(
+        [("ETH-USDT", features, funding)],
+        start_ms=900_000,
+        end_ms=2_700_000,
+        costs={"fee_bps_per_side": 5.0, "spread_bps_per_side": 1.25, "slippage_bps_per_side": 2.0},
+    )
+    assert observed == [(2_700_000, 2_700_000)]
+
+
+def test_funding_settlement_at_entry_is_not_charged() -> None:
+    interval = 900_000
+    count = 160
+    open_times = np.arange(count, dtype=np.int64) * interval
+    bars = pd.DataFrame({
+        "open_time": open_times,
+        "decision_time": open_times + interval,
+        "open": np.full(count, 100.0),
+        "high": np.full(count, 100.5),
+        "low": np.full(count, 99.5),
+        "close": np.full(count, 100.0),
+        "atr14": np.full(count, 1.0),
+    })
+    signal_index = 120
+    bars.loc[signal_index + 1, "high"] = 102.0
+    bars.loc[signal_index + 1, "close"] = 101.0
+    entry_time = int(open_times[signal_index + 1])
+    exit_time = entry_time + interval
+    funding_times = np.array([
+        0,
+        8 * 3_600_000,
+        16 * 3_600_000,
+        24 * 3_600_000,
+        entry_time,
+        exit_time,
+        32 * 3_600_000,
+    ], dtype=np.int64)
+    funding = pd.DataFrame({
+        "funding_time": funding_times,
+        "rate": [0.0, 0.0, 0.0, 0.0, 0.001, 0.0002, 0.0],
+    })
+
+    def pick(_features: pd.DataFrame, index: int):
+        if index == signal_index:
+            return {"family": "TEST", "side": 1, "stop": 99.0, "target_price": 101.0}
+        return None
+
+    trades = core.simulate_symbol(
+        "ETH-USDT",
+        bars,
+        funding,
+        fee_bps=0.0,
+        spread_bps=0.0,
+        slippage_bps=0.0,
+        bar_minutes=15,
+        signal_fn=pick,
+    )
+    assert len(trades) == 1
+    assert trades[0]["entry_time"] == entry_time
+    assert trades[0]["exit_time"] == exit_time
+    assert trades[0]["funding_pct"] == pytest.approx(0.02)
+
+
+def test_symbol_input_hashes_match_bingx_manifests(tmp_path) -> None:
+    archive_dir = tmp_path / "archive"
+    data_dir = tmp_path / "data"
+    archive_dir.mkdir()
+    data_dir.mkdir()
+    paths = {
+        "1m": archive_dir / "BTCUSDT_1m.csv",
+        "15m": data_dir / "BTCUSDT_15m.csv",
+        "1h": data_dir / "BTCUSDT_1h.csv",
+        "funding": data_dir / "funding_BTCUSDT.csv",
+    }
+    for label, path in paths.items():
+        path.write_bytes(f"verified-{label}".encode())
+    digest = {
+        label: hashlib.sha256(path.read_bytes()).hexdigest()
+        for label, path in paths.items()
+    }
+    candle_meta = {
+        "missing_minute_bars": 0,
+        "duplicate_minute_bars": 0,
+        "one_minute_rows": 1440,
+        "merged_15m_rows": 96,
+        "merged_1h_rows": 24,
+        "one_minute_sha256": digest["1m"],
+        "merged_15m_sha256": digest["15m"],
+        "merged_1h_sha256": digest["1h"],
+        "native_overlap_splice": {
+            "15m": {"source_policy": "BingX native 15m bars override matching timestamps"},
+            "1h": {"source_policy": "BingX native 1h bars override matching timestamps"},
+        },
+    }
+    funding_meta = {
+        "sha256": digest["funding"],
+        "cadence_ok": True,
+        "requested_window_edges_ok": True,
+        "coverage_days_in_requested_window": 1.0,
+    }
+    result = _verify_symbol_input_hashes(
+        "BTC-USDT", archive_dir, data_dir, candle_meta, funding_meta, complete_days=1
+    )
+    assert result == {
+        "1m_sha256": digest["1m"],
+        "15m_sha256": digest["15m"],
+        "1h_sha256": digest["1h"],
+        "funding_sha256": digest["funding"],
+    }
+
+    candle_meta["merged_15m_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="15m SHA-256"):
+        _verify_symbol_input_hashes(
+            "BTC-USDT", archive_dir, data_dir, candle_meta, funding_meta, complete_days=1
+        )
+
+
+def test_fresh_oos_waits_for_90_days_after_retired_holdout() -> None:
+    frozen_start = int(pd.Timestamp("2025-11-13T00:00:00Z").timestamp() * 1000)
+    fresh_start = int(pd.Timestamp("2026-11-13T00:00:00Z").timestamp() * 1000)
+    short_end = fresh_start + 89 * 86_400_000
+    window, days = _fresh_oos_window(frozen_start, short_end)
+    assert window is None
+    assert days == pytest.approx(89.0)
+
+    long_end = fresh_start + 90 * 86_400_000
+    window, days = _fresh_oos_window(frozen_start, long_end)
+    assert window == (fresh_start, long_end)
+    assert days == pytest.approx(90.0)
+
+    with pytest.raises(ValueError, match="frozen BingX research window start"):
+        _fresh_oos_window(frozen_start + 1, long_end)
+
