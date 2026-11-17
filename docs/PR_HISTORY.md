@@ -4,16 +4,24 @@ ASTRA BOT движется от бумажного симулятора к уп�
 
 Следующий слой — улучшение качества наблюдений, а не безусловное добавление новых входов: channel+wedge, фильтры ложных пробоев, профили торговых сессий и volume-zone shadow записывают контекст. После PR #358 зоны получили экспериментальное применение как VST-only veto: кандидат отклоняется, если ближайшая зона по направлению сделки лежит до планового TP. Это проверяемая гипотеза, а не доказанное торговое преимущество; shadow-наблюдения продолжаются.
 
-Затем проект получил визуальную отчётность — EXIT-карточки на арте владельца и ENTRY/EXIT-графики — и отдельный COPY_ZEUS этап 1: зашифрованный read-only архив данных реального счёта. Это подготовка инфраструктуры для возможного копитрейдинга, но само копирование сделок пока не включено.
+Затем проект получил визуальную отчётность — EXIT-карточки на арте владельца и ENTRY/EXIT-графики. COPY_ZEUS этап 1 был подготовлен как read-only архив, но внешний cron отключён после подтверждения BingX, что историю копи-сделок нельзя полноценно получить этим API; это не активный runtime-контур. Текущая сверка закрытий VST и повторная доставка EXIT-карточек описаны в [ZEUS_LIVE_RECONCILIATION.md](ZEUS_LIVE_RECONCILIATION.md).
 
 Дата в таблице — дата merge; для закрытых без merge PR указана дата закрытия, для открытых — дата создания. Время переведено в МСК (UTC+3). Закрытые без merge и ещё открытые PR отмечены прямо в последнем столбце.
 
 | № PR | дата (МСК) | заголовок | что сделано — одной строкой |
 |---:|:---:|---|---|
+| [#400](https://github.com/Gamadril34rus/astra_bot/pull/400) | 2026-11-17 06:17 | fix(tg): reconcile closed exits from BingX Position History | Влит: VST-only read-only сверка закрытых hedge-позиций по уникальному symbol/side/openTime; точный avgClosePrice и PnL; независимый retry Telegram-карточки и текста; торговая логика и REAL не менялись. |
+| [#399](https://github.com/Gamadril34rus/astra_bot/pull/399) | 2026-11-17 06:01 | fix(bingx): cool down repeated positions reads after 100410 | Влит: секундный кеш снимка позиций, инвалидация после MARKET и 15-секундный локальный cooldown после 100410; в runtime-проверках повторные чтения сократились с 14 до 3 за тик. |
+| [#397](https://github.com/Gamadril34rus/astra_bot/pull/397) | 2026-11-17 05:57 | fix(live): report order-audit fetch failures explicitly | Влит: ошибки чтения ордеров отделены от пустого списка; API-сбой больше не трактуется как отсутствие защиты. |
+| [#398](https://github.com/Gamadril34rus/astra_bot/pull/398) | 2026-11-17 05:57 | fix(live): stop retrying deterministic BingX SL conflicts | Влит: детерминированные конфликты SL завершаются без повторных попыток; временные ошибки сохраняют ограниченный retry. |
+| [#356](https://github.com/Gamadril34rus/astra_bot/pull/356) | 2026-11-14 00:37 | fix(live): apply session BE threshold before stop sync | Закрыт без merge; draft не вошёл в production. |
 | [#359](https://github.com/Gamadril34rus/astra_bot/pull/359) | 2026-11-12 00:26 | fix(live): persist compact zone filter decisions | Влит: отдельный `models/zone_trade_filter.jsonl` для каждого решения; оба журнала обязательны (fail-closed), добавлены state-size cap и rotation registry; тесты и все quality gates зелёные. |
-| [#358](https://github.com/Gamadril34rus/astra_bot/pull/358) | 2026-11-12 00:12 | feat(live): apply volume-zone veto to Zeus entries | VST-only эксперимент: LONG/SHORT блокируются, если ближайшая объёмная зона лежит между плановым entry и TP; подтверждение сигналов только по закрытым 4h/1h свечам, REAL off. |
 | [#355](https://github.com/Gamadril34rus/astra_bot/pull/355) | 2026-11-12 00:23 | fix(live-feed): use closed bars for entry signals | Закрыт без merge как superseded: закрыто-свечная логика 4h/1h перенесена в merged PR #358. |
-| [#356](https://github.com/Gamadril34rus/astra_bot/pull/356) | 2026-11-11 15:22 | fix(live): apply session BE threshold before stop sync | Открыт draft: порядок применения session BE threshold перед stop sync; независим от зонального фильтра, не слит. |
+| [#358](https://github.com/Gamadril34rus/astra_bot/pull/358) | 2026-11-12 00:12 | feat(live): apply volume-zone veto to Zeus entries | VST-only эксперимент: LONG/SHORT блокируются, если ближайшая объёмная зона лежит между плановым entry и TP; подтверждение сигналов только по закрытым 4h/1h свечам, REAL off. |
+| [#354](https://github.com/Gamadril34rus/astra_bot/pull/354) | 2026-11-11 14:12 | [DRAFT] Research: net break-even + 0.5% trailing exit | Открыт draft: предварительный replay неконклюзивен; fixed trailing не превзошёл записанный net PnL при моделируемых издержках; research-only. |
+| [#352](https://github.com/Gamadril34rus/astra_bot/pull/352) | 2026-11-11 10:16 | research: new strategy protocol 2026-11-11 — verdict NOT PASSED | Открыт draft: ни одна гипотеза не прошла multi-symbol OOS, cost-stress и sample-size gates; production-регистрация отсутствует. |
+| [#347](https://github.com/Gamadril34rus/astra_bot/pull/347) | 2026-11-10 09:50 | research: reconstruct public trader behaviour from historical fills | Открыт draft: исследование публичных Hyperliquid fills и независимая проверка поведения на BingX; production-стратегия не меняется. |
+| [#344](https://github.com/Gamadril34rus/astra_bot/pull/344) | 2026-11-09 13:27 | research: build 30m USDT perpetual intraday strategy lab | Открыт draft: исследовательская лаборатория USDT-M perpetual, удержание 30 минут — 9 часов; без скальпинга, спота и production-регистрации. |
 | [#322](https://github.com/Gamadril34rus/astra_bot/pull/322) | 2026-11-05 17:23 | docs: establish Zeus configuration canon and repository showcase | Разделены общий конфиг, paper Zeus и live Zeus; обновлены SETTINGS, карта конфигурации, исторические пометки, роли, cron и обложка на owner art. |
 | [#321](https://github.com/Gamadril34rus/astra_bot/pull/321) | 2026-11-05 13:48 | docs: refresh repository showcase and PR history (2026-11-05) | Обновлена главная витрина проекта: контуры, стратегия, zone/session shadow, EXIT-карточки и синтетический ENTRY/EXIT-график. |
 | [#320](https://github.com/Gamadril34rus/astra_bot/pull/320) | 2026-11-05 13:23 | fix(copy-zeus): extend 100410 cooldown to four attempts | CopyZeusClient: four attempts, retry delays 5/30/60 seconds; default and upper clamp are 4. |
@@ -358,3 +366,11 @@ ASTRA BOT движется от бумажного симулятора к уп�
 - Сохранение состояния остаётся с fetch/rebase/retry; общий master продолжает принимать коммиты от разных контуров.
 - Не вводится глобальная блокировка на всё время торгового цикла: она создала бы очередь из трёх контуров и искусственно задерживала бы каждый следующий цикл.
 - Торговые параметры, PAPER/VST/REAL, позиции, ордера и риск не меняются.
+
+## Статус открытых исследований на 17.11.2026
+
+PR #344, #347, #352 и #354 остаются draft и не являются production-изменениями.
+PR #352 явно имеет вердикт NOT PASSED; PR #354 содержит только предварительный
+неконклюзивный replay. Эти ветки не следует вливать в Zeus live-loop без отдельной
+хронологической multi-symbol OOS-проверки, реалистичных комиссий/slippage/funding
+и достаточного размера выборки. PR #356 закрыт без merge.
