@@ -434,6 +434,7 @@ def patch_trade_exit_pnl(
     fees: float,
     funding: float,
     pnl_source: str = "income_confirmed",
+    exit_price: float | None = None,
     path: Path = TRADES_PATH,
 ) -> bool:
     """Patch matching exit row. Never deletes. Skip income_confirmed/corrected."""
@@ -466,7 +467,7 @@ def patch_trade_exit_pnl(
             out.append(line)
             continue
         src = str(row.get("pnl_source") or "")
-        if src in ("income_confirmed", "income_corrected"):
+        if src in ("income_confirmed", "income_corrected", "position_history"):
             out.append(line)
             continue
         # patch null / pending_dogon / weak income*
@@ -481,6 +482,9 @@ def patch_trade_exit_pnl(
         row["fees"] = float(fees)
         row["funding_fee"] = float(funding)
         row["pnl_source"] = pnl_source
+        if exit_price is not None:
+            row["exit"] = round(float(exit_price), 8)
+            row["exit_price"] = round(float(exit_price), 8)
         row["corrected_ts"] = now
         out.append(json.dumps(row, ensure_ascii=False, separators=(",", ":")))
         changed = True
@@ -522,12 +526,86 @@ def _find_confirmed_exit_row(
                 and str(row.get("signal_id") or "") == sid
                 and row.get("pnl") is not None
                 and str(row.get("pnl_source") or "")
-                in {"income", "income_backfill", "income_confirmed", "income_corrected"}
+                in {
+                    "income",
+                    "income_backfill",
+                    "income_confirmed",
+                    "income_corrected",
+                    "position_history",
+                }
             ):
                 match = row
     except Exception as exc:
         logger.warning("confirmed exit lookup %s: %s", symbol, type(exc).__name__)
     return match
+
+
+def match_position_history(
+    rows: list[dict[str, Any]],
+    *,
+    symbol: str,
+    side: str,
+    target_open_ms: int,
+    tolerance_ms: int = 120_000,
+) -> dict[str, Any] | None:
+    """Return one exact closed-position-history match; never guess on ambiguity."""
+    target = int(target_open_ms)
+    wanted_symbol = str(symbol or "").upper().replace("-", "")
+    wanted_side = str(side or "").upper()
+    matches: list[dict[str, Any]] = []
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        row_symbol = str(row.get("symbol") or symbol).upper().replace("-", "")
+        row_side = str(row.get("positionSide") or row.get("position_side") or "").upper()
+        if row_symbol != wanted_symbol or row_side != wanted_side:
+            continue
+        open_ms = _row_time_ms({"time": row.get("openTime") or row.get("open_time")})
+        if open_ms is None or abs(open_ms - target) > int(tolerance_ms):
+            continue
+        try:
+            funding = float(row.get("totalFunding") or row.get("total_funding") or 0.0)
+            commission = float(
+                row.get("positionCommission")
+                if row.get("positionCommission") is not None
+                else row.get("position_commission") or 0.0
+            )
+            net_raw = row.get("netProfit")
+            if net_raw is None:
+                net_raw = row.get("net_profit")
+            if net_raw is not None:
+                net_pnl = float(net_raw)
+            else:
+                realised = row.get("realisedProfit")
+                if realised is None:
+                    realised = row.get("realizedProfit")
+                if realised is None:
+                    continue
+                net_pnl = float(realised) + commission + funding
+            exit_raw = row.get("avgClosePrice")
+            if exit_raw is None:
+                exit_raw = row.get("avg_close_price")
+            exit_price = float(exit_raw) if exit_raw not in (None, "") else None
+        except (TypeError, ValueError):
+            continue
+        close_ms = _row_time_ms(
+            {"time": row.get("updateTime") or row.get("closeTime") or row.get("close_time")}
+        )
+        matches.append(
+            {
+                "symbol": symbol,
+                "side": side,
+                "open_time_ms": open_ms,
+                "close_time_ms": close_ms,
+                "position_id": row.get("positionId") or row.get("position_id"),
+                "net_pnl": net_pnl,
+                "pnl": net_pnl - funding,
+                "fees": commission,
+                "funding": funding,
+                "exit_price": exit_price,
+            }
+        )
+    return matches[0] if len(matches) == 1 else None
 
 
 def _pending_exit_card_metadata(
