@@ -604,10 +604,8 @@ def select_entry_event(
     *,
     entry: Any = None,
     qty: Any = None,
-    opened_at_ms: Any = None,
-    since_ms: Any = None,
 ) -> dict[str, Any] | None:
-    """Select one entry event by price/size, then an unambiguous nearby timestamp."""
+    """Select one immutable entry event by price/size; ambiguity stays unresolved."""
     candidates = list(events or [])
     if not candidates:
         return None
@@ -634,26 +632,7 @@ def select_entry_event(
         if qty_matches:
             candidates = qty_matches
 
-    if len(candidates) == 1:
-        return candidates[0]
-
-    target_ms = _row_time_ms({"time": opened_at_ms})
-    if target_ms is None and since_ms is not None:
-        since_value = _row_time_ms({"time": since_ms})
-        if since_value is not None:
-            target_ms = since_value + 60_000
-    if target_ms is None:
-        return None
-
-    ranked = sorted(
-        candidates,
-        key=lambda event: abs(int(event["open_ms"]) - target_ms),
-    )
-    best_distance = abs(int(ranked[0]["open_ms"]) - target_ms)
-    second_distance = abs(int(ranked[1]["open_ms"]) - target_ms)
-    if best_distance <= 120_000 and second_distance - best_distance >= 120_000:
-        return ranked[0]
-    return None
+    return candidates[0] if len(candidates) == 1 else None
 
 
 def _select_exit_row_by_context(
@@ -905,8 +884,6 @@ async def resolve_pending_dogon(
             queued_entry_events,
             entry=queued.get("entry"),
             qty=queued.get("qty"),
-            opened_at_ms=queued.get("opened_at_ms"),
-            since_ms=queued.get("since_ms"),
         )
         if len(queued_entry_events) > 1 and entry_event is None:
             continue
@@ -937,8 +914,6 @@ async def resolve_pending_dogon(
             item_entry_events,
             entry=item.get("entry"),
             qty=item.get("qty"),
-            opened_at_ms=item.get("opened_at_ms"),
-            since_ms=since_ms,
         )
         entry_event_ambiguous = len(item_entry_events) > 1 and entry_event is None
         entry_open_ms = int(entry_event["open_ms"]) if entry_event else None
