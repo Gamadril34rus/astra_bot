@@ -719,6 +719,8 @@ def backfill_unqueued_exit_rows(
             continue
         if str(row.get("event") or "") != "exit":
             continue
+        if row.get("tg_card_sent") and row.get("tg_followup_sent"):
+            continue
         if row.get("pnl") is not None and (
             row.get("exit_price") is not None or row.get("exit") is not None
         ):
@@ -867,13 +869,18 @@ def backfill_unqueued_exit_rows(
 
     if changed:
         save_pending(pending, pending_path)
-    if any(stats.values()):
+    if stats["added"] or stats["updated"] or stats["expired"]:
         logger.info(
             "orphan exit backfill added=%d updated=%d ambiguous=%d expired=%d",
             stats["added"],
             stats["updated"],
             stats["ambiguous"],
             stats["expired"],
+        )
+    elif stats["ambiguous"]:
+        logger.debug(
+            "orphan exit backfill skipped %d ambiguous rows",
+            stats["ambiguous"],
         )
     return stats
 
