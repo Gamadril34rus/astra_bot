@@ -1222,6 +1222,7 @@ async def resolve_pending_dogon(
         # The independent income-backfill worker may already have resolved this
         # exact exit row. Consume that confirmed ledger result instead of polling
         # an ambiguous symbol-wide income endpoint forever.
+        exit_price = item.get("exit_price")
         confirmed_row = _find_confirmed_exit_row(
             sym,
             str(sid) if sid is not None else None,
@@ -1312,6 +1313,7 @@ async def resolve_pending_dogon(
         rp = abs(float(agg.get("pnl") or 0))
         has = bool(agg.get("has_realized"))
         confirmed = has and (est_f is None or est_f <= 0 or rp >= DOGON_CONFIRM_FRAC * est_f)
+        exit_price = agg.get("exit_price") or exit_price
 
         if not confirmed and entry_event_ambiguous:
             logger.warning(
@@ -1323,7 +1325,7 @@ async def resolve_pending_dogon(
         # resolve exits when fill history is empty and income rows lack hedge-side
         # identifiers. Match only one exact symbol/side/open-time record.
         if (
-            not confirmed
+            (not confirmed or exit_price is None)
             and not entry_event_ambiguous
             and (since_ms is not None or entry_open_ms is not None)
             and hasattr(client, "get_position_history")
@@ -1462,6 +1464,8 @@ async def resolve_pending_dogon(
                     fees=float(agg.get("fees") or 0),
                     funding=float(agg.get("funding") or 0),
                     pnl_source="income_confirmed",
+                    entry=entry_price,
+                    qty=entry_qty,
                     path=trades_path,
                 )
             except Exception as exc:
