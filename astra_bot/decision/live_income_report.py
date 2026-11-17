@@ -1070,19 +1070,26 @@ async def _deliver_pending_exit_followup(
     item: dict[str, Any], *, pnl: float, message: str,
     send_tg: Any, trades_path: Path,
 ) -> tuple[dict[str, Any], bool]:
-    """Deliver card + exact text once each; retain the queue if card delivery fails."""
+    """Deliver card + exact text once each; missing card metadata stays queued."""
     updated = dict(item)
     if not updated.get("card_sent"):
         card_result = await _send_pending_exit_card(
             updated, pnl, trades_path=trades_path,
         )
-        # Legacy pending rows may not contain enough entry metadata. Do not
-        # fabricate a chart; preserve the historical text-only completion.
         if card_result is None:
-            updated["card_sent"] = True
+            updated["card_sent"] = False
             updated["card_skipped_missing_metadata"] = True
         elif card_result:
             updated["card_sent"] = True
+            updated.pop("card_skipped_missing_metadata", None)
+            mark_exit_delivery(
+                updated,
+                path=trades_path,
+                card_sent=True,
+                followup_sent=bool(updated.get("followup_sent")),
+            )
+        else:
+            updated["card_sent"] = False
 
     if not updated.get("followup_sent"):
         if send_tg is None:
@@ -1090,10 +1097,16 @@ async def _deliver_pending_exit_followup(
         try:
             await send_tg(message)
             updated["followup_sent"] = True
+            mark_exit_delivery(
+                updated,
+                path=trades_path,
+                card_sent=bool(updated.get("card_sent")),
+                followup_sent=True,
+            )
         except Exception as exc:
             logger.warning("dogon followup TG %s: %s", updated.get("symbol"), type(exc).__name__)
             return updated, False
-    return updated, bool(updated.get("card_sent"))
+    return updated, bool(updated.get("card_sent") and updated.get("followup_sent"))
 
 
 async def resolve_pending_dogon(
