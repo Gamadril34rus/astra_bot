@@ -423,7 +423,7 @@ async def test_sync_closed_plans_uses_position_history_when_fills_and_income_are
     assert len(messages) == 1
 
     pending_path = tmp_path / "models" / "zeus_live_tg_pending.json"
-    pending_items = json.loads(pending_path.read_text())
+    pending_items = json.loads(pending_path.read_text()).get("items", [])
     assert len(pending_items) == 1
     assert pending_items[0]["card_sent"] is False
     assert pending_items[0]["followup_sent"] is True
@@ -442,7 +442,7 @@ async def test_sync_closed_plans_uses_position_history_when_fills_and_income_are
     assert len(cards) == 2
     assert cards[1]["exit_price"] == 99.5
     assert len(messages) == 1
-    assert json.loads(pending_path.read_text()) == []
+    assert json.loads(pending_path.read_text()).get("items", []) == []
 
     trade_rows = [
         json.loads(line)
