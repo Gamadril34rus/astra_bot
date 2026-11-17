@@ -30,7 +30,7 @@
       "side": "short",
       "qty": "236.58977665",
       "stop": "71.37783997959183",
-      "tp": "65.9592880112244935",
+      "tp": "62.638240030612255",
       "entry": "67.882",
       "leverage": 6,
       "pending_verify": true,
@@ -40,8 +40,16 @@
       "initial_stop": "71.37783997959183",
       "tp_frac": "0.3",
       "opened_at_ms": 1794887555219,
-      "tp1": "65.9592880112244935"
+      "tp1": "65.9592880112244935",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "71.155",
+      "runner_tp_rr": 1.5,
+      "runner_tp_healed_v1": true,
+      "be_earned": true,
+      "current_regime": "STRONG_BEAR_TREND"
     }
   },
-  "ts": 1794887555.2192872
+  "ts": 1794887854.9666595
 }
