@@ -434,8 +434,8 @@ def patch_trade_exit_pnl(
     fees: float,
     funding: float,
     pnl_source: str = "income_confirmed",
-    exit_price: float | None = None,
     path: Path = TRADES_PATH,
+    exit_price: float | None = None,
 ) -> bool:
     """Patch matching exit row. Never deletes. Skip income_confirmed/corrected."""
     if not path.exists():
