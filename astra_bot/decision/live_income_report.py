@@ -532,6 +532,7 @@ def _find_confirmed_exit_row(
                     "income_confirmed",
                     "income_corrected",
                     "position_history",
+                    "fills",
                 }
             ):
                 match = row
@@ -790,16 +791,27 @@ async def resolve_pending_dogon(
                 )
             else:
                 funding = float(confirmed_row.get("funding_fee") or 0.0)
-                msg = format_rocket_correction(
+                fees = float(confirmed_row.get("fees") or 0.0)
+                if source in {"fills", "income"}:
+                    fees = -abs(fees)
+                prefix = (
+                    "уточнение: подтверждено BingX Position History. "
+                    if source == "position_history"
+                    else ""
+                )
+                msg = prefix + format_rocket_correction(
                     sym,
                     side,
                     net=amount + funding,
                     reason=reason,
                     funding=funding,
-                    fees=float(confirmed_row.get("fees") or 0.0),
+                    fees=fees,
                 )
+            updated_item = dict(item)
+            if not updated_item.get("exit_price") and confirmed_row.get("exit_price") is not None:
+                updated_item["exit_price"] = confirmed_row.get("exit_price")
             updated, delivered = await _deliver_pending_exit_followup(
-                item, pnl=amount, message=msg, send_tg=send_tg,
+                updated_item, pnl=amount, message=msg, send_tg=send_tg,
                 trades_path=trades_path,
             )
             if delivered:
