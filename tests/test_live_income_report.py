@@ -537,7 +537,6 @@ def test_reused_signal_id_entry_events_are_selected_by_entry_context(tmp_path):
         events,
         entry=79.925,
         qty=80.78161181,
-        since_ms=1_700_001_080_000,
     )
     assert selected is not None
     assert selected["open_ms"] == 1_700_001_140_000
