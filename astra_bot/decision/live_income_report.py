@@ -436,6 +436,7 @@ def patch_trade_exit_pnl(
     pnl_source: str = "income_confirmed",
     path: Path = TRADES_PATH,
     exit_price: float | None = None,
+    position_id: str | None = None,
 ) -> bool:
     """Patch matching exit row. Never deletes. Skip income_confirmed/corrected."""
     if not path.exists():
@@ -485,6 +486,8 @@ def patch_trade_exit_pnl(
         if exit_price is not None:
             row["exit"] = round(float(exit_price), 8)
             row["exit_price"] = round(float(exit_price), 8)
+        if position_id is not None:
+            row["position_id"] = str(position_id)
         row["corrected_ts"] = now
         out.append(json.dumps(row, ensure_ascii=False, separators=(",", ":")))
         changed = True
@@ -884,6 +887,11 @@ async def resolve_pending_dogon(
                     funding=funding,
                     pnl_source="position_history",
                     exit_price=exit_price,
+                    position_id=(
+                        str(history["position_id"])
+                        if history.get("position_id") is not None
+                        else None
+                    ),
                     path=trades_path,
                 )
                 if not patched:
