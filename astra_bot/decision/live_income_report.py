@@ -679,6 +679,66 @@ def _select_exit_row_by_context(
     return candidates[0] if len(candidates) == 1 else None
 
 
+def mark_exit_delivery(
+    item: dict[str, Any],
+    *,
+    path: Path = TRADES_PATH,
+    card_sent: bool | None = None,
+    followup_sent: bool | None = None,
+) -> bool:
+    """Persist Telegram delivery state on the one matching exit ledger row."""
+    if not path.exists():
+        return False
+    symbol = str(item.get("symbol") or "")
+    signal_id = str(item.get("signal_id") or "")
+    if not symbol or not signal_id:
+        return False
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except Exception as exc:
+        logger.warning("tg delivery ledger load: %s", type(exc).__name__)
+        return False
+    candidates: list[tuple[int, dict[str, Any]]] = []
+    for index, line in enumerate(lines):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if (
+            str(row.get("event") or "") == "exit"
+            and str(row.get("symbol") or "") == symbol
+            and str(row.get("signal_id") or "") == signal_id
+        ):
+            candidates.append((index, row))
+    selected = _select_exit_row_by_context(
+        [row for _, row in candidates],
+        entry=item.get("entry"),
+        qty=item.get("qty"),
+    )
+    if selected is None:
+        return False
+    selected_index = next(index for index, row in candidates if row is selected)
+    if card_sent is not None:
+        selected["tg_card_sent"] = bool(card_sent)
+        if card_sent:
+            selected["tg_card_sent_ts"] = time.time()
+    if followup_sent is not None:
+        selected["tg_followup_sent"] = bool(followup_sent)
+        if followup_sent:
+            selected["tg_followup_sent_ts"] = time.time()
+    lines[selected_index] = json.dumps(
+        selected, ensure_ascii=False, separators=(",", ":")
+    )
+    try:
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except Exception as exc:
+        logger.warning("tg delivery ledger save: %s", type(exc).__name__)
+        return False
+    return True
+
+
 def match_position_history(
     rows: list[dict[str, Any]],
     *,
