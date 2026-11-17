@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from scripts.research.screen_residual_reversion_15m import (
     add_closed_h1_context,
     funding_cost_pct,
     simulate_period,
 )
+
+import pytest
 
 
 def _ohlc(open_times: list[int], interval_ms: int) -> pd.DataFrame:
