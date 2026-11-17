@@ -495,3 +495,142 @@ def test_pending_dogon_resolves_ambiguous_income_from_position_history(tmp_path,
     assert row["exit"] == 99.5
     assert row["exit_price"] == 99.5
     assert row["position_id"] == "position-1"
+
+
+def test_reused_signal_id_entry_events_are_selected_by_entry_context(tmp_path):
+    from astra_bot.decision.live_income_report import (
+        load_entry_events,
+        select_entry_event,
+    )
+
+    path = tmp_path / "trades.jsonl"
+    path.write_text(
+        "\n".join(
+            json.dumps(row)
+            for row in (
+                {
+                    "event": "entry",
+                    "symbol": "HYPE-USDT",
+                    "side": "short",
+                    "signal_id": "reused-signal",
+                    "ts": 1_700_000_000.0,
+                    "fill_price": "79.378",
+                    "qty": "146.23651020",
+                },
+                {
+                    "event": "entry",
+                    "symbol": "HYPE-USDT",
+                    "side": "short",
+                    "signal_id": "reused-signal",
+                    "ts": 1_700_001_140.0,
+                    "fill_price": "79.925",
+                    "qty": "80.78161181",
+                },
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    events = load_entry_events(path)[("HYPE-USDT", "reused-signal")]
+    selected = select_entry_event(
+        events,
+        entry=79.925,
+        qty=80.78161181,
+        since_ms=1_700_001_080_000,
+    )
+    assert selected is not None
+    assert selected["open_ms"] == 1_700_001_140_000
+    assert select_entry_event(events) is None
+
+
+def test_patch_trade_exit_pnl_updates_only_matching_reused_signal_exit(tmp_path):
+    from astra_bot.decision.live_income_report import patch_trade_exit_pnl
+
+    path = tmp_path / "trades.jsonl"
+    first = {
+        "event": "exit",
+        "symbol": "HYPE-USDT",
+        "side": "short",
+        "signal_id": "reused-signal",
+        "entry": 79.378,
+        "qty": 146.2365102,
+        "pnl": None,
+        "pnl_source": "pending_dogon",
+    }
+    second = {
+        "event": "exit",
+        "symbol": "HYPE-USDT",
+        "side": "short",
+        "signal_id": "reused-signal",
+        "entry": 79.925,
+        "qty": 80.78161181,
+        "pnl": None,
+        "pnl_source": "pending_dogon",
+    }
+    path.write_text(
+        json.dumps(first) + "\n" + json.dumps(second) + "\n",
+        encoding="utf-8",
+    )
+
+    assert patch_trade_exit_pnl(
+        symbol="HYPE-USDT",
+        signal_id="reused-signal",
+        pnl=-11.9234,
+        fees=-0.05,
+        funding=0.0,
+        pnl_source="position_history",
+        path=path,
+        entry=79.925,
+        qty=80.78161181,
+    )
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    assert rows[0]["pnl"] is None
+    assert rows[0]["pnl_source"] == "pending_dogon"
+    assert rows[1]["pnl"] == -11.9234
+    assert rows[1]["pnl_source"] == "position_history"
+
+
+def test_confirmed_exit_lookup_disambiguates_reused_signal_id(tmp_path):
+    from astra_bot.decision.live_income_report import _find_confirmed_exit_row
+
+    path = tmp_path / "trades.jsonl"
+    path.write_text(
+        "\n".join(
+            json.dumps(row)
+            for row in (
+                {
+                    "event": "exit",
+                    "symbol": "HYPE-USDT",
+                    "side": "short",
+                    "signal_id": "reused-signal",
+                    "entry": 79.378,
+                    "qty": 146.2365102,
+                    "pnl": -116.3273,
+                    "pnl_source": "income",
+                },
+                {
+                    "event": "exit",
+                    "symbol": "HYPE-USDT",
+                    "side": "short",
+                    "signal_id": "reused-signal",
+                    "entry": 79.925,
+                    "qty": 80.78161181,
+                    "pnl": -11.9234,
+                    "pnl_source": "income",
+                },
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    row = _find_confirmed_exit_row(
+        "HYPE-USDT",
+        "reused-signal",
+        path,
+        entry=79.925,
+        qty=80.78161181,
+    )
+    assert row is not None
+    assert row["entry"] == 79.925
+    assert row["pnl"] == -11.9234
