@@ -453,7 +453,7 @@ async def test_sync_closed_plans_uses_position_history_when_fills_and_income_are
     assert exit_row["exchange_fill_type"] == "POSITION_HISTORY"
     assert exit_row["position_id"] == "position-1"
     assert exit_row["pnl"] == -2.1
-    assert exit_row["fees"] == 0.1
+    assert exit_row["fees"] == -0.1
     assert exit_row["funding_fee"] == -0.1
     assert exit_row["exit"] == 99.5
 
