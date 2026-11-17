@@ -693,7 +693,11 @@ def backfill_unqueued_exit_rows(
 
     now_ts = float(now if now is not None else time.time())
     now_ms = int(now_ts * 1000)
-    entry_events = entry_events_by_key or load_entry_events(trades_path)
+    entry_events = (
+        entry_events_by_key
+        if entry_events_by_key is not None
+        else load_entry_events(trades_path)
+    )
     pending = load_pending(pending_path)
     try:
         lines = trades_path.read_text(encoding="utf-8").splitlines()
@@ -757,7 +761,11 @@ def backfill_unqueued_exit_rows(
         trade_ids = row.get("trade_ids")
         if not isinstance(trade_ids, list):
             trade_ids = []
-        flag_sent = already_sent(symbol, "exit", signal_id, flags_path)
+        flag_sent = (
+            already_sent(symbol, "exit", signal_id, flags_path)
+            if len(entry_events_for_row) <= 1
+            else False
+        )
 
         match_index = None
         for index, existing in enumerate(pending):
@@ -768,26 +776,21 @@ def backfill_unqueued_exit_rows(
                 continue
             old_entry = _float_or_none(existing.get("entry"))
             new_entry = _float_or_none(entry_price)
-            if (
-                old_entry is not None
-                and new_entry is not None
-                and abs(old_entry - new_entry) / new_entry > 0.005
-            ):
-                continue
+            entry_match = False
+            if old_entry is not None and new_entry is not None:
+                if abs(old_entry - new_entry) / new_entry > 0.005:
+                    continue
+                entry_match = True
+
             old_qty = _float_or_none(existing.get("qty"))
             new_qty = _float_or_none(qty)
-            if (
-                old_qty is not None
-                and new_qty is not None
-                and abs(old_qty - new_qty) / new_qty > 0.05
-            ):
-                continue
-            if (
-                old_entry is None
-                and new_entry is None
-                and old_qty is None
-                and new_qty is None
-            ):
+            qty_match = False
+            if old_qty is not None and new_qty is not None:
+                if abs(old_qty - new_qty) / new_qty > 0.05:
+                    continue
+                qty_match = True
+
+            if not entry_match and not qty_match:
                 try:
                     old_since = int(float(existing.get("since_ms") or 0))
                 except (TypeError, ValueError, OverflowError):
@@ -799,12 +802,15 @@ def backfill_unqueued_exit_rows(
 
         if match_index is not None:
             existing = dict(pending[match_index])
-            old_since = int(float(existing.get("since_ms") or 0))
+            item_changed = False
+            try:
+                old_since = int(float(existing.get("since_ms") or 0))
+            except (TypeError, ValueError, OverflowError):
+                old_since = 0
             if old_since != since_ms:
                 existing["since_ms"] = since_ms
                 existing["opened_at_ms"] = entry_open_ms
-                existing["ts"] = now_ts
-                changed = True
+                item_changed = True
             for key, value in (
                 ("entry", entry_price),
                 ("qty", qty),
@@ -812,18 +818,23 @@ def backfill_unqueued_exit_rows(
                 ("reason", reason),
                 ("trade_ids", trade_ids),
             ):
-                if value is not None and (not existing.get(key) or key == "trade_ids" and not existing.get(key)):
+                if value is not None and not existing.get(key):
                     existing[key] = value
-                    changed = True
-            if row.get("tg_card_sent"):
+                    item_changed = True
+            if row.get("tg_card_sent") and not existing.get("card_sent"):
                 existing["card_sent"] = True
-            if row.get("tg_followup_sent") or flag_sent:
+                item_changed = True
+            if (
+                (row.get("tg_followup_sent") or flag_sent)
+                and not existing.get("followup_sent")
+            ):
                 existing["followup_sent"] = True
-            pending[match_index] = existing
-            if old_since == since_ms:
-                stats["updated"] += 0
-            else:
+                item_changed = True
+            if item_changed:
+                existing["ts"] = now_ts
+                pending[match_index] = existing
                 stats["updated"] += 1
+                changed = True
             continue
 
         pending.append(
