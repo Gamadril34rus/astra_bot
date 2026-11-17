@@ -921,12 +921,17 @@ class LiveBroker:
         for history_plan in plans.values():
             history_symbol = str(history_plan.get("symbol") or "")
             history_signal_id = str(history_plan.get("signal_id") or "")
+            history_entry_events = entry_events_by_key.get(
+                (history_symbol, history_signal_id), []
+            )
             history_entry_event = select_entry_event(
-                entry_events_by_key.get((history_symbol, history_signal_id), []),
+                history_entry_events,
                 entry=history_plan.get("entry"),
                 qty=history_plan.get("qty"),
                 opened_at_ms=history_plan.get("opened_at_ms"),
             )
+            if len(history_entry_events) > 1 and history_entry_event is None:
+                continue
             history_open_ms = (
                 int(history_entry_event["open_ms"]) if history_entry_event else None
             )
@@ -1040,14 +1045,16 @@ class LiveBroker:
             except (TypeError, ValueError, OverflowError):
                 start_ms = None
 
+            plan_entry_events = entry_events_by_key.get(
+                (sym, str(plan.get("signal_id") or "")), []
+            )
             entry_event = select_entry_event(
-                entry_events_by_key.get(
-                    (sym, str(plan.get("signal_id") or "")), []
-                ),
+                plan_entry_events,
                 entry=plan.get("entry"),
                 qty=plan.get("qty"),
                 opened_at_ms=plan.get("opened_at_ms"),
             )
+            entry_event_ambiguous = len(plan_entry_events) > 1 and entry_event is None
             entry_open_ms = (
                 int(entry_event["open_ms"]) if entry_event else None
             )
@@ -1189,7 +1196,17 @@ class LiveBroker:
             # Position History is a position-level fallback when fill and income
             # endpoints cannot identify the closed hedge leg. Match only one exact
             # symbol/side/open-time record; ambiguous history stays pending.
-            if pnl is None and start_ms is not None and hasattr(self.client, "get_position_history"):
+            if pnl is None and entry_event_ambiguous:
+                logger.warning(
+                    "sync_closed position_history %s: reused signal_id has ambiguous entry ledger; retain pending",
+                    sym,
+                )
+            if (
+                pnl is None
+                and not entry_event_ambiguous
+                and start_ms is not None
+                and hasattr(self.client, "get_position_history")
+            ):
                 try:
                     if sym not in position_history_cache:
                         history_start = position_history_start_by_symbol.get(sym, start_ms)
