@@ -898,13 +898,18 @@ async def resolve_pending_dogon(
     for queued in items:
         queued_symbol = str(queued.get("symbol") or "")
         queued_signal_id = str(queued.get("signal_id") or "")
+        queued_entry_events = entry_events_by_key.get(
+            (queued_symbol, queued_signal_id), []
+        )
         entry_event = select_entry_event(
-            entry_events_by_key.get((queued_symbol, queued_signal_id), []),
+            queued_entry_events,
             entry=queued.get("entry"),
             qty=queued.get("qty"),
             opened_at_ms=queued.get("opened_at_ms"),
             since_ms=queued.get("since_ms"),
         )
+        if len(queued_entry_events) > 1 and entry_event is None:
+            continue
         entry_open_ms = int(entry_event["open_ms"]) if entry_event else None
         try:
             queued_since = int(float(queued.get("since_ms") or 0))
@@ -925,13 +930,17 @@ async def resolve_pending_dogon(
         side = str(item.get("side") or "").strip().lower()
         sid = item.get("signal_id")
         since_ms = item.get("since_ms")
+        item_entry_events = entry_events_by_key.get(
+            (sym, str(sid) if sid is not None else ""), []
+        )
         entry_event = select_entry_event(
-            entry_events_by_key.get((sym, str(sid) if sid is not None else ""), []),
+            item_entry_events,
             entry=item.get("entry"),
             qty=item.get("qty"),
             opened_at_ms=item.get("opened_at_ms"),
             since_ms=since_ms,
         )
+        entry_event_ambiguous = len(item_entry_events) > 1 and entry_event is None
         entry_open_ms = int(entry_event["open_ms"]) if entry_event else None
         entry_price = item.get("entry") or (entry_event.get("entry") if entry_event else None)
         entry_qty = item.get("qty") or (entry_event.get("qty") if entry_event else None)
@@ -1036,11 +1045,18 @@ async def resolve_pending_dogon(
         has = bool(agg.get("has_realized"))
         confirmed = has and (est_f is None or est_f <= 0 or rp >= DOGON_CONFIRM_FRAC * est_f)
 
+        if not confirmed and entry_event_ambiguous:
+            logger.warning(
+                "dogon position_history %s: reused signal_id has ambiguous entry ledger; retain pending",
+                sym,
+            )
+
         # BingX Position History is a separate, position-level source. It can
         # resolve exits when fill history is empty and income rows lack hedge-side
         # identifiers. Match only one exact symbol/side/open-time record.
         if (
             not confirmed
+            and not entry_event_ambiguous
             and (since_ms is not None or entry_open_ms is not None)
             and hasattr(client, "get_position_history")
         ):
