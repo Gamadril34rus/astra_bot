@@ -18,6 +18,9 @@
    positionSide и openTime в пределах 120 секунд от времени фактического входа.
    Время берётся из неизменяемого event=entry в zeus_live_trades.jsonl; для
    старых записей без такого события используется opened_at_ms/since_ms плана.
+   signal_id может повториться при повторном входе: выбор entry/exit-записи также
+   учитывает цену и количество. Если остаётся несколько кандидатов, запись
+   сохраняется pending — PnL не размножается на несколько сделок.
 
 Для Position History используются netProfit, positionCommission,
 totalFunding, avgClosePrice и positionId. netProfit уже включает комиссии и
