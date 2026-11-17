@@ -225,9 +225,11 @@ class MetaStrategy:
                 alive.append((candidate, ev))
 
         if not alive:
-            # Доминирующая причина: самая «частая» среди oтклонений;
-            # LOW_EV важнее LOW_CONFIDENCE (порядок перечисления).
-            reason = NoTradeReason.LOW_EV
+            # Без кандидатов или без распознанных причин сетапа нет:
+            # LOW_EV допустим только когда хотя бы один кандидат реально
+            # получил такую оценку (или был явно отклонён соответствующим гейтом).
+            # Иначе LOW_EV ложно сообщает, будто EV вообще рассчитывался.
+            reason = NoTradeReason.NO_VALID_SETUP
             for priority in (
                 NoTradeReason.LOW_EV,
                 NoTradeReason.LOW_CONFIDENCE,

@@ -141,6 +141,21 @@ class TestSelectionByEV:
 
 
 class TestHardGatesMapped:
+    def test_empty_candidates_report_no_valid_setup(self, store, config):
+        decision = MetaStrategy(store, config).select([], regime="LOW_VOLATILITY")
+        assert decision.chosen is None
+        assert decision.reason_code == NoTradeReason.NO_VALID_SETUP
+        assert decision.evaluations == []
+
+    def test_unmapped_candidate_rejection_is_not_reported_as_low_ev(self, store, config):
+        meta = MetaStrategy(store, config)
+        cand = _candidate("pattern")
+        cand.reject("edge=-0.12%")
+        decision = meta.select([cand], regime="LOW_VOLATILITY")
+        assert decision.chosen is None
+        assert decision.reason_code == NoTradeReason.NO_VALID_SETUP
+        assert decision.evaluations[0].rejection == NoTradeReason.NO_VALID_SETUP
+
     def test_rejected_candidate_reason_mapped(self, store, config):
         meta = MetaStrategy(store, config)
         cand = _candidate("scalp")
