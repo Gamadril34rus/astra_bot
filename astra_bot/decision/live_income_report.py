@@ -509,12 +509,15 @@ def _find_confirmed_exit_row(
     symbol: str,
     signal_id: str | None,
     path: Path = TRADES_PATH,
+    *,
+    entry: Any = None,
+    qty: Any = None,
 ) -> dict[str, Any] | None:
-    """Find an already exchange-confirmed exit for this exact signal."""
+    """Find one confirmed exit row for this exact signal and entry context."""
     sid = str(signal_id or "")
     if not sid or not path.exists():
         return None
-    match: dict[str, Any] | None = None
+    matches: list[dict[str, Any]] = []
     try:
         for line in path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
@@ -538,10 +541,10 @@ def _find_confirmed_exit_row(
                     "fills",
                 }
             ):
-                match = row
+                matches.append(row)
     except Exception as exc:
         logger.warning("confirmed exit lookup %s: %s", symbol, type(exc).__name__)
-    return match
+    return _select_exit_row_by_context(matches, entry=entry, qty=qty)
 
 
 def _float_or_none(value: Any) -> float | None:
