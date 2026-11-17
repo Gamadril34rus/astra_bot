@@ -332,3 +332,104 @@ def test_protective_order_with_explicit_hedge_side_is_scoped():
     ) is True
     assert _has_unscoped_protective_order([long_stop], kind="stop") is False
     assert _has_unscoped_open_order([long_stop]) is False
+
+
+@pytest.mark.asyncio
+async def test_sync_closed_plans_uses_position_history_when_fills_and_income_are_ambiguous(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from astra_bot.decision import live_income_report
+    from astra_bot.decision.live_positions import plan_key, save_positions
+    from astra_bot.decision import trade_viz
+
+    monkeypatch.chdir(tmp_path)
+    positions_path = tmp_path / "models" / "zeus_live_positions.json"
+    opened_at_ms = 1_700_000_000_000
+    save_positions(
+        {
+            plan_key("BTC-USDT", "long"): {
+                "symbol": "BTC-USDT",
+                "side": "long",
+                "qty": 1.0,
+                "entry": 100.0,
+                "stop": 98.0,
+                "tp": 105.0,
+                "leverage": 3,
+                "pending_verify": False,
+                "signal_id": "btc-long",
+                "ts": opened_at_ms / 1000.0,
+                "opened_at_ms": opened_at_ms,
+                "initial_stop": 98.0,
+            }
+        },
+        positions_path,
+    )
+
+    history_row = {
+        "symbol": "BTC-USDT",
+        "positionSide": "LONG",
+        "openTime": opened_at_ms,
+        "updateTime": opened_at_ms + 30_000,
+        "avgClosePrice": "99.5",
+        "netProfit": "-2.2",
+        "positionCommission": "-0.1",
+        "totalFunding": "-0.1",
+        "positionId": "position-1",
+    }
+    client = SimpleNamespace(
+        get_positions=AsyncMock(return_value=[]),
+        get_open_orders=AsyncMock(return_value=[]),
+        get_all_fills=AsyncMock(return_value=[]),
+        get_realized_income=AsyncMock(return_value=[]),
+        get_position_history=AsyncMock(return_value=[history_row]),
+    )
+
+    async def ambiguous_income(*args, **kwargs):
+        return {
+            "ambiguous_position_side": True,
+            "has_realized": False,
+            "pnl": 0.0,
+            "fees": 0.0,
+            "funding": 0.0,
+            "net": 0.0,
+        }
+
+    monkeypatch.setattr(live_income_report, "fetch_income_with_retries", ambiguous_income)
+    cards = []
+    messages = []
+
+    async def fake_card(**kwargs):
+        cards.append(kwargs)
+        return True
+
+    async def fake_tg(message):
+        messages.append(message)
+
+    monkeypatch.setattr(trade_viz, "notify_exit_stats_card", fake_card)
+    broker = LiveBroker(client=client, config=LiveBrokerConfig())
+    result = await broker.sync_closed_plans(
+        positions_path=positions_path,
+        send_tg=fake_tg,
+    )
+
+    assert result["closed"] == ["BTC-USDT"]
+    assert result["pending_fill"] == []
+    assert get_plan("BTC-USDT", positions_path, side="long") is None
+    assert client.get_position_history.await_count == 1
+    assert len(cards) == 1
+    assert cards[0]["exit_price"] == 99.5
+    assert cards[0]["pnl"] == -2.1
+    assert len(messages) == 1
+
+    trade_rows = [
+        json.loads(line)
+        for line in (tmp_path / "models" / "zeus_live_trades.jsonl").read_text().splitlines()
+    ]
+    exit_row = next(row for row in trade_rows if row.get("event") == "exit")
+    assert exit_row["pnl_source"] == "position_history"
+    assert exit_row["exchange_fill_type"] == "POSITION_HISTORY"
+    assert exit_row["position_id"] == "position-1"
+    assert exit_row["pnl"] == -2.1
+    assert exit_row["fees"] == 0.1
+    assert exit_row["funding_fee"] == -0.1
+    assert exit_row["exit"] == 99.5
