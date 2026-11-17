@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from scripts.research.screen_residual_reversion_15m import (
     add_closed_h1_context,
@@ -42,8 +43,8 @@ def test_funding_sign_is_side_correct() -> None:
         "funding_time": [100, 200],
         "rate": [0.0001, -0.0002],
     })
-    assert funding_cost_pct(funding, 0, 300, 1) == -0.01
-    assert funding_cost_pct(funding, 0, 300, -1) == 0.01
+    assert funding_cost_pct(funding, 0, 300, 1) == pytest.approx(-0.01)
+    assert funding_cost_pct(funding, 0, 300, -1) == pytest.approx(0.01)
 
 
 def test_simulator_does_not_open_overlapping_positions_per_symbol() -> None:
