@@ -638,6 +638,64 @@ class LiveBingXClient(BingXClient):
             logger.warning("get_all_fills fillHistory %s: %s", symbol, type(exc).__name__)
         return []
 
+    async def get_position_history(
+        self,
+        symbol: str,
+        *,
+        start_ms: int,
+        end_ms: int | None = None,
+        page_index: int = 0,
+        page_size: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Read closed hedge-position history for exact exit reconciliation.
+
+        BingX Position History returns one cumulative record per closed position,
+        including positionSide, openTime, avgClosePrice and netProfit. The endpoint
+        is read-only and limited to the previous month by the exchange.
+        """
+        now = int(time.time() * 1000)
+        end_ms = int(end_ms) if end_ms is not None else now
+        start_ms = int(start_ms)
+        if start_ms <= 0 or end_ms <= start_ms:
+            return []
+        if end_ms - start_ms > 90 * 24 * 3600 * 1000:
+            start_ms = end_ms - 90 * 24 * 3600 * 1000
+        params: dict[str, Any] = {
+            "symbol": symbol,
+            "startTs": start_ms,
+            "endTs": end_ms,
+            "pageIndex": max(0, int(page_index)),
+            "pageSize": min(100, max(1, int(page_size))),
+            "timestamp": now,
+        }
+        resp = await self._request(
+            "GET",
+            "/openApi/swap/v1/trade/positionHistory",
+            params=params,
+            signed=True,
+        )
+        code = resp.get("code")
+        if code not in (0, "0", None):
+            raise ExchangeError(
+                f"BingX position history failed: code={code} msg={resp.get('msg')}",
+                exchange="bingx",
+                operation="/openApi/swap/v1/trade/positionHistory",
+                code=code,
+            )
+        data = resp.get("data") or []
+        if isinstance(data, dict):
+            data = (
+                data.get("positionHistory")
+                or data.get("list")
+                or data.get("rows")
+                or []
+            )
+        if not isinstance(data, list):
+            return []
+        rows = [dict(row) for row in data if isinstance(row, dict)]
+        logger.info("get_position_history: %s rows=%d", symbol, len(rows))
+        return rows
+
     @property
     def income_endpoint_cooldown_active(self) -> bool:
         return time.time() < float(getattr(self, "_income_cooldown_until", 0.0))

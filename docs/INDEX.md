@@ -48,6 +48,7 @@
 |---|---|
 | `GITHUB_ACTIONS.md` | Историческая справка по прежней конфигурации Actions; актуальная схема — в `CONFIGURATION_MAP.md` |
 | `CONFIGURATION_MAP.md` | Карта общего конфига, paper Zeus, канона SETTINGS, live env и Actions Secrets |
+| `ZEUS_LIVE_RECONCILIATION.md` | VST live-loop: сверка закрытий, PnL, pending и повторная доставка Telegram-карточек |
 | `PR_HISTORY.md` | Основная хроника PR репозитория |
 | `PR_HISTORY_ADDENDUM_2026-11-10.md` | Решения по PR #299, #339–#348 и состояние позиционного исследования на 10.11.2026 |
 | `LOCAL_SETUP.md` | Локальная установка и запуск (Python 3.12) |

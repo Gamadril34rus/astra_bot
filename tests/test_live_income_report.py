@@ -326,3 +326,156 @@ def test_pending_dogon_keeps_ambiguous_income_without_patching_or_tg(tmp_path):
     assert sent == []
     assert len(load_pending(pending_path)) == 1
     assert not trades_path.exists()
+
+
+def test_match_position_history_requires_unique_symbol_side_and_open_time():
+    from astra_bot.decision.live_income_report import match_position_history
+
+    row = {
+        "symbol": "BTC-USDT",
+        "positionSide": "LONG",
+        "openTime": 1_700_000_000_000,
+        "updateTime": 1_700_000_030_000,
+        "avgClosePrice": "99.5",
+        "netProfit": "-2.2",
+        "positionCommission": "-0.1",
+        "totalFunding": "-0.1",
+        "positionId": "position-1",
+    }
+    matched = match_position_history(
+        [row],
+        symbol="BTC-USDT",
+        side="long",
+        target_open_ms=1_700_000_000_000,
+    )
+    assert matched is not None
+    assert matched["net_pnl"] == -2.2
+    assert matched["pnl"] == -2.1
+    assert matched["fees"] == -0.1
+    assert matched["funding"] == -0.1
+    assert matched["exit_price"] == 99.5
+    assert matched["position_id"] == "position-1"
+
+    assert match_position_history(
+        [row],
+        symbol="BTC-USDT",
+        side="short",
+        target_open_ms=1_700_000_000_000,
+    ) is None
+    assert match_position_history(
+        [row, dict(row, positionId="position-2")],
+        symbol="BTC-USDT",
+        side="long",
+        target_open_ms=1_700_000_000_000,
+    ) is None
+
+
+def test_pending_dogon_resolves_ambiguous_income_from_position_history(tmp_path, monkeypatch):
+    from astra_bot.decision import live_income_report as income_report
+
+    pending_path = tmp_path / "pending.json"
+    trades_path = tmp_path / "trades.jsonl"
+    opened_at_ms = 1_700_000_000_000
+    since_ms = opened_at_ms - 60_000
+    enqueue_pending(
+        {
+            "symbol": "BTC-USDT",
+            "side": "long",
+            "signal_id": "signal-long",
+            "since_ms": since_ms,
+            "reason": "выход",
+            "entry": 100.0,
+            "qty": 1.0,
+            "leverage": 3.0,
+            "stop": 98.0,
+            "target": 105.0,
+            "trade_ids": [],
+            "ts": 1_700_000_000.0,
+        },
+        path=pending_path,
+    )
+    trades_path.write_text(
+        json.dumps(
+            {
+                "event": "exit",
+                "symbol": "BTC-USDT",
+                "side": "long",
+                "signal_id": "signal-long",
+                "entry": 100.0,
+                "exit": None,
+                "pnl": None,
+                "pnl_source": "pending_dogon",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    class Client:
+        def __init__(self):
+            self.history_calls = 0
+
+        async def get_realized_income(self, symbol, start_ms=None):
+            return [
+                {
+                    "incomeType": "REALIZED_PNL",
+                    "income": "-2.1",
+                    "time": opened_at_ms + 30_000,
+                }
+            ]
+
+        async def get_position_history(
+            self, symbol, *, start_ms, end_ms, page_index=0, page_size=100
+        ):
+            self.history_calls += 1
+            assert symbol == "BTC-USDT"
+            assert start_ms == since_ms
+            return [
+                {
+                    "symbol": "BTC-USDT",
+                    "positionSide": "LONG",
+                    "openTime": opened_at_ms,
+                    "updateTime": opened_at_ms + 30_000,
+                    "avgClosePrice": "99.5",
+                    "netProfit": "-2.2",
+                    "positionCommission": "-0.1",
+                    "totalFunding": "-0.1",
+                    "positionId": "position-1",
+                }
+            ]
+
+    delivered = []
+
+    async def fake_deliver(item, *, pnl, message, send_tg, trades_path):
+        delivered.append((dict(item), pnl, message))
+        updated = dict(item, card_sent=True, followup_sent=True)
+        return updated, True
+
+    monkeypatch.setattr(income_report, "_deliver_pending_exit_followup", fake_deliver)
+    client = Client()
+    result = asyncio.run(
+        resolve_pending_dogon(
+            client,
+            path=pending_path,
+            trades_path=trades_path,
+            now=1_700_000_100.0,
+        )
+    )
+
+    assert result == 1
+    assert client.history_calls == 1
+    assert load_pending(pending_path) == []
+    assert len(delivered) == 1
+    item, pnl, message = delivered[0]
+    assert item["exit_price"] == 99.5
+    assert pnl == -2.1
+    assert "Position History" in message
+
+    row = json.loads(trades_path.read_text(encoding="utf-8").splitlines()[0])
+    assert row["pnl_source"] == "position_history"
+    assert row["pnl"] == -2.1
+    assert row["fees"] == -0.1
+    assert row["funding_fee"] == -0.1
+    assert row["exit"] == 99.5
+    assert row["exit_price"] == 99.5
+    assert row["position_id"] == "position-1"

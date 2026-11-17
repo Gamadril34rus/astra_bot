@@ -880,6 +880,7 @@ class LiveBroker:
         import time as _time
         from pathlib import Path as _Path
 
+        from astra_bot.decision.live_income_report import match_position_history
         from astra_bot.decision.live_positions import load_positions, remove_plan
         from astra_bot.decision.live_tg_flags import try_claim
         from astra_bot.decision.zeus_heat import DEFAULT_HEAT_PATH, ZeusHeatGovernor
@@ -910,6 +911,27 @@ class LiveBroker:
         pending_cleanup: list[str] = []
         cancelled = 0
         now = _time.time()
+        position_history_cache: dict[str, list[dict[str, Any]]] = {}
+        position_history_start_by_symbol: dict[str, int] = {}
+        for history_plan in plans.values():
+            history_symbol = str(history_plan.get("symbol") or "")
+            try:
+                history_opened = history_plan.get("opened_at_ms")
+                if history_opened is not None:
+                    history_open_ms = int(float(history_opened))
+                else:
+                    history_ts = float(history_plan.get("ts") or 0)
+                    if history_ts > 1e12:
+                        history_ts /= 1000.0
+                    history_open_ms = int(history_ts * 1000) if history_ts > 0 else 0
+            except (TypeError, ValueError, OverflowError):
+                history_open_ms = 0
+            if history_symbol and history_open_ms > 0:
+                history_start = max(0, history_open_ms - 60_000)
+                position_history_start_by_symbol[history_symbol] = min(
+                    history_start,
+                    position_history_start_by_symbol.get(history_symbol, history_start),
+                )
 
         for _key, plan in list(plans.items()):
             sym = str(plan.get("symbol") or _key.split("|")[0] or "")
@@ -1042,6 +1064,8 @@ class LiveBroker:
             pnl: float | None = None
             slip_exit: float | None = None
             funding_fee: float = 0.0
+            pnl_source_override: str | None = None
+            position_history_id: str | None = None
             rpnl_sum = 0.0
             rpnl_n = 0
             for f in fills:
@@ -1130,9 +1154,62 @@ class LiveBroker:
                 except Exception as exc:
                     logger.warning("sync_closed income %s: %s", sym, type(exc).__name__)
 
+            # Position History is a position-level fallback when fill and income
+            # endpoints cannot identify the closed hedge leg. Match only one exact
+            # symbol/side/open-time record; ambiguous history stays pending.
+            if pnl is None and start_ms is not None and hasattr(self.client, "get_position_history"):
+                try:
+                    if sym not in position_history_cache:
+                        history_start = position_history_start_by_symbol.get(sym, start_ms)
+                        position_history_cache[sym] = await self.client.get_position_history(
+                            sym,
+                            start_ms=history_start,
+                            end_ms=int(now * 1000),
+                            page_index=0,
+                            page_size=100,
+                        )
+                    history_match = match_position_history(
+                        position_history_cache[sym],
+                        symbol=sym,
+                        side=side,
+                        target_open_ms=int(start_ms) + 60_000,
+                    )
+                    if history_match is not None:
+                        pnl = float(history_match["pnl"])
+                        fees = float(history_match["fees"])
+                        funding_fee = float(history_match["funding"])
+                        exit_fill = history_match.get("exit_price") or exit_fill
+                        position_history_id = (
+                            str(history_match["position_id"])
+                            if history_match.get("position_id") is not None
+                            else None
+                        )
+                        pnl_source_override = "position_history"
+                        exchange_fill_type = "POSITION_HISTORY"
+                        if not exit_reason:
+                            exit_reason = "выход"
+                        logger.info(
+                            "sync_closed: %s %s Position History net=%.4f exit=%s",
+                            sym,
+                            side,
+                            float(history_match["net_pnl"]),
+                            exit_fill,
+                        )
+                except Exception as exc:
+                    logger.warning(
+                        "sync_closed position_history %s: %s",
+                        sym,
+                        type(exc).__name__,
+                    )
+
             # slip vs plan stop/tp (all exit branches — not only income)
             if exit_fill is not None:
-                ref = plan.get("stop") if exit_reason == "стоп" else plan.get("tp")
+                if exit_reason in ("стоп", "stop", "stop_loss"):
+                    ref = plan.get("stop")
+                elif exit_reason in ("тейк", "tp", "take_profit"):
+                    ref = plan.get("tp")
+                else:
+                    ref = None
                 try:
                     if ref is not None and float(ref) > 0:
                         slip_exit = (exit_fill - float(ref)) / float(ref) * 100.0
@@ -1233,15 +1310,19 @@ class LiveBroker:
                 funding=float(funding_fee or 0),
                 fees=-abs(float(fees or 0)),
             )
+            followup_sent = False
             if try_claim(sym, "exit", signal_id):
                 if send_tg is not None:
                     try:
                         await send_tg(msg)
+                        followup_sent = True
                     except Exception as exc:
                         logger.warning("sync_closed TG: %s", type(exc).__name__)
             else:
                 logger.info("sync_closed: skip dup TG %s", sym)
+                followup_sent = True
             # Cosmetic exit card: reconciled data only; no exchange reads.
+            card_sent = False
             try:
                 card_qty = float(qty_closed or qty_plan or 0)
                 raw_leverage = plan.get("leverage") or plan.get("lev")
@@ -1275,11 +1356,16 @@ class LiveBroker:
                         card_exit = float(exit_fill)
                     if card_exit is not None and card_exit > 0:
                         from astra_bot.decision.trade_viz import notify_exit_stats_card
-                        await notify_exit_stats_card(
+                        card_sent = bool(await notify_exit_stats_card(
                             symbol=sym, side=side, entry=card_entry,
                             exit_price=card_exit, pnl=card_pnl, qty=card_qty,
                             leverage=card_leverage, closed_at=now, virtual=True,
-                        )
+                        ))
+                        if not card_sent:
+                            logger.warning(
+                                "viz_error event=viz_error phase=EXIT_CARD symbol=%s reason=send_failed",
+                                sym,
+                            )
                     elif exit_fill is not None:
                         logger.warning(
                             "viz_error event=viz_error phase=EXIT_CARD symbol=%s reason=cannot_derive_exit",
@@ -1292,13 +1378,14 @@ class LiveBroker:
             try:
                 from astra_bot.decision.live_income_report import strategy_from_signal_id
                 # Owner 28.10: classify income exits + R observability
-                exchange_fill_type = "UNKNOWN"
-                if reason in ("стоп", "stop", "stop_loss"):
-                    exchange_fill_type = "ENGINE_STOP"
-                elif reason in ("тейк", "tp", "take_profit") or (reason and "тейк" in str(reason)):
-                    exchange_fill_type = "ENGINE_TP"
-                elif reason == "income":
-                    exchange_fill_type = "UNKNOWN"
+                exchange_fill_type = "POSITION_HISTORY" if pnl_source_override == "position_history" else "UNKNOWN"
+                if pnl_source_override != "position_history":
+                    if reason in ("стоп", "stop", "stop_loss"):
+                        exchange_fill_type = "ENGINE_STOP"
+                    elif reason in ("тейк", "tp", "take_profit") or (reason and "тейк" in str(reason)):
+                        exchange_fill_type = "ENGINE_TP"
+                    elif reason == "income":
+                        exchange_fill_type = "UNKNOWN"
                 r_multiple = None
                 try:
                     risk_px = plan.get("initial_stop") or plan.get("stop")
@@ -1387,7 +1474,8 @@ class LiveBroker:
                     "exit_price": exit_fill,  # explicit alias for reports
                     "exit_reason": reason,
                     "pnl": round(pnl, 4),
-                    "pnl_source": "income" if reason == "income" else "fills",
+                    "pnl_source": pnl_source_override or ("income" if reason == "income" else "fills"),
+                    "position_id": position_history_id,
                     "fees": float(fees or 0),
                     "funding_fee": float(funding_fee),
                     "trade_id": signal_id or f"{sym}|{side}|{int(now)}",
@@ -1413,8 +1501,37 @@ class LiveBroker:
                     except (TypeError, ValueError, ZeroDivisionError):
                         pass
                 append_live_trade(trade_row)
+                trade_row_written = True
             except Exception as tex:
                 logger.warning("append_live_trade: %s", type(tex).__name__)
+                trade_row_written = False
+
+            if trade_row_written and (not card_sent or not followup_sent):
+                try:
+                    from astra_bot.decision.live_income_report import enqueue_pending
+
+                    retry_item = {
+                        "symbol": sym,
+                        "side": side,
+                        "signal_id": signal_id,
+                        "since_ms": start_ms,
+                        "reason": reason,
+                        "entry": entry_px,
+                        "qty": float(qty_closed or qty_plan or 0) or None,
+                        "leverage": plan.get("leverage") or plan.get("lev"),
+                        "stop": plan.get("initial_stop") or plan.get("stop"),
+                        "target": plan.get("tp") or plan.get("target"),
+                        "closed_at": now,
+                        "trade_ids": sorted(trade_ids),
+                        "ts": now,
+                        "card_sent": card_sent,
+                        "followup_sent": followup_sent,
+                    }
+                    if exit_fill is not None:
+                        retry_item["exit_price"] = float(exit_fill)
+                    enqueue_pending(retry_item)
+                except Exception as exc:
+                    logger.warning("sync_closed exit delivery queue %s: %s", sym, type(exc).__name__)
 
             try:
                 heat = ZeusHeatGovernor(state_path=DEFAULT_HEAT_PATH)

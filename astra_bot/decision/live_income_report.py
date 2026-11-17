@@ -435,6 +435,8 @@ def patch_trade_exit_pnl(
     funding: float,
     pnl_source: str = "income_confirmed",
     path: Path = TRADES_PATH,
+    exit_price: float | None = None,
+    position_id: str | None = None,
 ) -> bool:
     """Patch matching exit row. Never deletes. Skip income_confirmed/corrected."""
     if not path.exists():
@@ -466,7 +468,7 @@ def patch_trade_exit_pnl(
             out.append(line)
             continue
         src = str(row.get("pnl_source") or "")
-        if src in ("income_confirmed", "income_corrected"):
+        if src in ("income_confirmed", "income_corrected", "position_history"):
             out.append(line)
             continue
         # patch null / pending_dogon / weak income*
@@ -481,6 +483,11 @@ def patch_trade_exit_pnl(
         row["fees"] = float(fees)
         row["funding_fee"] = float(funding)
         row["pnl_source"] = pnl_source
+        if exit_price is not None:
+            row["exit"] = round(float(exit_price), 8)
+            row["exit_price"] = round(float(exit_price), 8)
+        if position_id is not None:
+            row["position_id"] = str(position_id)
         row["corrected_ts"] = now
         out.append(json.dumps(row, ensure_ascii=False, separators=(",", ":")))
         changed = True
@@ -503,7 +510,7 @@ def _find_confirmed_exit_row(
     signal_id: str | None,
     path: Path = TRADES_PATH,
 ) -> dict[str, Any] | None:
-    """Find an already income-confirmed exit for this exact signal."""
+    """Find an already exchange-confirmed exit for this exact signal."""
     sid = str(signal_id or "")
     if not sid or not path.exists():
         return None
@@ -522,12 +529,87 @@ def _find_confirmed_exit_row(
                 and str(row.get("signal_id") or "") == sid
                 and row.get("pnl") is not None
                 and str(row.get("pnl_source") or "")
-                in {"income", "income_backfill", "income_confirmed", "income_corrected"}
+                in {
+                    "income",
+                    "income_backfill",
+                    "income_confirmed",
+                    "income_corrected",
+                    "position_history",
+                    "fills",
+                }
             ):
                 match = row
     except Exception as exc:
         logger.warning("confirmed exit lookup %s: %s", symbol, type(exc).__name__)
     return match
+
+
+def match_position_history(
+    rows: list[dict[str, Any]],
+    *,
+    symbol: str,
+    side: str,
+    target_open_ms: int,
+    tolerance_ms: int = 120_000,
+) -> dict[str, Any] | None:
+    """Return one exact closed-position-history match; never guess on ambiguity."""
+    target = int(target_open_ms)
+    wanted_symbol = str(symbol or "").upper().replace("-", "")
+    wanted_side = str(side or "").upper()
+    matches: list[dict[str, Any]] = []
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        row_symbol = str(row.get("symbol") or symbol).upper().replace("-", "")
+        row_side = str(row.get("positionSide") or row.get("position_side") or "").upper()
+        if row_symbol != wanted_symbol or row_side != wanted_side:
+            continue
+        open_ms = _row_time_ms({"time": row.get("openTime") or row.get("open_time")})
+        if open_ms is None or abs(open_ms - target) > int(tolerance_ms):
+            continue
+        try:
+            funding = float(row.get("totalFunding") or row.get("total_funding") or 0.0)
+            commission = float(
+                row.get("positionCommission")
+                if row.get("positionCommission") is not None
+                else row.get("position_commission") or 0.0
+            )
+            net_raw = row.get("netProfit")
+            if net_raw is None:
+                net_raw = row.get("net_profit")
+            if net_raw is not None:
+                net_pnl = float(net_raw)
+            else:
+                realised = row.get("realisedProfit")
+                if realised is None:
+                    realised = row.get("realizedProfit")
+                if realised is None:
+                    continue
+                net_pnl = float(realised) + commission + funding
+            exit_raw = row.get("avgClosePrice")
+            if exit_raw is None:
+                exit_raw = row.get("avg_close_price")
+            exit_price = float(exit_raw) if exit_raw not in (None, "") else None
+        except (TypeError, ValueError):
+            continue
+        close_ms = _row_time_ms(
+            {"time": row.get("updateTime") or row.get("closeTime") or row.get("close_time")}
+        )
+        matches.append(
+            {
+                "symbol": symbol,
+                "side": side,
+                "open_time_ms": open_ms,
+                "close_time_ms": close_ms,
+                "position_id": row.get("positionId") or row.get("position_id"),
+                "net_pnl": net_pnl,
+                "pnl": net_pnl - funding,
+                "fees": commission,
+                "funding": funding,
+                "exit_price": exit_price,
+            }
+        )
+    return matches[0] if len(matches) == 1 else None
 
 
 def _pending_exit_card_metadata(
@@ -591,7 +673,7 @@ async def _send_pending_exit_card(
             )
             return None
         from astra_bot.decision.trade_viz import derive_exit_price, notify_exit_stats_card
-        exit_price = derive_exit_price(
+        exit_price = float(details.get("exit_price") or 0.0) or derive_exit_price(
             side=side, entry=entry, pnl=float(pnl), qty=qty,
         )
         if exit_price <= 0:
@@ -654,6 +736,19 @@ async def resolve_pending_dogon(
     now_ts = float(now if now is not None else time.time())
     remaining: list[dict[str, Any]] = []
     sent = 0
+    position_history_cache: dict[str, list[dict[str, Any]]] = {}
+    position_history_start_by_symbol: dict[str, int] = {}
+    for queued in items:
+        queued_symbol = str(queued.get("symbol") or "")
+        try:
+            queued_since = int(float(queued.get("since_ms") or 0))
+        except (TypeError, ValueError):
+            queued_since = 0
+        if queued_symbol and queued_since > 0:
+            position_history_start_by_symbol[queued_symbol] = min(
+                queued_since,
+                position_history_start_by_symbol.get(queued_symbol, queued_since),
+            )
     for item in items:
         sym = str(item.get("symbol") or "")
         side = str(item.get("side") or "").strip().lower()
@@ -699,16 +794,27 @@ async def resolve_pending_dogon(
                 )
             else:
                 funding = float(confirmed_row.get("funding_fee") or 0.0)
-                msg = format_rocket_correction(
+                fees = float(confirmed_row.get("fees") or 0.0)
+                if source in {"fills", "income"}:
+                    fees = -abs(fees)
+                prefix = (
+                    "уточнение: подтверждено BingX Position History. "
+                    if source == "position_history"
+                    else ""
+                )
+                msg = prefix + format_rocket_correction(
                     sym,
                     side,
                     net=amount + funding,
                     reason=reason,
                     funding=funding,
-                    fees=float(confirmed_row.get("fees") or 0.0),
+                    fees=fees,
                 )
+            updated_item = dict(item)
+            if not updated_item.get("exit_price") and confirmed_row.get("exit_price") is not None:
+                updated_item["exit_price"] = confirmed_row.get("exit_price")
             updated, delivered = await _deliver_pending_exit_followup(
-                item, pnl=amount, message=msg, send_tg=send_tg,
+                updated_item, pnl=amount, message=msg, send_tg=send_tg,
                 trades_path=trades_path,
             )
             if delivered:
@@ -729,6 +835,96 @@ async def resolve_pending_dogon(
             logger.warning("dogon exit_net %s: %s", sym, type(exc).__name__)
             remaining.append(item)
             continue
+        rp = abs(float(agg.get("pnl") or 0))
+        has = bool(agg.get("has_realized"))
+        confirmed = has and (est_f is None or est_f <= 0 or rp >= DOGON_CONFIRM_FRAC * est_f)
+
+        # BingX Position History is a separate, position-level source. It can
+        # resolve exits when fill history is empty and income rows lack hedge-side
+        # identifiers. Match only one exact symbol/side/open-time record.
+        if (
+            not confirmed
+            and since_ms is not None
+            and hasattr(client, "get_position_history")
+        ):
+            try:
+                since_value = int(float(since_ms))
+                if sym not in position_history_cache:
+                    history_start = position_history_start_by_symbol.get(sym, since_value)
+                    history_end = int(now_ts * 1000)
+                    history_start = max(
+                        history_start,
+                        history_end - 30 * 24 * 3600 * 1000,
+                    )
+                    position_history_cache[sym] = await client.get_position_history(
+                        sym,
+                        start_ms=history_start,
+                        end_ms=history_end,
+                        page_index=0,
+                        page_size=100,
+                    )
+                target_open_ms = int(float(item.get("opened_at_ms") or (since_value + 60_000)))
+                history = match_position_history(
+                    position_history_cache[sym],
+                    symbol=sym,
+                    side=side,
+                    target_open_ms=target_open_ms,
+                )
+            except Exception as exc:
+                logger.warning("dogon position_history %s: %s", sym, type(exc).__name__)
+                position_history_cache.setdefault(sym, [])
+                history = None
+            if history is not None:
+                trade_pnl = float(history["pnl"])
+                funding = float(history["funding"])
+                fees = float(history["fees"])
+                exit_price = history.get("exit_price")
+                patched = patch_trade_exit_pnl(
+                    symbol=sym,
+                    signal_id=str(sid) if sid is not None else None,
+                    pnl=trade_pnl,
+                    fees=fees,
+                    funding=funding,
+                    pnl_source="position_history",
+                    exit_price=exit_price,
+                    position_id=(
+                        str(history["position_id"])
+                        if history.get("position_id") is not None
+                        else None
+                    ),
+                    path=trades_path,
+                )
+                if not patched:
+                    logger.warning(
+                        "dogon position_history %s matched but no exit ledger row; retain pending",
+                        sym,
+                    )
+                    remaining.append(item)
+                    continue
+                msg = "уточнение: подтверждено BingX Position History. " + format_rocket_correction(
+                    sym,
+                    side,
+                    net=float(history["net_pnl"]),
+                    reason="выход",
+                    funding=funding,
+                    fees=fees,
+                )
+                updated_item = dict(item)
+                if exit_price is not None:
+                    updated_item["exit_price"] = float(exit_price)
+                updated, delivered = await _deliver_pending_exit_followup(
+                    updated_item,
+                    pnl=trade_pnl,
+                    message=msg,
+                    send_tg=send_tg,
+                    trades_path=trades_path,
+                )
+                if delivered:
+                    sent += 1
+                else:
+                    remaining.append(updated)
+                continue
+
         if agg.get("ambiguous_position_side"):
             logger.warning(
                 "dogon: %s %s income rows cannot be mapped to the closed hedge leg; keep pending",
@@ -751,10 +947,6 @@ async def resolve_pending_dogon(
                         logger.warning("dogon ambiguous notice %s: %s", sym, type(exc).__name__)
             remaining.append(updated_item)
             continue
-
-        rp = abs(float(agg.get("pnl") or 0))
-        has = bool(agg.get("has_realized"))
-        confirmed = has and (est_f is None or est_f <= 0 or rp >= DOGON_CONFIRM_FRAC * est_f)
 
         if confirmed:
             msg = format_rocket_correction(
