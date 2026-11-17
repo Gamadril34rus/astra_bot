@@ -928,7 +928,6 @@ class LiveBroker:
                 history_entry_events,
                 entry=history_plan.get("entry"),
                 qty=history_plan.get("qty"),
-                opened_at_ms=history_plan.get("opened_at_ms"),
             )
             if len(history_entry_events) > 1 and history_entry_event is None:
                 continue
@@ -1052,7 +1051,6 @@ class LiveBroker:
                 plan_entry_events,
                 entry=plan.get("entry"),
                 qty=plan.get("qty"),
-                opened_at_ms=plan.get("opened_at_ms"),
             )
             entry_event_ambiguous = len(plan_entry_events) > 1 and entry_event is None
             entry_open_ms = (
