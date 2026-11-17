@@ -579,9 +579,9 @@ def load_entry_events(
             signal_id = str(row.get("signal_id") or "")
             if not symbol or not signal_id:
                 continue
-            opened_ms = _row_time_ms({"time": row.get("opened_at_ms")})
+            opened_ms = _row_time_ms({"time": row.get("ts")})
             if opened_ms is None:
-                opened_ms = _row_time_ms({"time": row.get("ts")})
+                opened_ms = _row_time_ms({"time": row.get("opened_at_ms")})
             if opened_ms is None:
                 continue
             event = {
