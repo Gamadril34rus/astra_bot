@@ -96,14 +96,25 @@ COOLDOWN_PATH = Path("models/zeus_live_cooldown.json")
 _COOLDOWN: dict[str, float] = {}  # key -> unblock_ts_ms
 
 
-def arm_enabled() -> bool:
+def arm_block_reason() -> str | None:
+    """Return the exact entry-gate blocker without changing gate behavior."""
     if (os.environ.get("ZEUS_ARM") or "").strip() not in ("1", "true", "yes"):
-        return False
+        return "ZEUS_ARM!=1"
     try:
-        from astra_bot.decision.live_session import arm_allowed_by_session
-        return arm_allowed_by_session()
+        from astra_bot.decision.live_session import get_session_profile, session_enabled
+
+        if session_enabled():
+            profile = get_session_profile()
+            if not profile.arm:
+                return f"session_profile={profile.name}"
     except Exception:
-        return True
+        # Preserve the existing fail-open behavior for session-profile import errors.
+        return None
+    return None
+
+
+def arm_enabled() -> bool:
+    return arm_block_reason() is None
 
 
 @dataclass

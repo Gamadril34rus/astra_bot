@@ -650,8 +650,8 @@ async def produce_pending(
     scan_outcomes: dict[str, str] = {}
     for sym in symbols:
         if sym in open_syms:
-            logger.info("arm feed: skip %s - already open", sym)
-            scan_outcomes[sym] = "already_open"
+            logger.info("arm feed: skip %s - local plan awaits exit reconciliation", sym)
+            scan_outcomes[sym] = "plan_unreconciled"
             continue
         row = await scan_symbol(client, sym, strategy=strat)
         if row is None:

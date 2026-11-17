@@ -2987,14 +2987,14 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception as _fexc:
         logger.warning("funding_day FAILED: %s", type(_fexc).__name__)
 
-    from astra_bot.decision.live_arm import arm_enabled
+    from astra_bot.decision.live_arm import arm_block_reason, arm_enabled
 
     if dry or not broker.entries_allowed:
         logger.info("tick done (no entries: dry=%s allowed=%s)", dry, broker.entries_allowed)
-    elif not arm_enabled():
-        logger.info("tick done — ZEUS_ARM!=1 (observe only)")
+    elif (entry_block_reason := arm_block_reason()) is not None:
+        logger.info("tick done — entry gate closed: %s (observe only)", entry_block_reason)
     else:
-        logger.info("ZEUS_ARM=1 — entry hook active (candidates via arm pipeline)")
+        logger.info("entry hook active (owner arm + session gate open; candidates via arm pipeline)")
 
     try:
         from astra_bot.decision.live_commands import is_blocked
