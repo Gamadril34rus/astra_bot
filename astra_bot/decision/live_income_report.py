@@ -892,17 +892,24 @@ async def resolve_pending_dogon(
     now_ts = float(now if now is not None else time.time())
     remaining: list[dict[str, Any]] = []
     sent = 0
-    entry_open_times = load_entry_open_times(trades_path)
+    entry_events_by_key = load_entry_events(trades_path)
     position_history_cache: dict[str, list[dict[str, Any]]] = {}
     position_history_start_by_symbol: dict[str, int] = {}
     for queued in items:
         queued_symbol = str(queued.get("symbol") or "")
         queued_signal_id = str(queued.get("signal_id") or "")
+        entry_event = select_entry_event(
+            entry_events_by_key.get((queued_symbol, queued_signal_id), []),
+            entry=queued.get("entry"),
+            qty=queued.get("qty"),
+            opened_at_ms=queued.get("opened_at_ms"),
+            since_ms=queued.get("since_ms"),
+        )
+        entry_open_ms = int(entry_event["open_ms"]) if entry_event else None
         try:
             queued_since = int(float(queued.get("since_ms") or 0))
         except (TypeError, ValueError):
             queued_since = 0
-        entry_open_ms = entry_open_times.get((queued_symbol, queued_signal_id))
         candidate_starts = [value for value in (
             queued_since,
             max(0, entry_open_ms - 60_000) if entry_open_ms is not None else 0,
@@ -918,7 +925,16 @@ async def resolve_pending_dogon(
         side = str(item.get("side") or "").strip().lower()
         sid = item.get("signal_id")
         since_ms = item.get("since_ms")
-        entry_open_ms = entry_open_times.get((sym, str(sid) if sid is not None else ""))
+        entry_event = select_entry_event(
+            entry_events_by_key.get((sym, str(sid) if sid is not None else ""), []),
+            entry=item.get("entry"),
+            qty=item.get("qty"),
+            opened_at_ms=item.get("opened_at_ms"),
+            since_ms=since_ms,
+        )
+        entry_open_ms = int(entry_event["open_ms"]) if entry_event else None
+        entry_price = item.get("entry") or (entry_event.get("entry") if entry_event else None)
+        entry_qty = item.get("qty") or (entry_event.get("qty") if entry_event else None)
         reason = str(item.get("reason") or "стоп")
         try:
             est_f = float(item["est"]) if item.get("est") is not None else None
@@ -940,7 +956,11 @@ async def resolve_pending_dogon(
         # exact exit row. Consume that confirmed ledger result instead of polling
         # an ambiguous symbol-wide income endpoint forever.
         confirmed_row = _find_confirmed_exit_row(
-            sym, str(sid) if sid is not None else None, trades_path
+            sym,
+            str(sid) if sid is not None else None,
+            trades_path,
+            entry=entry_price,
+            qty=entry_qty,
         )
         if confirmed_row is not None:
             source = str(confirmed_row.get("pnl_source") or "")
@@ -976,6 +996,10 @@ async def resolve_pending_dogon(
                     fees=fees,
                 )
             updated_item = dict(item)
+            if not updated_item.get("entry") and entry_price is not None:
+                updated_item["entry"] = entry_price
+            if not updated_item.get("qty") and entry_qty is not None:
+                updated_item["qty"] = entry_qty
             if not updated_item.get("exit_price") and confirmed_row.get("exit_price") is not None:
                 updated_item["exit_price"] = confirmed_row.get("exit_price")
             updated, delivered = await _deliver_pending_exit_followup(
@@ -1074,6 +1098,8 @@ async def resolve_pending_dogon(
                         if history.get("position_id") is not None
                         else None
                     ),
+                    entry=entry_price,
+                    qty=entry_qty,
                     path=trades_path,
                 )
                 if not patched:
@@ -1092,6 +1118,10 @@ async def resolve_pending_dogon(
                     fees=fees,
                 )
                 updated_item = dict(item)
+                if entry_price is not None:
+                    updated_item["entry"] = entry_price
+                if entry_qty is not None:
+                    updated_item["qty"] = entry_qty
                 if exit_price is not None:
                     updated_item["exit_price"] = float(exit_price)
                 updated, delivered = await _deliver_pending_exit_followup(
