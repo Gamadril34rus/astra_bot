@@ -2849,10 +2849,13 @@ async def one_tick(*, dry: bool = False) -> int:
 
         plans = load_positions()
         if plans:
+            open_orders_error = None
             try:
                 open_orders = await client.get_open_orders()
-            except Exception:
+            except Exception as exc:
                 open_orders = []
+                open_orders_error = type(exc).__name__
+                logger.warning("order_audit get_open_orders FAILED: %s", open_orders_error)
             by_sym: dict[str, list] = {}
             for o in open_orders:
                 by_sym.setdefault(getattr(o, "symbol", "") or "", []).append(o)
@@ -2914,6 +2917,8 @@ async def one_tick(*, dry: bool = False) -> int:
                         "side": plan.get("side"),
                         "n_stop": n_stop,
                         "n_tp": n_tp,
+                        "orders_fetch_ok": open_orders_error is None,
+                        "orders_fetch_error": open_orders_error,
                         "be_moved": bool(plan.get("be_moved")),
                         "orders": detail,
                         "ts": time.time(),
