@@ -633,3 +633,155 @@ def test_confirmed_exit_lookup_disambiguates_reused_signal_id(tmp_path):
     assert row is not None
     assert row["entry"] == 79.925
     assert row["pnl"] == -11.9234
+
+
+def test_backfill_unqueued_exits_is_idempotent_and_repairs_stale_pending(tmp_path):
+    from astra_bot.decision.live_income_report import (
+        backfill_unqueued_exit_rows,
+        load_pending,
+        save_pending,
+    )
+
+    trades_path = tmp_path / "trades.jsonl"
+    pending_path = tmp_path / "pending.json"
+    flags_path = tmp_path / "tg_flags.json"
+    flags_path.write_text(json.dumps({"flags": {}}), encoding="utf-8")
+
+    btc_open_ms = 1_700_000_000_000
+    eth_open_ms = 1_700_000_200_000
+    rows = [
+        {
+            "event": "entry",
+            "symbol": "BTC-USDT",
+            "side": "long",
+            "signal_id": "btc-orphan",
+            "ts": btc_open_ms / 1000.0,
+            "fill_price": 100.0,
+            "qty": 1.0,
+            "leverage": 3,
+        },
+        {
+            "event": "exit",
+            "symbol": "BTC-USDT",
+            "side": "long",
+            "signal_id": "btc-orphan",
+            "ts": btc_open_ms / 1000.0 + 100,
+            "entry": 100.0,
+            "exit": None,
+            "pnl": None,
+            "exit_reason": "no_fills",
+        },
+        {
+            "event": "entry",
+            "symbol": "ETH-USDT",
+            "side": "short",
+            "signal_id": "eth-stale",
+            "ts": eth_open_ms / 1000.0,
+            "fill_price": 200.0,
+            "qty": 2.0,
+            "leverage": 3,
+        },
+        {
+            "event": "exit",
+            "symbol": "ETH-USDT",
+            "side": "short",
+            "signal_id": "eth-stale",
+            "ts": eth_open_ms / 1000.0 + 100,
+            "entry": 200.0,
+            "exit": None,
+            "pnl": 5.0,
+            "pnl_source": "income_backfill",
+        },
+    ]
+    trades_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+    save_pending(
+        [
+            {
+                "symbol": "ETH-USDT",
+                "side": "short",
+                "signal_id": "eth-stale",
+                "since_ms": eth_open_ms + 3 * 60 * 60 * 1000,
+                "entry": 200.0,
+                "ts": eth_open_ms / 1000.0,
+            }
+        ],
+        pending_path,
+    )
+
+    stats = backfill_unqueued_exit_rows(
+        trades_path=trades_path,
+        pending_path=pending_path,
+        flags_path=flags_path,
+        now=1_700_000_500.0,
+    )
+    assert stats == {"added": 1, "updated": 1, "ambiguous": 0, "expired": 0}
+    items = load_pending(pending_path)
+    assert len(items) == 2
+    by_signal = {item["signal_id"]: item for item in items}
+    assert by_signal["btc-orphan"]["since_ms"] == btc_open_ms - 60_000
+    assert by_signal["btc-orphan"]["qty"] == 1.0
+    assert by_signal["eth-stale"]["since_ms"] == eth_open_ms - 60_000
+    assert by_signal["eth-stale"]["opened_at_ms"] == eth_open_ms
+    assert by_signal["eth-stale"]["qty"] == 2.0
+    assert by_signal["eth-stale"]["ts"] == 1_700_000_500.0
+
+    second = backfill_unqueued_exit_rows(
+        trades_path=trades_path,
+        pending_path=pending_path,
+        flags_path=flags_path,
+        now=1_700_000_600.0,
+    )
+    assert second == {"added": 0, "updated": 0, "ambiguous": 0, "expired": 0}
+    assert len(load_pending(pending_path)) == 2
+
+
+@pytest.mark.asyncio
+async def test_missing_exit_card_metadata_keeps_pending_item(tmp_path):
+    from astra_bot.decision.live_income_report import _deliver_pending_exit_followup
+
+    trades_path = tmp_path / "trades.jsonl"
+    trades_path.write_text(
+        json.dumps(
+            {
+                "event": "entry",
+                "symbol": "BTC-USDT",
+                "side": "long",
+                "signal_id": "missing-exit-price",
+                "ts": 1_700_000_000.0,
+                "entry": 100.0,
+                "qty": 1.0,
+                "leverage": 3,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    sent = []
+
+    async def send_tg(message):
+        sent.append(message)
+
+    item = {
+        "symbol": "BTC-USDT",
+        "side": "long",
+        "signal_id": "missing-exit-price",
+        "entry": 100.0,
+        "qty": 1.0,
+        "leverage": 3,
+        "exit_price": None,
+    }
+    updated, delivered = await _deliver_pending_exit_followup(
+        item,
+        pnl=1.0,
+        message="exit follow-up",
+        send_tg=send_tg,
+        trades_path=trades_path,
+    )
+    assert delivered is False
+    assert updated["card_sent"] is False
+    assert updated["card_skipped_missing_metadata"] is True
+    assert updated["followup_sent"] is True
+    assert sent == ["exit follow-up"]
