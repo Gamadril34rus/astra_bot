@@ -2891,3 +2891,6 @@
 {"event": "order_cancel", "symbol": "SOL-USDT", "order_id": "2122724469348327424", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794934613.2213473, "environment": "VST"}
 {"event": "partial_fill", "symbol": "SOL-USDT", "side": "short", "qty": "351.86162490", "exch_qty": "338.06", "plan_qty": "689.92162490", "price": null, "ts": 1794934613.7567182, "source": "be_catchup_qty_gap"}
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2122728225863458816", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1794934614.5634077, "environment": "VST"}
+{"event": "leverage_reconcile", "symbol": "SOL-USDT", "side": "short", "old_leverage": 5, "exchange_leverage": 6, "source": "bingx_position", "signal_id": "zeus_channel_boundary|SOL-USDT|short|1794916800000", "ts": 1794934940.7927237, "environment": "VST"}
+{"event": "qty_reconcile", "symbol": "BTC-USDT", "side": "short", "old_qty": 0.7825, "new_qty": 0.5477, "rel_diff": 0.300064, "signal_id": "zeus_channel_boundary|BTC-USDT|short|1794916800000", "ts": 1794934940.7929096, "environment": "VST"}
+{"event": "leverage_reconcile", "symbol": "BTC-USDT", "side": "short", "old_leverage": 5, "exchange_leverage": 6, "source": "bingx_position", "signal_id": "zeus_channel_boundary|BTC-USDT|short|1794916800000", "ts": 1794934940.793005, "environment": "VST"}
