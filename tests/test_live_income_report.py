@@ -423,8 +423,10 @@ def test_pending_dogon_resolves_ambiguous_income_from_position_history(tmp_path,
     class Client:
         def __init__(self):
             self.history_calls = 0
+            self.income_start_ms = None
 
         async def get_realized_income(self, symbol, start_ms=None):
+            self.income_start_ms = start_ms
             return [
                 {
                     "incomeType": "REALIZED_PNL",
@@ -473,6 +475,7 @@ def test_pending_dogon_resolves_ambiguous_income_from_position_history(tmp_path,
 
     assert result == 1
     assert client.history_calls == 1
+    assert client.income_start_ms == opened_at_ms - 60_000
     assert load_pending(pending_path) == []
     assert len(delivered) == 1
     item, pnl, message = delivered[0]
