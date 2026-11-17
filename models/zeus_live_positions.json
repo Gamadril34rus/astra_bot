@@ -57,7 +57,7 @@
       "stop": "1815.742440",
       "tp": "1787.82715",
       "entry": "1817.56",
-      "leverage": 5,
+      "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|ETH-USDT|short|1794888000000",
       "ts": 1794907325.869941,
@@ -70,8 +70,11 @@
       "peak_low": "1806.90",
       "current_regime": "STRONG_BEAR_TREND",
       "tp1": "1806.45567",
-      "migrate_stop_v1": true
+      "migrate_stop_v1": true,
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     }
   },
-  "ts": 1794907354.4444604
+  "ts": 1794907620.7284887
 }
