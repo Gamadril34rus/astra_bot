@@ -1176,7 +1176,7 @@ class LiveBroker:
                     )
                     if history_match is not None:
                         pnl = float(history_match["pnl"])
-                        fees = abs(float(history_match["fees"]))
+                        fees = float(history_match["fees"])
                         funding_fee = float(history_match["funding"])
                         exit_fill = history_match.get("exit_price") or exit_fill
                         position_history_id = (
