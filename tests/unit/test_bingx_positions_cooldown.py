@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from astra_bot.adapters.bingx.client_live import LiveBingXClient
 from astra_bot.core.exceptions import ExchangeError
 
