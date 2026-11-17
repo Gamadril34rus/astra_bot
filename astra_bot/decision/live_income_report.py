@@ -437,8 +437,10 @@ def patch_trade_exit_pnl(
     path: Path = TRADES_PATH,
     exit_price: float | None = None,
     position_id: str | None = None,
+    entry: Any = None,
+    qty: Any = None,
 ) -> bool:
-    """Patch matching exit row. Never deletes. Skip income_confirmed/corrected."""
+    """Patch one unconfirmed exit row; never fan one PnL out across reused signal IDs."""
     if not path.exists():
         return False
     try:
@@ -446,56 +448,57 @@ def patch_trade_exit_pnl(
     except Exception as exc:
         logger.warning("patch_trade load: %s", type(exc).__name__)
         return False
+
     sid = str(signal_id or "")
-    changed = False
-    out: list[str] = []
-    now = time.time()
-    for line in lines:
+    candidates: list[tuple[int, dict[str, Any]]] = []
+    for index, line in enumerate(lines):
         if not line.strip():
             continue
         try:
             row = json.loads(line)
         except json.JSONDecodeError:
-            out.append(line)
             continue
-        if str(row.get("event") or "") != "exit":
-            out.append(line)
+        if (
+            str(row.get("event") or "") != "exit"
+            or str(row.get("symbol") or "") != symbol
+            or (sid and str(row.get("signal_id") or "") != sid)
+        ):
             continue
-        if str(row.get("symbol") or "") != symbol:
-            out.append(line)
+        source = str(row.get("pnl_source") or "")
+        if source in ("income_confirmed", "income_corrected", "position_history"):
             continue
-        if sid and str(row.get("signal_id") or "") != sid:
-            out.append(line)
-            continue
-        src = str(row.get("pnl_source") or "")
-        if src in ("income_confirmed", "income_corrected", "position_history"):
-            out.append(line)
-            continue
-        # patch null / pending_dogon / weak income*
-        if row.get("pnl") is not None and src not in (
+        if row.get("pnl") is not None and source not in (
             "pending_dogon",
             "income",
             "income_backfill",
         ):
-            out.append(line)
             continue
-        row["pnl"] = round(float(pnl), 4)
-        row["fees"] = float(fees)
-        row["funding_fee"] = float(funding)
-        row["pnl_source"] = pnl_source
-        if exit_price is not None:
-            row["exit"] = round(float(exit_price), 8)
-            row["exit_price"] = round(float(exit_price), 8)
-        if position_id is not None:
-            row["position_id"] = str(position_id)
-        row["corrected_ts"] = now
-        out.append(json.dumps(row, ensure_ascii=False, separators=(",", ":")))
-        changed = True
-    if not changed:
+        candidates.append((index, row))
+
+    selected = _select_exit_row_by_context(
+        [row for _, row in candidates],
+        entry=entry,
+        qty=qty,
+    )
+    if selected is None:
         return False
+    selected_index = next(index for index, row in candidates if row is selected)
+    selected["pnl"] = round(float(pnl), 4)
+    selected["fees"] = float(fees)
+    selected["funding_fee"] = float(funding)
+    selected["pnl_source"] = pnl_source
+    if exit_price is not None:
+        selected["exit"] = round(float(exit_price), 8)
+        selected["exit_price"] = round(float(exit_price), 8)
+    if position_id is not None:
+        selected["position_id"] = str(position_id)
+    selected["corrected_ts"] = time.time()
+    lines[selected_index] = json.dumps(
+        selected, ensure_ascii=False, separators=(",", ":")
+    )
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        body = "\n".join(out)
+        body = "\n".join(lines)
         if body:
             body += "\n"
         path.write_text(body, encoding="utf-8")
