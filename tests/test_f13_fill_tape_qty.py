@@ -4,14 +4,14 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
-
 from astra_bot.decision.live_income_report import (
     _income_row_id,
     _parse_income_fill,
     process_income_fill_tape,
     strategy_from_signal_id,
 )
+
+import pytest
 
 
 def test_strategy_from_signal_id_prefix():
