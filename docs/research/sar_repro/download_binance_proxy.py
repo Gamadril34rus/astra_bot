@@ -6,7 +6,6 @@ This is explicitly a cross-exchange proxy, not BingX execution-price history.
 from __future__ import annotations
 
 import argparse
-import calendar
 import csv
 import gzip
 import hashlib
