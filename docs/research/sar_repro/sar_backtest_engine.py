@@ -30,8 +30,20 @@ import requests
 TAKER = 0.0005
 SLIP = 0.001
 COST_BUFFER = 2 * (TAKER + SLIP)
-INTERVAL_MS = 3_600_000  # 1h
+INTERVAL_MS = 3_600_000  # default 1h
 WARMUP_BARS = 50
+
+
+def interval_to_ms(interval: str) -> int:
+    """Convert supported BingX candle intervals to milliseconds."""
+    units = {"m": 60_000, "h": 3_600_000, "d": 86_400_000, "w": 604_800_000}
+    value = interval.strip().lower()
+    if len(value) < 2 or value[-1] not in units or not value[:-1].isdigit():
+        raise ValueError(f"Unsupported candle interval: {interval!r}")
+    amount = int(value[:-1])
+    if amount <= 0:
+        raise ValueError(f"Invalid candle interval: {interval!r}")
+    return amount * units[value[-1]]
 
 
 class FetchError(RuntimeError):
@@ -44,6 +56,7 @@ def fetch_klines(
     limit_total: int = 9000,
     min_bars: int = 500,
 ) -> pd.DataFrame:
+    interval_ms = interval_to_ms(interval)
     url = "https://open-api.bingx.com/openApi/swap/v3/quote/klines"
     rows_all: list = []
     end_time = None
@@ -100,8 +113,6 @@ def fetch_klines(
         if end_time is not None and oldest >= end_time:
             break
         end_time = oldest - 1
-        if len(batch) < 40:
-            break
         time.sleep(0.12)
 
     df = pd.DataFrame(rows_all, columns=["timestamp", "open", "high", "low", "close", "volume"])
@@ -109,18 +120,18 @@ def fetch_klines(
     if len(df) < min_bars:
         raise FetchError(f"{symbol} only {len(df)} bars, need >= {min_bars}")
     df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
-    df["close_ts"] = df["timestamp"] + INTERVAL_MS
+    df["close_ts"] = df["timestamp"] + interval_ms
     return df
 
 
-def check_hourly_gaps(df: pd.DataFrame) -> dict:
+def check_candle_gaps(df: pd.DataFrame, interval_ms: int = INTERVAL_MS) -> dict:
     if len(df) < 2:
-        return {"gaps": 0, "max_gap_hours": 0.0, "median_hours": 0.0}
-    deltas = np.diff(df["timestamp"].values) / float(INTERVAL_MS)
+        return {"gaps": 0, "max_gap_intervals": 0.0, "median_intervals": 0.0}
+    deltas = np.diff(df["timestamp"].values) / float(interval_ms)
     return {
         "gaps": int(np.sum(deltas > 1.5)),
-        "max_gap_hours": float(deltas.max()),
-        "median_hours": float(np.median(deltas)),
+        "max_gap_intervals": float(deltas.max()),
+        "median_intervals": float(np.median(deltas)),
     }
 
 
@@ -215,12 +226,13 @@ def extract_trades(
     init_trend: int = 1,
     force_close_end: bool = True,
     warmup: int = WARMUP_BARS,
+    interval_ms: int = INTERVAL_MS,
 ) -> list[dict]:
     if len(df) < warmup + 5:
         return []
     h, l, c, o = df["high"].values, df["low"].values, df["close"].values, df["open"].values
     ts = df["timestamp"].values
-    close_ts = df["close_ts"].values if "close_ts" in df.columns else ts + INTERVAL_MS
+    close_ts = df["close_ts"].values if "close_ts" in df.columns else ts + interval_ms
     sar, tr = parabolic_sar_series(h, l, init_trend=init_trend)
 
     length = np.ones(len(tr), dtype=int)
@@ -286,9 +298,7 @@ def extract_trades(
                     exit_mid = float(stop)
                     hit = True
             if hit:
-                if pos == 1 and o[i] <= stop:
-                    use_close = False
-                elif pos == -1 and o[i] >= stop:
+                if (pos == 1 and o[i] <= stop) or (pos == -1 and o[i] >= stop):
                     use_close = False
                 else:
                     use_close = True
@@ -350,7 +360,7 @@ def portfolio_run_mtm(
                 "skipped": 0,
                 "winrate_pct": 0.0,
                 "profit_factor_usd": None,
-                "engine_version": "v4_mtm_batch_entries",
+                "engine_version": "v4_mtm_batch_entries_interval_aware",
             },
         }
 
@@ -509,7 +519,7 @@ def portfolio_run_mtm(
             "cost_buffer": COST_BUFFER,
             "taker_fee": TAKER,
             "slippage": SLIP,
-            "engine_version": "v4_mtm_batch_entries",
+            "engine_version": "v4_mtm_batch_entries_interval_aware",
         },
     }
 
@@ -520,7 +530,11 @@ def main() -> None:
     ap.add_argument("--out", type=str, default="sar_repro_out")
     ap.add_argument("--init-trend", type=int, default=1)
     ap.add_argument("--warmup", type=int, default=WARMUP_BARS)
+    ap.add_argument("--interval", type=str, default="1h", help="BingX candle interval; video baseline is 15m")
+    ap.add_argument("--limit-total", type=int, default=None, help="number of candles per symbol; defaults to ~1y for interval")
     args = ap.parse_args()
+    interval_ms = interval_to_ms(args.interval)
+    limit_total = args.limit_total or (36_000 if args.interval == "15m" else 9_000)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -529,10 +543,10 @@ def main() -> None:
     all_trades: list[dict] = []
     bars_meta = {}
     for sym in symbols:
-        df = fetch_klines(sym)
+        df = fetch_klines(sym, interval=args.interval, limit_total=limit_total, min_bars=max(500, int(limit_total * 0.9)))
         if len(df) > 10:
             df = df.iloc[:-1].reset_index(drop=True)
-        gaps = check_hourly_gaps(df)
+        gaps = check_candle_gaps(df, interval_ms=interval_ms)
         bars_meta[sym] = {
             "bars": len(df),
             "start": df["datetime"].iloc[0].isoformat() if len(df) else None,
@@ -549,6 +563,7 @@ def main() -> None:
                 init_trend=args.init_trend,
                 force_close_end=True,
                 warmup=args.warmup,
+                interval_ms=interval_ms,
             )
         )
         time.sleep(0.3)
@@ -582,7 +597,7 @@ def main() -> None:
     for it in (1, -1):
         trs = []
         for sym, df in bars_by_symbol.items():
-            trs.extend(extract_trades(df, sym, init_trend=it, warmup=args.warmup))
+            trs.extend(extract_trades(df, sym, init_trend=it, warmup=args.warmup, interval_ms=interval_ms))
         r = portfolio_run_mtm(trs, bars_by_symbol, risk=0.01, cap=0.03, start=args.start)
         sens[str(it)] = {
             "final": r["summary"]["final_equity"],
@@ -594,10 +609,10 @@ def main() -> None:
     print("init_trend sensitivity", sens)
 
     meta = {
-        "engine_version": "v4_mtm_batch_entries",
+        "engine_version": "v4_mtm_batch_entries_interval_aware",
         "audit_status": "v4 source delivered; re-audit required; no param search",
         "symbols": symbols,
-        "interval": "1h",
+        "interval": args.interval,
         "warmup_bars": args.warmup,
         "sar": {"start": 0.02, "increment": 0.02, "max": 0.2, "init_trend": args.init_trend},
         "cost_model": {
