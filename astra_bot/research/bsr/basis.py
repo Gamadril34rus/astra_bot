@@ -4,9 +4,9 @@ from __future__ import annotations
 import math
 from bisect import bisect_right
 from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
-from collections.abc import Sequence
 
 
 @dataclass(frozen=True, slots=True)
