@@ -27,13 +27,13 @@ jobs:
       - name: Download and validate one year of USD-M 15m candles and funding
         run: |
           python docs/research/sar_repro/download_binance_proxy.py \
-            --start 2025-11-18T00:00:00Z \
-            --end 2026-11-18T00:00:00Z \
+            --start 2025-11-01T00:00:00Z \
+            --end 2026-11-01T00:00:00Z \
             --symbols BTCUSDT ETHUSDT SOLUSDT \
             --out artifacts/sar_binance_proxy
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: sar-binance-proxy-15m-2025-11-18-to-2026-11-18
+          name: sar-binance-proxy-15m-2025-11-01-to-2026-11-01
           path: artifacts/sar_binance_proxy/
           if-no-files-found: error
           retention-days: 14
