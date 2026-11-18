@@ -1,59 +1,42 @@
-# SAR reproducible backtest package
+# SAR research backtest package
 
-**Status:** research only — **not** in ASTRA DEMO/live.  
-**Engine:** `v2_no_lookahead_next_open_pf_usd` (see `AUDIT_V2.md`).
+**Engine:** `v3_audit_fixes`  
+**Status:** P1 fixes applied after independent audit → **Needs re-audit**  
+**DEMO / live:** not connected  
+**Param search:** blocked until engine trusted
 
 ## Files
 
 | File | Role |
 |------|------|
-| `sar_backtest_engine.py` | **v2** engine (no stop look-ahead, next-open entry, PF in USDT) |
-| `summary.json` | **v2** metrics (loss-making on tested window) |
-| `AUDIT_V2.md` | Why prior PF 1.70 is invalid |
+| `sar_backtest_engine.py` | Research engine (see version string inside) |
+| `summary.json` | Latest snapshot |
+| `AUDIT_V2.md` | Look-ahead invalidation |
+| `AUDIT_V3.md` | P1 curve / open trades / risk / fees |
 | `README.md` | This file |
 
 ```bash
-cd docs/research/sar_repro
-pip install requests pandas numpy
 python sar_backtest_engine.py --start 5000 --out sar_repro_out
 ```
 
----
+## v3 execution (summary)
 
-## Execution rules (v2)
+- Signal: SAR flip on **close**; entry: **next open**
+- Stop on bar i: **`sar[i-1]` only**
+- EOD: force-close open positions at last **completed** bar; last bar dropped
+- Fees: entry and exit notional separately
+- Risk: `notional = risk*equity / (risk_dist + cost_buffer)`
+- MaxDD: from equity path sorted by exit time
+- Funding: **still 0**
 
-- SAR `0.02 / 0.02 / 0.2`, `1h`, BTC/ETH/SOL
-- **Signal:** trend flip on **bar close**
-- **Entry:** **next bar open** (+ slip)
-- **Stop on bar i:** `sar[i-1]` only (known at open); gap through stop → fill at open
-- Sizing: `notional = (risk * equity) / risk_dist`
-- Costs: fee 0.05% + slip 0.1% per side; **funding = 0**
-- **PF:** `profit_factor_usd` from cash PnL (not raw %)
+## Snapshot direction (not proof)
 
----
+Default SAR 0.02/0.02/0.2 1h BTC+ETH+SOL under bot costs remains **PF_usd < 1** on ~1y window after fixes. See `summary.json` / `AUDIT_V3.md`.
 
-## v1 results — INVALID
+## Sequence (do not skip)
 
-Look-ahead stop + entry on signal close + PF on % → **PF 1.70 and large finals are not valid.**
-
-## v2 snapshot (bot costs, start 5000, ~1y)
-
-| Profile | Final | Return | Max DD | PF_usd |
-|---------|-------|--------|--------|--------|
-| 1% / 3% | ~111 | **−98%** | **−98.5%** | **~0.77** |
-| 1.5% / 6% | ~12 | −99.8% | −99.9% | ~0.79 |
-| 2% / 8% | ~1 | −100% | −100% | ~0.81 |
-| 3% / 12% | ~0 | −100% | −100% | ~0.84 |
-
-Trades ~2060, WR ~31%. **Edge is negative after correct simulation.**
-
----
-
-## Still open
-
-- Funding
-- Frozen candle archive
-- Walk-forward / OOS
-- Do not tune SAR parameters until engine changes are re-audited
-
-**DEMO not touched.**
+1. Re-audit v3 formulas  
+2. Freeze candles + funding  
+3. Gap / concurrent / long-short tests  
+4. Walk-forward + limited grid + OOS  
+5. Never rank parameters on untrusted simulator metrics  
