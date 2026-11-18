@@ -196,6 +196,7 @@ def download_funding(
     out: Path,
     mark_prices: dict[int, dict[str, str]],
     previous_15m_closes: dict[int, str],
+    trade_closes: dict[int, str],
 ) -> dict:
     """Read funding archives and join mark opens by the containing 1m boundary.
 
@@ -204,6 +205,7 @@ def download_funding(
     """
     rows: dict[int, dict] = {}
     previous_15m_times = sorted(previous_15m_closes)
+    sorted_trade_times = sorted(trade_closes)
     start_dt = datetime.fromtimestamp(start_ms / 1000, timezone.utc).date()
     end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, timezone.utc).date()
     sources = []
@@ -252,6 +254,14 @@ def download_funding(
                                 mark = previous_15m_closes[prior_time]
                                 price_time = prior_time
                                 source = "last available Binance USD-M markPriceKlines 15m close"
+                    if not mark:
+                        prior_index = bisect_right(sorted_trade_times, mark_time) - 1
+                        if prior_index >= 0:
+                            prior_time = sorted_trade_times[prior_index]
+                            if mark_time - prior_time <= INTERVAL_MS:
+                                mark = trade_closes[prior_time]
+                                price_time = prior_time
+                                source = "previous Binance USD-M 15m trade kline close (mark proxy)"
                     rows[ts] = {
                         "symbol": symbol,
                         "funding_time": ts,
@@ -318,8 +328,14 @@ def main():
         mark_prices, previous_15m_closes, mark_sources = download_mark_prices(
             symbol, start_ms, end_ms
         )
+        trade_closes = {}
+        with gzip.open(args.out / klines["file"], "rt", encoding="utf-8") as stream:
+            for row in csv.DictReader(stream):
+                close_boundary = int(row["open_time"]) + INTERVAL_MS
+                trade_closes[close_boundary] = row["close"]
         funding = download_funding(
-            symbol, start_ms, end_ms, args.out, mark_prices, previous_15m_closes
+            symbol, start_ms, end_ms, args.out, mark_prices, previous_15m_closes,
+            trade_closes,
         )
         funding["mark_price_sources"] = mark_sources
         if funding["missing_mark_price"]:
