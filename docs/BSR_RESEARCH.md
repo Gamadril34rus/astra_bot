@@ -50,9 +50,9 @@ wss://open-api-swap.bingx.com/swap-market. Frames are GZIP-decoded and Ping is
 answered with Pong. Local depth is unusable until an action=all snapshot arrives
 on the active connection; action=update quantities replace absolute quantities,
 zero deletes a level, and every disconnect invalidates the local book. The
-protocol does not guarantee consecutive lastUpdateId values or a checksum, so
-IDs are recorded but never treated as proof of completeness. After reconnect,
-wait for a fresh full snapshot before using depth again.
+each incremental update must advance lastUpdateId by exactly one. A missing,
+duplicate or skipped ID invalidates and clears the local book; wait for a fresh
+full snapshot after reconnect before using depth again. No checksum is assumed.
 
 REST is bootstrap only. Binance Spot trades are now streamed independently. Match
 records by symbol and exchange event time, not local receive time alone; measure
