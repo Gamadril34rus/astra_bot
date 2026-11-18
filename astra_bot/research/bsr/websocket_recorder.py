@@ -37,22 +37,29 @@ class DepthBookState:
         try:
             bids = payload.get("bids", [])
             asks = payload.get("asks", [])
+            update_id = payload.get("lastUpdateId")
+            if update_id is None or isinstance(update_id, bool):
+                raise ValueError("missing/invalid lastUpdateId")
+            update_id = int(update_id)
             if action == "all":
-                new_bids = {float(p): float(q) for p, q in bids if float(q) > 0}
-                new_asks = {float(p): float(q) for p, q in asks if float(q) > 0}
+                new_bids: dict[float, float] = {}
+                new_asks: dict[float, float] = {}
+                self._apply_side(new_bids, bids)
+                self._apply_side(new_asks, asks)
                 if not new_bids or not new_asks:
                     raise ValueError("empty snapshot")
                 self.bids, self.asks = new_bids, new_asks
                 self.synchronized = True
-            elif not self.synchronized:
+            elif not self.synchronized or self.last_update_id is None:
                 return False
             else:
+                if update_id != self.last_update_id + 1:
+                    raise ValueError("non-contiguous depth update sequence")
                 self._apply_side(self.bids, bids)
                 self._apply_side(self.asks, asks)
             if not self.bids or not self.asks or max(self.bids) >= min(self.asks):
                 raise ValueError("invalid/crossed local book")
-            update_id = payload.get("lastUpdateId")
-            self.last_update_id = int(update_id) if update_id is not None else None
+            self.last_update_id = update_id
         except (TypeError, ValueError, KeyError):
             self.invalidate()
             return False
