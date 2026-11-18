@@ -158,7 +158,7 @@ def download_mark_prices(symbol: str, start_ms: int, end_ms: int) -> tuple[dict[
     """Download 1m mark-price opens keyed by exact candle-open timestamps."""
     start_dt = datetime.fromtimestamp(start_ms / 1000, timezone.utc).date()
     end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, timezone.utc).date()
-    prices: dict[int, str] = {}
+    prices: dict[int, dict[str, str]] = {}
     sources = []
     for year, month in month_iter(start_dt, end_dt):
         period = f"{year:04d}-{month:02d}"
@@ -168,7 +168,7 @@ def download_mark_prices(symbol: str, start_ms: int, end_ms: int) -> tuple[dict[
         for row in read_zip_rows(blob, min_columns=5):
             ts = int(row[0])
             if start_ms <= ts < end_ms:
-                prices[ts] = row[1]
+                prices[ts] = {"open": row[1], "close": row[4]}
         sources.append({"url": url, "sha256": hashlib.sha256(blob).hexdigest()})
     return prices, sources
 
@@ -178,7 +178,7 @@ def download_funding(
     start_ms: int,
     end_ms: int,
     out: Path,
-    mark_prices: dict[int, str],
+    mark_prices: dict[int, dict[str, str]],
 ) -> dict:
     """Read funding archives and join mark opens by the containing 15m boundary.
 
@@ -212,21 +212,34 @@ def download_funding(
                     interval_hours = int(float(row[1]))
                     rate = float(row[2])
                     mark_time = ts - (ts % MARK_INTERVAL_MS)
-                    mark = mark_prices.get(mark_time)
+                    mark_row = mark_prices.get(mark_time)
+                    mark = mark_row["open"] if mark_row else ""
+                    source = "Binance USD-M markPriceKlines 1m bucket open"
+                    price_time = mark_time if mark else ""
+                    if not mark:
+                        for age_minutes in range(1, 6):
+                            prior_time = mark_time - age_minutes * MARK_INTERVAL_MS
+                            prior_row = mark_prices.get(prior_time)
+                            if prior_row:
+                                mark = prior_row["close"]
+                                price_time = prior_time
+                                source = "previous Binance USD-M markPriceKlines 1m close"
+                                break
                     rows[ts] = {
                         "symbol": symbol,
                         "funding_time": ts,
                         "funding_rate": rate,
                         "funding_interval_hours": interval_hours,
-                        "mark_price_time": mark_time if mark else "",
+                        "mark_price_time": price_time,
+                        "mark_price_age_ms": ts - price_time if mark else "",
                         "mark_price": mark or "",
-                        "mark_price_source": "Binance USD-M markPriceKlines 1m bucket open" if mark else "",
+                        "mark_price_source": source if mark else "",
                     }
     ordered = [rows[key] for key in sorted(rows)]
     target = out / f"{symbol}_funding.csv.gz"
     fields = [
         "symbol", "funding_time", "funding_rate", "funding_interval_hours",
-        "mark_price_time", "mark_price", "mark_price_source",
+        "mark_price_time", "mark_price_age_ms", "mark_price", "mark_price_source",
     ]
     with gzip.open(target, "wt", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=fields)
@@ -236,6 +249,10 @@ def download_funding(
         "symbol": symbol,
         "funding_events": len(ordered),
         "missing_mark_price": sum(not row["mark_price"] for row in ordered),
+        "fallback_mark_price": sum(
+            row["mark_price_source"] == "previous Binance USD-M markPriceKlines 1m close"
+            for row in ordered
+        ),
         "first_funding_utc": datetime.fromtimestamp(ordered[0]["funding_time"] / 1000, timezone.utc).isoformat() if ordered else None,
         "last_funding_utc": datetime.fromtimestamp(ordered[-1]["funding_time"] / 1000, timezone.utc).isoformat() if ordered else None,
         "file": target.name,
