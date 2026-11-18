@@ -46,35 +46,31 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "74.204",
+      "peak_low": "74.018",
       "current_regime": "RANGE",
       "be_earned": true
     },
     "BTC-USDT|short": {
       "symbol": "BTC-USDT",
       "side": "short",
-      "qty": "0.78283401",
-      "stop": "64509.205",
-      "tp": "63423.4065",
+      "qty": "0.5479",
+      "stop": "63725.69875",
+      "tp": "62942.1925",
       "entry": "63882.4",
-      "leverage": 6,
+      "leverage": 5,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|BTC-USDT|short|1794988800000",
-      "ts": 1795012034.762395,
-      "be_moved": false,
+      "ts": 1795012614.9640288,
+      "be_moved": true,
       "initial_stop": "64509.205",
-      "tp_frac": "0.3",
       "opened_at_ms": 1795012034762,
-      "plan_qty": "0.78283401",
-      "qty_ratio": 1.0,
-      "tp1": "63423.4065",
-      "initial_stop_v1": true,
       "tp_parity_v1": true,
-      "early_tp1": true,
-      "peak_low": "63829.0",
       "be_earned": true,
-      "current_regime": "STRONG_BEAR_TREND"
+      "tp_frac": "0.3",
+      "peak_low": "63490.3",
+      "current_regime": "STRONG_BEAR_TREND",
+      "tp1": "63423.4065"
     }
   },
-  "ts": 1795012367.6191175
+  "ts": 1795012640.614788
 }
