@@ -14,6 +14,7 @@ from typing import Any
 import aiohttp
 
 
+
 @dataclass(slots=True)
 class DepthBookState:
     """Local book; valid only after action=all on the active connection."""
@@ -68,6 +69,7 @@ class DepthBookState:
                 side.pop(price, None)
             else:
                 side[price] = quantity
+
 
 
 class BingXMarketRecorder:
