@@ -21,6 +21,7 @@ from pathlib import Path
 
 BASE = "https://data.binance.vision/data/futures/um"
 INTERVAL_MS = 15 * 60 * 1000
+MARK_INTERVAL_MS = 60 * 1000
 COLUMNS = [
     "open_time", "open", "high", "low", "close", "volume", "close_time",
     "quote_volume", "trade_count", "taker_buy_volume", "taker_buy_quote_volume", "ignore",
@@ -154,15 +155,15 @@ def download_klines(symbol: str, start_ms: int, end_ms: int, out: Path) -> dict:
 
 
 def download_mark_prices(symbol: str, start_ms: int, end_ms: int) -> tuple[dict[int, str], list[dict]]:
-    """Download 15m mark-price opens keyed by their exact candle-open timestamps."""
+    """Download 1m mark-price opens keyed by exact candle-open timestamps."""
     start_dt = datetime.fromtimestamp(start_ms / 1000, timezone.utc).date()
     end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, timezone.utc).date()
     prices: dict[int, str] = {}
     sources = []
     for year, month in month_iter(start_dt, end_dt):
         period = f"{year:04d}-{month:02d}"
-        name = f"{symbol}-15m-{period}.zip"
-        url = f"{BASE}/monthly/markPriceKlines/{symbol}/15m/{name}"
+        name = f"{symbol}-1m-{period}.zip"
+        url = f"{BASE}/monthly/markPriceKlines/{symbol}/1m/{name}"
         blob = verified_zip(url)
         for row in read_zip_rows(blob, min_columns=5):
             ts = int(row[0])
@@ -210,7 +211,7 @@ def download_funding(
                         continue
                     interval_hours = int(float(row[1]))
                     rate = float(row[2])
-                    mark_time = ts - (ts % INTERVAL_MS)
+                    mark_time = ts - (ts % MARK_INTERVAL_MS)
                     mark = mark_prices.get(mark_time)
                     rows[ts] = {
                         "symbol": symbol,
@@ -219,7 +220,7 @@ def download_funding(
                         "funding_interval_hours": interval_hours,
                         "mark_price_time": mark_time if mark else "",
                         "mark_price": mark or "",
-                        "mark_price_source": "Binance USD-M markPriceKlines 15m bucket open" if mark else "",
+                        "mark_price_source": "Binance USD-M markPriceKlines 1m bucket open" if mark else "",
                     }
     ordered = [rows[key] for key in sorted(rows)]
     target = out / f"{symbol}_funding.csv.gz"
