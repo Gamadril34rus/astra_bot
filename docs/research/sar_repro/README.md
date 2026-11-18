@@ -1,6 +1,6 @@
 # SAR research backtest package
 
-**Engine:** `v4_mtm_batch_entries`  
+**Engine:** `v4_mtm_batch_entries_interval_aware`  
 **Status:** implements v3 audit P1s → **Needs re-audit**  
 **DEMO / live:** not connected  
 **Param search:** blocked
@@ -14,18 +14,31 @@
 | `AUDIT_V2.md` … `AUDIT_V4.md` | Audit trail |
 
 ```bash
-python sar_backtest_engine.py --start 5000 --out sar_repro_out
+python sar_backtest_engine.py --start 5000 --interval 15m --limit-total 36000 --out sar_repro_15m_out
 ```
 
 ## v4 highlights
 
-- Stop: `sar[i-1]`; entry: next open  
+- Stop: `sar[i-1]`; entry: next open
+- Interval-aware candle timestamps and gap checks (`15m` supported); video baseline is 15m  
 - **MTM MaxDD** (realized + unrealized hourly)  
 - Simultaneous same-hour entries: one equity base + risk cap  
 - Exit timestamps: close_ts (or open on gap-through)  
 - Strict BingX fetch (HTTP/code/retry 100410/min bars)  
 - Warmup 50 bars; init_trend flag  
 - Funding still **0**
+
+## Video reproduction baseline (2026-11-18)
+
+The supplied video explicitly shows TradingView XAUUSD on **15m** with Parabolic SAR `0.02 / 0.02 / 0.2`. Its on-screen rules are: wait for the candle to close with SAR dots below price to buy / above price to sell; place the initial stop at the first SAR point; move the stop to the next point each completed candle; exit when price touches the point; no take-profit. The video does not specify position sizing, leverage, costs, or a statistical sample. XAUUSD is an illustration only; this project tests BingX USDT-M perpetuals.
+
+Run a 15m crypto analogue with approximately one year of bars per symbol:
+
+```bash
+python sar_backtest_engine.py --start 5000 --interval 15m --limit-total 36000 --out sar_repro_15m_out
+```
+
+The existing `summary.json` is still the earlier 1h snapshot and is **not** a 15m result. Funding remains zero and must be added before profitability conclusions. Tests: `pytest -q docs/research/sar_repro/test_sar_backtest_engine.py`.
 
 ## Snapshot direction
 
