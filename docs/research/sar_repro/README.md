@@ -26,7 +26,7 @@ python sar_backtest_engine.py --start 5000 --interval 15m --limit-total 36000 --
 - Exit timestamps: close_ts (or open on gap-through)  
 - Strict BingX fetch (HTTP/code/retry 100410/min bars)  
 - Warmup 50 bars; init_trend flag  
-- Historical BingX funding settlements are fetched and applied to each trade by side and settlement mark price
+- Historical BingX funding settlements are fetched and applied to each trade by side and settlement mark price; entry/exit boundary settlements are excluded, and intrabar stop exits use a conservative candle-open cutoff
 
 ## Video reproduction baseline (2026-11-18)
 
