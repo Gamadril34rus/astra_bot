@@ -1,8 +1,8 @@
 """Historical BingX perpetual funding collection and trade-level accounting."""
 from __future__ import annotations
 
+import collections
 import time
-from collections import defaultdict
 
 import requests
 
@@ -73,7 +73,7 @@ def apply_funding_to_trades(
     on the settlement mark notional, scaled to the trade's entry notional.
     A settlement applies only while the position is open: entry <= time < exit.
     """
-    by_symbol = defaultdict(list)
+    by_symbol = collections.defaultdict(list)
     for symbol, events in funding_by_symbol.items():
         by_symbol[symbol].extend(events)
     for events in by_symbol.values():
