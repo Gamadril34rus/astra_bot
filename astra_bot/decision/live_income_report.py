@@ -1283,27 +1283,25 @@ async def resolve_pending_dogon(
                 if confirmed_row.get("exit_price") is not None
                 else confirmed_row.get("exit")
             )
-            if confirmed_exit_price is not None or item.get("exit_price") is not None:
-                updated_item = dict(item)
-                if not updated_item.get("entry") and entry_price is not None:
-                    updated_item["entry"] = entry_price
-                if not updated_item.get("qty") and entry_qty is not None:
-                    updated_item["qty"] = entry_qty
-                if not updated_item.get("exit_price"):
-                    updated_item["exit_price"] = (
-                        confirmed_exit_price
-                        if confirmed_exit_price is not None
-                        else item.get("exit_price")
-                    )
-                updated, delivered = await _deliver_pending_exit_followup(
-                    updated_item, pnl=amount, message=msg, send_tg=send_tg,
-                    trades_path=trades_path,
-                )
-                if delivered:
-                    sent += 1
-                else:
-                    remaining.append(updated)
-                continue
+            # A confirmed ledger row is enough to stop polling income again.
+            # The exit card may derive its price from PnL when entry/qty/leverage
+            # are available; otherwise keep the card pending without losing text.
+            updated_item = dict(item)
+            if not updated_item.get("entry") and entry_price is not None:
+                updated_item["entry"] = entry_price
+            if not updated_item.get("qty") and entry_qty is not None:
+                updated_item["qty"] = entry_qty
+            if not updated_item.get("exit_price") and confirmed_exit_price is not None:
+                updated_item["exit_price"] = float(confirmed_exit_price)
+            updated, delivered = await _deliver_pending_exit_followup(
+                updated_item, pnl=amount, message=msg, send_tg=send_tg,
+                trades_path=trades_path,
+            )
+            if delivered:
+                sent += 1
+            else:
+                remaining.append(updated)
+            continue
 
         income_since_ms = since_ms
         if entry_open_ms is not None:

@@ -754,7 +754,6 @@ async def test_missing_exit_card_metadata_keeps_pending_item(tmp_path):
                 "ts": 1_700_000_000.0,
                 "entry": 100.0,
                 "qty": 1.0,
-                "leverage": 3,
             }
         )
         + "\n",
@@ -771,7 +770,6 @@ async def test_missing_exit_card_metadata_keeps_pending_item(tmp_path):
         "signal_id": "missing-exit-price",
         "entry": 100.0,
         "qty": 1.0,
-        "leverage": 3,
         "exit_price": None,
     }
     updated, delivered = await _deliver_pending_exit_followup(

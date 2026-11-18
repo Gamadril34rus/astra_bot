@@ -107,15 +107,18 @@ def test_dogon_pending_then_confirm(tmp_path):
     assert n == 0
     assert len(load_pending(pending_path)) == 1
 
-    # second: full income → correction + patch
+    # second: full income → correction text; card remains queued without metadata
     n = asyncio.run(
         resolve_pending_dogon(
             client, tg, path=pending_path, trades_path=trades_path, now=1002.0
         )
     )
-    assert n == 1
+    assert n == 0
     assert sent and sent[0].startswith("уточнение: ")
-    assert load_pending(pending_path) == []
+    pending = load_pending(pending_path)
+    assert len(pending) == 1
+    assert pending[0]["followup_sent"] is True
+    assert pending[0]["card_skipped_missing_metadata"] is True
     row = json.loads(trades_path.read_text().splitlines()[0])
     assert row["pnl_source"] == "income_confirmed"
     assert row["pnl"] is not None
@@ -163,11 +166,14 @@ def test_dogon_uses_existing_income_backfill_exit_row(tmp_path):
             Client(), tg, path=pending_path, trades_path=trades_path, now=1794830600.0
         )
     )
-    assert n == 1
+    assert n == 0
     assert len(sent) == 1
     assert "+15.09$" in sent[0]
     assert "funding не включён" in sent[0]
-    assert load_pending(pending_path) == []
+    pending = load_pending(pending_path)
+    assert len(pending) == 1
+    assert pending[0]["followup_sent"] is True
+    assert pending[0]["card_skipped_missing_metadata"] is True
 
 
 
@@ -216,11 +222,14 @@ def test_dogon_uses_existing_income_exit_row(tmp_path):
             now=1794629300.0,
         )
     )
-    assert n == 1
+    assert n == 0
     assert len(sent) == 1
     assert sent[0].startswith("уточнение: ")
     assert "-4.19$" in sent[0]
-    assert load_pending(pending_path) == []
+    pending = load_pending(pending_path)
+    assert len(pending) == 1
+    assert pending[0]["followup_sent"] is True
+    assert pending[0]["card_skipped_missing_metadata"] is True
 
 def test_dogon_24h_estimate(tmp_path):
     pending_path = tmp_path / "pending.json"
