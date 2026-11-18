@@ -2,17 +2,19 @@
 """
 Reproducible Parabolic SAR portfolio backtest for BingX USDT-M perps.
 
-Cost model aligned with astra_bot bingx_perps_cost_model:
-  taker_fee_rate = 0.0005 (0.05% per side)
-  slippage_pct   = 0.001  (0.1% per side)
-  funding        = 0 (not applied in this script)
+FIXES vs first audit version:
+  1) No look-ahead on stop: stop for bar i is SAR known at open of i
+     (computed from data through i-1 only). Bar i OHLC only tests that stop.
+  2) Entry at next bar open after signal confirmed on prior close.
+  3) Portfolio PF computed from pnl_usd, not raw net_pnl_pct.
+
+Cost model (astra_bot bingx_perps paper):
+  taker_fee_rate = 0.0005 per side
+  slippage_pct   = 0.001 per side
+  funding        = 0 (still omitted — known gap)
 
 Usage:
-  python sar_backtest_engine.py
   python sar_backtest_engine.py --start 5000 --out sar_repro_out
-
-Outputs (./sar_repro_out/):
-  summary.json, trades_*.csv, equity_*.csv, trades_raw_signals.csv
 """
 from __future__ import annotations
 
@@ -58,20 +60,21 @@ def fetch_klines(symbol: str, interval: str = "1h", limit_total: int = 9000) -> 
         end_time = oldest - 1
         if len(batch) < 40:
             break
-        time.sleep(0.05)
+        time.sleep(0.12)
     df = pd.DataFrame(rows_all, columns=["timestamp", "open", "high", "low", "close", "volume"])
     df = df.drop_duplicates("timestamp").sort_values("timestamp").reset_index(drop=True)
     df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
     return df
 
 
-def parabolic_sar(
+def parabolic_sar_series(
     high: np.ndarray,
     low: np.ndarray,
     af_start: float = 0.02,
     af_step: float = 0.02,
     af_max: float = 0.2,
 ) -> tuple[np.ndarray, np.ndarray]:
+    """SAR after each bar close. For bar i open use sar[i-1]."""
     n = len(high)
     sar = np.full(n, np.nan)
     trend = np.zeros(n, dtype=int)
@@ -84,17 +87,18 @@ def parabolic_sar(
     for i in range(1, n):
         ps, pe, pa, pt = sar[i - 1], ep[i - 1], af[i - 1], trend[i - 1]
         if pt == 1:
-            sar[i] = ps + pa * (pe - ps)
-            sar[i] = min(sar[i], low[i - 1])
+            cand = ps + pa * (pe - ps)
+            cand = min(cand, low[i - 1])
             if i >= 2:
-                sar[i] = min(sar[i], low[i - 2])
-            if low[i] < sar[i]:
+                cand = min(cand, low[i - 2])
+            if low[i] < cand:
                 trend[i] = -1
                 sar[i] = pe
                 ep[i] = low[i]
                 af[i] = af_start
             else:
                 trend[i] = 1
+                sar[i] = cand
                 if high[i] > pe:
                     ep[i] = high[i]
                     af[i] = min(pa + af_step, af_max)
@@ -102,17 +106,18 @@ def parabolic_sar(
                     ep[i] = pe
                     af[i] = pa
         else:
-            sar[i] = ps + pa * (pe - ps)
-            sar[i] = max(sar[i], high[i - 1])
+            cand = ps + pa * (pe - ps)
+            cand = max(cand, high[i - 1])
             if i >= 2:
-                sar[i] = max(sar[i], high[i - 2])
-            if high[i] > sar[i]:
+                cand = max(cand, high[i - 2])
+            if high[i] > cand:
                 trend[i] = 1
                 sar[i] = pe
                 ep[i] = high[i]
                 af[i] = af_start
             else:
                 trend[i] = -1
+                sar[i] = cand
                 if low[i] < pe:
                     ep[i] = low[i]
                     af[i] = min(pa + af_step, af_max)
@@ -123,37 +128,48 @@ def parabolic_sar(
 
 
 def extract_trades(df: pd.DataFrame, symbol: str, min_prev: int = 0) -> list[dict]:
+    """Signal on close i-1; entry at open i; stop on bar i uses sar[i-1]."""
     h, l, c, o = df["high"].values, df["low"].values, df["close"].values, df["open"].values
     ts = df["timestamp"].values
-    sar, tr = parabolic_sar(h, l)
+    sar, tr = parabolic_sar_series(h, l)
     length = np.ones(len(tr), dtype=int)
     for i in range(1, len(tr)):
         length[i] = length[i - 1] + 1 if tr[i] == tr[i - 1] else 1
+
     trades: list[dict] = []
     pos = 0
-    mid = 0.0
-    ist = 0.0
+    entry_fill = 0.0
+    entry_mid = 0.0
+    stop0 = 0.0
     ets = 0
+    entry_i = -1
+
     for i in range(2, len(df)):
-        if pos != 0:
-            stop = sar[i]
+        if pos != 0 and i > entry_i:
+            stop = float(sar[i - 1])
             hit = False
-            xm = None
-            if pos == 1 and l[i] <= stop:
-                xm = min(o[i], stop)
-                hit = True
-            elif pos == -1 and h[i] >= stop:
-                xm = max(o[i], stop)
-                hit = True
+            exit_mid = None
+            if pos == 1:
+                if o[i] <= stop:
+                    exit_mid = float(o[i])
+                    hit = True
+                elif l[i] <= stop:
+                    exit_mid = float(stop)
+                    hit = True
+            else:
+                if o[i] >= stop:
+                    exit_mid = float(o[i])
+                    hit = True
+                elif h[i] >= stop:
+                    exit_mid = float(stop)
+                    hit = True
             if hit:
                 if pos == 1:
-                    ee = mid * (1 + SLIP)
-                    xe = xm * (1 - SLIP)
-                    gross = (xe - ee) / ee
+                    xe = exit_mid * (1 - SLIP)
+                    gross = (xe - entry_fill) / entry_fill
                 else:
-                    ee = mid * (1 - SLIP)
-                    xe = xm * (1 + SLIP)
-                    gross = (ee - xe) / ee
+                    xe = exit_mid * (1 + SLIP)
+                    gross = (entry_fill - xe) / entry_fill
                 net = gross - 2 * TAKER
                 trades.append(
                     {
@@ -163,12 +179,12 @@ def extract_trades(df: pd.DataFrame, symbol: str, min_prev: int = 0) -> list[dic
                         "exit_ts": int(ts[i]),
                         "entry_time": pd.to_datetime(ets, unit="ms", utc=True).isoformat(),
                         "exit_time": pd.to_datetime(ts[i], unit="ms", utc=True).isoformat(),
-                        "entry_mid": float(mid),
-                        "exit_mid": float(xm),
-                        "entry_fill": float(ee),
+                        "entry_mid": float(entry_mid),
+                        "exit_mid": float(exit_mid),
+                        "entry_fill": float(entry_fill),
                         "exit_fill": float(xe),
-                        "stop_at_entry": float(ist),
-                        "risk_dist": float(abs(mid - ist) / mid),
+                        "stop_at_entry": float(stop0),
+                        "risk_dist": float(abs(entry_mid - stop0) / entry_mid) if entry_mid else 0.0,
                         "gross_pct": float(gross),
                         "fees_pct": float(2 * TAKER),
                         "slip_model_pct": float(2 * SLIP),
@@ -177,16 +193,64 @@ def extract_trades(df: pd.DataFrame, symbol: str, min_prev: int = 0) -> list[dic
                     }
                 )
                 pos = 0
-        if pos == 0 and tr[i] != tr[i - 1] and int(length[i - 1]) >= min_prev:
-            d = 1 if tr[i] == 1 else -1
-            mid = float(c[i])
-            ist = float(sar[i])
-            if d == 1 and ist >= mid:
-                continue
-            if d == -1 and ist <= mid:
-                continue
+
+        if pos == 0 and tr[i - 1] != tr[i - 2] and int(length[i - 2]) >= min_prev:
+            d = int(tr[i - 1])
+            stop_ref = float(sar[i - 1])
+            entry_mid = float(o[i])
+            if d == 1:
+                if stop_ref >= entry_mid:
+                    continue
+                entry_fill = entry_mid * (1 + SLIP)
+            else:
+                if stop_ref <= entry_mid:
+                    continue
+                entry_fill = entry_mid * (1 - SLIP)
             pos = d
+            stop0 = stop_ref
             ets = int(ts[i])
+            entry_i = i
+
+            stop = stop0
+            hit = False
+            exit_mid = None
+            if pos == 1 and l[i] <= stop:
+                exit_mid = float(min(o[i], stop)) if o[i] <= stop else float(stop)
+                hit = True
+            elif pos == -1 and h[i] >= stop:
+                exit_mid = float(max(o[i], stop)) if o[i] >= stop else float(stop)
+                hit = True
+            if hit:
+                if pos == 1:
+                    xe = exit_mid * (1 - SLIP)
+                    gross = (xe - entry_fill) / entry_fill
+                else:
+                    xe = exit_mid * (1 + SLIP)
+                    gross = (entry_fill - xe) / entry_fill
+                net = gross - 2 * TAKER
+                trades.append(
+                    {
+                        "symbol": symbol,
+                        "side": "long" if pos == 1 else "short",
+                        "entry_ts": int(ets),
+                        "exit_ts": int(ts[i]),
+                        "entry_time": pd.to_datetime(ets, unit="ms", utc=True).isoformat(),
+                        "exit_time": pd.to_datetime(ts[i], unit="ms", utc=True).isoformat(),
+                        "entry_mid": float(entry_mid),
+                        "exit_mid": float(exit_mid),
+                        "entry_fill": float(entry_fill),
+                        "exit_fill": float(xe),
+                        "stop_at_entry": float(stop0),
+                        "risk_dist": float(abs(entry_mid - stop0) / entry_mid) if entry_mid else 0.0,
+                        "gross_pct": float(gross),
+                        "fees_pct": float(2 * TAKER),
+                        "slip_model_pct": float(2 * SLIP),
+                        "net_pnl_pct": float(net),
+                        "exit_reason": "sar_stop_same_bar",
+                    }
+                )
+                pos = 0
+
     return trades
 
 
@@ -205,7 +269,7 @@ def portfolio_run(trades: list[dict], risk: float, cap: float, start: float = 50
                 pnl_usd = p["notional"] * p["net_pnl_pct"]
                 eq_before = eq
                 eq += pnl_usd
-                if p["net_pnl_pct"] > 0:
+                if pnl_usd > 0:
                     wins += 1
                 rows.append(
                     {
@@ -234,7 +298,7 @@ def portfolio_run(trades: list[dict], risk: float, cap: float, start: float = 50
         pnl_usd = p["notional"] * p["net_pnl_pct"]
         eq_before = eq
         eq += pnl_usd
-        if p["net_pnl_pct"] > 0:
+        if pnl_usd > 0:
             wins += 1
         rows.append(
             {
@@ -248,14 +312,22 @@ def portfolio_run(trades: list[dict], risk: float, cap: float, start: float = 50
             }
         )
         curve.append({"ts": p["exit_ts"], "equity": eq, "event": "exit"})
+
     peak = start
     mdd = 0.0
     for pt in curve:
         peak = max(peak, pt["equity"])
         mdd = min(mdd, (pt["equity"] - peak) / peak if peak else 0.0)
-    arr = np.array([r["net_pnl_pct"] for r in rows]) if rows else np.array([0.0])
-    gp = float(arr[arr > 0].sum())
-    gl = float(-arr[arr <= 0].sum())
+
+    usd = np.array([r["pnl_usd"] for r in rows]) if rows else np.array([0.0])
+    gp = float(usd[usd > 0].sum())
+    gl = float(-usd[usd <= 0].sum())
+    pf_usd = (gp / gl) if gl > 0 else None
+    pct = np.array([r["net_pnl_pct"] for r in rows]) if rows else np.array([0.0])
+    gp_p = float(pct[pct > 0].sum())
+    gl_p = float(-pct[pct <= 0].sum())
+    pf_pct = (gp_p / gl_p) if gl_p > 0 else None
+
     return {
         "rows": rows,
         "equity_curve": curve,
@@ -267,12 +339,14 @@ def portfolio_run(trades: list[dict], risk: float, cap: float, start: float = 50
             "trades": len(rows),
             "skipped": skipped,
             "winrate_pct": 100 * wins / len(rows) if rows else 0,
-            "profit_factor": (gp / gl) if gl > 0 else None,
-            "avg_net_bps": float(arr.mean() * 10000) if len(arr) else 0,
+            "profit_factor_usd": pf_usd,
+            "profit_factor_pct_legacy": pf_pct,
+            "avg_net_bps": float(pct.mean() * 10000) if len(pct) else 0,
             "risk_per_trade": risk,
             "max_total_risk": cap,
             "taker_fee": TAKER,
             "slippage": SLIP,
+            "engine_version": "v2_no_lookahead_next_open_pf_usd",
         },
     }
 
@@ -297,11 +371,12 @@ def main() -> None:
         }
         print(sym, bars_meta[sym])
         all_trades.extend(extract_trades(df, sym, min_prev=0))
+        time.sleep(0.3)
     pd.DataFrame(all_trades).to_csv(out / "trades_raw_signals.csv", index=False)
+    print("raw trades", len(all_trades))
 
     profiles = [
         ("risk_1pct_cap3", 0.01, 0.03),
-        ("risk_1_25pct_cap5", 0.0125, 0.05),
         ("risk_1_5pct_cap6", 0.015, 0.06),
         ("risk_2pct_cap8", 0.02, 0.08),
         ("risk_3pct_cap12", 0.03, 0.12),
@@ -315,19 +390,26 @@ def main() -> None:
         s = res["summary"]
         print(
             f"{name}: final={s['final_equity']:.2f} ret={s['return_pct']:.1f}% "
-            f"dd={s['max_dd_pct']:.1f}% n={s['trades']} PF={s['profit_factor']}"
+            f"dd={s['max_dd_pct']:.1f}% n={s['trades']} "
+            f"PF_usd={s['profit_factor_usd']} PF_pct_legacy={s['profit_factor_pct_legacy']}"
         )
 
     meta = {
+        "engine_version": "v2_no_lookahead_next_open_pf_usd",
         "symbols": symbols,
         "interval": "1h",
         "sar": {"start": 0.02, "increment": 0.02, "max": 0.2},
         "min_prev_series": 0,
+        "execution": {
+            "signal": "trend flip on bar close",
+            "entry": "next bar open",
+            "stop_for_bar_i": "sar after prior bar close (sar[i-1])",
+            "gap": "if open gaps through stop, fill at open",
+        },
         "cost_model": {
             "taker_fee_per_side": TAKER,
             "slippage_per_side": SLIP,
             "funding": 0,
-            "source": "astra_bot bingx_perps_cost_model (fee 0.05%, slip 0.1%)",
         },
         "start_equity": args.start,
         "bars": bars_meta,
