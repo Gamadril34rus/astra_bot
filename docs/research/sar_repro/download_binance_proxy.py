@@ -154,8 +154,10 @@ def download_klines(symbol: str, start_ms: int, end_ms: int, out: Path) -> dict:
     }
 
 
-def download_mark_prices(symbol: str, start_ms: int, end_ms: int) -> tuple[dict[int, str], list[dict]]:
-    """Download 1m mark-price opens keyed by exact candle-open timestamps."""
+def download_mark_prices(
+    symbol: str, start_ms: int, end_ms: int
+) -> tuple[dict[int, dict[str, str]], list[dict]]:
+    """Download 1m mark-price candles keyed by exact candle-open timestamps."""
     start_dt = datetime.fromtimestamp(start_ms / 1000, timezone.utc).date()
     end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, timezone.utc).date()
     prior_month = start_dt.replace(day=1) - timedelta(days=1)
@@ -181,10 +183,10 @@ def download_funding(
     out: Path,
     mark_prices: dict[int, dict[str, str]],
 ) -> dict:
-    """Read funding archives and join mark opens by the containing 15m boundary.
+    """Read funding archives and join mark opens by the containing 1m boundary.
 
     Binance funding timestamps can be a few milliseconds after the nominal
-    settlement boundary. Flooring to the 15m bucket avoids false missing joins.
+    settlement boundary. Flooring to the 1m bucket avoids false missing joins.
     """
     rows: dict[int, dict] = {}
     start_dt = datetime.fromtimestamp(start_ms / 1000, timezone.utc).date()
@@ -237,6 +239,7 @@ def download_funding(
                         "mark_price_source": source if mark else "",
                     }
     ordered = [rows[key] for key in sorted(rows)]
+    missing_times = [row["funding_time"] for row in ordered if not row["mark_price"]]
     target = out / f"{symbol}_funding.csv.gz"
     fields = [
         "symbol", "funding_time", "funding_rate", "funding_interval_hours",
@@ -249,7 +252,8 @@ def download_funding(
     return {
         "symbol": symbol,
         "funding_events": len(ordered),
-        "missing_mark_price": sum(not row["mark_price"] for row in ordered),
+        "missing_mark_price": len(missing_times),
+        "missing_mark_times_sample": missing_times[:20],
         "fallback_mark_price": sum(
             row["mark_price_source"] == "previous Binance USD-M markPriceKlines 1m close"
             for row in ordered
@@ -288,7 +292,8 @@ def main():
         funding["mark_price_sources"] = mark_sources
         if funding["missing_mark_price"]:
             raise RuntimeError(
-                f"{symbol}: {funding['missing_mark_price']} funding events lack mark-price joins"
+                f"{symbol}: {funding['missing_mark_price']} funding events lack mark-price joins; "
+                f"sample={funding['missing_mark_times_sample']}"
             )
         if klines["missing_bars"] or klines["unexpected_bars"]:
             raise RuntimeError(
