@@ -6,7 +6,6 @@ This is explicitly a cross-exchange proxy, not BingX execution-price history.
 from __future__ import annotations
 
 import argparse
-from bisect import bisect_right
 import csv
 import gzip
 import hashlib
@@ -17,7 +16,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
-from datetime import date, datetime, timedelta, timezone
+from bisect import bisect_right
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 BASE = "https://data.binance.vision/data/futures/um"
@@ -94,7 +94,7 @@ def read_zip_rows(blob: bytes, min_columns: int = 12):
 
 
 def download_klines(symbol: str, start_ms: int, end_ms: int, out: Path) -> dict:
-    start_dt = datetime.fromtimestamp(start_ms / 1000, timezone.utc).date()
+    start_dt = datetime.fromtimestamp(start_ms / 1000, UTC).date()
     end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, timezone.utc).date()
     rows: dict[int, list[str]] = {}
     duplicate_rows = 0
