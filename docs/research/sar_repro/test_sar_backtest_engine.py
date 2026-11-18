@@ -39,6 +39,6 @@ def test_sar_reversal_is_confirmed_from_current_bar_but_stop_was_known_before_it
 
 def test_gap_detection_uses_selected_candle_interval():
     df = pd.DataFrame({"timestamp": [0, 900_000, 2_700_000]})
-    result = engine.check_hourly_gaps(df, interval_ms=900_000)
+    result = engine.check_candle_gaps(df, interval_ms=900_000)
     assert result["gaps"] == 1
     assert result["max_gap_intervals"] == pytest.approx(2.0)
