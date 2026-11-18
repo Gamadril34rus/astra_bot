@@ -1,7 +1,6 @@
 """BingX USDT-M WebSocket recorder with explicit depth synchronization."""
 from __future__ import annotations
 
-import asyncio
 import gzip
 import json
 import time
@@ -148,30 +147,27 @@ class BingXMarketRecorder:
 
     async def run_once(self) -> None:
         timeout = aiohttp.ClientTimeout(total=None, sock_connect=15, sock_read=None)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.ws_connect(
-                self.URL, heartbeat=None, autoping=False, receive_timeout=None
-            ) as ws:
-                self._active_channels.clear()
-                self._request_channels.clear()
-                for symbol in self.symbols:
-                    for suffix in ("incrDepth", "trade", "markPrice"):
-                        channel = f"{symbol}@{suffix}"
-                        request_id = str(uuid.uuid4())
-                        self._request_channels[request_id] = channel
-                        await ws.send_str(json.dumps({
-                            "id": request_id, "reqType": "sub", "dataType": channel,
-                        }))
-                async for message in ws:
-                    if message.type == aiohttp.WSMsgType.BINARY:
-                        await self._handle(ws, message.data)
-                    elif message.type == aiohttp.WSMsgType.TEXT:
-                        await self._handle(ws, message.data)
-                    elif message.type in {
-                        aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSE,
-                        aiohttp.WSMsgType.ERROR,
-                    }:
-                        break
+        async with aiohttp.ClientSession(timeout=timeout) as session, session.ws_connect(
+            self.URL, heartbeat=None, autoping=False, receive_timeout=None
+        ) as ws:
+            self._active_channels.clear()
+            self._request_channels.clear()
+            for symbol in self.symbols:
+                for suffix in ("incrDepth", "trade", "markPrice"):
+                    channel = f"{symbol}@{suffix}"
+                    request_id = str(uuid.uuid4())
+                    self._request_channels[request_id] = channel
+                    await ws.send_str(json.dumps({
+                        "id": request_id, "reqType": "sub", "dataType": channel,
+                    }))
+            async for message in ws:
+                if message.type in {aiohttp.WSMsgType.BINARY, aiohttp.WSMsgType.TEXT}:
+                    await self._handle(ws, message.data)
+                elif message.type in {
+                    aiohttp.WSMsgType.CLOSED, aiohttp.WSMsgType.CLOSE,
+                    aiohttp.WSMsgType.ERROR,
+                }:
+                    break
         for state in self.books.values():
             state.invalidate()
 
@@ -181,7 +177,7 @@ class BingXMarketRecorder:
             try:
                 await self.run_once()
                 delay = 1.0
-            except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as exc:
+            except (aiohttp.ClientError, TimeoutError, OSError) as exc:
                 self._write({
                     "venue": "bingx_swap", "kind": "connection_error",
                     "received_at_ms": int(time.time() * 1000), "error": str(exc),
