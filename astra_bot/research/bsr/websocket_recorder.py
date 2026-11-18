@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import gzip
 import json
+import math
 import time
 import uuid
 import zlib
@@ -30,6 +31,9 @@ class DepthBookState:
         self.last_update_id = None
 
     def apply(self, payload: dict[str, Any]) -> bool:
+        if not isinstance(payload, dict):
+            self.invalidate()
+            return False
         action = payload.get("action")
         if action not in {"all", "update"}:
             self.invalidate()
@@ -38,9 +42,15 @@ class DepthBookState:
             bids = payload.get("bids", [])
             asks = payload.get("asks", [])
             update_id = payload.get("lastUpdateId")
-            if update_id is None or isinstance(update_id, bool):
+            if (
+                isinstance(update_id, bool)
+                or not isinstance(update_id, (int, str))
+                or (isinstance(update_id, str) and not update_id.isdigit())
+            ):
                 raise ValueError("missing/invalid lastUpdateId")
             update_id = int(update_id)
+            if update_id <= 0:
+                raise ValueError("lastUpdateId must be positive")
             if action == "all":
                 new_bids: dict[float, float] = {}
                 new_asks: dict[float, float] = {}
@@ -69,6 +79,8 @@ class DepthBookState:
     def _apply_side(side: dict[float, float], levels: list[list[str]]) -> None:
         for raw_price, raw_qty in levels:
             price, quantity = float(raw_price), float(raw_qty)
+            if not math.isfinite(price) or not math.isfinite(quantity):
+                raise ValueError("non-finite depth level")
             if price <= 0 or quantity < 0:
                 raise ValueError("invalid depth level")
             if quantity == 0:
