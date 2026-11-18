@@ -155,45 +155,58 @@ def download_klines(symbol: str, start_ms: int, end_ms: int, out: Path) -> dict:
     }
 
 
-def download_funding(symbol: str, start_ms: int, end_ms: int, out: Path) -> dict:
+def download_funding(symbol: str, start_ms: int, end_ms: int, out: Path, mark_prices: dict[int, str]) -> dict:
+    """Read closed-month Binance Vision funding archives and join exact-time mark opens."""
     rows: dict[int, dict] = {}
-    cursor = start_ms
-    while cursor < end_ms:
-        query = urllib.parse.urlencode({"symbol": symbol, "startTime": cursor, "endTime": end_ms - 1, "limit": 1000})
-        payload = json.loads(get_bytes(f"{API}?{query}"))
-        batch = payload.get("data", [])
-        if not isinstance(batch, list):
-            raise RuntimeError(f"invalid funding payload for {symbol}: {payload}")
-        if not batch:
-            break
-        for item in batch:
-            ts = int(item["fundingTime"])
-            if start_ms <= ts < end_ms:
-                rows[ts] = {
-                    "symbol": symbol,
-                    "funding_time": ts,
-                    "funding_rate": item["fundingRate"],
-                    "mark_price": item.get("markPrice", ""),
-                    "rate_type": item.get("rateType", ""),
-                }
-        last = max(int(item["fundingTime"]) for item in batch)
-        if last < cursor or last >= end_ms - 1:
-            break
-        cursor = last + 1
-        time.sleep(0.15)
+    start_dt = datetime.fromtimestamp(start_ms / 1000, timezone.utc).date()
+    end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, timezone.utc).date()
+    sources = []
+    for year, month in month_iter(start_dt, end_dt):
+        period = f"{year:04d}-{month:02d}"
+        name = f"{symbol}-fundingRate-{period}.zip"
+        url = f"{BASE}/monthly/fundingRate/{symbol}/{name}"
+        blob = verified_zip(url)
+        sources.append({"url": url, "sha256": hashlib.sha256(blob).hexdigest()})
+        with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+            csv_names = [item for item in archive.namelist() if item.lower().endswith(".csv")]
+            if len(csv_names) != 1:
+                raise RuntimeError(f"expected one funding CSV in {url}, got {csv_names}")
+            with archive.open(csv_names[0]) as stream:
+                for row in csv.reader(io.TextIOWrapper(stream, encoding="utf-8")):
+                    if not row:
+                        continue
+                    try:
+                        ts = int(row[0])
+                    except (ValueError, IndexError):
+                        continue
+                    if not start_ms <= ts < end_ms:
+                        continue
+                    interval_hours = int(float(row[1]))
+                    rate = float(row[2])
+                    mark = mark_prices.get(ts)
+                    rows[ts] = {
+                        "symbol": symbol,
+                        "funding_time": ts,
+                        "funding_rate": rate,
+                        "funding_interval_hours": interval_hours,
+                        "mark_price": mark or "",
+                        "mark_price_source": "Binance USD-M markPriceKlines 15m open at settlement" if mark else "",
+                    }
     ordered = [rows[key] for key in sorted(rows)]
     target = out / f"{symbol}_funding.csv.gz"
     with gzip.open(target, "wt", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(stream, fieldnames=["symbol", "funding_time", "funding_rate", "mark_price", "rate_type"])
+        writer = csv.DictWriter(stream, fieldnames=["symbol", "funding_time", "funding_rate", "funding_interval_hours", "mark_price", "mark_price_source"])
         writer.writeheader()
         writer.writerows(ordered)
     return {
         "symbol": symbol,
         "funding_events": len(ordered),
+        "missing_mark_price": sum(not row["mark_price"] for row in ordered),
         "first_funding_utc": datetime.fromtimestamp(ordered[0]["funding_time"] / 1000, timezone.utc).isoformat() if ordered else None,
         "last_funding_utc": datetime.fromtimestamp(ordered[-1]["funding_time"] / 1000, timezone.utc).isoformat() if ordered else None,
         "file": target.name,
         "file_sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+        "sources": sources,
     }
 
 
@@ -212,7 +225,16 @@ def main():
     results = {"source": "Binance USD-M perpetual futures; cross-exchange proxy, not BingX", "interval": "15m", "start_utc": start.isoformat(), "end_utc_exclusive": end.isoformat(), "symbols": {}}
     for symbol in args.symbols:
         klines = download_klines(symbol, start_ms, end_ms, args.out)
-        funding = download_funding(symbol, start_ms, end_ms, args.out)
+        mark_rows = download_klines(symbol, start_ms, end_ms, args.out / "mark_price")
+        # Replace the OHLCV archive source with mark-price candles, retaining exact
+        # settlement-time opens for funding cashflow calculations.
+        mark_prices = {}
+        for source in mark_rows["sources"]:
+            for row in read_zip_rows(verified_zip(source["url"].replace("/klines/", "/markPriceKlines/").replace(f"{symbol}-15m-", f"{symbol}-15m-"))):
+                ts = int(row[0])
+                if start_ms <= ts < end_ms:
+                    mark_prices[ts] = row[1]
+        funding = download_funding(symbol, start_ms, end_ms, args.out, mark_prices)
         results["symbols"][symbol] = {"klines": klines, "funding": funding}
         print(f"{symbol}: candles={klines['rows']}/{klines['expected_rows']} missing={klines['missing_bars']} funding={funding['funding_events']}")
     manifest = args.out / "manifest.json"
