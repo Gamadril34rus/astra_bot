@@ -3,9 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-
 import pytest
-
 from astra_bot.decision.live_income_report import (
     aggregate_income,
     claim_funding_event,
