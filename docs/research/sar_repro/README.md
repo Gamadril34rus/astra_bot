@@ -10,6 +10,8 @@
 | File | Role |
 |------|------|
 | `sar_backtest_engine.py` | Research engine (check `engine_version` in file) |
+| `sar_funding.py` | Historical BingX funding retrieval and trade-level cashflow accounting |
+| `test_sar_funding.py` | Funding pagination, side sign, and exit-cutoff tests |
 | `summary.json` | Latest snapshot |
 | `AUDIT_V2.md` … `AUDIT_V4.md` | Audit trail |
 
