@@ -11,7 +11,6 @@ import json
 from pathlib import Path
 
 import pandas as pd
-
 import sar_backtest_engine as engine
 from sar_funding import apply_funding_to_trades
 
@@ -130,7 +129,7 @@ def metrics(trades: list[dict]) -> dict:
     losses = float(-pnl[pnl < 0].sum())
     holding = (frame["exit_ts"] - frame["entry_ts"]) / 60_000
     return {
-        "trades": int(len(frame)),
+        "trades": len(frame),
         "wins": int((pnl > 0).sum()),
         "losses": int((pnl < 0).sum()),
         "winrate_pct": float((pnl > 0).mean() * 100),
