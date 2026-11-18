@@ -110,6 +110,6 @@ def evaluate_signal(*, before: BookSnapshot, sweep: BookSnapshot, recovery: Book
         timestamp_ms=recovery.timestamp_ms, mid_price=mid, fair_price=fair_price,
         deviation_bps=deviation, spread_bps=rm["spread_bps"],
         book_imbalance=rm["book_imbalance"], trade_imbalance=flow["imbalance"],
-        aggressive_notional=flow["total_notional"], depth_drawdown=dd,
+        aggressive_notional=(flow["sell_notional"] if direction == "LONG" else flow["buy_notional"]), depth_drawdown=dd,
         depth_recovery=rec, rebound_bps=rebound,
     )
