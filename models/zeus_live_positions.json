@@ -21,7 +21,7 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "1818.67",
+      "peak_low": "1817.41",
       "be_earned": true,
       "migrate_stop_v1": true,
       "current_regime": "WEAK_BEAR_TREND"
@@ -43,8 +43,33 @@
       "opened_at_ms": 1794961342032,
       "plan_qty": "672.63065850",
       "qty_ratio": 1.0,
-      "tp1": "73.9261575"
+      "tp1": "73.9261575",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "74.479",
+      "be_earned": true,
+      "current_regime": "RANGE"
+    },
+    "INJ-USDT|long": {
+      "symbol": "INJ-USDT",
+      "side": "long",
+      "qty": "959.7259165",
+      "stop": "6.5428880000000005",
+      "tp": "7.829561599999999725",
+      "entry": "7.376",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_multi_top_breakdown|INJ-USDT|long|1794945600000",
+      "ts": 1794961648.4785938,
+      "be_moved": false,
+      "initial_stop": "6.5428880000000005",
+      "tp_frac": "0.3",
+      "opened_at_ms": 1794961648478,
+      "plan_qty": "959.72591650",
+      "qty_ratio": 1.0,
+      "tp1": "7.829561599999999725"
     }
   },
-  "ts": 1794961342.0328503
+  "ts": 1794961648.4786081
 }
