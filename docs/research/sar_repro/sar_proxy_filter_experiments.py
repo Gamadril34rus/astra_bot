@@ -85,9 +85,9 @@ def add_filter_indicators(
         hourly["ema200"] = hourly["close"].ewm(
             span=200, adjust=False, min_periods=200
         ).mean()
-        hourly["hour_close_ts"] = (
-            hourly.index.view("int64") // 1_000_000
-        ) + 3_600_000
+        hourly["hour_close_ts"] = hourly.index.as_unit("ms").asi8 + 3_600_000
+        if len(hourly) and int(hourly["hour_close_ts"].max()) < 1_000_000_000_000:
+            raise ValueError("hourly timestamps are not epoch milliseconds")
         right = hourly[["hour_close_ts", "close", "ema200"]].dropna(
             subset=["ema200"]
         )
@@ -101,6 +101,12 @@ def add_filter_indicators(
         )
         subset = subset.sort_values("entry_ts").reset_index(drop=True)
         joined = joined.reset_index(drop=True)
+        matched = joined["hour_close_ts"].notna()
+        if (
+            joined.loc[matched, "hour_close_ts"].to_numpy()
+            > subset.loc[matched, "entry_ts"].to_numpy()
+        ).any():
+            raise ValueError(f"{symbol}: higher-timeframe filter used a future candle")
         subset["hourly_close"] = joined["close"]
         subset["hourly_ema200"] = joined["ema200"]
         subset["htf_ema200_aligned"] = np.where(
