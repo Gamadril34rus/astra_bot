@@ -5,6 +5,7 @@ on:
     branches: [research/sar-binance-proxy-data]
     paths:
       - "docs/research/sar_repro/download_binance_proxy.py"
+      - "docs/research/sar_repro/sar_proxy_backtest.py"
       - ".github/workflows/sar-binance-proxy-data.yml"
   workflow_dispatch:
 
