@@ -1,6 +1,6 @@
 """Deterministic tests for the SAR research engine's candle-time semantics."""
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
