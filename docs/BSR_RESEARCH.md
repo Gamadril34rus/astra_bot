@@ -38,6 +38,8 @@ or distinguish cancellation from execution.
   depth, trades and mark price; persists raw normalized JSONL events.
 - binance_spot_recorder.py: public Binance Spot trade-stream recorder with exchange
   and local receive timestamps for cross-venue basis measurement.
+- basis.py: backward as-of join of BingX Perpetual prints to the latest earlier
+  Binance Spot print; future spot events are never used and stale matches are excluded.
 - scripts/bsr_capture.py: runs both venue recorders concurrently; writes separate
   BingX and Binance JSONL files.
 - tests/test_bsr_research.py: deterministic feature, cost and depth-state tests.
@@ -54,9 +56,11 @@ each incremental update must advance lastUpdateId by exactly one. A missing,
 duplicate or skipped ID invalidates and clears the local book; wait for a fresh
 full snapshot after reconnect before using depth again. No checksum is assumed.
 
-REST is bootstrap only. Binance Spot trades are now streamed independently. Match
-records by symbol and exchange event time, not local receive time alone; measure
-local clock offset and feed latency before computing a basis lead/lag. Spot trade
+REST is bootstrap only. Binance Spot trades are streamed independently.
+`align_cross_venue_trades` performs a backward as-of join on exchange event time:
+each BingX print is matched only to the latest Binance print at or before it,
+with a configurable maximum age. It never uses future spot observations. Measure
+local clock offset and feed latency before interpreting basis lead/lag. Spot trade
 prints are not a spot order book, so they cannot substitute for spot depth.
 
 ## API semantics
