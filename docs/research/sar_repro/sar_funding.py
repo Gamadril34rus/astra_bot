@@ -92,7 +92,8 @@ def apply_funding_to_trades(
         side_sign = 1.0 if trade["side"] == "long" else -1.0
         for event in by_symbol.get(trade["symbol"], []):
             ts = int(event["fundingTime"])
-            if entry <= ts < exit_:
+            cutoff = int(trade.get("funding_cutoff_ts", exit_))
+            if entry < ts < cutoff:
                 mark = float(event["markPrice"])
                 rate = float(event["fundingRate"])
                 if mark <= 0:
