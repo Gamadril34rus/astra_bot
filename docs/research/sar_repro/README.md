@@ -21,8 +21,8 @@ python sar_backtest_engine.py --start 5000 --interval 15m --limit-total 36000 --
 
 - Stop: `sar[i-1]`; entry: next open
 - Interval-aware candle timestamps and gap checks (`15m` supported); video baseline is 15m  
-- **MTM MaxDD** (realized + unrealized hourly)  
-- Simultaneous same-hour entries: one equity base + risk cap  
+- **MTM MaxDD** (realized + unrealized at each candle close)  
+- Simultaneous same-candle entries: one equity base + risk cap  
 - Exit timestamps: close_ts (or open on gap-through)  
 - Strict BingX fetch (HTTP/code/retry 100410/min bars)  
 - Warmup 50 bars; init_trend flag  
