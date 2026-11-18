@@ -52,3 +52,22 @@ Default SAR 0.02/0.02/0.2 1h under bot costs still **PF_usd ~0.75** on ~1y (prel
 2. Freeze candles + funding  
 3. Unit tests risk/gap/long-short  
 4. Walk-forward + limited grid + OOS only after pass  
+
+
+## Binance USD-M 15m proxy reproduction
+
+The exact video baseline can be reproduced against a frozen Binance USD-M proxy dataset (not BingX history):
+
+```bash
+python docs/research/sar_repro/download_binance_proxy.py \
+  --start 2025-11-01T00:00:00Z \
+  --end 2026-11-01T00:00:00Z \
+  --symbols BTCUSDT ETHUSDT SOLUSDT \
+  --out artifacts/sar_binance_proxy
+
+python docs/research/sar_repro/sar_proxy_backtest.py \
+  --data-dir artifacts/sar_binance_proxy \
+  --out-dir artifacts/sar_binance_proxy/results
+```
+
+The automated GitHub Actions workflow performs both steps and uploads the frozen data, manifest, trade-level CSVs, monthly breakdown and summary. See [BINANCE_PROXY_15M_BASELINE.md](BINANCE_PROXY_15M_BASELINE.md) for the first validated result and its limitations.
