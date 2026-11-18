@@ -113,8 +113,6 @@ def fetch_klines(
         if end_time is not None and oldest >= end_time:
             break
         end_time = oldest - 1
-        if len(batch) < 40:
-            break
         time.sleep(0.12)
 
     df = pd.DataFrame(rows_all, columns=["timestamp", "open", "high", "low", "close", "volume"])
