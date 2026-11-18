@@ -1,6 +1,7 @@
 """Historical BingX perpetual funding collection and trade-level accounting."""
 import json
 import time
+
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
