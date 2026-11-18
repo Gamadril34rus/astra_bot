@@ -1,18 +1,11 @@
 {
   "engine_version": "v4_mtm_batch_entries",
-  "audit_status": "v4 implements v3 P1s; independent re-audit required; no param search",
+  "engine_sha": "cb4920ccbe8424819a0f1c950b50ec79e46b12e6",
+  "audit_status": "v4 source is in master; independent re-audit required; no param search",
   "symbols": ["BTC-USDT", "ETH-USDT", "SOL-USDT"],
   "interval": "1h",
   "warmup_bars": 50,
   "sar": {"start": 0.02, "increment": 0.02, "max": 0.2, "init_trend": 1},
-  "execution": {
-    "signal": "trend flip on bar close",
-    "entry": "next bar open",
-    "stop": "sar[i-1]",
-    "exit_event_time": "close_ts for intra-bar stop/EOD; open_ts for gap-through",
-    "simultaneous_entries": "shared equity base, symbol-sorted",
-    "mtm": "hourly realized + unrealized MaxDD"
-  },
   "cost_model": {
     "taker_fee_per_side": 0.0005,
     "slippage_per_side": 0.001,
@@ -39,12 +32,16 @@
       "final_equity": 91.09,
       "return_pct": -98.2,
       "max_dd_pct": -98.7,
+      "max_dd_realized_only_pct": -98.7,
+      "trades": 2048,
       "profit_factor_usd": 0.756
     },
     "risk_2pct_cap8": {
       "final_equity": 19.41,
       "return_pct": -99.6,
       "max_dd_pct": -99.7,
+      "max_dd_realized_only_pct": -99.7,
+      "trades": 2048,
       "profit_factor_usd": 0.766
     }
   },
