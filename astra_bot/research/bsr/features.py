@@ -1,5 +1,6 @@
 """Deterministic BSR features and three-snapshot event detector."""
 from __future__ import annotations
+
 import math
 from collections.abc import Sequence
 
