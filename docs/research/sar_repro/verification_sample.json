@@ -1,0 +1,30 @@
+{
+  "note": "Full trades_*.csv and equity_*.csv are produced by: python sar_backtest_engine.py --start 5000 --out sar_repro_out",
+  "snapshot_run": "2026-11-18T02:51:32Z",
+  "risk_1pct_cap3": {
+    "final_equity": 200898.37,
+    "max_dd_pct": -41.36,
+    "trades": 1975,
+    "equity_min": 4793.95,
+    "equity_max": 208500.42
+  },
+  "risk_2pct_cap8": {
+    "final_equity": 2976226.57,
+    "max_dd_pct": -66.72,
+    "trades": 1975
+  },
+  "risk_3pct_cap12": {
+    "final_equity": 15064539.22,
+    "max_dd_pct": -87.62,
+    "trades": 1975
+  },
+  "first_trade": {
+    "symbol": "BTC-USDT",
+    "side": "short",
+    "entry_time": "2025-11-08T14:00:00+00:00",
+    "exit_time": "2025-11-08T23:00:00+00:00",
+    "net_pnl_pct": -0.008346,
+    "pnl_usd": -52.50,
+    "equity_after": 4947.50
+  }
+}
