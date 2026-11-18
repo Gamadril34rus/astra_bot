@@ -138,12 +138,31 @@ def build_symbol_shadow(candles: pd.DataFrame, oi: pd.DataFrame) -> pd.DataFrame
         )
         state = f"price_{price_state}_oi_{oi_state}_taker_{taker_state}"
 
+        # The OI poll can arrive after the matched candle close. Use the first
+        # completed candle close at/after the observation as the forward-return
+        # anchor; this deliberately avoids counting pre-observation movement.
+        forward_anchor_index = int(np.searchsorted(candle_times, observed_at, side="left"))
+        forward_anchor_time: int | None = None
+        forward_anchor_close: float | None = None
+        if forward_anchor_index < len(candles):
+            candidate_anchor_close = float(candles.iloc[forward_anchor_index]["close"])
+            if candidate_anchor_close > 0:
+                forward_anchor_time = int(candle_times[forward_anchor_index])
+                forward_anchor_close = candidate_anchor_close
+
         record = {
             "symbol": str(snapshot["symbol"]),
             "observed_at_ms": observed_at,
             "observed_at_utc": pd.to_datetime(observed_at, unit="ms", utc=True).isoformat(),
             "candle_open_time": int(candle["open_time"]),
             "candle_close_time": candle_close_time,
+            "forward_anchor_time": (
+                forward_anchor_time if forward_anchor_time is not None else np.nan
+            ),
+            "forward_anchor_delay_minutes": (
+                round((forward_anchor_time - observed_at) / 60_000, 2)
+                if forward_anchor_time is not None else np.nan
+            ),
             "snapshot_age_minutes": round(snapshot_age / 60_000, 2),
             "oi_observation_interval_minutes": round(oi_elapsed / 60_000, 2),
             "open_interest_base": current_oi,
@@ -157,16 +176,19 @@ def build_symbol_shadow(candles: pd.DataFrame, oi: pd.DataFrame) -> pd.DataFrame
         }
 
         for horizon in FORWARD_HORIZONS_MIN:
-            # Forward horizons are anchored to the last fully closed bar,
-            # not the later polling timestamp, so "30m" means one 30m bar.
-            target_time = candle_close_time + horizon * 60_000
+            # Horizons start at the first completed close at/after observed_at.
+            # The wait is recorded separately; no return interval predates the OI snapshot.
+            if forward_anchor_time is None or forward_anchor_close is None:
+                record[f"forward_{horizon}m_pct"] = np.nan
+                continue
+            target_time = forward_anchor_time + horizon * 60_000
             target_index = int(np.searchsorted(candle_times, target_time, side="left"))
             if target_index >= len(candles):
                 record[f"forward_{horizon}m_pct"] = np.nan
             else:
                 target_close = float(candles.iloc[target_index]["close"])
                 record[f"forward_{horizon}m_pct"] = (
-                    (target_close / current_close - 1.0) * 100.0
+                    (target_close / forward_anchor_close - 1.0) * 100.0
                 )
         records.append(record)
 
@@ -253,6 +275,10 @@ def main() -> int:
         "primary_features": ["closed_30m_price_change", "total_open_interest_change"],
         "optional_taker_flow": "used only when BingX supplies valid taker-buy volume; missing data remains unknown and does not discard the OI/price observation",
         "forward_horizons_minutes": list(FORWARD_HORIZONS_MIN),
+        "forward_anchor": (
+            "first fully closed 30m candle at or after observed_at; "
+            "horizons are close-to-close from this delayed anchor"
+        ),
         "strategy_execution": "none; research-only descriptive shadow",
     }
     (args.out / "summary.json").write_text(
