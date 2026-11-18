@@ -155,6 +155,25 @@ def download_klines(symbol: str, start_ms: int, end_ms: int, out: Path) -> dict:
     }
 
 
+def download_mark_prices(symbol: str, start_ms: int, end_ms: int) -> tuple[dict[int, str], list[dict]]:
+    """Download exact 15m mark-price opens used at Binance funding settlement times."""
+    start_dt = datetime.fromtimestamp(start_ms / 1000, timezone.utc).date()
+    end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, timezone.utc).date()
+    prices: dict[int, str] = {}
+    sources = []
+    for year, month in month_iter(start_dt, end_dt):
+        period = f"{year:04d}-{month:02d}"
+        name = f"{symbol}-15m-{period}.zip"
+        url = f"{BASE}/monthly/markPriceKlines/{symbol}/15m/{name}"
+        blob = verified_zip(url)
+        for row in read_zip_rows(blob):
+            ts = int(row[0])
+            if start_ms <= ts < end_ms:
+                prices[ts] = row[1]
+        sources.append({"url": url, "sha256": hashlib.sha256(blob).hexdigest()})
+    return prices, sources
+
+
 def download_funding(symbol: str, start_ms: int, end_ms: int, out: Path, mark_prices: dict[int, str]) -> dict:
     """Read closed-month Binance Vision funding archives and join exact-time mark opens."""
     rows: dict[int, dict] = {}
@@ -225,16 +244,9 @@ def main():
     results = {"source": "Binance USD-M perpetual futures; cross-exchange proxy, not BingX", "interval": "15m", "start_utc": start.isoformat(), "end_utc_exclusive": end.isoformat(), "symbols": {}}
     for symbol in args.symbols:
         klines = download_klines(symbol, start_ms, end_ms, args.out)
-        mark_rows = download_klines(symbol, start_ms, end_ms, args.out / "mark_price")
-        # Replace the OHLCV archive source with mark-price candles, retaining exact
-        # settlement-time opens for funding cashflow calculations.
-        mark_prices = {}
-        for source in mark_rows["sources"]:
-            for row in read_zip_rows(verified_zip(source["url"].replace("/klines/", "/markPriceKlines/").replace(f"{symbol}-15m-", f"{symbol}-15m-"))):
-                ts = int(row[0])
-                if start_ms <= ts < end_ms:
-                    mark_prices[ts] = row[1]
+        mark_prices, mark_sources = download_mark_prices(symbol, start_ms, end_ms)
         funding = download_funding(symbol, start_ms, end_ms, args.out, mark_prices)
+        funding["mark_price_sources"] = mark_sources
         results["symbols"][symbol] = {"klines": klines, "funding": funding}
         print(f"{symbol}: candles={klines['rows']}/{klines['expected_rows']} missing={klines['missing_bars']} funding={funding['funding_events']}")
     manifest = args.out / "manifest.json"
