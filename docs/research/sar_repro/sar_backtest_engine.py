@@ -124,9 +124,9 @@ def fetch_klines(
     return df
 
 
-def check_hourly_gaps(df: pd.DataFrame, interval_ms: int = INTERVAL_MS) -> dict:
+def check_candle_gaps(df: pd.DataFrame, interval_ms: int = INTERVAL_MS) -> dict:
     if len(df) < 2:
-        return {"gaps": 0, "max_gap_hours": 0.0, "median_hours": 0.0}
+        return {"gaps": 0, "max_gap_intervals": 0.0, "median_intervals": 0.0}
     deltas = np.diff(df["timestamp"].values) / float(interval_ms)
     return {
         "gaps": int(np.sum(deltas > 1.5)),
@@ -543,10 +543,10 @@ def main() -> None:
     all_trades: list[dict] = []
     bars_meta = {}
     for sym in symbols:
-        df = fetch_klines(sym, interval=args.interval, limit_total=limit_total)
+        df = fetch_klines(sym, interval=args.interval, limit_total=limit_total, min_bars=max(500, int(limit_total * 0.9)))
         if len(df) > 10:
             df = df.iloc[:-1].reset_index(drop=True)
-        gaps = check_hourly_gaps(df, interval_ms=interval_ms)
+        gaps = check_candle_gaps(df, interval_ms=interval_ms)
         bars_meta[sym] = {
             "bars": len(df),
             "start": df["datetime"].iloc[0].isoformat() if len(df) else None,
@@ -609,7 +609,7 @@ def main() -> None:
     print("init_trend sensitivity", sens)
 
     meta = {
-        "engine_version": "v4_mtm_batch_entries",
+        "engine_version": "v4_mtm_batch_entries_interval_aware",
         "audit_status": "v4 source delivered; re-audit required; no param search",
         "symbols": symbols,
         "interval": args.interval,
