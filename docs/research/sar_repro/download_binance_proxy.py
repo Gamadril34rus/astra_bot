@@ -156,12 +156,13 @@ def download_klines(symbol: str, start_ms: int, end_ms: int, out: Path) -> dict:
 
 def download_mark_prices(
     symbol: str, start_ms: int, end_ms: int
-) -> tuple[dict[int, dict[str, str]], list[dict]]:
+) -> tuple[dict[int, dict[str, str]], dict[int, str], list[dict]]:
     """Download 1m mark-price candles keyed by exact candle-open timestamps."""
     start_dt = datetime.fromtimestamp(start_ms / 1000, timezone.utc).date()
     end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, timezone.utc).date()
     prior_month = start_dt.replace(day=1) - timedelta(days=1)
     prices: dict[int, dict[str, str]] = {}
+    previous_15m_closes: dict[int, str] = {}
     sources = []
     for year, month in month_iter(prior_month, end_dt):
         period = f"{year:04d}-{month:02d}"
@@ -173,7 +174,18 @@ def download_mark_prices(
             if start_ms - 5 * MARK_INTERVAL_MS <= ts < end_ms:
                 prices[ts] = {"open": row[1], "close": row[4]}
         sources.append({"url": url, "sha256": hashlib.sha256(blob).hexdigest()})
-    return prices, sources
+        fallback_name = f"{symbol}-15m-{period}.zip"
+        fallback_url = f"{BASE}/monthly/markPriceKlines/{symbol}/15m/{fallback_name}"
+        fallback_blob = verified_zip(fallback_url)
+        for row in read_zip_rows(fallback_blob, min_columns=5):
+            close_time = int(row[0]) + INTERVAL_MS
+            if start_ms - INTERVAL_MS <= close_time < end_ms:
+                previous_15m_closes[close_time] = row[4]
+        sources.append({
+            "url": fallback_url,
+            "sha256": hashlib.sha256(fallback_blob).hexdigest(),
+        })
+    return prices, previous_15m_closes, sources
 
 
 def download_funding(
@@ -182,6 +194,7 @@ def download_funding(
     end_ms: int,
     out: Path,
     mark_prices: dict[int, dict[str, str]],
+    previous_15m_closes: dict[int, str],
 ) -> dict:
     """Read funding archives and join mark opens by the containing 1m boundary.
 
@@ -228,6 +241,11 @@ def download_funding(
                                 price_time = prior_time
                                 source = "previous Binance USD-M markPriceKlines 1m close"
                                 break
+                    if not mark:
+                        mark = previous_15m_closes.get(mark_time, "")
+                        if mark:
+                            price_time = mark_time
+                            source = "previous Binance USD-M markPriceKlines 15m close"
                     rows[ts] = {
                         "symbol": symbol,
                         "funding_time": ts,
@@ -254,8 +272,12 @@ def download_funding(
         "funding_events": len(ordered),
         "missing_mark_price": len(missing_times),
         "missing_mark_times_sample": missing_times[:20],
-        "fallback_mark_price": sum(
+        "fallback_mark_price_1m": sum(
             row["mark_price_source"] == "previous Binance USD-M markPriceKlines 1m close"
+            for row in ordered
+        ),
+        "fallback_mark_price_15m": sum(
+            row["mark_price_source"] == "previous Binance USD-M markPriceKlines 15m close"
             for row in ordered
         ),
         "first_funding_utc": datetime.fromtimestamp(ordered[0]["funding_time"] / 1000, timezone.utc).isoformat() if ordered else None,
@@ -287,8 +309,12 @@ def main():
     }
     for symbol in args.symbols:
         klines = download_klines(symbol, start_ms, end_ms, args.out)
-        mark_prices, mark_sources = download_mark_prices(symbol, start_ms, end_ms)
-        funding = download_funding(symbol, start_ms, end_ms, args.out, mark_prices)
+        mark_prices, previous_15m_closes, mark_sources = download_mark_prices(
+            symbol, start_ms, end_ms
+        )
+        funding = download_funding(
+            symbol, start_ms, end_ms, args.out, mark_prices, previous_15m_closes
+        )
         funding["mark_price_sources"] = mark_sources
         if funding["missing_mark_price"]:
             raise RuntimeError(
