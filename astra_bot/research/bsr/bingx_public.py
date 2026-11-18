@@ -10,18 +10,21 @@ from typing import Any
 
 from .models import BookSnapshot, MarketTrade
 
+
 class BingXPublicAPIError(RuntimeError):
     """Transport, HTTP or exchange response error."""
+
 
 @dataclass(frozen=True, slots=True)
 class PublicEndpoints:
     bingx_base_url: str = "https://open-api.bingx.com"
     binance_spot_base_url: str = "https://api.binance.com"
 
+
 class BingXPublicClient:
-    def __init__(self, endpoints: PublicEndpoints = PublicEndpoints(),
+    def __init__(self, endpoints: PublicEndpoints | None = None,
                  timeout_seconds: float = 8.0):
-        self.endpoints = endpoints
+        self.endpoints = endpoints or PublicEndpoints()
         self.timeout_seconds = timeout_seconds
 
     def _get(self, base_url: str, path: str, params: dict[str, Any], *,
