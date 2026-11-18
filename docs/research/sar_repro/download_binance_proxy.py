@@ -95,7 +95,7 @@ def read_zip_rows(blob: bytes, min_columns: int = 12):
 
 def download_klines(symbol: str, start_ms: int, end_ms: int, out: Path) -> dict:
     start_dt = datetime.fromtimestamp(start_ms / 1000, UTC).date()
-    end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, timezone.utc).date()
+    end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, UTC).date()
     rows: dict[int, list[str]] = {}
     duplicate_rows = 0
     sources = []
@@ -146,8 +146,8 @@ def download_klines(symbol: str, start_ms: int, end_ms: int, out: Path) -> dict:
         "duplicates_removed": duplicate_rows,
         "missing_bars": len(missing),
         "unexpected_bars": len(unexpected),
-        "first_open_utc": datetime.fromtimestamp(timestamps[0] / 1000, timezone.utc).isoformat() if timestamps else None,
-        "last_open_utc": datetime.fromtimestamp(timestamps[-1] / 1000, timezone.utc).isoformat() if timestamps else None,
+        "first_open_utc": datetime.fromtimestamp(timestamps[0] / 1000, UTC).isoformat() if timestamps else None,
+        "last_open_utc": datetime.fromtimestamp(timestamps[-1] / 1000, UTC).isoformat() if timestamps else None,
         "file": target.name,
         "file_sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
         "sources": sources,
@@ -159,8 +159,8 @@ def download_mark_prices(
     symbol: str, start_ms: int, end_ms: int
 ) -> tuple[dict[int, dict[str, str]], dict[int, str], list[dict]]:
     """Download 1m mark-price candles keyed by exact candle-open timestamps."""
-    start_dt = datetime.fromtimestamp(start_ms / 1000, timezone.utc).date()
-    end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, timezone.utc).date()
+    start_dt = datetime.fromtimestamp(start_ms / 1000, UTC).date()
+    end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, UTC).date()
     prior_month = start_dt.replace(day=1) - timedelta(days=1)
     prices: dict[int, dict[str, str]] = {}
     previous_15m_closes: dict[int, str] = {}
@@ -206,8 +206,8 @@ def download_funding(
     rows: dict[int, dict] = {}
     previous_15m_times = sorted(previous_15m_closes)
     sorted_trade_times = sorted(trade_closes)
-    start_dt = datetime.fromtimestamp(start_ms / 1000, timezone.utc).date()
-    end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, timezone.utc).date()
+    start_dt = datetime.fromtimestamp(start_ms / 1000, UTC).date()
+    end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, UTC).date()
     sources = []
     for year, month in month_iter(start_dt, end_dt):
         period = f"{year:04d}-{month:02d}"
@@ -300,8 +300,8 @@ def download_funding(
             row["mark_price_source"] == "previous Binance USD-M 15m trade kline close (mark proxy)"
             for row in ordered
         ),
-        "first_funding_utc": datetime.fromtimestamp(ordered[0]["funding_time"] / 1000, timezone.utc).isoformat() if ordered else None,
-        "last_funding_utc": datetime.fromtimestamp(ordered[-1]["funding_time"] / 1000, timezone.utc).isoformat() if ordered else None,
+        "first_funding_utc": datetime.fromtimestamp(ordered[0]["funding_time"] / 1000, UTC).isoformat() if ordered else None,
+        "last_funding_utc": datetime.fromtimestamp(ordered[-1]["funding_time"] / 1000, UTC).isoformat() if ordered else None,
         "file": target.name,
         "file_sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
         "sources": sources,
@@ -315,8 +315,8 @@ def main():
     parser.add_argument("--symbols", nargs="+", default=["BTCUSDT", "ETHUSDT", "SOLUSDT"])
     parser.add_argument("--out", type=Path, default=Path("artifacts/sar_binance_proxy"))
     args = parser.parse_args()
-    start = datetime.fromisoformat(args.start.replace("Z", "+00:00")).astimezone(timezone.utc)
-    end = datetime.fromisoformat(args.end.replace("Z", "+00:00")).astimezone(timezone.utc)
+    start = datetime.fromisoformat(args.start.replace("Z", "+00:00")).astimezone(UTC)
+    end = datetime.fromisoformat(args.end.replace("Z", "+00:00")).astimezone(UTC)
     start_ms, end_ms = int(start.timestamp() * 1000), int(end.timestamp() * 1000)
     if start_ms % INTERVAL_MS or end_ms % INTERVAL_MS or start_ms >= end_ms:
         raise SystemExit("start/end must be increasing UTC 15m boundaries")
