@@ -10,6 +10,7 @@ from astra_bot.research.bsr.economics import (
     round_trip_cost_rate,
 )
 from astra_bot.research.bsr.features import book_metrics, evaluate_signal, trade_flow
+from astra_bot.research.bsr.basis import align_cross_venue_trades
 from astra_bot.research.bsr.binance_spot_recorder import BinanceSpotRecorder
 from astra_bot.research.bsr.bingx_public import BingXPublicAPIError, BingXPublicClient
 from astra_bot.research.bsr.models import BookSnapshot, MarketTrade, SignalConfig
@@ -174,3 +175,27 @@ def test_bingx_recent_trades_rejects_non_boolean_buyer_maker(monkeypatch):
     )
     with pytest.raises(BingXPublicAPIError, match="buyerMaker"):
         client.recent_trades("BTC-USDT")
+
+
+
+def test_basis_join_never_uses_future_spot_trade():
+    perp = [
+        {"symbol": "BTC-USDT", "exchange_time_ms": 1_500, "price": "101"},
+    ]
+    spot = [
+        {"symbol": "BTCUSDT", "exchange_time_ms": 1_000, "price": "100"},
+        {"symbol": "BTCUSDT", "exchange_time_ms": 2_000, "price": "110"},
+    ]
+    rows = align_cross_venue_trades(perp, spot, max_spot_age_ms=1_000)
+    assert len(rows) == 1
+    assert rows[0].spot_timestamp_ms == 1_000
+    assert rows[0].spot_price == pytest.approx(100)
+    assert rows[0].basis_bps == pytest.approx(100 * __import__("math").log(1.01))
+
+
+def test_basis_join_rejects_stale_or_future_only_spot_data():
+    perp = [{"symbol": "ETH-USDT", "exchange_time_ms": 5_000, "price": "2_000"}]
+    stale = [{"symbol": "ETHUSDT", "exchange_time_ms": 3_000, "price": "1_999"}]
+    future = [{"symbol": "ETHUSDT", "exchange_time_ms": 6_000, "price": "2_001"}]
+    assert align_cross_venue_trades(perp, stale, max_spot_age_ms=999) == []
+    assert align_cross_venue_trades(perp, future, max_spot_age_ms=10_000) == []
