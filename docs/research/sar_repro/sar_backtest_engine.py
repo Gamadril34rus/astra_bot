@@ -10,7 +10,7 @@ Fixes after v3 audit (Needs revision):
   - SAR warm-up bars before scoring window
   - cost_buffer kept; actual stop loss vs planned risk logged in trades
 
-Funding still 0. No param search until re-audit.
+Historical BingX funding is applied per settlement; exact intrabar exit timing is conservatively bounded. No param search until re-audit.
 
 Usage:
   python sar_backtest_engine.py --start 5000 --out sar_repro_out
