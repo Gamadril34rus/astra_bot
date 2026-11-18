@@ -158,9 +158,10 @@ def download_mark_prices(symbol: str, start_ms: int, end_ms: int) -> tuple[dict[
     """Download 1m mark-price opens keyed by exact candle-open timestamps."""
     start_dt = datetime.fromtimestamp(start_ms / 1000, timezone.utc).date()
     end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, timezone.utc).date()
+    prior_month = start_dt.replace(day=1) - timedelta(days=1)
     prices: dict[int, dict[str, str]] = {}
     sources = []
-    for year, month in month_iter(start_dt, end_dt):
+    for year, month in month_iter(prior_month, end_dt):
         period = f"{year:04d}-{month:02d}"
         name = f"{symbol}-1m-{period}.zip"
         url = f"{BASE}/monthly/markPriceKlines/{symbol}/1m/{name}"
