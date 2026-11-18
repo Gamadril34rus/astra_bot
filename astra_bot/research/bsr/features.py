@@ -2,6 +2,7 @@
 from __future__ import annotations
 import math
 from collections.abc import Sequence
+
 from .models import BookSnapshot, MarketTrade, Signal, SignalConfig
 
 def _mid(book: BookSnapshot) -> float:
