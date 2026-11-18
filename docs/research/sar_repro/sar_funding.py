@@ -1,11 +1,27 @@
 """Historical BingX perpetual funding collection and trade-level accounting."""
-import collections
 import time
-
-import requests
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 
 FUNDING_URL = "https://open-api.bingx.com/openApi/swap/v2/quote/fundingRate"
+
+
+class _HttpResponse:
+    def __init__(self, status_code: int, body: bytes):
+        self.status_code = status_code
+        self._body = body
+
+    def json(self) -> dict:
+        import json
+
+        return json.loads(self._body)
+
+
+def _http_get(url: str, params: dict, timeout: int):
+    request = Request(f"{url}?{urlencode(params)}", headers={"Accept": "application/json"})
+    with urlopen(request, timeout=timeout) as response:
+        return _HttpResponse(response.status, response.read())
 
 
 def fetch_funding_rates(
@@ -13,7 +29,7 @@ def fetch_funding_rates(
     start_ms: int,
     end_ms: int,
     *,
-    request_get=requests.get,
+    request_get=None,
     sleep=time.sleep,
 ) -> list[dict]:
     """Fetch and validate all funding settlements in [start_ms, end_ms]."""
@@ -22,7 +38,8 @@ def fetch_funding_rates(
     cursor = int(end_ms)
     rows: dict[int, dict] = {}
     while cursor >= start_ms:
-        response = request_get(
+        getter = request_get or _http_get
+        response = getter(
             FUNDING_URL,
             params={
                 "symbol": symbol,
@@ -69,11 +86,11 @@ def apply_funding_to_trades(
 
     Positive funding means longs pay and shorts receive. Funding is calculated
     on the settlement mark notional, scaled to the trade's entry notional.
-    A settlement applies only while the position is open: entry <= time < exit.
+    A settlement applies strictly between entry and the conservative exit cutoff.
     """
-    by_symbol = collections.defaultdict(list)
+    by_symbol = {}
     for symbol, events in funding_by_symbol.items():
-        by_symbol[symbol].extend(events)
+        by_symbol.setdefault(symbol, []).extend(events)
     for events in by_symbol.values():
         events.sort(key=lambda item: int(item["fundingTime"]))
 
