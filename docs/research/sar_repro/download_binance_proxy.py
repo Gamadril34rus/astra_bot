@@ -6,6 +6,7 @@ This is explicitly a cross-exchange proxy, not BingX execution-price history.
 from __future__ import annotations
 
 import argparse
+from bisect import bisect_right
 import csv
 import gzip
 import hashlib
@@ -202,6 +203,7 @@ def download_funding(
     settlement boundary. Flooring to the 1m bucket avoids false missing joins.
     """
     rows: dict[int, dict] = {}
+    previous_15m_times = sorted(previous_15m_closes)
     start_dt = datetime.fromtimestamp(start_ms / 1000, timezone.utc).date()
     end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, timezone.utc).date()
     sources = []
@@ -241,11 +243,15 @@ def download_funding(
                                 price_time = prior_time
                                 source = "previous Binance USD-M markPriceKlines 1m close"
                                 break
-                    if not mark:
-                        mark = previous_15m_closes.get(mark_time, "")
-                        if mark:
-                            price_time = mark_time
-                            source = "previous Binance USD-M markPriceKlines 15m close"
+                    if not mark and previous_15m_times:
+                        prior_index = bisect_right(previous_15m_times, mark_time) - 1
+                        if prior_index >= 0:
+                            prior_time = previous_15m_times[prior_index]
+                            age_ms = mark_time - prior_time
+                            if age_ms <= INTERVAL_MS:
+                                mark = previous_15m_closes[prior_time]
+                                price_time = prior_time
+                                source = "last available Binance USD-M markPriceKlines 15m close"
                     rows[ts] = {
                         "symbol": symbol,
                         "funding_time": ts,
