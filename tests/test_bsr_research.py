@@ -1,7 +1,13 @@
 """Unit tests for isolated BingX Sweep Reversion research math."""
 from __future__ import annotations
 import pytest
-from astra_bot.research.bsr.economics import CostModel, net_pnl, position_quantity, round_trip_cost_rate
+
+from astra_bot.research.bsr.economics import (
+    CostModel,
+    net_pnl,
+    position_quantity,
+    round_trip_cost_rate,
+)
 from astra_bot.research.bsr.features import book_metrics, evaluate_signal, trade_flow
 from astra_bot.research.bsr.models import BookSnapshot, MarketTrade, SignalConfig
 
