@@ -54,7 +54,7 @@
       "symbol": "HYPE-USDT",
       "side": "short",
       "qty": "72.78206399",
-      "stop": "71.28228",
+      "stop": "69.78471428571427",
       "tp": "61.957304",
       "entry": "65.818",
       "leverage": 6,
@@ -67,7 +67,13 @@
       "opened_at_ms": 1795017796107,
       "plan_qty": "72.78206399",
       "qty_ratio": 1.0,
-      "tp1": "61.957304"
+      "tp1": "61.957304",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "65.939",
+      "be_earned": true,
+      "current_regime": "RANGE"
     },
     "BTC-USDT|short": {
       "symbol": "BTC-USDT",
@@ -86,8 +92,13 @@
       "opened_at_ms": 1795017802581,
       "plan_qty": "0.63391014",
       "qty_ratio": 1.0,
-      "tp1": "62549.07"
+      "tp1": "62549.07",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "63020.6",
+      "current_regime": "STRONG_BEAR_TREND"
     }
   },
-  "ts": 1795017802.5810707
+  "ts": 1795018045.9104066
 }
