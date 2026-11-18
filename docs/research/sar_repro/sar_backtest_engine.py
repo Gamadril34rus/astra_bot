@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
-SAR research backtest engine v3 — BingX USDT-M perps.
+SAR research backtest engine v4 — BingX USDT-M perps.
 
-P1 fixes after independent audit:
-  - MaxDD from equity path sorted by exit_ts
-  - force_close open trades at last completed bar; drop forming last bar
-  - risk: notional = risk*equity / (risk_dist + cost_buffer)
-  - fees: separate entry/exit notional (not 2*TAKER on one base)
+Fixes after v3 audit (Needs revision):
+  - Full MTM equity: realized + unrealized on every bar for MaxDD
+  - Exit timestamps: bar close time (open_ts + interval_ms) for close fills
+  - Simultaneous entries: same entry_ts share one equity base + joint risk cap
+  - fetch_klines: HTTP status, BingX code, min bars, expected span checks
+  - SAR warm-up bars before scoring window
+  - cost_buffer kept; actual stop loss vs planned risk logged in trades
 
-Funding still 0. Param search blocked until re-audit.
+Funding still 0. No param search until re-audit.
 
 Usage:
   python sar_backtest_engine.py --start 5000 --out sar_repro_out
@@ -18,6 +20,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
@@ -27,9 +30,20 @@ import requests
 TAKER = 0.0005
 SLIP = 0.001
 COST_BUFFER = 2 * (TAKER + SLIP)
+INTERVAL_MS = 3_600_000  # 1h
+WARMUP_BARS = 50
 
 
-def fetch_klines(symbol: str, interval: str = "1h", limit_total: int = 9000) -> pd.DataFrame:
+class FetchError(RuntimeError):
+    pass
+
+
+def fetch_klines(
+    symbol: str,
+    interval: str = "1h",
+    limit_total: int = 9000,
+    min_bars: int = 500,
+) -> pd.DataFrame:
     url = "https://open-api.bingx.com/openApi/swap/v3/quote/klines"
     rows_all: list = []
     end_time = None
@@ -39,13 +53,31 @@ def fetch_klines(symbol: str, interval: str = "1h", limit_total: int = 9000) -> 
         if end_time is not None:
             params["endTime"] = end_time
         batch = None
+        last_err = None
         for attempt in range(3):
             try:
                 r = requests.get(url, params=params, timeout=30)
-                batch = (r.json().get("data") or [])
+                if r.status_code != 200:
+                    raise FetchError(f"{symbol} HTTP {r.status_code}: {r.text[:200]}")
+                data = r.json()
+                code = data.get("code")
+                if code is not None and str(code) not in ("0", "0.0"):
+                    if str(code) == "100410":
+                        time.sleep(1.5 * (attempt + 1))
+                        last_err = FetchError(f"{symbol} API code={code}")
+                        continue
+                    raise FetchError(f"{symbol} API code={code} msg={data.get('msg')}")
+                batch = data.get("data")
+                if batch is None:
+                    raise FetchError(f"{symbol} missing data field: {str(data)[:200]}")
                 break
-            except Exception:
+            except FetchError:
+                raise
+            except Exception as e:
+                last_err = e
                 time.sleep(0.4 * (attempt + 1))
+        if batch is None:
+            raise FetchError(f"{symbol} fetch failed: {last_err}")
         if not batch:
             empty_streak += 1
             if empty_streak >= 2:
@@ -71,16 +103,20 @@ def fetch_klines(symbol: str, interval: str = "1h", limit_total: int = 9000) -> 
         if len(batch) < 40:
             break
         time.sleep(0.12)
+
     df = pd.DataFrame(rows_all, columns=["timestamp", "open", "high", "low", "close", "volume"])
     df = df.drop_duplicates("timestamp").sort_values("timestamp").reset_index(drop=True)
+    if len(df) < min_bars:
+        raise FetchError(f"{symbol} only {len(df)} bars, need >= {min_bars}")
     df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
+    df["close_ts"] = df["timestamp"] + INTERVAL_MS
     return df
 
 
 def check_hourly_gaps(df: pd.DataFrame) -> dict:
     if len(df) < 2:
         return {"gaps": 0, "max_gap_hours": 0.0, "median_hours": 0.0}
-    deltas = np.diff(df["timestamp"].values) / 3_600_000.0
+    deltas = np.diff(df["timestamp"].values) / float(INTERVAL_MS)
     return {
         "gaps": int(np.sum(deltas > 1.5)),
         "max_gap_hours": float(deltas.max()),
@@ -178,12 +214,15 @@ def extract_trades(
     min_prev: int = 0,
     init_trend: int = 1,
     force_close_end: bool = True,
+    warmup: int = WARMUP_BARS,
 ) -> list[dict]:
-    if len(df) < 5:
+    if len(df) < warmup + 5:
         return []
     h, l, c, o = df["high"].values, df["low"].values, df["close"].values, df["open"].values
     ts = df["timestamp"].values
+    close_ts = df["close_ts"].values if "close_ts" in df.columns else ts + INTERVAL_MS
     sar, tr = parabolic_sar_series(h, l, init_trend=init_trend)
+
     length = np.ones(len(tr), dtype=int)
     for i in range(1, len(tr)):
         length[i] = length[i - 1] + 1 if tr[i] == tr[i - 1] else 1
@@ -195,26 +234,30 @@ def extract_trades(
     ets = 0
     entry_i = -1
 
-    def close_trade(exit_i: int, exit_mid: float, reason: str) -> None:
+    def close_trade(exit_i: int, exit_mid: float, reason: str, use_close_time: bool = True) -> None:
         nonlocal pos
         if pos == 1:
             ef, xf, gross, net = _pnl_long(entry_mid, exit_mid)
         else:
             ef, xf, gross, net = _pnl_short(entry_mid, exit_mid)
+        planned_dist = abs(entry_mid - stop0) / entry_mid if entry_mid else 0.0
+        xts = int(close_ts[exit_i]) if use_close_time else int(ts[exit_i])
         trades.append(
             {
                 "symbol": symbol,
                 "side": "long" if pos == 1 else "short",
                 "entry_ts": int(ets),
-                "exit_ts": int(ts[exit_i]),
+                "exit_ts": xts,
+                "entry_bar_open_ts": int(ets),
+                "exit_bar_open_ts": int(ts[exit_i]),
                 "entry_time": pd.to_datetime(ets, unit="ms", utc=True).isoformat(),
-                "exit_time": pd.to_datetime(ts[exit_i], unit="ms", utc=True).isoformat(),
+                "exit_time": pd.to_datetime(xts, unit="ms", utc=True).isoformat(),
                 "entry_mid": float(entry_mid),
                 "exit_mid": float(exit_mid),
                 "entry_fill": float(ef),
                 "exit_fill": float(xf),
                 "stop_at_entry": float(stop0),
-                "risk_dist": float(abs(entry_mid - stop0) / entry_mid) if entry_mid else 0.0,
+                "risk_dist": float(planned_dist),
                 "gross_pct": float(gross),
                 "net_pnl_pct": float(net),
                 "exit_reason": reason,
@@ -222,7 +265,8 @@ def extract_trades(
         )
         pos = 0
 
-    for i in range(2, len(df)):
+    start_i = max(2, warmup)
+    for i in range(start_i, len(df)):
         if pos != 0 and i > entry_i:
             stop = float(sar[i - 1])
             hit = False
@@ -242,7 +286,13 @@ def extract_trades(
                     exit_mid = float(stop)
                     hit = True
             if hit:
-                close_trade(i, exit_mid, "sar_stop")
+                if pos == 1 and o[i] <= stop:
+                    use_close = False
+                elif pos == -1 and o[i] >= stop:
+                    use_close = False
+                else:
+                    use_close = True
+                close_trade(i, exit_mid, "sar_stop", use_close_time=use_close)
 
         if pos == 0 and tr[i - 1] != tr[i - 2] and int(length[i - 2]) >= min_prev:
             d = int(tr[i - 1])
@@ -259,31 +309,80 @@ def extract_trades(
             stop = stop0
             if pos == 1 and l[i] <= stop:
                 exit_mid = float(min(o[i], stop)) if o[i] <= stop else float(stop)
-                close_trade(i, exit_mid, "sar_stop_same_bar")
+                use_close = not (o[i] <= stop)
+                close_trade(i, exit_mid, "sar_stop_same_bar", use_close_time=use_close)
             elif pos == -1 and h[i] >= stop:
                 exit_mid = float(max(o[i], stop)) if o[i] >= stop else float(stop)
-                close_trade(i, exit_mid, "sar_stop_same_bar")
+                use_close = not (o[i] >= stop)
+                close_trade(i, exit_mid, "sar_stop_same_bar", use_close_time=use_close)
 
     if force_close_end and pos != 0:
-        close_trade(len(df) - 1, float(c[-1]), "eod_force_close")
+        close_trade(len(df) - 1, float(c[-1]), "eod_force_close", use_close_time=True)
     return trades
 
 
-def portfolio_run(trades: list[dict], risk: float, cap: float, start: float = 5000.0) -> dict:
-    trades = sorted(trades, key=lambda x: (x["entry_ts"], x["exit_ts"]))
-    eq = start
+def _unrealized_pct(side: str, entry_fill: float, mark_mid: float) -> float:
+    if side == "long":
+        mark_fill = mark_mid * (1 - SLIP)
+        return (mark_fill - entry_fill) / entry_fill
+    mark_fill = mark_mid * (1 + SLIP)
+    return (entry_fill - mark_fill) / entry_fill
+
+
+def portfolio_run_mtm(
+    trades: list[dict],
+    bars_by_symbol: dict[str, pd.DataFrame],
+    risk: float,
+    cap: float,
+    start: float = 5000.0,
+) -> dict:
+    if not trades:
+        return {
+            "rows": [],
+            "equity_curve": [{"ts": 0, "equity": start, "realized": start, "unrealized": 0.0}],
+            "summary": {
+                "start_equity": start,
+                "final_equity": start,
+                "return_pct": 0.0,
+                "max_dd_pct": 0.0,
+                "max_dd_realized_only_pct": 0.0,
+                "trades": 0,
+                "skipped": 0,
+                "winrate_pct": 0.0,
+                "profit_factor_usd": None,
+                "engine_version": "v4_mtm_batch_entries",
+            },
+        }
+
+    trades = sorted(trades, key=lambda x: (x["entry_ts"], x["symbol"], x["exit_ts"]))
+    groups: dict[int, list[dict]] = defaultdict(list)
+    for t in trades:
+        groups[t["entry_ts"]].append(t)
+    entry_times = sorted(groups.keys())
+
+    eq_realized = start
     open_pos: list[dict] = []
     rows: list[dict] = []
     skipped = 0
     wins = 0
 
-    for t in trades:
+    all_close_ts = set()
+    close_px = {}
+    for sym, df in bars_by_symbol.items():
+        for _, row in df.iterrows():
+            cts = int(row["close_ts"]) if "close_ts" in df.columns else int(row["timestamp"]) + INTERVAL_MS
+            all_close_ts.add(cts)
+            close_px[(sym, cts)] = float(row["close"])
+    timeline = sorted(all_close_ts)
+
+    def close_finished(asof_ts: int) -> None:
+        nonlocal eq_realized, wins
         still = []
         for p in open_pos:
-            if p["exit_ts"] <= t["entry_ts"]:
+            if p["exit_ts"] <= asof_ts:
                 pnl_usd = p["notional"] * p["net_pnl_pct"]
-                eq_before = eq
-                eq += pnl_usd
+                eq_before = eq_realized
+                eq_realized += pnl_usd
                 if pnl_usd > 0:
                     wins += 1
                 rows.append(
@@ -294,50 +393,96 @@ def portfolio_run(trades: list[dict], risk: float, cap: float, start: float = 50
                         "net_pnl_pct": p["net_pnl_pct"],
                         "pnl_usd": pnl_usd,
                         "equity_before": eq_before,
-                        "equity_after": eq,
+                        "equity_after": eq_realized,
                     }
                 )
             else:
                 still.append(p)
-        open_pos = still
-        if sum(x["risk_frac"] for x in open_pos) + risk > cap + 1e-12:
-            skipped += 1
-            continue
-        rd = max(t["risk_dist"] + COST_BUFFER, 1e-6)
-        notional = (risk * eq) / rd
-        open_pos.append({**t, "notional": notional, "risk_frac": risk, "net_pnl_pct": t["net_pnl_pct"]})
+        open_pos[:] = still
 
-    for p in open_pos:
-        pnl_usd = p["notional"] * p["net_pnl_pct"]
-        eq_before = eq
-        eq += pnl_usd
-        if pnl_usd > 0:
-            wins += 1
-        rows.append(
+    for et in entry_times:
+        close_finished(et)
+        batch = groups[et]
+        open_risk = sum(p["risk_frac"] for p in open_pos)
+        remaining = cap - open_risk
+        if remaining < risk - 1e-15:
+            skipped += len(batch)
+            continue
+        max_n = int(remaining / risk + 1e-12)
+        batch_sorted = sorted(batch, key=lambda x: x["symbol"])
+        accepted = batch_sorted[:max_n]
+        skipped += len(batch_sorted) - len(accepted)
+        base_eq = eq_realized
+        for t in accepted:
+            rd = max(t["risk_dist"] + COST_BUFFER, 1e-6)
+            notional = (risk * base_eq) / rd
+            open_pos.append(
+                {
+                    **t,
+                    "notional": notional,
+                    "risk_frac": risk,
+                    "net_pnl_pct": t["net_pnl_pct"],
+                    "entry_fill": t["entry_fill"],
+                }
+            )
+
+    if open_pos:
+        last_exit = max(p["exit_ts"] for p in open_pos)
+        close_finished(last_exit + 1)
+
+    pos_specs = []
+    for r in rows:
+        pos_specs.append(
             {
-                **{k: p[k] for k in p if k not in ("notional", "risk_frac", "net_pnl_pct")},
-                "notional": p["notional"],
-                "risk_frac": p["risk_frac"],
-                "net_pnl_pct": p["net_pnl_pct"],
-                "pnl_usd": pnl_usd,
-                "equity_before": eq_before,
-                "equity_after": eq,
+                "symbol": r["symbol"],
+                "side": r["side"],
+                "entry_ts": r["entry_ts"],
+                "exit_ts": r["exit_ts"],
+                "entry_fill": r["entry_fill"],
+                "notional": r["notional"],
+                "net_pnl_pct": r["net_pnl_pct"],
+                "pnl_usd": r["pnl_usd"],
             }
         )
 
-    # MaxDD on chronological exit path
-    eq2 = start
-    curve_pts = [{"ts": 0, "equity": start, "event": "start"}]
+    realized_at = {0: start}
+    eq_r = start
     for r in sorted(rows, key=lambda x: (x["exit_ts"], x["entry_ts"])):
-        eq2 += r["pnl_usd"]
-        curve_pts.append({"ts": r["exit_ts"], "equity": eq2, "event": "exit"})
+        eq_r += r["pnl_usd"]
+        realized_at[r["exit_ts"]] = eq_r
 
+    def realized_asof(ts: int) -> float:
+        val = start
+        for xt, e in sorted(realized_at.items()):
+            if xt <= ts:
+                val = e
+            else:
+                break
+        return val
+
+    curve = []
     peak = start
     mdd = 0.0
-    for pt in curve_pts:
-        peak = max(peak, pt["equity"])
-        mdd = min(mdd, (pt["equity"] - peak) / peak if peak else 0.0)
+    peak_r = start
+    mdd_r = 0.0
+    for cts in timeline:
+        realized = realized_asof(cts)
+        unreal = 0.0
+        for p in pos_specs:
+            if p["entry_ts"] <= cts < p["exit_ts"]:
+                mark = close_px.get((p["symbol"], cts))
+                if mark is None:
+                    continue
+                upct = _unrealized_pct(p["side"], p["entry_fill"], mark)
+                unreal += p["notional"] * upct
+        equity = realized + unreal
+        curve.append({"ts": cts, "equity": equity, "realized": realized, "unrealized": unreal})
+        peak = max(peak, equity)
+        mdd = min(mdd, (equity - peak) / peak if peak else 0.0)
+        peak_r = max(peak_r, realized)
+        mdd_r = min(mdd_r, (realized - peak_r) / peak_r if peak_r else 0.0)
 
+    final = curve[-1]["equity"] if curve else start
     usd = np.array([r["pnl_usd"] for r in rows]) if rows else np.array([0.0])
     gp = float(usd[usd > 0].sum())
     gl = float(-usd[usd <= 0].sum())
@@ -346,12 +491,14 @@ def portfolio_run(trades: list[dict], risk: float, cap: float, start: float = 50
 
     return {
         "rows": rows,
-        "equity_curve": curve_pts,
+        "equity_curve": curve,
         "summary": {
             "start_equity": start,
-            "final_equity": eq2,
-            "return_pct": 100 * (eq2 / start - 1),
+            "final_equity": final,
+            "final_realized": eq_r,
+            "return_pct": 100 * (final / start - 1),
             "max_dd_pct": 100 * mdd,
+            "max_dd_realized_only_pct": 100 * mdd_r,
             "trades": len(rows),
             "skipped": skipped,
             "winrate_pct": 100 * wins / len(rows) if rows else 0,
@@ -362,7 +509,7 @@ def portfolio_run(trades: list[dict], risk: float, cap: float, start: float = 50
             "cost_buffer": COST_BUFFER,
             "taker_fee": TAKER,
             "slippage": SLIP,
-            "engine_version": "v3_audit_fixes",
+            "engine_version": "v4_mtm_batch_entries",
         },
     }
 
@@ -372,11 +519,13 @@ def main() -> None:
     ap.add_argument("--start", type=float, default=5000.0)
     ap.add_argument("--out", type=str, default="sar_repro_out")
     ap.add_argument("--init-trend", type=int, default=1)
+    ap.add_argument("--warmup", type=int, default=WARMUP_BARS)
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
     symbols = ["BTC-USDT", "ETH-USDT", "SOL-USDT"]
+    bars_by_symbol: dict[str, pd.DataFrame] = {}
     all_trades: list[dict] = []
     bars_meta = {}
     for sym in symbols:
@@ -391,10 +540,19 @@ def main() -> None:
             "gaps": gaps,
         }
         print(sym, bars_meta[sym])
+        bars_by_symbol[sym] = df
         all_trades.extend(
-            extract_trades(df, sym, min_prev=0, init_trend=args.init_trend, force_close_end=True)
+            extract_trades(
+                df,
+                sym,
+                min_prev=0,
+                init_trend=args.init_trend,
+                force_close_end=True,
+                warmup=args.warmup,
+            )
         )
         time.sleep(0.3)
+
     pd.DataFrame(all_trades).to_csv(out / "trades_raw_signals.csv", index=False)
     print("raw trades", len(all_trades))
 
@@ -405,21 +563,42 @@ def main() -> None:
     ]
     summaries = {}
     for name, risk, cap in profiles:
-        res = portfolio_run(all_trades, risk=risk, cap=cap, start=args.start)
+        res = portfolio_run_mtm(all_trades, bars_by_symbol, risk=risk, cap=cap, start=args.start)
         summaries[name] = res["summary"]
         pd.DataFrame(res["rows"]).to_csv(out / f"trades_{name}.csv", index=False)
-        pd.DataFrame(res["equity_curve"]).to_csv(out / f"equity_{name}.csv", index=False)
+        eq = res["equity_curve"]
+        if len(eq) > 5000:
+            step = max(1, len(eq) // 5000)
+            eq = eq[::step]
+        pd.DataFrame(eq).to_csv(out / f"equity_{name}.csv", index=False)
         s = res["summary"]
         print(
             f"{name}: final={s['final_equity']:.2f} ret={s['return_pct']:.1f}% "
-            f"dd={s['max_dd_pct']:.1f}% n={s['trades']} PF_usd={s['profit_factor_usd']}"
+            f"dd_mtm={s['max_dd_pct']:.1f}% dd_real={s['max_dd_realized_only_pct']:.1f}% "
+            f"n={s['trades']} PF_usd={s['profit_factor_usd']}"
         )
 
+    sens = {}
+    for it in (1, -1):
+        trs = []
+        for sym, df in bars_by_symbol.items():
+            trs.extend(extract_trades(df, sym, init_trend=it, warmup=args.warmup))
+        r = portfolio_run_mtm(trs, bars_by_symbol, risk=0.01, cap=0.03, start=args.start)
+        sens[str(it)] = {
+            "final": r["summary"]["final_equity"],
+            "dd_mtm": r["summary"]["max_dd_pct"],
+            "max_dd_realized_only_pct": r["summary"]["max_dd_realized_only_pct"],
+            "pf": r["summary"]["profit_factor_usd"],
+            "n": r["summary"]["trades"],
+        }
+    print("init_trend sensitivity", sens)
+
     meta = {
-        "engine_version": "v3_audit_fixes",
-        "audit_status": "P1 fixes applied; re-audit required before param search",
+        "engine_version": "v4_mtm_batch_entries",
+        "audit_status": "v4 source delivered; re-audit required; no param search",
         "symbols": symbols,
         "interval": "1h",
+        "warmup_bars": args.warmup,
         "sar": {"start": 0.02, "increment": 0.02, "max": 0.2, "init_trend": args.init_trend},
         "cost_model": {
             "taker_fee_per_side": TAKER,
@@ -431,6 +610,7 @@ def main() -> None:
         "bars": bars_meta,
         "raw_trade_count": len(all_trades),
         "profiles": summaries,
+        "init_trend_sensitivity": sens,
     }
     (out / "summary.json").write_text(json.dumps(meta, indent=2, default=str), encoding="utf-8")
     print("Wrote", out)
