@@ -97,6 +97,7 @@ def download_klines(symbol: str, start_ms: int, end_ms: int, out: Path) -> dict:
     start_dt = datetime.fromtimestamp(start_ms / 1000, timezone.utc).date()
     end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, timezone.utc).date()
     rows: dict[int, list[str]] = {}
+    duplicate_rows = 0
     sources = []
     # Completed historical months use monthly archives.
     for year, month in month_iter(start_dt, end_dt):
@@ -110,6 +111,8 @@ def download_klines(symbol: str, start_ms: int, end_ms: int, out: Path) -> dict:
             for row in read_zip_rows(blob):
                 ts = int(row[0])
                 if start_ms <= ts < end_ms:
+                    if ts in rows:
+                        duplicate_rows += 1
                     rows[ts] = row
             sources.append({"url": url, "sha256": hashlib.sha256(blob).hexdigest()})
         else:
@@ -122,7 +125,9 @@ def download_klines(symbol: str, start_ms: int, end_ms: int, out: Path) -> dict:
                 for row in read_zip_rows(blob):
                     ts = int(row[0])
                     if start_ms <= ts < end_ms:
-                        rows[ts] = row
+                        if ts in rows:
+                        duplicate_rows += 1
+                    rows[ts] = row
                 sources.append({"url": url, "sha256": hashlib.sha256(blob).hexdigest()})
     ordered = [rows[key] for key in sorted(rows)]
     timestamps = sorted(rows)
@@ -139,7 +144,7 @@ def download_klines(symbol: str, start_ms: int, end_ms: int, out: Path) -> dict:
         "symbol": symbol,
         "rows": len(ordered),
         "expected_rows": len(expected),
-        "duplicates_removed": sum(1 for _ in []) ,
+        "duplicates_removed": duplicate_rows,
         "missing_bars": len(missing),
         "unexpected_bars": len(unexpected),
         "first_open_utc": datetime.fromtimestamp(timestamps[0] / 1000, timezone.utc).isoformat() if timestamps else None,
