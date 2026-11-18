@@ -261,6 +261,12 @@ def extract_trades(
                 "side": "long" if pos == 1 else "short",
                 "entry_ts": int(ets),
                 "exit_ts": xts,
+                # For intrabar stop fills, the exact tick time is unknown. Exclude
+                # settlements at/after this candle's open rather than charging a
+                # position that may already have been stopped out.
+                "funding_cutoff_ts": (
+                    xts if reason == "eod_force_close" else int(ts[exit_i])
+                ),
                 "entry_bar_open_ts": int(ets),
                 "exit_bar_open_ts": int(ts[exit_i]),
                 "entry_time": pd.to_datetime(ets, unit="ms", utc=True).isoformat(),
