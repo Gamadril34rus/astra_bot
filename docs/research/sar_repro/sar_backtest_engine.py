@@ -298,9 +298,7 @@ def extract_trades(
                     exit_mid = float(stop)
                     hit = True
             if hit:
-                if pos == 1 and o[i] <= stop:
-                    use_close = False
-                elif pos == -1 and o[i] >= stop:
+                if (pos == 1 and o[i] <= stop) or (pos == -1 and o[i] >= stop):
                     use_close = False
                 else:
                     use_close = True
