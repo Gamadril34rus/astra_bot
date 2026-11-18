@@ -27,6 +27,8 @@ import numpy as np
 import pandas as pd
 import requests
 
+from sar_funding import apply_funding_to_trades, fetch_funding_rates
+
 TAKER = 0.0005
 SLIP = 0.001
 COST_BUFFER = 2 * (TAKER + SLIP)
@@ -568,6 +570,21 @@ def main() -> None:
         )
         time.sleep(0.3)
 
+    funding_by_symbol: dict[str, list[dict]] = {}
+    funding_meta = {}
+    for sym, df in bars_by_symbol.items():
+        start_ms = int(df["timestamp"].iloc[0])
+        end_ms = int(df["close_ts"].iloc[-1])
+        events = fetch_funding_rates(sym, start_ms, end_ms)
+        funding_by_symbol[sym] = events
+        funding_meta[sym] = {
+            "events": len(events),
+            "first_funding_time": events[0]["fundingTime"] if events else None,
+            "last_funding_time": events[-1]["fundingTime"] if events else None,
+        }
+        time.sleep(1.05)
+    all_trades = apply_funding_to_trades(all_trades, funding_by_symbol)
+
     pd.DataFrame(all_trades).to_csv(out / "trades_raw_signals.csv", index=False)
     print("raw trades", len(all_trades))
 
@@ -598,6 +615,7 @@ def main() -> None:
         trs = []
         for sym, df in bars_by_symbol.items():
             trs.extend(extract_trades(df, sym, init_trend=it, warmup=args.warmup, interval_ms=interval_ms))
+        trs = apply_funding_to_trades(trs, funding_by_symbol)
         r = portfolio_run_mtm(trs, bars_by_symbol, risk=0.01, cap=0.03, start=args.start)
         sens[str(it)] = {
             "final": r["summary"]["final_equity"],
@@ -619,10 +637,11 @@ def main() -> None:
             "taker_fee_per_side": TAKER,
             "slippage_per_side": SLIP,
             "cost_buffer": COST_BUFFER,
-            "funding": 0,
+            "funding": "historical BingX settlement cashflows; mark-price adjusted by side",
         },
         "start_equity": args.start,
         "bars": bars_meta,
+        "funding": funding_meta,
         "raw_trade_count": len(all_trades),
         "profiles": summaries,
         "init_trend_sensitivity": sens,
