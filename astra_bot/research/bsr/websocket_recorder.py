@@ -1,6 +1,7 @@
 """BingX USDT-M WebSocket recorder with explicit depth synchronization."""
 from __future__ import annotations
 
+import asyncio
 import gzip
 import json
 import time
