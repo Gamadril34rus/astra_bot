@@ -10,8 +10,8 @@ from astra_bot.research.bsr.economics import (
     round_trip_cost_rate,
 )
 from astra_bot.research.bsr.features import book_metrics, evaluate_signal, trade_flow
-from astra_bot.research.bsr.models import BookSnapshot, MarketTrade, SignalConfig
 from astra_bot.research.bsr.binance_spot_recorder import BinanceSpotRecorder
+from astra_bot.research.bsr.models import BookSnapshot, MarketTrade, SignalConfig
 from astra_bot.research.bsr.websocket_recorder import DepthBookState
 
 
@@ -95,17 +95,47 @@ def test_incremental_depth_waits_for_full_snapshot():
                 "bids": [["100", "2"]], "asks": [["101", "3"]]}
     assert state.apply(snapshot) is True
     assert state.bids == {100.0: 2.0}
-    update = {"action": "update", "lastUpdateId": 12,
+    update = {"action": "update", "lastUpdateId": 11,
               "bids": [["100", "0"], ["99", "4"]], "asks": [["101", "5"]]}
     assert state.apply(update) is True
     assert state.bids == {99.0: 4.0}
     assert state.asks == {101.0: 5.0}
 
 
+def test_depth_sequence_gap_invalidates_and_clears_book():
+    state = DepthBookState()
+    assert state.apply({"action": "all", "lastUpdateId": 10,
+                        "bids": [["100", "2"]], "asks": [["101", "3"]]}) is True
+    assert state.apply({"action": "update", "lastUpdateId": 12,
+                        "bids": [["100", "1"]], "asks": []}) is False
+    assert state.synchronized is False
+    assert state.last_update_id is None
+    assert state.bids == {} and state.asks == {}
+
+
+def test_depth_update_without_sequence_id_invalidates_book():
+    state = DepthBookState()
+    assert state.apply({"action": "all", "lastUpdateId": 10,
+                        "bids": [["100", "2"]], "asks": [["101", "3"]]}) is True
+    assert state.apply({"action": "update", "bids": [["100", "1"]], "asks": []}) is False
+    assert state.synchronized is False
+    assert state.bids == {} and state.asks == {}
+
+
+def test_depth_snapshot_without_sequence_id_is_rejected():
+    state = DepthBookState()
+    assert state.apply({"action": "all", "bids": [["100", "2"]],
+                        "asks": [["101", "3"]]}) is False
+    assert state.synchronized is False
+    assert state.bids == {}
+
+
 def test_crossed_incremental_book_is_invalidated():
     state = DepthBookState()
-    state.apply({"action": "all", "bids": [["100", "2"]], "asks": [["101", "3"]]})
-    assert state.apply({"action": "update", "bids": [["102", "2"]], "asks": []}) is False
+    state.apply({"action": "all", "lastUpdateId": 10,
+                 "bids": [["100", "2"]], "asks": [["101", "3"]]})
+    assert state.apply({"action": "update", "lastUpdateId": 11,
+                        "bids": [["102", "2"]], "asks": []}) is False
     assert state.synchronized is False
     assert state.bids == {}
 
