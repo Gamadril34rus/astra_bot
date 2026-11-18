@@ -168,7 +168,7 @@ def download_mark_prices(symbol: str, start_ms: int, end_ms: int) -> tuple[dict[
         blob = verified_zip(url)
         for row in read_zip_rows(blob, min_columns=5):
             ts = int(row[0])
-            if start_ms <= ts < end_ms:
+            if start_ms - 5 * MARK_INTERVAL_MS <= ts < end_ms:
                 prices[ts] = {"open": row[1], "close": row[4]}
         sources.append({"url": url, "sha256": hashlib.sha256(blob).hexdigest()})
     return prices, sources
@@ -287,6 +287,11 @@ def main():
         funding = download_funding(symbol, start_ms, end_ms, args.out, mark_prices)
         funding["mark_price_sources"] = mark_sources
         if funding["missing_mark_price"]:
+            missing_times = [
+                row["funding_time"]
+                for row in gzip.open(args.out / funding["file"], "rt", encoding="utf-8")
+                if False
+            ]
             raise RuntimeError(
                 f"{symbol}: {funding['missing_mark_price']} funding events lack mark-price joins"
             )
