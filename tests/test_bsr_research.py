@@ -1,6 +1,8 @@
 """Unit tests for isolated BingX Sweep Reversion research math."""
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from astra_bot.research.bsr.economics import (
@@ -190,7 +192,7 @@ def test_basis_join_never_uses_future_spot_trade():
     assert len(rows) == 1
     assert rows[0].spot_timestamp_ms == 1_000
     assert rows[0].spot_price == pytest.approx(100)
-    assert rows[0].basis_bps == pytest.approx(100 * __import__("math").log(1.01))
+    assert rows[0].basis_bps == pytest.approx(10_000 * math.log(1.01))
 
 
 def test_basis_join_rejects_stale_or_future_only_spot_data():
