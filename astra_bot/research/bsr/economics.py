@@ -1,5 +1,6 @@
 """Fee-aware BSR sizing and net-return calculations."""
 from __future__ import annotations
+
 from dataclasses import dataclass
 
 
@@ -11,6 +12,7 @@ class CostModel:
     exit_slippage_rate: float = 0.0001
     funding_rate: float = 0.0
     funding_paid_by_long: bool = True
+
     def __post_init__(self) -> None:
         for name in ("maker_fee_rate", "taker_fee_rate", "entry_slippage_rate", "exit_slippage_rate"):
             if getattr(self, name) < 0:
