@@ -11,6 +11,7 @@ from astra_bot.research.bsr.economics import (
 )
 from astra_bot.research.bsr.features import book_metrics, evaluate_signal, trade_flow
 from astra_bot.research.bsr.binance_spot_recorder import BinanceSpotRecorder
+from astra_bot.research.bsr.bingx_public import BingXPublicAPIError, BingXPublicClient
 from astra_bot.research.bsr.models import BookSnapshot, MarketTrade, SignalConfig
 from astra_bot.research.bsr.websocket_recorder import DepthBookState
 
@@ -114,6 +115,16 @@ def test_depth_sequence_gap_invalidates_and_clears_book():
     assert state.bids == {} and state.asks == {}
 
 
+def test_duplicate_depth_sequence_invalidates_book():
+    state = DepthBookState()
+    assert state.apply({"action": "all", "lastUpdateId": 10,
+                        "bids": [["100", "2"]], "asks": [["101", "3"]]}) is True
+    assert state.apply({"action": "update", "lastUpdateId": 10,
+                        "bids": [["100", "1"]], "asks": []}) is False
+    assert state.synchronized is False
+    assert state.bids == {} and state.asks == {}
+
+
 def test_depth_update_without_sequence_id_invalidates_book():
     state = DepthBookState()
     assert state.apply({"action": "all", "lastUpdateId": 10,
@@ -150,3 +161,16 @@ def test_binance_spot_stream_symbol_normalization():
 def test_binance_spot_stream_rejects_non_usdt_symbol():
     with pytest.raises(ValueError):
         BinanceSpotRecorder._symbol_stream("BTC-USDC")
+
+
+
+def test_bingx_recent_trades_rejects_non_boolean_buyer_maker(monkeypatch):
+    client = BingXPublicClient()
+    monkeypatch.setattr(
+        client, "_get",
+        lambda *args, **kwargs: [
+            {"time": 1, "price": "100", "qty": "1", "buyerMaker": "false"}
+        ],
+    )
+    with pytest.raises(BingXPublicAPIError, match="buyerMaker"):
+        client.recent_trades("BTC-USDT")
