@@ -1,31 +1,5 @@
 {
   "positions": {
-    "SOL-USDT|short": {
-      "symbol": "SOL-USDT",
-      "side": "short",
-      "qty": 369.79,
-      "stop": "73.522388999999995",
-      "tp": "72.029166999999985",
-      "entry": "74.269",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_multi_top_breakdown|SOL-USDT|short|1795003200000",
-      "ts": 1795016820.2496347,
-      "be_moved": true,
-      "initial_stop": "75.76222200000001",
-      "opened_at_ms": 1795006969482,
-      "tp_parity_v1": true,
-      "be_earned": true,
-      "tp_frac": "0.3",
-      "peak_low": "72.473",
-      "current_regime": "STRONG_BEAR_TREND",
-      "tp1": "73.194844599999993",
-      "initial_stop_v1": true,
-      "early_tp1": true,
-      "early_tp_repair_v1": true,
-      "runner_tp_rr": 1.5,
-      "runner_tp_healed_v1": true
-    },
     "INJ-USDT|short": {
       "symbol": "INJ-USDT",
       "side": "short",
@@ -79,7 +53,7 @@
       "symbol": "ETH-USDT",
       "side": "short",
       "qty": "6.91908612",
-      "stop": "1830.8700000000001",
+      "stop": "1828.34",
       "tp": "1672.04107",
       "entry": "1751.05",
       "leverage": 6,
@@ -102,5 +76,5 @@
       "current_regime": "WEAK_BEAR_TREND"
     }
   },
-  "ts": 1795021928.8259015
+  "ts": 1795022553.015196
 }
