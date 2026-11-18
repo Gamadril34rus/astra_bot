@@ -1,5 +1,6 @@
 """Immutable BSR research data models."""
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Literal
 
@@ -10,6 +11,7 @@ class BookSnapshot:
     timestamp_ms: int
     bids: tuple[tuple[float, float], ...]
     asks: tuple[tuple[float, float], ...]
+
     def __post_init__(self) -> None:
         if not self.symbol or self.timestamp_ms <= 0:
             raise ValueError("symbol and positive timestamp_ms are required")
