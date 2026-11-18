@@ -55,6 +55,9 @@ def test_oi_join_uses_only_the_last_closed_candle() -> None:
     assert len(frame) == 2
     assert frame.iloc[0]["candle_close_time"] == 2 * 60 * 60_000
     assert frame.iloc[0]["snapshot_age_minutes"] == 2.0
+    assert frame.iloc[0]["forward_anchor_time"] == 150 * 60_000
+    assert frame.iloc[0]["forward_anchor_delay_minutes"] == 28.0
+    assert frame.iloc[0]["forward_30m_pct"] == pytest.approx((105.0 / 104.0 - 1.0) * 100.0)
     assert frame.iloc[0]["taker_buy_share_pct"] == 60.0
     assert frame.iloc[0]["taker_imbalance_pct"] == pytest.approx(20.0)
     assert frame.iloc[0]["positioning_state"] == "price_up_oi_up_taker_buy"
