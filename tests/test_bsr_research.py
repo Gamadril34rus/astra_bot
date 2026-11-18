@@ -11,6 +11,7 @@ from astra_bot.research.bsr.economics import (
 )
 from astra_bot.research.bsr.features import book_metrics, evaluate_signal, trade_flow
 from astra_bot.research.bsr.models import BookSnapshot, MarketTrade, SignalConfig
+from astra_bot.research.bsr.binance_spot_recorder import BinanceSpotRecorder
 from astra_bot.research.bsr.websocket_recorder import DepthBookState
 
 
@@ -107,3 +108,14 @@ def test_crossed_incremental_book_is_invalidated():
     assert state.apply({"action": "update", "bids": [["102", "2"]], "asks": []}) is False
     assert state.synchronized is False
     assert state.bids == {}
+
+
+
+def test_binance_spot_stream_symbol_normalization():
+    assert BinanceSpotRecorder._symbol_stream("BTC-USDT") == "btcusdt@trade"
+    assert BinanceSpotRecorder._symbol_stream("HYPE-USDT") == "hypeusdt@trade"
+
+
+def test_binance_spot_stream_rejects_non_usdt_symbol():
+    with pytest.raises(ValueError):
+        BinanceSpotRecorder._symbol_stream("BTC-USDC")
