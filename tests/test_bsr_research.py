@@ -84,7 +84,6 @@ def test_invalid_fair_price_is_rejected():
                         fair_price=0, now_ms=3100)
 
 
-
 def test_incremental_depth_waits_for_full_snapshot():
     state = DepthBookState()
     update = {"action": "update", "bids": [["100", "2"]], "asks": [["101", "3"]]}
@@ -99,7 +98,6 @@ def test_incremental_depth_waits_for_full_snapshot():
     assert state.apply(update) is True
     assert state.bids == {99.0: 4.0}
     assert state.asks == {101.0: 5.0}
-
 
 
 def test_crossed_incremental_book_is_invalidated():
