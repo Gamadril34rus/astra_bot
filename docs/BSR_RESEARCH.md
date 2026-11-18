@@ -34,12 +34,17 @@ or distinguish cancellation from execution.
 - economics.py: maker/taker fees, slippage, funding and risk-based sizing.
 - bingx_public.py: read-only public REST bootstrap for depth, trades,
   premium index, funding history, V3 klines and Binance spot ticker.
-- websocket_recorder.py: GZIP-aware public Swap WS recorder for incremental depth,
-  trades and mark price; persists raw normalized JSONL events.
-- scripts/bsr_capture.py: CLI entry point for the recorder.
+- websocket_recorder.py: GZIP-aware public BingX Swap WS recorder for incremental
+  depth, trades and mark price; persists raw normalized JSONL events.
+- binance_spot_recorder.py: public Binance Spot trade-stream recorder with exchange
+  and local receive timestamps for cross-venue basis measurement.
+- scripts/bsr_capture.py: runs both venue recorders concurrently; writes separate
+  BingX and Binance JSONL files.
 - tests/test_bsr_research.py: deterministic feature, cost and depth-state tests.
 
-Run the read-only recorder with: python scripts/bsr_capture.py --output data/bsr/bingx_market.jsonl.
+Run both read-only recorders with: python scripts/bsr_capture.py --output data/bsr/bingx_market.jsonl.
+BingX Swap events go to the requested file; Binance Spot trades go to the sibling
+file named bingx_market_binance_spot.jsonl. Both use the same five symbol names.
 It subscribes to {symbol}@incrDepth, {symbol}@trade and {symbol}@markPrice on
 wss://open-api-swap.bingx.com/swap-market. Frames are GZIP-decoded and Ping is
 answered with Pong. Local depth is unusable until an action=all snapshot arrives
@@ -49,8 +54,10 @@ protocol does not guarantee consecutive lastUpdateId values or a checksum, so
 IDs are recorded but never treated as proof of completeness. After reconnect,
 wait for a fresh full snapshot before using depth again.
 
-REST is bootstrap only. Binance spot still needs a synchronized WebSocket
-stream; ticker polling is insufficient for event-level basis analysis.
+REST is bootstrap only. Binance Spot trades are now streamed independently. Match
+records by symbol and exchange event time, not local receive time alone; measure
+local clock offset and feed latency before computing a basis lead/lag. Spot trade
+prints are not a spot order book, so they cannot substitute for spot depth.
 
 ## API semantics
 
