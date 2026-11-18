@@ -293,7 +293,11 @@ def download_funding(
             for row in ordered
         ),
         "fallback_mark_price_15m": sum(
-            row["mark_price_source"] == "previous Binance USD-M markPriceKlines 15m close"
+            row["mark_price_source"] == "last available Binance USD-M markPriceKlines 15m close"
+            for row in ordered
+        ),
+        "fallback_trade_kline_proxy": sum(
+            row["mark_price_source"] == "previous Binance USD-M 15m trade kline close (mark proxy)"
             for row in ordered
         ),
         "first_funding_utc": datetime.fromtimestamp(ordered[0]["funding_time"] / 1000, timezone.utc).isoformat() if ordered else None,
