@@ -30,8 +30,10 @@ class BingXPublicClient:
     def _get(self, base_url: str, path: str, params: dict[str, Any], *,
              bingx_envelope: bool = True) -> Any:
         url = f"{base_url.rstrip('/')}{path}?{urllib.parse.urlencode(params)}"
-        request = urllib.request.Request(url, headers={
-            "Accept": "application/json", "User-Agent": "ASTRA-BSR-research/0.1"})
+        headers = {"Accept": "application/json", "User-Agent": "ASTRA-BSR-research/0.1"}
+        if bingx_envelope:
+            headers["X-SOURCE-KEY"] = "BX-AI-SKILL"
+        request = urllib.request.Request(url, headers=headers)
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
                 payload = json.loads(response.read().decode("utf-8"))
