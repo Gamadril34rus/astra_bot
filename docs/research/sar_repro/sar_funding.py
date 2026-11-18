@@ -1,8 +1,8 @@
 """Historical BingX perpetual funding collection and trade-level accounting."""
 from __future__ import annotations
 
-import time
 from collections import defaultdict
+import time
 
 import requests
 
