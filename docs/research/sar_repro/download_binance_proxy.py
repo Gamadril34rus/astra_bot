@@ -20,7 +20,6 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 BASE = "https://data.binance.vision/data/futures/um"
-API = "https://fapi.binance.com/fapi/v1/fundingRate"
 INTERVAL_MS = 15 * 60 * 1000
 COLUMNS = [
     "open_time", "open", "high", "low", "close", "volume", "close_time",
@@ -86,7 +85,7 @@ def read_zip_rows(blob: bytes, min_columns: int = 12):
                 try:
                     int(row[0])
                 except (ValueError, IndexError):
-                    continue  # CSV header
+                    continue
                 if len(row) < min_columns:
                     raise RuntimeError(f"malformed archive row: {row}")
                 yield row
@@ -98,7 +97,6 @@ def download_klines(symbol: str, start_ms: int, end_ms: int, out: Path) -> dict:
     rows: dict[int, list[str]] = {}
     duplicate_rows = 0
     sources = []
-    # Completed historical months use monthly archives.
     for year, month in month_iter(start_dt, end_dt):
         month_start = date(year, month, 1)
         month_end = date(year + (month == 12), 1 if month == 12 else month + 1, 1)
@@ -156,7 +154,7 @@ def download_klines(symbol: str, start_ms: int, end_ms: int, out: Path) -> dict:
 
 
 def download_mark_prices(symbol: str, start_ms: int, end_ms: int) -> tuple[dict[int, str], list[dict]]:
-    """Download exact 15m mark-price opens used at Binance funding settlement times."""
+    """Download 15m mark-price opens keyed by their exact candle-open timestamps."""
     start_dt = datetime.fromtimestamp(start_ms / 1000, timezone.utc).date()
     end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, timezone.utc).date()
     prices: dict[int, str] = {}
@@ -174,8 +172,18 @@ def download_mark_prices(symbol: str, start_ms: int, end_ms: int) -> tuple[dict[
     return prices, sources
 
 
-def download_funding(symbol: str, start_ms: int, end_ms: int, out: Path, mark_prices: dict[int, str]) -> dict:
-    """Read closed-month Binance Vision funding archives and join exact-time mark opens."""
+def download_funding(
+    symbol: str,
+    start_ms: int,
+    end_ms: int,
+    out: Path,
+    mark_prices: dict[int, str],
+) -> dict:
+    """Read funding archives and join mark opens by the containing 15m boundary.
+
+    Binance funding timestamps can be a few milliseconds after the nominal
+    settlement boundary. Flooring to the 15m bucket avoids false missing joins.
+    """
     rows: dict[int, dict] = {}
     start_dt = datetime.fromtimestamp(start_ms / 1000, timezone.utc).date()
     end_dt = datetime.fromtimestamp((end_ms - 1) / 1000, timezone.utc).date()
@@ -202,19 +210,25 @@ def download_funding(symbol: str, start_ms: int, end_ms: int, out: Path, mark_pr
                         continue
                     interval_hours = int(float(row[1]))
                     rate = float(row[2])
-                    mark = mark_prices.get(ts)
+                    mark_time = ts - (ts % INTERVAL_MS)
+                    mark = mark_prices.get(mark_time)
                     rows[ts] = {
                         "symbol": symbol,
                         "funding_time": ts,
                         "funding_rate": rate,
                         "funding_interval_hours": interval_hours,
+                        "mark_price_time": mark_time if mark else "",
                         "mark_price": mark or "",
-                        "mark_price_source": "Binance USD-M markPriceKlines 15m open at settlement" if mark else "",
+                        "mark_price_source": "Binance USD-M markPriceKlines 15m bucket open" if mark else "",
                     }
     ordered = [rows[key] for key in sorted(rows)]
     target = out / f"{symbol}_funding.csv.gz"
+    fields = [
+        "symbol", "funding_time", "funding_rate", "funding_interval_hours",
+        "mark_price_time", "mark_price", "mark_price_source",
+    ]
     with gzip.open(target, "wt", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(stream, fieldnames=["symbol", "funding_time", "funding_rate", "funding_interval_hours", "mark_price", "mark_price_source"])
+        writer = csv.DictWriter(stream, fieldnames=fields)
         writer.writeheader()
         writer.writerows(ordered)
     return {
@@ -231,8 +245,8 @@ def download_funding(symbol: str, start_ms: int, end_ms: int, out: Path, mark_pr
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--start", default="2025-11-18T00:00:00Z")
-    parser.add_argument("--end", default="2026-11-18T00:00:00Z")
+    parser.add_argument("--start", default="2025-11-01T00:00:00Z")
+    parser.add_argument("--end", default="2026-11-01T00:00:00Z")
     parser.add_argument("--symbols", nargs="+", default=["BTCUSDT", "ETHUSDT", "SOLUSDT"])
     parser.add_argument("--out", type=Path, default=Path("artifacts/sar_binance_proxy"))
     args = parser.parse_args()
@@ -241,14 +255,33 @@ def main():
     start_ms, end_ms = int(start.timestamp() * 1000), int(end.timestamp() * 1000)
     if start_ms % INTERVAL_MS or end_ms % INTERVAL_MS or start_ms >= end_ms:
         raise SystemExit("start/end must be increasing UTC 15m boundaries")
-    results = {"source": "Binance USD-M perpetual futures; cross-exchange proxy, not BingX", "interval": "15m", "start_utc": start.isoformat(), "end_utc_exclusive": end.isoformat(), "symbols": {}}
+    results = {
+        "source": "Binance USD-M perpetual futures; cross-exchange proxy, not BingX",
+        "interval": "15m",
+        "start_utc": start.isoformat(),
+        "end_utc_exclusive": end.isoformat(),
+        "symbols": {},
+    }
     for symbol in args.symbols:
         klines = download_klines(symbol, start_ms, end_ms, args.out)
         mark_prices, mark_sources = download_mark_prices(symbol, start_ms, end_ms)
         funding = download_funding(symbol, start_ms, end_ms, args.out, mark_prices)
         funding["mark_price_sources"] = mark_sources
+        if funding["missing_mark_price"]:
+            raise RuntimeError(
+                f"{symbol}: {funding['missing_mark_price']} funding events lack mark-price joins"
+            )
+        if klines["missing_bars"] or klines["unexpected_bars"]:
+            raise RuntimeError(
+                f"{symbol}: invalid candle coverage "
+                f"(missing={klines['missing_bars']}, unexpected={klines['unexpected_bars']})"
+            )
         results["symbols"][symbol] = {"klines": klines, "funding": funding}
-        print(f"{symbol}: candles={klines['rows']}/{klines['expected_rows']} missing={klines['missing_bars']} funding={funding['funding_events']}")
+        print(
+            f"{symbol}: candles={klines['rows']}/{klines['expected_rows']} "
+            f"missing={klines['missing_bars']} funding={funding['funding_events']} "
+            f"missing_mark={funding['missing_mark_price']}"
+        )
     manifest = args.out / "manifest.json"
     manifest.write_text(json.dumps(results, indent=2), encoding="utf-8")
     print(f"manifest={manifest}")
