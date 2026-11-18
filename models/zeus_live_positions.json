@@ -29,28 +29,24 @@
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
       "side": "short",
-      "qty": "27.5110732",
-      "stop": "1835.6245000000001",
+      "qty": "27.511",
+      "stop": "1813.864320",
       "tp": "1804.72784999999993",
       "entry": "1815.68",
-      "leverage": 6,
+      "leverage": 5,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|ETH-USDT|short|1794960000000",
-      "ts": 1794988633.8039184,
-      "be_moved": false,
+      "ts": 1794997313.6070764,
+      "be_moved": true,
       "initial_stop": "1835.6245000000001",
-      "tp_frac": "0.3",
       "opened_at_ms": 1794988633803,
-      "plan_qty": "27.51107320",
-      "qty_ratio": 1.0,
-      "tp1": "1804.72784999999993",
-      "initial_stop_v1": true,
       "tp_parity_v1": true,
-      "early_tp1": true,
-      "peak_low": "1808.00",
       "be_earned": true,
-      "migrate_stop_v1": true,
-      "current_regime": "WEAK_BEAR_TREND"
+      "tp_frac": "0.3",
+      "peak_low": "1807.31",
+      "current_regime": "WEAK_BEAR_TREND",
+      "tp1": "1804.72784999999993",
+      "migrate_stop_v1": true
     },
     "HYPE-USDT|long": {
       "symbol": "HYPE-USDT",
@@ -102,5 +98,5 @@
       "be_earned": true
     }
   },
-  "ts": 1794997022.2957616
+  "ts": 1794997321.7979054
 }
