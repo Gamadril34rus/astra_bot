@@ -44,6 +44,7 @@ def test_long_sweep_recovery_signal():
     signal = evaluate_signal(before=before, sweep=sweep, recovery=recovery, trades=trades,
                              fair_price=100.10, now_ms=3100, config=cfg)
     assert signal is not None and signal.direction == "LONG"
+    assert signal.aggressive_notional == pytest.approx(8 * 99.8 * 30.0)
     assert signal.depth_drawdown > 0.4 and signal.depth_recovery > 0.7
 
 
