@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+
 @dataclass(frozen=True, slots=True)
 class BookSnapshot:
     symbol: str
@@ -19,6 +20,7 @@ class BookSnapshot:
         if self.bids[0][0] >= self.asks[0][0]:
             raise ValueError("crossed or locked order book")
 
+
 @dataclass(frozen=True, slots=True)
 class MarketTrade:
     timestamp_ms: int
@@ -28,6 +30,7 @@ class MarketTrade:
     def __post_init__(self) -> None:
         if min(self.timestamp_ms, self.price, self.quantity) <= 0:
             raise ValueError("trade timestamp, price and quantity must be positive")
+
 
 @dataclass(frozen=True, slots=True)
 class SignalConfig:
@@ -43,6 +46,7 @@ class SignalConfig:
     max_snapshot_age_ms: int = 2_000
     max_snapshot_gap_ms: int = 5_000
     min_score: float = 75.0
+
 
 @dataclass(frozen=True, slots=True)
 class Signal:
