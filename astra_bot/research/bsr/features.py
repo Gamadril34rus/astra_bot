@@ -5,13 +5,16 @@ from collections.abc import Sequence
 
 from .models import BookSnapshot, MarketTrade, Signal, SignalConfig
 
+
 def _mid(book: BookSnapshot) -> float:
     return (book.bids[0][0] + book.asks[0][0]) / 2.0
+
 
 def _depth(levels, mid: float, band_bps: float, is_bid: bool) -> float:
     band = band_bps / 10_000.0
     boundary = mid * (1.0 - band if is_bid else 1.0 + band)
     return sum(p * q for p, q in levels if (p >= boundary if is_bid else p <= boundary))
+
 
 def book_metrics(book: BookSnapshot, depth_bps: float = 20.0) -> dict[str, float]:
     mid = _mid(book)
@@ -25,6 +28,7 @@ def book_metrics(book: BookSnapshot, depth_bps: float = 20.0) -> dict[str, float
         "book_imbalance": (bid - ask) / total if total else 0.0,
     }
 
+
 def trade_flow(trades: Sequence[MarketTrade], start_ms: int, end_ms: int) -> dict[str, float]:
     """buyer_maker=True means buyer is passive, hence seller is aggressor."""
     rows = [t for t in trades if start_ms <= t.timestamp_ms <= end_ms]
@@ -34,6 +38,7 @@ def trade_flow(trades: Sequence[MarketTrade], start_ms: int, end_ms: int) -> dic
     return {"buy_notional": buy, "sell_notional": sell, "total_notional": total,
             "imbalance": (buy - sell) / total if total else 0.0}
 
+
 def _drawdown_recovery(before: float, trough: float, recovered: float) -> tuple[float, float]:
     if before <= 0:
         return 0.0, 0.0
@@ -42,10 +47,12 @@ def _drawdown_recovery(before: float, trough: float, recovered: float) -> tuple[
     recovery = max(0.0, (recovered - trough) / removed) if removed > 0 else 0.0
     return min(drawdown, 1.0), min(recovery, 1.0)
 
+
 def evaluate_signal(*, before: BookSnapshot, sweep: BookSnapshot, recovery: BookSnapshot,
                     trades: Sequence[MarketTrade], fair_price: float, now_ms: int,
-                    config: SignalConfig = SignalConfig()) -> Signal | None:
+                    config: SignalConfig | None = None) -> Signal | None:
     """Evaluate pre-sweep -> sweep-extreme -> recovery; this function never trades."""
+    config = config or SignalConfig()
     if fair_price <= 0:
         raise ValueError("fair_price must be positive and independently sourced")
     if not (before.symbol == sweep.symbol == recovery.symbol):
