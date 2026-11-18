@@ -1,5 +1,6 @@
 """Read-only public market-data client; no private API or order methods."""
 from __future__ import annotations
+
 import json
 import time
 import urllib.error
