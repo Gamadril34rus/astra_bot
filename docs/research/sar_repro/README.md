@@ -26,7 +26,7 @@ python sar_backtest_engine.py --start 5000 --interval 15m --limit-total 36000 --
 - Exit timestamps: close_ts (or open on gap-through)  
 - Strict BingX fetch (HTTP/code/retry 100410/min bars)  
 - Warmup 50 bars; init_trend flag  
-- Funding still **0**
+- Historical BingX funding settlements are fetched and applied to each trade by side and settlement mark price
 
 ## Video reproduction baseline (2026-11-18)
 
@@ -38,7 +38,7 @@ Run a 15m crypto analogue with approximately one year of bars per symbol:
 python sar_backtest_engine.py --start 5000 --interval 15m --limit-total 36000 --out sar_repro_15m_out
 ```
 
-The existing `summary.json` is still the earlier 1h snapshot and is **not** a 15m result. Funding remains zero and must be added before profitability conclusions. Tests: `pytest -q docs/research/sar_repro/test_sar_backtest_engine.py`.
+The existing `summary.json` is still the earlier 1h snapshot and is **not** a 15m result. The engine now fetches historical BingX funding settlements for each symbol and applies the cashflow to trades open at each settlement, using settlement mark price and long/short direction. Funding coverage counts and first/last settlement timestamps are written to `summary.json`. Tests: `pytest -q docs/research/sar_repro/test_sar_backtest_engine.py docs/research/sar_repro/test_sar_funding.py`.
 
 ## Snapshot direction
 
