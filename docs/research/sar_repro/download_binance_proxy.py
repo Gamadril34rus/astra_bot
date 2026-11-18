@@ -287,11 +287,6 @@ def main():
         funding = download_funding(symbol, start_ms, end_ms, args.out, mark_prices)
         funding["mark_price_sources"] = mark_sources
         if funding["missing_mark_price"]:
-            missing_times = [
-                row["funding_time"]
-                for row in gzip.open(args.out / funding["file"], "rt", encoding="utf-8")
-                if False
-            ]
             raise RuntimeError(
                 f"{symbol}: {funding['missing_mark_price']} funding events lack mark-price joins"
             )
