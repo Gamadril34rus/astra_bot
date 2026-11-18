@@ -59,8 +59,15 @@ class BingXPublicClient:
     def recent_trades(self, symbol: str, limit: int = 1000) -> list[MarketTrade]:
         data = self._get(self.endpoints.bingx_base_url, "/openApi/swap/v2/quote/trades",
                          {"symbol": symbol, "limit": limit})
-        return [MarketTrade(int(r["time"]), float(r["price"]), float(r["qty"]),
-                            bool(r["buyerMaker"])) for r in data]
+        trades = []
+        for row in data:
+            buyer_maker = row.get("buyerMaker")
+            if not isinstance(buyer_maker, bool):
+                raise BingXPublicAPIError("trade buyerMaker must be a boolean")
+            trades.append(MarketTrade(
+                int(row["time"]), float(row["price"]), float(row["qty"]), buyer_maker
+            ))
+        return trades
 
     def premium_index(self, symbol: str) -> dict[str, Any]:
         data = self._get(self.endpoints.bingx_base_url, "/openApi/swap/v2/quote/premiumIndex",
