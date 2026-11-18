@@ -125,8 +125,8 @@ def download_klines(symbol: str, start_ms: int, end_ms: int, out: Path) -> dict:
                     ts = int(row[0])
                     if start_ms <= ts < end_ms:
                         if ts in rows:
-                        duplicate_rows += 1
-                    rows[ts] = row
+                            duplicate_rows += 1
+                        rows[ts] = row
                 sources.append({"url": url, "sha256": hashlib.sha256(blob).hexdigest()})
     ordered = [rows[key] for key in sorted(rows)]
     timestamps = sorted(rows)
