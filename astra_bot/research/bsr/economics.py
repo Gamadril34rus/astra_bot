@@ -2,6 +2,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 
+
 @dataclass(frozen=True, slots=True)
 class CostModel:
     maker_fee_rate: float = 0.0002
@@ -15,6 +16,7 @@ class CostModel:
             if getattr(self, name) < 0:
                 raise ValueError(f"{name} cannot be negative")
 
+
 def round_trip_cost_rate(model: CostModel, *, entry_maker: bool = True,
                          exit_maker: bool = True, include_funding: bool = True,
                          is_long: bool = True) -> float:
@@ -26,6 +28,7 @@ def round_trip_cost_rate(model: CostModel, *, entry_maker: bool = True,
         funding = -model.funding_rate
     return entry + exit_ + model.entry_slippage_rate + model.exit_slippage_rate + funding
 
+
 def net_pnl(*, notional: float, gross_return_rate: float, model: CostModel,
             entry_maker: bool = True, exit_maker: bool = True, is_long: bool = True) -> float:
     if notional <= 0:
@@ -33,6 +36,7 @@ def net_pnl(*, notional: float, gross_return_rate: float, model: CostModel,
     costs = round_trip_cost_rate(model, entry_maker=entry_maker, exit_maker=exit_maker,
                                  is_long=is_long)
     return notional * (gross_return_rate - costs)
+
 
 def position_quantity(*, equity: float, risk_fraction: float, entry_price: float,
                       stop_price: float, max_leverage: float, cost_rate: float) -> float:
