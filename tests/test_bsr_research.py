@@ -1,5 +1,6 @@
 """Unit tests for isolated BingX Sweep Reversion research math."""
 from __future__ import annotations
+
 import pytest
 
 from astra_bot.research.bsr.economics import (
