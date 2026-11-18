@@ -27,12 +27,25 @@ def test_positive_funding_is_paid_by_long_and_received_by_short():
     assert short["net_pnl_pct"] == 0.0211
 
 
-def test_settlement_at_entry_applies_but_at_exit_does_not():
+def test_settlements_at_entry_and_exit_are_excluded():
     events = [
         {"fundingTime": 1000, "fundingRate": 0.001, "markPrice": 100.0},
         {"fundingTime": 2000, "fundingRate": 0.001, "markPrice": 100.0},
     ]
     result = apply_funding_to_trades([_trade()], {"BTC-USDT": events})[0]
+    assert result["funding_events"] == 0
+    assert result["funding_pnl_pct"] == 0.0
+
+
+def test_intrabar_stop_uses_conservative_bar_open_funding_cutoff():
+    trade = _trade(entry=1000, exit_=2500)
+    trade["funding_cutoff_ts"] = 1500
+    events = [
+        {"fundingTime": 1200, "fundingRate": 0.001, "markPrice": 100.0},
+        {"fundingTime": 1500, "fundingRate": 0.001, "markPrice": 100.0},
+        {"fundingTime": 1800, "fundingRate": 0.001, "markPrice": 100.0},
+    ]
+    result = apply_funding_to_trades([trade], {"BTC-USDT": events})[0]
     assert result["funding_events"] == 1
     assert result["funding_pnl_pct"] == -0.001
 
