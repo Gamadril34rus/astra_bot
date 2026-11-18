@@ -6,6 +6,8 @@ on:
     paths:
       - "docs/research/sar_repro/download_binance_proxy.py"
       - "docs/research/sar_repro/sar_proxy_backtest.py"
+      - "docs/research/sar_repro/sar_backtest_engine.py"
+      - "docs/research/sar_repro/sar_funding.py"
       - ".github/workflows/sar-binance-proxy-data.yml"
   workflow_dispatch:
 
