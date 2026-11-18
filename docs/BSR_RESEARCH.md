@@ -34,12 +34,23 @@ or distinguish cancellation from execution.
 - economics.py: maker/taker fees, slippage, funding and risk-based sizing.
 - bingx_public.py: read-only public REST bootstrap for depth, trades,
   premium index, funding history, V3 klines and Binance spot ticker.
-- tests/test_bsr_research.py: deterministic feature and cost tests.
+- websocket_recorder.py: GZIP-aware public Swap WS recorder for incremental depth,
+  trades and mark price; persists raw normalized JSONL events.
+- scripts/bsr_capture.py: CLI entry point for the recorder.
+- tests/test_bsr_research.py: deterministic feature, cost and depth-state tests.
 
-REST is bootstrap only. Next stage requires BingX WebSocket depth/trade streams
-with sequence-gap detection, reconnect snapshots and timestamp synchronization.
-Binance spot must also be streamed and aligned; ticker polling is insufficient
-for event-level basis analysis.
+Run the read-only recorder with: python scripts/bsr_capture.py --output data/bsr/bingx_market.jsonl.
+It subscribes to {symbol}@incrDepth, {symbol}@trade and {symbol}@markPrice on
+wss://open-api-swap.bingx.com/swap-market. Frames are GZIP-decoded and Ping is
+answered with Pong. Local depth is unusable until an action=all snapshot arrives
+on the active connection; action=update quantities replace absolute quantities,
+zero deletes a level, and every disconnect invalidates the local book. The
+protocol does not guarantee consecutive lastUpdateId values or a checksum, so
+IDs are recorded but never treated as proof of completeness. After reconnect,
+wait for a fresh full snapshot before using depth again.
+
+REST is bootstrap only. Binance spot still needs a synchronized WebSocket
+stream; ticker polling is insufficient for event-level basis analysis.
 
 ## API semantics
 
