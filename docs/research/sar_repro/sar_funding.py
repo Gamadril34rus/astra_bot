@@ -3,8 +3,6 @@ import json
 import time
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
-
-
 FUNDING_URL = "https://open-api.bingx.com/openApi/swap/v2/quote/fundingRate"
 
 
