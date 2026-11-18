@@ -26,7 +26,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import requests
-
 from sar_funding import apply_funding_to_trades, fetch_funding_rates
 
 TAKER = 0.0005
