@@ -73,7 +73,7 @@ def daily_iter(start: date, end_exclusive: date):
         current += timedelta(days=1)
 
 
-def read_zip_rows(blob: bytes):
+def read_zip_rows(blob: bytes, min_columns: int = 12):
     with zipfile.ZipFile(io.BytesIO(blob)) as archive:
         names = [name for name in archive.namelist() if name.lower().endswith(".csv")]
         if len(names) != 1:
@@ -87,9 +87,9 @@ def read_zip_rows(blob: bytes):
                     int(row[0])
                 except (ValueError, IndexError):
                     continue  # CSV header
-                if len(row) < 12:
-                    raise RuntimeError(f"malformed kline row: {row}")
-                yield row[:12]
+                if len(row) < min_columns:
+                    raise RuntimeError(f"malformed archive row: {row}")
+                yield row
 
 
 def download_klines(symbol: str, start_ms: int, end_ms: int, out: Path) -> dict:
@@ -166,7 +166,7 @@ def download_mark_prices(symbol: str, start_ms: int, end_ms: int) -> tuple[dict[
         name = f"{symbol}-15m-{period}.zip"
         url = f"{BASE}/monthly/markPriceKlines/{symbol}/15m/{name}"
         blob = verified_zip(url)
-        for row in read_zip_rows(blob):
+        for row in read_zip_rows(blob, min_columns=5):
             ts = int(row[0])
             if start_ms <= ts < end_ms:
                 prices[ts] = row[1]
