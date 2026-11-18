@@ -23,7 +23,8 @@ class BingXPublicClient:
         self.endpoints = endpoints
         self.timeout_seconds = timeout_seconds
 
-    def _get(self, base_url: str, path: str, params: dict[str, Any]) -> Any:
+    def _get(self, base_url: str, path: str, params: dict[str, Any], *,
+             bingx_envelope: bool = True) -> Any:
         url = f"{base_url.rstrip('/')}{path}?{urllib.parse.urlencode(params)}"
         request = urllib.request.Request(url, headers={
             "Accept": "application/json", "User-Agent": "ASTRA-BSR-research/0.1"})
@@ -32,8 +33,12 @@ class BingXPublicClient:
                 payload = json.loads(response.read().decode("utf-8"))
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
             raise BingXPublicAPIError(f"market-data request failed: {exc}") from exc
-        if not isinstance(payload, dict) or payload.get("code") != 0:
-            raise BingXPublicAPIError(f"invalid/error API response: {payload!r}")
+        if not isinstance(payload, dict):
+            raise BingXPublicAPIError(f"invalid API response: {payload!r}")
+        if not bingx_envelope:
+            return payload
+        if payload.get("code") != 0:
+            raise BingXPublicAPIError(f"BingX API error: {payload!r}")
         return payload.get("data")
 
     def order_book(self, symbol: str, limit: int = 100) -> BookSnapshot:
@@ -77,5 +82,5 @@ class BingXPublicClient:
 
     def binance_spot_price(self, base_asset: str, quote_asset: str = "USDT") -> float:
         data = self._get(self.endpoints.binance_spot_base_url, "/api/v3/ticker/price",
-                         {"symbol": f"{base_asset}{quote_asset}"})
+                         {"symbol": f"{base_asset}{quote_asset}"}, bingx_envelope=False)
         return float(data["price"])
