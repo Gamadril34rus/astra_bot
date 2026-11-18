@@ -1,57 +1,35 @@
 {
-  "engine_version": "v2_no_lookahead_next_open_pf_usd",
-  "audit": "Prior PF 1.70 invalidated. See AUDIT_V2.md",
+  "engine_version": "v3_audit_fixes",
+  "audit_status": "P1 fixes applied; independent re-audit required before any param search",
   "symbols": ["BTC-USDT", "ETH-USDT", "SOL-USDT"],
   "interval": "1h",
-  "sar": {"start": 0.02, "increment": 0.02, "max": 0.2},
+  "sar": {"start": 0.02, "increment": 0.02, "max": 0.2, "init_trend": 1},
   "execution": {
     "signal": "trend flip on bar close",
     "entry": "next bar open",
-    "stop_for_bar_i": "sar[i-1] known at open",
-    "gap": "fill at open if gapped through stop"
+    "stop_for_bar_i": "sar[i-1]",
+    "eod": "force close at last completed bar",
+    "last_bar": "dropped as incomplete"
   },
   "cost_model": {
     "taker_fee_per_side": 0.0005,
     "slippage_per_side": 0.001,
+    "fees": "separate entry/exit notional",
+    "risk_sizing": "notional = risk*equity/(risk_dist+cost_buffer)",
+    "cost_buffer": 0.003,
     "funding": 0
   },
   "start_equity": 5000,
   "bars": {
-    "BTC-USDT": {"bars": 8992, "start": "2025-11-08T12:00:00+00:00", "end": "2026-11-18T03:00:00+00:00"},
-    "ETH-USDT": {"bars": 8992, "start": "2025-11-08T12:00:00+00:00", "end": "2026-11-18T03:00:00+00:00"},
-    "SOL-USDT": {"bars": 8992, "start": "2025-11-08T12:00:00+00:00", "end": "2026-11-18T03:00:00+00:00"}
+    "BTC-USDT": {"bars": 8991, "start": "2025-11-08T12:00:00+00:00", "end": "2026-11-18T02:00:00+00:00", "gaps": 0},
+    "ETH-USDT": {"bars": 8991, "start": "2025-11-08T12:00:00+00:00", "end": "2026-11-18T02:00:00+00:00", "gaps": 0},
+    "SOL-USDT": {"bars": 8991, "start": "2025-11-08T12:00:00+00:00", "end": "2026-11-18T02:00:00+00:00", "gaps": 0}
   },
-  "raw_trade_count": 2060,
+  "raw_trade_count": 2063,
+  "eod_force_close": 3,
   "profiles": {
-    "risk_1pct_cap3": {
-      "final_equity": 111.35,
-      "return_pct": -97.77,
-      "max_dd_pct": -98.52,
-      "trades": 2060,
-      "winrate_pct": 31.17,
-      "profit_factor_usd": 0.765,
-      "avg_net_bps": -20.63
-    },
-    "risk_1_5pct_cap6": {
-      "final_equity": 12.01,
-      "return_pct": -99.76,
-      "max_dd_pct": -99.9,
-      "trades": 2060,
-      "profit_factor_usd": 0.791
-    },
-    "risk_2pct_cap8": {
-      "final_equity": 1.04,
-      "return_pct": -99.98,
-      "max_dd_pct": -100.0,
-      "trades": 2060,
-      "profit_factor_usd": 0.809
-    },
-    "risk_3pct_cap12": {
-      "final_equity": 0.0,
-      "return_pct": -100.0,
-      "max_dd_pct": -100.0,
-      "trades": 2060,
-      "profit_factor_usd": 0.835
-    }
+    "risk_1pct_cap3": {"final_equity": 402.91, "return_pct": -91.94, "max_dd_pct": -93.85, "trades": 2063, "winrate_pct": 31.17, "profit_factor_usd": 0.761},
+    "risk_1_5pct_cap6": {"final_equity": 96.59, "return_pct": -98.07, "max_dd_pct": -98.67, "trades": 2063, "profit_factor_usd": 0.775},
+    "risk_2pct_cap8": {"final_equity": 20.92, "return_pct": -99.58, "max_dd_pct": -99.74, "trades": 2063, "profit_factor_usd": 0.788}
   }
 }
