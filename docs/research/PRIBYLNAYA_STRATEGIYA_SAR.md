@@ -20,7 +20,7 @@
 | Snapshot метрик | [`docs/research/sar_repro/summary.json`](sar_repro/summary.json) |
 | Сделки / equity CSV | генерируются командой `python sar_backtest_engine.py --start 5000` |
 
-**Cost model (как demo-бот):** fee **0.05%** + slip **0.1%** на сторону. Funding = 0 в скрипте.  
+**Cost model (как demo-бот):** fee **0.05%** + slip **0.1%** на сторону. Funding: исторические расчёты BingX учитываются по стороне позиции и mark price; покрытие отражается в summary.  
 Старые прогоны со slip **0.03%** завышали доходность — не использовать.
 
 ### Исторический snapshot (НЕ использовать как подтверждённый результат)
