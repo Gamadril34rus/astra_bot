@@ -193,12 +193,9 @@ def main() -> None:
     breakdown = grouped_metrics(baseline_frame, ["symbol", "side"])
     pd.DataFrame(breakdown).to_csv(args.out_dir / "baseline_symbol_side.csv", index=False)
 
-    start = pd.Timestamp(manifest_start := json.loads(
-        (args.data_dir / "manifest.json").read_text(encoding="utf-8")
-    )["start_utc"])
-    end = pd.Timestamp(json.loads(
-        (args.data_dir / "manifest.json").read_text(encoding="utf-8")
-    )["end_utc_exclusive"])
+    manifest = json.loads((args.data_dir / "manifest.json").read_text(encoding="utf-8"))
+    start = pd.Timestamp(manifest["start_utc"])
+    end = pd.Timestamp(manifest["end_utc_exclusive"])
     days = (end - start).days
     cut_60 = start + pd.Timedelta(days=round(days * 0.6))
     cut_80 = start + pd.Timedelta(days=round(days * 0.8))
