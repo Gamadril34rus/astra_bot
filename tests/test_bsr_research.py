@@ -10,6 +10,7 @@ from astra_bot.research.bsr.economics import (
 )
 from astra_bot.research.bsr.features import book_metrics, evaluate_signal, trade_flow
 from astra_bot.research.bsr.models import BookSnapshot, MarketTrade, SignalConfig
+from astra_bot.research.bsr.websocket_recorder import DepthBookState
 
 def _book(ts: int, mid: float, bid_depth: float, ask_depth: float) -> BookSnapshot:
     bid, ask = mid * 0.9999, mid * 1.0001
@@ -71,3 +72,27 @@ def test_invalid_fair_price_is_rejected():
         evaluate_signal(before=book, sweep=_book(2000, 99, 50_000, 100_000),
                         recovery=_book(3000, 99.5, 90_000, 40_000), trades=[],
                         fair_price=0, now_ms=3100)
+
+
+def test_incremental_depth_waits_for_full_snapshot():
+    state = DepthBookState()
+    update = {"action": "update", "bids": [["100", "2"]], "asks": [["101", "3"]]}
+    assert state.apply(update) is False
+    assert state.synchronized is False
+    snapshot = {"action": "all", "lastUpdateId": 10,
+                "bids": [["100", "2"]], "asks": [["101", "3"]]}
+    assert state.apply(snapshot) is True
+    assert state.bids == {100.0: 2.0}
+    update = {"action": "update", "lastUpdateId": 12,
+              "bids": [["100", "0"], ["99", "4"]], "asks": [["101", "5"]]}
+    assert state.apply(update) is True
+    assert state.bids == {99.0: 4.0}
+    assert state.asks == {101.0: 5.0}
+
+
+def test_crossed_incremental_book_is_invalidated():
+    state = DepthBookState()
+    state.apply({"action": "all", "bids": [["100", "2"]], "asks": [["101", "3"]]})
+    assert state.apply({"action": "update", "bids": [["102", "2"]], "asks": []}) is False
+    assert state.synchronized is False
+    assert state.bids == {}
