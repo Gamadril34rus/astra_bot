@@ -1,4 +1,5 @@
 """Historical BingX perpetual funding collection and trade-level accounting."""
+import json
 import time
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -13,8 +14,6 @@ class _HttpResponse:
         self._body = body
 
     def json(self) -> dict:
-        import json
-
         return json.loads(self._body)
 
 
