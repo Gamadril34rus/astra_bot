@@ -89,3 +89,32 @@ def test_session_profile_is_applied_before_exit_and_stop_management():
     assert applied < parity < ensure
     assert applied < dead_tp < partial_be
     assert "trigger_r=_sp.be_trigger_r if _sp is not None else None" in src
+
+
+def test_live_clock_client_is_closed_in_finally() -> None:
+    tree = ast.parse(CLOCK.read_text(encoding="utf-8"))
+    one_tick = next(
+        node for node in tree.body
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "one_tick"
+    )
+    outer_try = next(node for node in one_tick.body if isinstance(node, ast.Try))
+    assert any(
+        isinstance(node, ast.Await)
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Attribute)
+        and isinstance(node.value.func.value, ast.Name)
+        and node.value.func.value.id == "client"
+        and node.value.func.attr == "close"
+        for stmt in outer_try.finalbody
+        for node in ast.walk(stmt)
+    ), "BingX client.close() must run from one_tick's finally block"
+    assert any(
+        isinstance(node, ast.Await)
+        and isinstance(node.value, ast.Call)
+        and isinstance(node.value.func, ast.Attribute)
+        and isinstance(node.value.func.value, ast.Name)
+        and node.value.func.value.id == "client"
+        and node.value.func.attr == "initialize"
+        for stmt in outer_try.body
+        for node in ast.walk(stmt)
+    ), "client initialization must be covered by the cleanup finally"
