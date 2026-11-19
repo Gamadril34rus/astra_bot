@@ -68,7 +68,13 @@
       "opened_at_ms": 1795125775238,
       "plan_qty": "237.29211978",
       "qty_ratio": 1.0,
-      "tp1": "70.92215370"
+      "tp1": "70.92215370",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "72.436",
+      "be_earned": true,
+      "current_regime": "WEAK_BEAR_TREND"
     },
     "HYPE-USDT|short": {
       "symbol": "HYPE-USDT",
@@ -87,8 +93,14 @@
       "opened_at_ms": 1795125781831,
       "plan_qty": "187.67171967",
       "qty_ratio": 1.0,
-      "tp1": "64.25104930"
+      "tp1": "64.25104930",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "66.194",
+      "be_earned": true,
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1795125781.8314354
+  "ts": 1795126055.796848
 }
