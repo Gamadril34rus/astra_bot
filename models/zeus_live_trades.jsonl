@@ -3127,3 +3127,4 @@
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2123468406874791936", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795116729.901283, "environment": "VST"}
 {"event": "leverage_reconcile", "symbol": "BTC-USDT", "side": "short", "old_leverage": 5, "exchange_leverage": 6, "source": "bingx_position", "signal_id": "zeus_channel_boundary|BTC-USDT|short|1795089600000", "ts": 1795117002.8116977, "environment": "VST"}
 {"event": "qty_reconcile", "symbol": "BTC-USDT", "side": "short", "old_qty": 0.7944, "new_qty": 0.5561, "rel_diff": 0.299975, "signal_id": "zeus_channel_boundary|BTC-USDT|short|1795089600000", "ts": 1795117913.5157225, "environment": "VST"}
+{"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2123499591806050304", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795118207.4118013, "environment": "VST"}
