@@ -21,6 +21,8 @@ jobs:
     name: Capture public BingX and Binance feeds
     runs-on: ubuntu-latest
     timeout-minutes: 75
+    env:
+      PYTHONPATH: ${{ github.workspace }}
     steps:
       - name: Validate duration
         shell: bash
