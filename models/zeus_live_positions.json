@@ -3,11 +3,11 @@
     "BTC-USDT|short": {
       "symbol": "BTC-USDT",
       "side": "short",
-      "qty": "0.7948",
-      "stop": "62883.85320",
-      "tp": "62465.5587",
+      "qty": 0.5563,
+      "stop": "62652.7205",
+      "tp": "62064.5615",
       "entry": "62946.8",
-      "leverage": 5,
+      "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|BTC-USDT|short|1795075200000",
       "ts": 1795107742.0140796,
@@ -17,9 +17,14 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "tp_frac": "0.3",
-      "peak_low": "62626.2",
+      "peak_low": "62322.9",
       "current_regime": "STRONG_BEAR_TREND",
-      "tp1": "62465.5587"
+      "tp1": "62465.5587",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true,
+      "runner_tp_rr": 1.5,
+      "runner_tp_healed_v1": true
     },
     "HYPE-USDT|short": {
       "symbol": "HYPE-USDT",
@@ -38,8 +43,33 @@
       "opened_at_ms": 1795107771983,
       "plan_qty": "741.98287503",
       "qty_ratio": 1.0,
-      "tp1": "66.915291"
+      "tp1": "66.915291",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "67.075",
+      "be_earned": true,
+      "current_regime": "RANGE"
+    },
+    "ETH-USDT|short": {
+      "symbol": "ETH-USDT",
+      "side": "short",
+      "qty": "28.54207101",
+      "stop": "1769.318",
+      "tp": "1739.5374",
+      "entry": "1752.49",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|ETH-USDT|short|1795089600000",
+      "ts": 1795108038.1686811,
+      "be_moved": false,
+      "initial_stop": "1769.318",
+      "tp_frac": "0.3",
+      "opened_at_ms": 1795108038168,
+      "plan_qty": "28.54207101",
+      "qty_ratio": 1.0,
+      "tp1": "1739.5374"
     }
   },
-  "ts": 1795107771.9840043
+  "ts": 1795108038.16871
 }
