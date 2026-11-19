@@ -1,6 +1,7 @@
 """Immutable BSR research data models."""
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Literal
 
@@ -17,8 +18,16 @@ class BookSnapshot:
             raise ValueError("symbol and positive timestamp_ms are required")
         if not self.bids or not self.asks:
             raise ValueError("both order-book sides must be non-empty")
-        if any(p <= 0 or q <= 0 for p, q in (*self.bids, *self.asks)):
-            raise ValueError("book prices and quantities must be positive")
+        levels = (*self.bids, *self.asks)
+        if any(not math.isfinite(p) or not math.isfinite(q) or p <= 0 or q <= 0
+               for p, q in levels):
+            raise ValueError("book prices and quantities must be finite and positive")
+        if any(self.bids[i][0] <= self.bids[i + 1][0]
+               for i in range(len(self.bids) - 1)):
+            raise ValueError("bids must be strictly descending")
+        if any(self.asks[i][0] >= self.asks[i + 1][0]
+               for i in range(len(self.asks) - 1)):
+            raise ValueError("asks must be strictly ascending")
         if self.bids[0][0] >= self.asks[0][0]:
             raise ValueError("crossed or locked order book")
 
@@ -30,8 +39,11 @@ class MarketTrade:
     quantity: float
     buyer_maker: bool
     def __post_init__(self) -> None:
-        if min(self.timestamp_ms, self.price, self.quantity) <= 0:
-            raise ValueError("trade timestamp, price and quantity must be positive")
+        if (self.timestamp_ms <= 0 or not math.isfinite(self.price)
+                or not math.isfinite(self.quantity) or self.price <= 0 or self.quantity <= 0):
+            raise ValueError("trade timestamp, price and quantity must be finite and positive")
+        if not isinstance(self.buyer_maker, bool):
+            raise ValueError("buyer_maker must be a boolean")
 
 
 @dataclass(frozen=True, slots=True)
