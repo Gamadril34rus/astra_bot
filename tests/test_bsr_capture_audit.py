@@ -25,6 +25,14 @@ def test_audit_reports_latency_percentiles_and_clean_capture(tmp_path):
         },
         {
             "venue": "bingx_swap",
+            "kind": "trade",
+            "symbol": "BTC-USDT",
+            "trade_id": "bingx-1",
+            "exchange_time_ms": 1_000,
+            "received_at_ms": 1_130,
+        },
+        {
+            "venue": "bingx_swap",
             "kind": "depth",
             "symbol": "BTC-USDT",
             "synchronized": True,
@@ -43,11 +51,13 @@ def test_audit_reports_latency_percentiles_and_clean_capture(tmp_path):
 
     assert report["totals"]["lines"] == 2
     assert report["latency_ms"] == {
-        "count": 1,
+        "count": 2,
         "p50": 120.0,
-        "p95": 120.0,
-        "p99": 120.0,
+        "p95": 130.0,
+        "p99": 130.0,
     }
+    assert report["totals"]["bingx_swap_trade_records"] == 1
+    assert report["totals"]["binance_spot_trade_records"] == 1
     assert report["totals"]["depth_snapshots"] == 1
     assert report["ready_for_downstream_filtering"] is True
 
@@ -217,3 +227,56 @@ def test_audit_readiness_fails_on_depth_timestamp_or_parse_errors(tmp_path):
     assert report["totals"]["depth_invalid_timestamps"] == 1
     assert report["totals"]["parse_error_records"] == 1
     assert report["ready_for_downstream_filtering"] is False
+
+
+
+def test_audit_readiness_requires_both_venue_trade_feeds_and_all_files(tmp_path):
+    path = tmp_path / "binance-only.jsonl"
+    _write_jsonl(path, [
+        {
+            "venue": "binance_spot",
+            "kind": "trade",
+            "symbol": "BTCUSDT",
+            "trade_id": "1",
+            "exchange_time_ms": 1_000,
+            "received_at_ms": 1_100,
+        },
+        {
+            "venue": "bingx_swap",
+            "kind": "depth",
+            "symbol": "BTC-USDT",
+            "synchronized": True,
+            "received_at_ms": 1_100,
+            "payload": {
+                "action": "all",
+                "lastUpdateId": 1,
+                "T": 1_000,
+                "bids": [["100", "1"]],
+                "asks": [["101", "1"]],
+            },
+        },
+    ])
+
+    report = audit_capture_files([path, tmp_path / "missing-binance.jsonl"])
+
+    assert report["totals"]["binance_spot_trade_records"] == 1
+    assert report["totals"]["bingx_swap_trade_records"] == 0
+    assert report["ready_for_downstream_filtering"] is False
+
+
+def test_audit_rejects_fractional_timestamp_values(tmp_path):
+    path = tmp_path / "fractional-timestamp.jsonl"
+    _write_jsonl(path, [
+        {
+            "venue": "binance_spot",
+            "kind": "trade",
+            "symbol": "BTCUSDT",
+            "trade_id": "1",
+            "exchange_time_ms": 1000.5,
+            "received_at_ms": 1100,
+        },
+    ])
+
+    report = audit_capture_files([path])
+
+    assert report["totals"]["invalid_timestamps"] == 1
