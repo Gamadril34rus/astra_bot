@@ -46,6 +46,7 @@ def audit_capture_files(
         "files": [],
         "totals": {
             "lines": 0,
+            "trade_records": 0,
             "malformed_lines": 0,
             "duplicate_trades": 0,
             "invalid_timestamps": 0,
@@ -126,6 +127,7 @@ def audit_capture_files(
                 kinds[kind] += 1
 
                 if kind == "trade":
+                    totals["trade_records"] += 1
                     stats["trades"] += 1
                     trade_id = str(row.get("trade_id") or "")
                     if trade_id:
@@ -226,7 +228,11 @@ def audit_capture_files(
         totals["lines"] > 0
         and totals["malformed_lines"] == 0
         and totals["depth_snapshots"] > 0
+        and totals["trade_records"] > 0
+        and totals["duplicate_trades"] == 0
+        and totals["invalid_timestamps"] == 0
         and totals["late_trades"] == 0
         and totals["negative_latency"] == 0
+        and totals["depth_sequence_errors"] == 0
     )
     return report
