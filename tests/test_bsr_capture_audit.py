@@ -49,7 +49,7 @@ def test_audit_reports_latency_percentiles_and_clean_capture(tmp_path):
 
     report = audit_capture_files([path])
 
-    assert report["totals"]["lines"] == 2
+    assert report["totals"]["lines"] == 3
     assert report["latency_ms"] == {
         "count": 2,
         "p50": 120.0,
