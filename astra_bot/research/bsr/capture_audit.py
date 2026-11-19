@@ -47,6 +47,11 @@ def audit_capture_files(
         "totals": {
             "lines": 0,
             "trade_records": 0,
+            "depth_timestamp_records": 0,
+            "depth_invalid_timestamps": 0,
+            "depth_negative_latency": 0,
+            "depth_late_messages": 0,
+            "parse_error_records": 0,
             "malformed_lines": 0,
             "duplicate_trades": 0,
             "invalid_timestamps": 0,
@@ -73,6 +78,10 @@ def audit_capture_files(
             "depth_snapshots": 0,
             "depth_updates": 0,
             "depth_unsynchronized": 0,
+            "depth_timestamp_invalid": 0,
+            "depth_negative_latency": 0,
+            "depth_late_messages": 0,
+            "parse_error_records": 0,
             "duplicate_trades": 0,
             "invalid_timestamps": 0,
             "late_trades": 0,
@@ -80,6 +89,7 @@ def audit_capture_files(
         }
     )
     depth_state: dict[tuple[str, str], int | None] = {}
+    depth_latency_values: list[float] = []
 
     for raw_path in paths:
         path = Path(raw_path)
@@ -125,6 +135,9 @@ def audit_capture_files(
                 stats = grouped[key]
                 stats["records"] += 1
                 kinds[kind] += 1
+                if kind in {"parse_error", "unparsed"}:
+                    totals["parse_error_records"] += 1
+                    stats["parse_error_records"] += 1
 
                 if kind == "trade":
                     totals["trade_records"] += 1
@@ -164,6 +177,25 @@ def audit_capture_files(
 
                 elif kind == "depth":
                     state_key = (venue, symbol)
+                    payload = row.get("payload")
+                    depth_exchange_ts = _positive_int(
+                        payload.get("T") if isinstance(payload, dict) else None
+                    )
+                    depth_receive_ts = _positive_int(row.get("received_at_ms"))
+                    if depth_exchange_ts is None or depth_receive_ts is None:
+                        totals["depth_invalid_timestamps"] += 1
+                        stats["depth_timestamp_invalid"] += 1
+                    else:
+                        totals["depth_timestamp_records"] += 1
+                        depth_latency = depth_receive_ts - depth_exchange_ts
+                        if depth_latency < 0:
+                            totals["depth_negative_latency"] += 1
+                            stats["depth_negative_latency"] += 1
+                        else:
+                            depth_latency_values.append(float(depth_latency))
+                            if depth_latency > max_latency_ms:
+                                totals["depth_late_messages"] += 1
+                                stats["depth_late_messages"] += 1
                     payload = row.get("payload")
                     action = payload.get("action") if isinstance(payload, dict) else None
                     update_id = _positive_int(
@@ -218,6 +250,12 @@ def audit_capture_files(
         }
         for key, stats in sorted(grouped.items())
     }
+    report["depth_message_age_ms"] = {
+        "count": len(depth_latency_values),
+        "p50": _percentile(depth_latency_values, 0.50),
+        "p95": _percentile(depth_latency_values, 0.95),
+        "p99": _percentile(depth_latency_values, 0.99),
+    }
     report["latency_ms"] = {
         "count": len(latency_values),
         "p50": _percentile(latency_values, 0.50),
@@ -229,6 +267,12 @@ def audit_capture_files(
         and totals["malformed_lines"] == 0
         and totals["depth_snapshots"] > 0
         and totals["trade_records"] > 0
+        and totals["parse_error_records"] == 0
+        and totals["depth_timestamp_records"] > 0
+        and totals["depth_invalid_timestamps"] == 0
+        and totals["depth_negative_latency"] == 0
+        and totals["depth_late_messages"] == 0
+        and totals["depth_unsynchronized"] == 0
         and totals["duplicate_trades"] == 0
         and totals["invalid_timestamps"] == 0
         and totals["late_trades"] == 0
