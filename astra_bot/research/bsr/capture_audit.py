@@ -25,9 +25,11 @@ def _percentile(values: list[float], percentile: float) -> float | None:
 def _positive_int(value: Any) -> int | None:
     if isinstance(value, bool):
         return None
-    try:
+    if isinstance(value, int):
+        parsed = value
+    elif isinstance(value, str) and value.isdecimal():
         parsed = int(value)
-    except (TypeError, ValueError, OverflowError):
+    else:
         return None
     return parsed if parsed > 0 else None
 
@@ -48,6 +50,8 @@ def audit_capture_files(
         "totals": {
             "lines": 0,
             "trade_records": 0,
+            "bingx_swap_trade_records": 0,
+            "binance_spot_trade_records": 0,
             "depth_timestamp_records": 0,
             "depth_invalid_timestamps": 0,
             "depth_negative_latency": 0,
@@ -142,6 +146,10 @@ def audit_capture_files(
 
                 if kind == "trade":
                     totals["trade_records"] += 1
+                    if venue == "bingx_swap":
+                        totals["bingx_swap_trade_records"] += 1
+                    elif venue == "binance_spot":
+                        totals["binance_spot_trade_records"] += 1
                     stats["trades"] += 1
                     trade_id = str(row.get("trade_id") or "")
                     if trade_id:
@@ -265,6 +273,9 @@ def audit_capture_files(
     }
     report["ready_for_downstream_filtering"] = (
         totals["lines"] > 0
+        and all(item["exists"] for item in report["files"])
+        and totals["bingx_swap_trade_records"] > 0
+        and totals["binance_spot_trade_records"] > 0
         and totals["malformed_lines"] == 0
         and totals["depth_snapshots"] > 0
         and totals["trade_records"] > 0
