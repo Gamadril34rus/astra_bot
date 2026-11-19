@@ -31,7 +31,8 @@ or distinguish cancellation from execution.
 - models.py: immutable market-data and signal types.
 - features.py: notional depth, spread, OBI, trade-flow imbalance, depth
   drawdown/recovery and deterministic candidate score.
-- economics.py: maker/taker fees, slippage, funding and risk-based sizing.
+- economics.py: maker/taker fees, slippage, signed funding (positive means
+  long pays, negative means short pays) and risk-based sizing.
 - bingx_public.py: read-only public REST bootstrap for depth, trades,
   premium index, funding history, V3 klines and Binance spot ticker.
 - websocket_recorder.py: GZIP-aware public BingX Swap WS recorder for incremental
