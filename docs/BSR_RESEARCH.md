@@ -32,7 +32,7 @@ or distinguish cancellation from execution.
 - features.py: notional depth, spread, OBI, trade-flow imbalance, depth
   drawdown/recovery and deterministic candidate score.
 - economics.py: maker/taker fees, slippage, signed funding (positive means
-  long pays, negative means short pays) and risk-based sizing.
+  long pays, negative means short pays) and risk-based sizing. `net_pnl` supports timestamped funding settlements so a position is charged only for settlements it crosses; the legacy single-rate field remains a fallback.
 - bingx_public.py: read-only public REST bootstrap for depth, trades,
   premium index, funding history, V3 klines and Binance spot ticker.
 - websocket_recorder.py: GZIP-aware public BingX Swap WS recorder for incremental
@@ -105,7 +105,7 @@ symbols at high frequency with REST.
 Initial fee defaults are assumptions, not verified account rates: Maker 2 bps
 and Taker 5 bps per side. Replace them with the effective account/contract fee
 schedule and actual fill fees. Slippage is separate. Funding sign is
-position-dependent and must be joined by actual settlement timestamp.
+position-dependent and must be joined by actual settlement timestamp. The event-aware PnL path sums `fundingRate` records in the open-position interval `(entry, exit]`; callers must pass one symbol's funding history only. It applies the summed rate to the supplied notional as a constant-notional approximation. For precise cash-flow reconstruction, use actual position quantity and mark price at each settlement.
 
 Position sizing uses stop distance plus round-trip cost reserve and caps
 notional at equity times leverage. It does not change Zeus risk or leverage.
