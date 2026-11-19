@@ -43,6 +43,7 @@ or distinguish cancellation from execution.
   Binance Spot print; future spot events are never used and stale matches are excluded.
 - scripts/bsr_capture.py: runs both venue recorders concurrently; writes separate
   BingX and Binance JSONL files.
+- capture_audit.py and scripts/bsr_audit.py: read-only JSONL integrity audit; reports malformed byte offsets, duplicate trade IDs, exchange-to-receive latency percentiles, late/negative timestamps and depth sequence gaps. Original capture bytes are never changed.
 - tests/test_bsr_research.py: deterministic feature, cost and depth-state tests.
 
 Run both read-only recorders with: python scripts/bsr_capture.py --output data/bsr/bingx_market.jsonl.
@@ -63,6 +64,18 @@ each BingX print is matched only to the latest Binance print at or before it,
 with a configurable maximum age. It never uses future spot observations. Measure
 local clock offset and feed latency before interpreting basis lead/lag. Spot trade
 prints are not a spot order book, so they cannot substitute for spot depth.
+
+Audit both files without modifying them:
+
+`python scripts/bsr_audit.py --bingx data/bsr/bingx_market.jsonl --binance data/bsr/bingx_market_binance_spot.jsonl --output data/bsr/capture_audit.json`
+
+The report records malformed line byte offsets, duplicate `(venue, symbol, trade_id)`
+keys, trade receive latency p50/p95/p99, negative/late timestamps, and depth
+snapshot/update sequence continuity. `ready_for_downstream_filtering` is a
+conservative precondition, not a claim that the data is statistically valid or
+that any trading edge exists. Inspect per-symbol metrics and exclude individual
+invalid windows even when the overall precondition is true. Keep raw JSONL
+immutable and store audit output separately.
 
 The capture files are raw research evidence, not a ready-to-train dataset. Before
 an event window is admitted, align exchange timestamps, quantify receive-time
