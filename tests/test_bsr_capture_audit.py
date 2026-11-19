@@ -28,9 +28,11 @@ def test_audit_reports_latency_percentiles_and_clean_capture(tmp_path):
             "kind": "depth",
             "symbol": "BTC-USDT",
             "synchronized": True,
+            "received_at_ms": 1_150,
             "payload": {
                 "action": "all",
                 "lastUpdateId": 10,
+                "T": 1_000,
                 "bids": [["100", "2"]],
                 "asks": [["101", "3"]],
             },
@@ -145,4 +147,73 @@ def test_audit_missing_file_is_reported_not_treated_as_empty_success(tmp_path):
     report = audit_capture_files([tmp_path / "missing.jsonl"])
 
     assert report["files"][0]["exists"] is False
+    assert report["ready_for_downstream_filtering"] is False
+
+
+
+def test_audit_reports_depth_message_age_separately(tmp_path):
+    path = tmp_path / "depth-age.jsonl"
+    _write_jsonl(path, [
+        {
+            "venue": "bingx_swap",
+            "kind": "depth",
+            "symbol": "BTC-USDT",
+            "received_at_ms": 1_350,
+            "synchronized": True,
+            "payload": {
+                "action": "all",
+                "lastUpdateId": 1,
+                "T": 1_100,
+                "bids": [["100", "1"]],
+                "asks": [["101", "1"]],
+            },
+        },
+        {
+            "venue": "bingx_swap",
+            "kind": "trade",
+            "symbol": "BTC-USDT",
+            "trade_id": "1",
+            "exchange_time_ms": 1_000,
+            "received_at_ms": 1_100,
+        },
+    ])
+
+    report = audit_capture_files([path], max_latency_ms=500)
+
+    assert report["depth_message_age_ms"] == {
+        "count": 1,
+        "p50": 250.0,
+        "p95": 250.0,
+        "p99": 250.0,
+    }
+    assert report["latency_ms"]["p50"] == 100.0
+
+
+def test_audit_readiness_fails_on_depth_timestamp_or_parse_errors(tmp_path):
+    path = tmp_path / "bad-depth.jsonl"
+    _write_jsonl(path, [
+        {
+            "venue": "bingx_swap",
+            "kind": "depth",
+            "symbol": "BTC-USDT",
+            "received_at_ms": 1_200,
+            "synchronized": True,
+            "payload": {
+                "action": "all",
+                "lastUpdateId": 1,
+                "bids": [["100", "1"]],
+                "asks": [["101", "1"]],
+            },
+        },
+        {
+            "venue": "binance_spot",
+            "kind": "parse_error",
+            "received_at_ms": 1_200,
+        },
+    ])
+
+    report = audit_capture_files([path])
+
+    assert report["totals"]["depth_invalid_timestamps"] == 1
+    assert report["totals"]["parse_error_records"] == 1
     assert report["ready_for_downstream_filtering"] is False
