@@ -5,6 +5,9 @@ import math
 
 import pytest
 
+from astra_bot.research.bsr.basis import align_cross_venue_trades
+from astra_bot.research.bsr.binance_spot_recorder import BinanceSpotRecorder
+from astra_bot.research.bsr.bingx_public import BingXPublicAPIError, BingXPublicClient
 from astra_bot.research.bsr.economics import (
     CostModel,
     net_pnl,
@@ -12,9 +15,6 @@ from astra_bot.research.bsr.economics import (
     round_trip_cost_rate,
 )
 from astra_bot.research.bsr.features import book_metrics, evaluate_signal, trade_flow
-from astra_bot.research.bsr.basis import align_cross_venue_trades
-from astra_bot.research.bsr.binance_spot_recorder import BinanceSpotRecorder
-from astra_bot.research.bsr.bingx_public import BingXPublicAPIError, BingXPublicClient
 from astra_bot.research.bsr.models import BookSnapshot, MarketTrade, SignalConfig
 from astra_bot.research.bsr.websocket_recorder import DepthBookState
 
