@@ -1,6 +1,7 @@
 """Fee-aware BSR sizing and net-return calculations."""
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 
@@ -10,13 +11,16 @@ class CostModel:
     taker_fee_rate: float = 0.0005
     entry_slippage_rate: float = 0.0001
     exit_slippage_rate: float = 0.0001
+    # Signed exchange funding rate: positive => long pays; negative => short pays.
     funding_rate: float = 0.0
-    funding_paid_by_long: bool = True
 
     def __post_init__(self) -> None:
         for name in ("maker_fee_rate", "taker_fee_rate", "entry_slippage_rate", "exit_slippage_rate"):
-            if getattr(self, name) < 0:
-                raise ValueError(f"{name} cannot be negative")
+            value = getattr(self, name)
+            if not math.isfinite(value) or value < 0:
+                raise ValueError(f"{name} must be finite and non-negative")
+        if not math.isfinite(self.funding_rate):
+            raise ValueError("funding_rate must be finite")
 
 
 def round_trip_cost_rate(model: CostModel, *, entry_maker: bool = True,
@@ -24,10 +28,7 @@ def round_trip_cost_rate(model: CostModel, *, entry_maker: bool = True,
                          is_long: bool = True) -> float:
     entry = model.maker_fee_rate if entry_maker else model.taker_fee_rate
     exit_ = model.maker_fee_rate if exit_maker else model.taker_fee_rate
-    pays_funding = is_long == model.funding_paid_by_long
-    funding = model.funding_rate if include_funding and pays_funding else 0.0
-    if include_funding and not pays_funding:
-        funding = -model.funding_rate
+    funding = (model.funding_rate if is_long else -model.funding_rate) if include_funding else 0.0
     return entry + exit_ + model.entry_slippage_rate + model.exit_slippage_rate + funding
 
 
