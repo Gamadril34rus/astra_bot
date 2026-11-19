@@ -2666,13 +2666,24 @@ async def _maybe_send_digest(
 
 
 async def one_tick(*, dry: bool = False) -> int:
+    """Run one VST tick and always release its HTTP resources."""
     _guard()
     from astra_bot.adapters.bingx.client_live import LiveBingXClient
-    from astra_bot.decision.live_broker import LiveBroker, LiveBrokerConfig
-    from astra_bot.decision.live_commands import apply_pending
 
     client = LiveBingXClient({})
-    await client.initialize()
+    try:
+        await client.initialize()
+        return await _one_tick_with_client(client, dry=dry)
+    finally:
+        try:
+            await client.close()
+        except Exception as close_exc:
+            logger.warning("BingX client close failed: %s", type(close_exc).__name__)
+
+
+async def _one_tick_with_client(client, *, dry: bool = False) -> int:
+    from astra_bot.decision.live_broker import LiveBroker, LiveBrokerConfig
+    from astra_bot.decision.live_commands import apply_pending
 
     _max_lev = 10
     try:
@@ -3141,9 +3152,6 @@ async def one_tick(*, dry: bool = False) -> int:
     except Exception as _dig_exc:
         logger.warning("live_digest tick FAILED: %s", type(_dig_exc).__name__)
 
-    session = getattr(client, "_session", None)
-    if session is not None:
-        await session.close()
     return 0
 
 
