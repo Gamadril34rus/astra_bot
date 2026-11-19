@@ -46,7 +46,7 @@ or distinguish cancellation from execution.
 - capture_audit.py and scripts/bsr_audit.py: read-only JSONL integrity audit; reports malformed byte offsets, duplicate trade IDs, exchange-to-receive latency percentiles, late/negative timestamps and depth sequence gaps. Original capture bytes are never changed.
 - tests/test_bsr_research.py: deterministic feature, cost and depth-state tests.
 
-Run both read-only recorders with: python scripts/bsr_capture.py --output data/bsr/bingx_market.jsonl.
+Run both read-only recorders with: `python scripts/bsr_capture.py --output data/bsr/bingx_market.jsonl`. Add `--duration-seconds 3600` for a bounded one-hour capture; omit it to run until interrupted. The bounded mode cancels both recorder tasks and closes their WebSocket sessions at the deadline. Capture duration is a wall-clock limit, not a guarantee of complete market coverage.
 BingX Swap events go to the requested file; Binance Spot trades go to the sibling
 file named bingx_market_binance_spot.jsonl. Both use the same five symbol names.
 It subscribes to {symbol}@incrDepth, {symbol}@trade and {symbol}@markPrice on
