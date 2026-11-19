@@ -63,6 +63,12 @@ with a configurable maximum age. It never uses future spot observations. Measure
 local clock offset and feed latency before interpreting basis lead/lag. Spot trade
 prints are not a spot order book, so they cannot substitute for spot depth.
 
+The capture files are raw research evidence, not a ready-to-train dataset. Before
+an event window is admitted, align exchange timestamps, quantify receive-time
+latency and cross-venue clock skew, reject stale or sequence-invalid books, and
+deduplicate trade IDs. Keep the original JSONL immutable; derived samples should
+record source offsets, join age and exclusion reasons for reproducibility.
+
 ## API semantics
 
 - Swap V2 depth: /openApi/swap/v2/quote/depth.
