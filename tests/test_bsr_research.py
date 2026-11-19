@@ -65,6 +65,15 @@ def test_maker_maker_cost_is_four_bps_before_slippage():
     assert round_trip_cost_rate(model) == pytest.approx(0.0004)
 
 
+def test_signed_funding_rate_is_charged_to_correct_side():
+    model = CostModel(entry_slippage_rate=0, exit_slippage_rate=0, funding_rate=0.001)
+    assert round_trip_cost_rate(model, is_long=True) == pytest.approx(0.0014)
+    assert round_trip_cost_rate(model, is_long=False) == pytest.approx(-0.0006)
+    negative = CostModel(entry_slippage_rate=0, exit_slippage_rate=0, funding_rate=-0.001)
+    assert round_trip_cost_rate(negative, is_long=True) == pytest.approx(-0.0006)
+    assert round_trip_cost_rate(negative, is_long=False) == pytest.approx(0.0014)
+
+
 def test_taker_taker_cost_is_ten_bps_before_slippage():
     model = CostModel(entry_slippage_rate=0, exit_slippage_rate=0)
     assert round_trip_cost_rate(model, entry_maker=False, exit_maker=False) == pytest.approx(0.001)
@@ -201,3 +210,16 @@ def test_basis_join_rejects_stale_or_future_only_spot_data():
     future = [{"symbol": "ETHUSDT", "exchange_time_ms": 6_000, "price": "2_001"}]
     assert align_cross_venue_trades(perp, stale, max_spot_age_ms=999) == []
     assert align_cross_venue_trades(perp, future, max_spot_age_ms=10_000) == []
+
+
+
+def test_book_snapshot_rejects_unsorted_levels_and_non_finite_values():
+    with pytest.raises(ValueError, match="descending"):
+        BookSnapshot("BTC-USDT", 1, ((99, 1), (100, 1)), ((101, 1),))
+    with pytest.raises(ValueError, match="finite"):
+        BookSnapshot("BTC-USDT", 1, ((math.nan, 1),), ((101, 1),))
+
+
+def test_market_trade_rejects_non_boolean_aggressor_flag():
+    with pytest.raises(ValueError, match="buyer_maker"):
+        MarketTrade(1, 100, 1, "false")
