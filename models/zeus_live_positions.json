@@ -50,7 +50,45 @@
       "initial_stop_v1": true,
       "early_tp1": true,
       "early_tp_repair_v1": true
+    },
+    "SOL-USDT|short": {
+      "symbol": "SOL-USDT",
+      "side": "short",
+      "qty": "237.29211978",
+      "stop": "75.758214",
+      "tp": "70.92215370",
+      "entry": "72.414",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_multi_top_breakdown|SOL-USDT|short|1795122000000",
+      "ts": 1795125775.2389636,
+      "be_moved": false,
+      "initial_stop": "75.758214",
+      "tp_frac": "0.3",
+      "opened_at_ms": 1795125775238,
+      "plan_qty": "237.29211978",
+      "qty_ratio": 1.0,
+      "tp1": "70.92215370"
+    },
+    "HYPE-USDT|short": {
+      "symbol": "HYPE-USDT",
+      "side": "short",
+      "qty": "187.67171967",
+      "stop": "70.363446",
+      "tp": "64.25104930",
+      "entry": "66.082",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_multi_top_breakdown|HYPE-USDT|short|1795122000000",
+      "ts": 1795125781.8314142,
+      "be_moved": false,
+      "initial_stop": "70.363446",
+      "tp_frac": "0.3",
+      "opened_at_ms": 1795125781831,
+      "plan_qty": "187.67171967",
+      "qty_ratio": 1.0,
+      "tp1": "64.25104930"
     }
   },
-  "ts": 1795125411.5166903
+  "ts": 1795125781.8314354
 }
