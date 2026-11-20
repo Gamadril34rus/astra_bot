@@ -46,7 +46,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: clt-bingx-market-data-\${{ github.sha }}
+          name: clt-bingx-market-data-${{ github.sha }}
           path: reports/clt_bingx_market_data/
           if-no-files-found: warn
           retention-days: 30
