@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from scripts.research.clt_event_model import detect_clt_events, inventory_deltas
 
 
