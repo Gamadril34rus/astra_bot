@@ -1,18 +1,7 @@
 name: CLT BingX public market data
 
 on:
-  push:
-    branches: [research/crowd-liquidity-trap]
-    paths:
-      - "scripts/research/clt_bingx_market_data.py"
-      - "tests/research/test_clt_bingx_market_data.py"
-      - ".github/workflows/clt-bingx-market-data.yml"
-  pull_request:
-    branches: [master]
-    paths:
-      - "scripts/research/clt_bingx_market_data.py"
-      - "tests/research/test_clt_bingx_market_data.py"
-      - ".github/workflows/clt-bingx-market-data.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
