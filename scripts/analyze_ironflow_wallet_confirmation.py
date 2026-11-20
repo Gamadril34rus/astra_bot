@@ -220,6 +220,27 @@ def analyze(
                             + INTERVAL '{minutes} minutes'
                         WHERE b.close > 0 AND f.close > 0
                         GROUP BY b.market
+                    ),
+                    regime_baseline AS (
+                        SELECT b.market,
+                            avg(100.0 * (f.close / b.close - 1.0))
+                                AS regime_baseline_return_pct
+                        FROM bars b
+                        INNER JOIN bars p1
+                          ON p1.market = b.market
+                         AND p1.bucket_ts = b.bucket_ts - INTERVAL '60 minutes'
+                        INNER JOIN bars p4
+                          ON p4.market = b.market
+                         AND p4.bucket_ts = b.bucket_ts - INTERVAL '240 minutes'
+                        INNER JOIN bars f
+                          ON f.market = b.market
+                         AND f.bucket_ts = b.bucket_ts
+                            + INTERVAL '{minutes} minutes'
+                        WHERE b.close > 0 AND p1.close > 0
+                          AND p4.close > 0 AND f.close > 0
+                          AND b.close > p1.close
+                          AND b.close < p4.close
+                        GROUP BY b.market
                     )
                     SELECT
                         s.market,
@@ -228,6 +249,11 @@ def analyze(
                         avg(abs(s.signal_value)) AS mean_abs_signal_value,
                         avg(s.raw_return_pct) AS mean_raw_return_pct,
                         avg(b.baseline_return_pct) AS baseline_return_pct,
+                        avg(rb.regime_baseline_return_pct)
+                            AS regime_baseline_return_pct,
+                        avg(s.directional_return_pct)
+                            - s.signal_side * avg(rb.regime_baseline_return_pct)
+                            AS excess_vs_regime_pct,
                         avg(s.directional_return_pct)
                             AS mean_directional_return_pct,
                         avg(s.directional_return_pct)
@@ -242,6 +268,7 @@ def analyze(
                         min(s.gap_minutes) AS min_gap_minutes
                     FROM selected_with_gap s
                     INNER JOIN baseline b ON b.market = s.market
+                    LEFT JOIN regime_baseline rb ON rb.market = s.market
                     GROUP BY s.market, s.signal_side
                     ORDER BY s.market, s.signal_side
                 """
@@ -283,7 +310,28 @@ def analyze(
                                 + INTERVAL '{minutes} minutes'
                             WHERE b.close > 0 AND f.close > 0
                             GROUP BY b.market
-                        )
+                        ),
+                    regime_baseline AS (
+                        SELECT b.market,
+                            avg(100.0 * (f.close / b.close - 1.0))
+                                AS regime_baseline_return_pct
+                        FROM bars b
+                        INNER JOIN bars p1
+                          ON p1.market = b.market
+                         AND p1.bucket_ts = b.bucket_ts - INTERVAL '60 minutes'
+                        INNER JOIN bars p4
+                          ON p4.market = b.market
+                         AND p4.bucket_ts = b.bucket_ts - INTERVAL '240 minutes'
+                        INNER JOIN bars f
+                          ON f.market = b.market
+                         AND f.bucket_ts = b.bucket_ts
+                            + INTERVAL '{minutes} minutes'
+                        WHERE b.close > 0 AND p1.close > 0
+                          AND p4.close > 0 AND f.close > 0
+                          AND b.close > p1.close
+                          AND b.close < p4.close
+                        GROUP BY b.market
+                    )
                         SELECT
                             s.market,
                             CAST(s.bucket_ts AS VARCHAR) AS bucket_ts,
@@ -294,11 +342,16 @@ def analyze(
                             s.raw_return_pct,
                             s.directional_return_pct,
                             b.baseline_return_pct,
+                            rb.regime_baseline_return_pct,
                             s.directional_return_pct
                                 - s.signal_side * b.baseline_return_pct
-                                AS excess_directional_return_pct
+                                AS excess_directional_return_pct,
+                            s.directional_return_pct
+                                - s.signal_side * rb.regime_baseline_return_pct
+                                AS excess_vs_regime_pct
                         FROM selected s
                         INNER JOIN baseline b ON b.market = s.market
+                        LEFT JOIN regime_baseline rb ON rb.market = s.market
                         ORDER BY s.market, s.bucket_ts
                     """
                     event_result = con.execute(event_query)
@@ -330,6 +383,14 @@ def analyze(
                             "baseline_return_pct": float(
                                 event_row["baseline_return_pct"]
                             ),
+                            "regime_baseline_return_pct": (
+                                float(event_row["regime_baseline_return_pct"])
+                                if event_row["regime_baseline_return_pct"] is not None else None
+                            ),
+                            "excess_vs_regime_pct": (
+                                float(event_row["excess_vs_regime_pct"])
+                                if event_row["excess_vs_regime_pct"] is not None else None
+                            ),
                             "excess_directional_return_pct": float(
                                 event_row["excess_directional_return_pct"]
                             ),
@@ -354,6 +415,14 @@ def analyze(
                         ),
                         "mean_raw_return_pct": float(side_row["mean_raw_return_pct"]),
                         "baseline_return_pct": float(side_row["baseline_return_pct"]),
+                        "regime_baseline_return_pct": (
+                            float(side_row["regime_baseline_return_pct"])
+                            if side_row["regime_baseline_return_pct"] is not None else None
+                        ),
+                        "excess_vs_regime_pct": (
+                            float(side_row["excess_vs_regime_pct"])
+                            if side_row["excess_vs_regime_pct"] is not None else None
+                        ),
                         "excess_directional_return_pct": float(
                             side_row["excess_directional_return_pct"]
                         ),
@@ -421,7 +490,8 @@ def analyze(
     side_fields = [
         "horizon", "metric", "sample_type", "market", "signal_side",
         "observations", "mean_abs_signal_value", "mean_raw_return_pct",
-        "baseline_return_pct", "excess_directional_return_pct",
+        "baseline_return_pct", "regime_baseline_return_pct",
+        "excess_vs_regime_pct", "excess_directional_return_pct",
         "mean_directional_return_pct", "median_directional_return_pct",
         "directional_hit_rate_pct", "min_gap_minutes",
     ]
@@ -435,7 +505,8 @@ def analyze(
         "horizon", "metric", "market", "bucket_ts", "signal_side",
         "signal_value", "prior_1h_return_pct", "prior_4h_return_pct",
         "raw_return_pct", "directional_return_pct", "baseline_return_pct",
-        "excess_directional_return_pct",
+        "regime_baseline_return_pct", "excess_directional_return_pct",
+        "excess_vs_regime_pct",
     ]
     with event_csv_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=event_fields)
