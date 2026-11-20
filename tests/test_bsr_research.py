@@ -73,6 +73,39 @@ def test_signed_funding_rate_is_charged_to_correct_side():
     assert round_trip_cost_rate(negative, is_long=False) == pytest.approx(0.0014)
 
 
+def test_funding_events_charge_only_settlements_crossed_by_position():
+    events = [
+        {"fundingTime": 1_000, "fundingRate": "0.01"},
+        {"fundingTime": 2_000, "fundingRate": "0.001"},
+        {"fundingTime": 3_000, "fundingRate": "-0.0005"},
+        {"fundingTime": 4_000, "fundingRate": "0.02"},
+    ]
+    model = CostModel(maker_fee_rate=0, entry_slippage_rate=0, exit_slippage_rate=0)
+    # Entry exactly at 1,000 is excluded; settlements at 2,000 and 3,000 apply.
+    assert net_pnl(notional=10_000, gross_return_rate=0, model=model,
+                   funding_events=events, entry_time_ms=1_000,
+                   exit_time_ms=3_000, is_long=True) == pytest.approx(-5.0)
+    assert net_pnl(notional=10_000, gross_return_rate=0, model=model,
+                   funding_events=events, entry_time_ms=1_000,
+                   exit_time_ms=3_000, is_long=False) == pytest.approx(5.0)
+
+
+def test_funding_event_cost_requires_valid_window_and_unique_timestamps():
+    model = CostModel()
+    with pytest.raises(ValueError, match="entry_time_ms"):
+        net_pnl(notional=1_000, gross_return_rate=0, model=model,
+                funding_events=[], entry_time_ms=1_000)
+    with pytest.raises(ValueError, match="duplicate fundingTime"):
+        net_pnl(notional=1_000, gross_return_rate=0, model=model,
+                funding_events=[{"fundingTime": 2_000, "fundingRate": "0.001"},
+                                {"fundingTime": 2_000, "fundingRate": "0.001"}],
+                entry_time_ms=1_000, exit_time_ms=3_000)
+    with pytest.raises(ValueError, match="fundingRate"):
+        net_pnl(notional=1_000, gross_return_rate=0, model=model,
+                funding_events=[{"fundingTime": 2_000, "fundingRate": "nan"}],
+                entry_time_ms=1_000, exit_time_ms=3_000)
+
+
 def test_taker_taker_cost_is_ten_bps_before_slippage():
     model = CostModel(entry_slippage_rate=0, exit_slippage_rate=0)
     assert round_trip_cost_rate(model, entry_maker=False, exit_maker=False) == pytest.approx(0.001)
