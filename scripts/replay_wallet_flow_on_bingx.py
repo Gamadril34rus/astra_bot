@@ -248,7 +248,7 @@ def replay(events_path: Path, bingx_dir: Path, out_dir: Path) -> dict[str, Any]:
     baseline_rows: list[dict[str, Any]] = []
     data_quality: dict[str, dict[str, Any]] = {}
     window_start = events["bucket_ts"].min() + pd.Timedelta(minutes=15)
-    window_end = events["bucket_ts"].max() + pd.Timedelta(minutes=15)
+    window_end = events["bucket_ts"].max() + pd.Timedelta(minutes=30, microseconds=1)
 
     for market, symbol in SYMBOLS.items():
         market_events = events.loc[events["market"] == market].sort_values("bucket_ts")
@@ -294,25 +294,16 @@ def replay(events_path: Path, bingx_dir: Path, out_dir: Path) -> dict[str, Any]:
         # Price-only matched-regime baseline, sampled without overlapping 9h windows.
         eligible_times = bars.index[(bars.index >= window_start) & (bars.index < window_end)]
         for entry_time in eligible_times:
-            context_time = entry_time - BAR
-            if context_time not in bars.index:
-                continue
-            context_pos = bars.index.get_loc(context_time)
-            if context_pos < 8:
-                continue
-            context_close = float(bars.iloc[context_pos]["close"])
-            prior_1h = 100.0 * (
-                context_close / float(bars.iloc[context_pos - 2]["close"]) - 1.0
-            )
-            prior_4h = 100.0 * (
-                context_close / float(bars.iloc[context_pos - 8]["close"]) - 1.0
-            )
+            # Matched price-only control: assume the same conservative 15m
+            # signal-to-entry delay as the coarsest candidate events.
+            pseudo_signal_close = entry_time - pd.Timedelta(minutes=15)
+            prior_1h, prior_4h, _ = _context(bars, pseudo_signal_close)
             if not (prior_1h > 0 and prior_4h < 0):
                 continue
             row = _make_trade(
                 bars, funding, cadence,
                 entry_time=entry_time,
-                signal_time=None,
+                signal_time=pseudo_signal_close,
                 signal_value=None,
                 prior_1h=prior_1h,
                 prior_4h=prior_4h,
