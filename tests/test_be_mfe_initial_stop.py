@@ -3,9 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from decimal import Decimal
-from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock
 
 from astra_bot.decision.live_broker import LiveBroker
 from astra_bot.decision.live_positions import load_positions, upsert_plan
@@ -96,7 +94,6 @@ def test_mfe_uses_initial_not_tight_stop(tmp_path, monkeypatch):
     ticks = [j for j in journals if j.get("event") == "be_mark_tick"]
     assert ticks, "expected be_mark_tick journal"
     assert abs(float(ticks[0]["mfe_r"]) - 0.3) < 0.05
-
 
 
 def test_exit_mfe_uses_persisted_peak_high_for_long():
