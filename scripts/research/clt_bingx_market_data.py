@@ -26,7 +26,11 @@ def public_get(path: str, params: dict[str, Any], *, timeout: int = 20) -> Any:
     query = urlencode(params)
     request = Request(
         f"{BASE_URL}{path}?{query}",
-        headers={"Accept": "application/json", "User-Agent": "ASTRA-CLT-research/0.1"},
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "ASTRA-CLT-research/0.1",
+            "X-SOURCE-KEY": "BX-AI-SKILL",
+        },
     )
     for attempt in range(4):
         try:
