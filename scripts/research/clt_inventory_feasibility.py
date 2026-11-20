@@ -214,6 +214,7 @@ def audit(
 
     wallet_market_fills: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     wallet_stats = []
+    incomplete_addresses: set[str] = set()
     total_pages = total_api_fills = total_twap_fills = 0
     for wallet in selected:
         rows, stats = fetch_wallet_history(
@@ -222,6 +223,8 @@ def audit(
         total_pages += stats["pages"]
         total_api_fills += stats["api_fills"]
         total_twap_fills += stats["twap_fills"]
+        if stats["api_cap_reached"] or stats["twap_cap_reached"] or stats["page_boundary_collision"]:
+            incomplete_addresses.add(wallet["address"])
         wallet_stats.append({
             "manifest_fills": wallet["manifest_fills"],
             "returned_api_fills": stats["api_fills"],
@@ -249,7 +252,7 @@ def audit(
             int(fill.get("tid") or fill.get("oid") or 0),
         ))
         previous_after: float | None = None
-        market_continuous = True
+        market_continuous = key[0] not in incomplete_addresses
         for fill in fills:
             try:
                 timestamp = int(fill["time"])
@@ -277,6 +280,7 @@ def audit(
             }
             if direction not in known_directions:
                 unknown_direction_labels += 1
+                market_continuous = False
             else:
                 if split["open_long_usd"] > 0 and split["close_short_usd"] > 0:
                     expected_direction = "Short > Long"
