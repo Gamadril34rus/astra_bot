@@ -4,6 +4,7 @@ import json
 
 from scripts.research.clt_inventory_feasibility import (
     MAX_FILLS_PER_ADDRESS,
+    count_net_add_wallets,
     order_timestamp_group,
     possible_direction_labels,
     select_wallets,
@@ -171,3 +172,25 @@ def test_market_cohort_split_requires_three_distinct_crowd_wallets():
     assert cohorts["small"] == {"a", "b", "c"}
     assert cohorts["large"] == {"e", "f"}
     assert cohorts["small"].isdisjoint(cohorts["large"])
+
+
+
+def test_crowd_wallet_count_uses_net_inventory_add_not_any_open_fill():
+    values = {
+        "small_long_net_wallet_a": 100.0,
+        "small_long_net_wallet_b": -20.0,
+        "small_long_net_wallet_c": 0.0,
+        "small_long_net_wallet_d": 30.0,
+        "large_short_net_wallet_e": 90.0,
+    }
+    assert count_net_add_wallets(values, cohort="small", direction="long") == 2
+    assert count_net_add_wallets(values, cohort="large", direction="short") == 1
+
+
+def test_net_add_wallet_count_rejects_unknown_cohort_or_direction():
+    try:
+        count_net_add_wallets({}, cohort="retail", direction="long")
+    except ValueError as exc:
+        assert "cohort" in str(exc)
+    else:
+        raise AssertionError("unknown cohort must fail")
