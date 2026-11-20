@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from scripts.research.clt_inventory_feasibility import (
     MAX_FILLS_PER_ADDRESS,
     order_timestamp_group,
@@ -111,3 +113,46 @@ def test_order_timestamp_group_rejects_ambiguous_parallel_edges():
         {"startPosition": "0.0", "sz": "2.0", "side": "B"},
     ]
     assert order_timestamp_group(fills) is None
+
+
+
+def test_public_leaderboard_sampling_is_stratified_and_deterministic(tmp_path):
+    rows = []
+    for index in range(100):
+        rows.append({
+            "ethAddress": f"0x{index + 1:040x}",
+            "accountValue": "1000",
+            "windowPerformances": [
+                ["day", {"pnl": "1", "roi": "0.1", "vlm": "100"}],
+                ["month", {"pnl": "10", "roi": "0.2", "vlm": str(index + 1)}],
+            ],
+        })
+    path = tmp_path / "leaderboard.json"
+    path.write_text(json.dumps({"leaderboardRows": rows}), encoding="utf-8")
+    first = select_wallets(path, max_wallets=10)
+    second = select_wallets(path, max_wallets=10)
+    assert first == second
+    assert len(first) == 10
+    assert all(row["manifest_fills"] is None for row in first)
+    assert len({row["address"] for row in first}) == 10
+
+
+def test_public_leaderboard_ignores_zero_volume_and_bad_addresses(tmp_path):
+    path = tmp_path / "leaderboard.json"
+    path.write_text(json.dumps({"leaderboardRows": [
+        {
+            "ethAddress": "0x" + "1" * 40,
+            "windowPerformances": [["month", {"vlm": "0"}]],
+        },
+        {
+            "ethAddress": "not-an-address",
+            "windowPerformances": [["month", {"vlm": "100"}]],
+        },
+        {
+            "ethAddress": "0x" + "2" * 40,
+            "windowPerformances": [["month", {"vlm": "100"}]],
+        },
+    ]}), encoding="utf-8")
+    selected = select_wallets(path, max_wallets=10)
+    assert len(selected) == 1
+    assert selected[0]["month_volume"] == 100.0
