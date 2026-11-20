@@ -9,7 +9,7 @@ Does a repeatable sequence predict a 30-minute to 9-hour move on BingX USDT-M pe
 
 1. A broad cohort of smaller participants materially increases LONG or SHORT inventory.
 2. After that build begins, a separately classified large-participant cohort materially increases the opposite inventory. Closing an existing position is not an opening/addition.
-3. In a later 15m bucket, the crowd continues adding after the large opposite addition; same-bucket ordering is not assumed.
+3. In a later 15m bucket, at least three small-cohort wallets continue adding after the large opposite addition; same-bucket ordering is not assumed.
 4. Before the break candle, price makes weak progress in the crowd's direction relative to prior-only volatility (absorption proxy).
 5. A subsequent completed 15m candle breaks the relevant prior swing structure, with closed 1h context available only as a filter/regime descriptor.
 6. Entry is at the next 15m bar open. No prediction of a whale entry and no intrabar look-ahead.
