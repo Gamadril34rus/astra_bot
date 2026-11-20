@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from scripts.research.clt_market_context import (
     HOUR_MS,
     attach_closed_1h_context,
