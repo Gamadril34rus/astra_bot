@@ -1,0 +1,166 @@
+#!/usr/bin/env python3
+"""Causal event labels for Crowd Liquidity Trap research.
+
+Input rows must already contain explicit, direction-aware cohort inventory deltas.
+This module does not infer position changes from raw buy/sell prints.
+"""
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from math import isfinite
+from typing import Any
+
+INVENTORY_FIELDS = (
+    "open_long_usd",
+    "close_long_usd",
+    "open_short_usd",
+    "close_short_usd",
+)
+
+
+def inventory_deltas(fill_totals: Mapping[str, float]) -> tuple[float, float]:
+    """Return (long_inventory_delta, short_inventory_delta) from explicit fill directions."""
+    missing = [key for key in INVENTORY_FIELDS if key not in fill_totals]
+    if missing:
+        raise ValueError(f"missing explicit direction totals: {', '.join(missing)}")
+    values = [float(fill_totals[key]) for key in INVENTORY_FIELDS]
+    if any(not isfinite(value) or value < 0 for value in values):
+        raise ValueError("fill notionals must be finite and non-negative")
+    open_long, close_long, open_short, close_short = values
+    return open_long - close_long, open_short - close_short
+
+
+def _number(row: Mapping[str, Any], key: str) -> float:
+    value = float(row[key])
+    if not isfinite(value):
+        raise ValueError(f"{key} must be finite")
+    return value
+
+
+def _sum(rows: Sequence[Mapping[str, Any]], start: int, end: int, key: str) -> float:
+    return sum(_number(row, key) for row in rows[start:end])
+
+
+def detect_clt_events(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    min_crowd_add_usd: float,
+    min_large_add_usd: float,
+    min_continued_crowd_add_usd: float,
+    max_crowd_progress_pct: float,
+    crowd_window_bars: int = 8,
+    max_lag_bars: int = 8,
+    swing_lookback_bars: int = 8,
+    cooldown_bars: int = 36,
+) -> list[dict[str, Any]]:
+    """Detect non-overlapping CLT structure-break events from normalized 15m rows.
+
+    Each row requires ts, open, high, low, close and four cohort inventory-delta
+    fields: crowd_long_delta_usd, crowd_short_delta_usd,
+    large_long_delta_usd, large_short_delta_usd.
+
+    Signal is known only after the current bar closes; entry is next bar open.
+    Direction is +1 LONG and -1 SHORT. No event is emitted without a next bar.
+    """
+    if min(rows and 1 or 0, 1) < 0:  # keep empty input valid without special casing below
+        raise ValueError("invalid input")
+    if min_crowd_add_usd <= 0 or min_large_add_usd <= 0:
+        raise ValueError("inventory thresholds must be positive")
+    if min_continued_crowd_add_usd < 0 or max_crowd_progress_pct < 0:
+        raise ValueError("progress and continuation thresholds cannot be negative")
+    if min(crowd_window_bars, max_lag_bars, swing_lookback_bars, cooldown_bars) < 1:
+        raise ValueError("bar windows must be positive")
+
+    required = (
+        "ts", "open", "high", "low", "close",
+        "crowd_long_delta_usd", "crowd_short_delta_usd",
+        "large_long_delta_usd", "large_short_delta_usd",
+    )
+    previous_ts = None
+    for row in rows:
+        missing = [key for key in required if key not in row]
+        if missing:
+            raise ValueError(f"row missing fields: {', '.join(missing)}")
+        if previous_ts is not None and row["ts"] <= previous_ts:
+            raise ValueError("rows must be strictly chronological")
+        previous_ts = row["ts"]
+        for key in ("open", "high", "low", "close"):
+            if _number(row, key) <= 0:
+                raise ValueError(f"{key} must be positive")
+
+    events: list[dict[str, Any]] = []
+    last_event_index = -cooldown_bars - 1
+    for signal_index in range(len(rows) - 1):
+        if signal_index - last_event_index <= cooldown_bars:
+            continue
+        swing_start = max(0, signal_index - swing_lookback_bars)
+        if signal_index - swing_start < swing_lookback_bars:
+            continue
+        prior_lows = [_number(row, "low") for row in rows[swing_start:signal_index]]
+        prior_highs = [_number(row, "high") for row in rows[swing_start:signal_index]]
+        close = _number(rows[signal_index], "close")
+
+        found = None
+        search_start = max(0, signal_index - max_lag_bars - crowd_window_bars)
+        for crowd_start in range(search_start, signal_index):
+            crowd_end = min(signal_index, crowd_start + crowd_window_bars)
+            for crowd_direction in (1, -1):
+                crowd_key = (
+                    "crowd_long_delta_usd" if crowd_direction == 1
+                    else "crowd_short_delta_usd"
+                )
+                large_key = (
+                    "large_short_delta_usd" if crowd_direction == 1
+                    else "large_long_delta_usd"
+                )
+                crowd_build = 0.0
+                for large_start in range(crowd_start + 1, min(crowd_end, signal_index)):
+                    crowd_build += _number(rows[large_start - 1], crowd_key)
+                    if crowd_build < min_crowd_add_usd:
+                        continue
+                    large_add = _sum(rows, large_start, signal_index, large_key)
+                    if large_add < min_large_add_usd:
+                        continue
+                    continued_add = _sum(rows, large_start, signal_index, crowd_key)
+                    if continued_add < min_continued_crowd_add_usd:
+                        continue
+
+                    start_close = _number(rows[crowd_start], "close")
+                    progress_pct = crowd_direction * (close / start_close - 1.0) * 100.0
+                    if progress_pct > max_crowd_progress_pct:
+                        continue
+
+                    structure_broken = (
+                        close < min(prior_lows) if crowd_direction == 1
+                        else close > max(prior_highs)
+                    )
+                    if not structure_broken:
+                        continue
+
+                    found = {
+                        "signal_ts": rows[signal_index]["ts"],
+                        "entry_ts": rows[signal_index + 1]["ts"],
+                        "entry_price": _number(rows[signal_index + 1], "open"),
+                        "signal_index": signal_index,
+                        "entry_index": signal_index + 1,
+                        "direction": -crowd_direction,
+                        "setup": "crowd_long_trap" if crowd_direction == 1
+                            else "crowd_short_trap",
+                        "crowd_build_usd": round(crowd_build, 2),
+                        "large_opposite_add_usd": round(large_add, 2),
+                        "continued_crowd_add_usd": round(continued_add, 2),
+                        "crowd_directional_progress_pct": round(progress_pct, 6),
+                        "prior_swing_low": min(prior_lows),
+                        "prior_swing_high": max(prior_highs),
+                    }
+                    break
+                if found:
+                    break
+            if found:
+                break
+
+        if found:
+            events.append(found)
+            last_event_index = signal_index
+
+    return events
