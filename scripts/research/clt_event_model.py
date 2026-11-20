@@ -48,9 +48,9 @@ def detect_clt_events(
     min_large_add_usd: float,
     min_continued_crowd_add_usd: float,
     max_crowd_progress_z: float,
-    crowd_window_bars: int = 8,
-    max_lag_bars: int = 8,
-    max_confirmation_bars: int = 8,
+    crowd_window_bars: int = 12,
+    max_lag_bars: int = 12,
+    max_confirmation_bars: int = 12,
     swing_lookback_bars: int = 8,
     cooldown_bars: int = 36,
     min_crowd_active_wallets: int = 3,
@@ -75,8 +75,8 @@ def detect_clt_events(
         swing_lookback_bars, cooldown_bars,
     ) < 1:
         raise ValueError("bar windows must be positive")
-    if max(crowd_window_bars, max_lag_bars, max_confirmation_bars) > 8:
-        raise ValueError("rolling participant coverage is limited to 8 prior bars")
+    if max(crowd_window_bars, max_lag_bars, max_confirmation_bars) > 12:
+        raise ValueError("rolling participant coverage is limited to 12 prior bars")
     if min(min_crowd_active_wallets, min_large_active_wallets) < 1:
         raise ValueError("active wallet thresholds must be positive")
 
@@ -95,7 +95,7 @@ def detect_clt_events(
         f"{cohort}_{direction}_add_wallets_prev_{window}"
         for cohort in ("small", "large")
         for direction in ("long", "short")
-        for window in range(1, max(crowd_window_bars, max_lag_bars) + 1)
+        for window in range(1, max(crowd_window_bars, max_lag_bars, max_confirmation_bars) + 1)
     ]
     required = required + tuple(rolling_participant_fields)
     previous_ts = None
