@@ -1,0 +1,75 @@
+from __future__ import annotations
+
+from scripts.research.clt_inventory_feasibility import (
+    MAX_FILLS_PER_ADDRESS,
+    select_wallets,
+    split_fill_inventory,
+)
+
+
+def test_buy_from_flat_opens_long():
+    result = split_fill_inventory(0.0, "B", 2.0, 100.0)
+    assert result["open_long_usd"] == 200.0
+    assert result["close_short_usd"] == 0.0
+    assert result["position_after"] == 2.0
+
+
+def test_buy_against_short_closes_then_flips_to_long():
+    result = split_fill_inventory(-2.0, "B", 3.0, 100.0)
+    assert result["close_short_usd"] == 200.0
+    assert result["open_long_usd"] == 100.0
+    assert result["position_after"] == 1.0
+
+
+def test_sell_against_long_closes_then_flips_to_short():
+    result = split_fill_inventory(2.0, "A", 3.0, 100.0)
+    assert result["close_long_usd"] == 200.0
+    assert result["open_short_usd"] == 100.0
+    assert result["position_after"] == -1.0
+
+
+def test_add_and_reduce_existing_short():
+    add = split_fill_inventory(-2.0, "A", 1.0, 50.0)
+    close = split_fill_inventory(-2.0, "B", 1.0, 50.0)
+    assert add["open_short_usd"] == 50.0
+    assert close["close_short_usd"] == 50.0
+
+
+def test_invalid_fill_values_fail_closed():
+    try:
+        split_fill_inventory(0.0, "B", 0.0, 100.0)
+    except ValueError as exc:
+        assert "positive" in str(exc)
+    else:
+        raise AssertionError("zero-size fill must fail")
+
+
+def test_wallet_selection_respects_public_api_history_ceiling(tmp_path):
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        """
+        {
+          "wallet_summaries": [
+            {
+              "address": "0x1111111111111111111111111111111111111111",
+              "native_perp_fills": 10001,
+              "top_markets_by_notional": [{"market": "BTC-PERP"}]
+            },
+            {
+              "address": "0x2222222222222222222222222222222222222222",
+              "native_perp_fills": 10000,
+              "top_markets_by_notional": [{"market": "ETH-PERP"}]
+            },
+            {
+              "address": "0x3333333333333333333333333333333333333333",
+              "native_perp_fills": 0,
+              "top_markets_by_notional": [{"market": "SOL-PERP"}]
+            }
+          ]
+        }
+        """,
+        encoding="utf-8",
+    )
+    selected = select_wallets(manifest, max_wallets=10)
+    assert len(selected) == 1
+    assert selected[0]["manifest_fills"] == MAX_FILLS_PER_ADDRESS
