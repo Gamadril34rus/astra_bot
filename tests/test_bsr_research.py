@@ -7,7 +7,7 @@ import math
 import pytest
 from astra_bot.research.bsr.basis import align_cross_venue_trades
 from astra_bot.research.bsr.binance_spot_recorder import BinanceSpotRecorder
-from astra_bot.research.bsr.bingx_public import BingXPublicAPIError, BingXPublicClient
+from astra_bot.research.bsr.bingx_public import BingXPublicAPIError, BingXPublicClient, PublicEndpoints
 from astra_bot.research.bsr.economics import (
     CostModel,
     net_pnl,
@@ -189,6 +189,10 @@ def test_crossed_incremental_book_is_invalidated():
     assert state.synchronized is False
     assert state.bids == {}
 
+
+
+def test_binance_spot_rest_uses_public_market_data_only_endpoint():
+    assert PublicEndpoints().binance_spot_base_url == "https://data-api.binance.vision"
 
 
 def test_binance_spot_stream_uses_public_market_data_only_endpoint():
