@@ -574,7 +574,7 @@ def audit(
         "window_end_utc": end.isoformat(),
         "calibration_days": CALIBRATION_DAYS,
         "cohort_definition": (
-            "Within the selected low-fill-count leaderboard sample, each market's "
+            "Within the selected leaderboard sample, each market's "
             "small cohort is the lower half and large cohort the upper quartile "
             "of median position notional measured only during the first 7 days. "
             "This is relative sizing, not a representative retail/whale census."
@@ -610,8 +610,9 @@ def audit(
             "per_wallet_counts": wallet_stats,
         },
         "limitations": [
-            "Only the selected 100-wallet leaderboard snapshot is represented; counterparties outside it are not yet sampled.",
-            "Wallets are filtered to manifest native_perp_fills <= 10,000 to stay below the public API history ceiling.",
+            "Only the selected 120-address public leaderboard sample is represented; counterparties outside it are not sampled.",
+            "Leaderboard sampling is stratified by reported monthly volume and is not a random sample of all Hyperliquid traders.",
+            "Addresses whose requested interval reaches the public API 10,000-fill cap are excluded from all markets.",
             "userFillsByTime exposes only the latest 10,000 fills per address; TWAP slice history is limited to 2,000 recent rows.",
             "A position continuity failure invalidates that wallet-market series; no missing inventory is imputed.",
             "Small/large labels are relative to this selected sample and are not proof of retail/whale identity.",
