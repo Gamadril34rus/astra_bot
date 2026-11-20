@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 
 import scripts.research.clt_inventory_feasibility as inventory
-
 from scripts.research.clt_inventory_feasibility import (
     MAX_FILLS_PER_ADDRESS,
     count_net_add_wallets,
     order_timestamp_group,
+    order_timestamp_groups_and_check_continuity,
     possible_direction_labels,
     rolling_unique_add_wallet_counts,
     select_wallets,
@@ -119,6 +119,66 @@ def test_order_timestamp_group_rejects_ambiguous_parallel_edges():
     ]
     assert order_timestamp_group(fills) is None
 
+
+
+def test_ambiguous_timestamp_group_is_excluded_from_continuity_checks():
+    fills = [
+        {"time": 100, "startPosition": "0", "sz": "1", "side": "B"},
+        {"time": 200, "startPosition": "1", "sz": "1", "side": "B"},
+        {"time": 200, "startPosition": "1", "sz": "2", "side": "B"},
+        {"time": 300, "startPosition": "3", "sz": "1", "side": "B"},
+        {"time": 400, "startPosition": "4", "sz": "1", "side": "B"},
+    ]
+
+    groups, stats = order_timestamp_groups_and_check_continuity(fills)
+
+    assert stats["ambiguous_timestamp_groups"] == 1
+    assert stats["checked_transitions"] == 1
+    assert stats["continuity_failures"] == 0
+    assert [is_ordered for _, is_ordered in groups] == [True, False, True, True]
+
+
+def test_unique_timestamp_groups_count_real_position_discontinuity():
+    fills = [
+        {"time": 100, "startPosition": "0", "sz": "1", "side": "B"},
+        {"time": 200, "startPosition": "3", "sz": "1", "side": "B"},
+        {"time": 300, "startPosition": "4", "sz": "1", "side": "B"},
+    ]
+
+    _, stats = order_timestamp_groups_and_check_continuity(fills)
+
+    assert stats["checked_transitions"] == 2
+    assert stats["continuity_failures"] == 1
+    assert stats["ambiguous_timestamp_groups"] == 0
+
+
+def test_fetch_wallet_history_preserves_outer_twap_id_for_deduplication(monkeypatch):
+    monkeypatch.setattr(inventory.time, "sleep", lambda _: None)
+    fill = {
+        "time": 100,
+        "tid": 999,
+        "oid": 7,
+        "coin": "BTC",
+        "side": "B",
+        "px": "100",
+        "sz": "1",
+        "startPosition": "0",
+        "dir": "Open Long",
+    }
+    twap_rows = [
+        {"fill": dict(fill), "twapId": 11},
+        {"fill": dict(fill), "twapId": 12},
+    ]
+    calls = iter([[], twap_rows])
+    monkeypatch.setattr(inventory, "post_info", lambda payload: next(calls))
+
+    rows, stats = inventory.fetch_wallet_history(
+        "0x" + "3" * 40, start_ms=0, end_ms=1_000
+    )
+
+    assert len(rows) == 2
+    assert stats["twap_fills"] == 2
+    assert {row["twapId"] for row in rows} == {11, 12}
 
 
 def test_public_leaderboard_sampling_is_stratified_and_deterministic(tmp_path):
@@ -320,7 +380,7 @@ def test_fetch_wallet_history_fails_closed_when_boundary_probe_is_capped(monkeyp
     calls = iter([page, boundary, []])
     monkeypatch.setattr(inventory, "post_info", lambda payload: next(calls))
 
-    rows, stats = inventory.fetch_wallet_history(
+    _rows, stats = inventory.fetch_wallet_history(
         "0x" + "2" * 40, start_ms=0, end_ms=1_000
     )
 

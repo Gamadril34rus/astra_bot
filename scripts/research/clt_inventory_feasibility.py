@@ -239,6 +239,9 @@ def fetch_wallet_history(
         time.sleep(twap_weight / 20.0 + 0.1)
         for item in twap_rows:
             fill = item.get("fill", item)
+            twap_id = item.get("twapId")
+            if twap_id is not None and fill.get("twapId") is None:
+                fill = {**fill, "twapId": twap_id}
             timestamp = int(fill.get("time") or 0)
             if start_ms <= timestamp <= end_ms:
                 fills[_fill_key(fill, twap=True)] = fill
@@ -345,6 +348,77 @@ def order_timestamp_group(fills: list[dict[str, Any]]) -> list[dict[str, Any]] |
             return None
         current = candidates[0]
     return ordered
+
+
+def order_timestamp_groups_and_check_continuity(
+    fills: list[dict[str, Any]],
+) -> tuple[list[tuple[list[dict[str, Any]], bool]], dict[str, int]]:
+    """Order same-time fills and count only transitions with a unique ordering.
+
+    Ambiguous timestamp groups are retained for fill-level parsing but excluded
+    from continuity comparisons. They reset the chain anchor because their final
+    inventory cannot be determined safely.
+    """
+    groups: list[tuple[list[dict[str, Any]], bool]] = []
+    previous_after: float | None = None
+    checked_transitions = 0
+    continuity_failures = 0
+    ambiguous_groups = 0
+
+    ordered_fills = sorted(
+        fills,
+        key=lambda fill: (
+            int(fill.get("time") or 0),
+            int(fill.get("tid") or fill.get("oid") or 0),
+            str(fill.get("coin") or ""),
+        ),
+    )
+    for _, group_iter in groupby(
+        ordered_fills, key=lambda fill: int(fill.get("time") or 0)
+    ):
+        group = list(group_iter)
+        ordered_group = order_timestamp_group(group)
+        if ordered_group is None:
+            ambiguous_groups += 1
+            groups.append((group, False))
+            previous_after = None
+            continue
+
+        groups.append((ordered_group, True))
+        for fill in ordered_group:
+            try:
+                start_position = float(fill["startPosition"])
+                size = float(fill["sz"])
+                side = str(fill["side"])
+                if (
+                    not math.isfinite(start_position)
+                    or not math.isfinite(size)
+                    or size <= 0
+                ):
+                    raise ValueError("invalid position transition")
+                if side == "B":
+                    position_after = start_position + size
+                elif side == "A":
+                    position_after = start_position - size
+                else:
+                    raise ValueError("unknown fill side")
+            except (KeyError, TypeError, ValueError):
+                previous_after = None
+                continue
+
+            if previous_after is not None:
+                checked_transitions += 1
+                if abs(start_position - previous_after) > _position_tolerance(
+                    start_position, previous_after
+                ):
+                    continuity_failures += 1
+            previous_after = position_after
+
+    return groups, {
+        "checked_transitions": checked_transitions,
+        "continuity_failures": continuity_failures,
+        "ambiguous_timestamp_groups": ambiguous_groups,
+    }
 
 
 def possible_direction_labels(
@@ -507,6 +581,8 @@ def audit(
         for market in stats["boundary_collision_markets"]
     }
     continuity_failures = 0
+    continuity_checked_transitions = 0
+    wallet_market_pairs_with_continuity_failure: set[tuple[str, str]] = set()
     ambiguous_timestamp_groups = 0
     unknown_fills = 0
     direction_label_mismatches = 0
@@ -516,39 +592,36 @@ def audit(
     parsed: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
 
     for key, fills in wallet_market_fills.items():
-        fills.sort(key=lambda fill: int(fill.get("time") or 0))
-        previous_after: float | None = None
+        timestamp_groups, continuity = order_timestamp_groups_and_check_continuity(
+            fills
+        )
+        continuity_failures += continuity["continuity_failures"]
+        continuity_checked_transitions += continuity["checked_transitions"]
+        ambiguous_timestamp_groups += continuity["ambiguous_timestamp_groups"]
         market_continuous = (
             key[0] not in incomplete_addresses and key not in incomplete_wallet_markets
         )
-        ordered_fills = []
-        for _, group_iter in groupby(fills, key=lambda fill: int(fill.get("time") or 0)):
-            group = list(group_iter)
-            ordered_group = order_timestamp_group(group)
-            if ordered_group is None:
-                ambiguous_timestamp_groups += 1
-                market_continuous = False
-                ordered_group = group
-            ordered_fills.extend(ordered_group)
-        for fill in ordered_fills:
-            try:
-                timestamp = int(fill["time"])
-                start_position = float(fill["startPosition"])
-                size = float(fill["sz"])
-                price = float(fill["px"])
-                side = str(fill["side"])
-                split = split_fill_inventory(start_position, side, size, price)
-            except (KeyError, TypeError, ValueError):
-                unknown_fills += 1
-                market_continuous = False
-                continue
-            if previous_after is not None and abs(start_position - previous_after) > _position_tolerance(
-                start_position, previous_after
-            ):
-                continuity_failures += 1
-                market_continuous = False
-            previous_after = split["position_after"]
+        if (
+            continuity["continuity_failures"]
+            or continuity["ambiguous_timestamp_groups"]
+        ):
+            market_continuous = False
+        if continuity["continuity_failures"]:
+            wallet_market_pairs_with_continuity_failure.add(key)
 
+        for ordered_group, _group_is_ordered in timestamp_groups:
+            for fill in ordered_group:
+                try:
+                    timestamp = int(fill["time"])
+                    start_position = float(fill["startPosition"])
+                    size = float(fill["sz"])
+                    price = float(fill["px"])
+                    side = str(fill["side"])
+                    split = split_fill_inventory(start_position, side, size, price)
+                except (KeyError, TypeError, ValueError):
+                    unknown_fills += 1
+                    market_continuous = False
+                    continue
             direction = str(fill.get("dir") or "")
             known_directions = {
                 "Open Long", "Add Long", "Close Long",
@@ -729,6 +802,13 @@ def audit(
             "twap_fill_rows": total_twap_fills,
             "continuous_wallet_market_pairs": len(eligible_wallet_markets),
             "position_continuity_failures": continuity_failures,
+            "position_continuity_checked_transitions": continuity_checked_transitions,
+            "position_continuity_failure_rate": round(
+                continuity_failures / continuity_checked_transitions, 6
+            ) if continuity_checked_transitions else 0.0,
+            "wallet_market_pairs_with_position_continuity_failure": len(
+                wallet_market_pairs_with_continuity_failure
+            ),
             "fills_with_missing_or_invalid_position_fields": unknown_fills,
             "direction_label_mismatches_vs_position_math": direction_label_mismatches,
             "unrecognized_direction_labels": unknown_direction_labels,
