@@ -97,7 +97,8 @@ record source offsets, join age and exclusion reasons for reproducibility.
 - Swap V2 mark/index/funding snapshot: /openApi/swap/v2/quote/premiumIndex.
 - Swap V2 funding history: /openApi/swap/v2/quote/fundingRate.
 - Swap V3 klines: /openApi/swap/v3/quote/klines; rows are positional arrays.
-- Binance spot reference: GET /api/v3/ticker/price.
+- Binance spot reference: GET /api/v3/ticker/price via the market-data-only
+  REST host `https://data-api.binance.vision`.
 
 Funding interval must not be hardcoded to 8h or inferred from one snapshot.
 Store actual funding timestamps and derive observed intervals from consecutive
