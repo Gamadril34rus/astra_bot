@@ -54,6 +54,7 @@ jobs:
           name: wallet-flow-confirmation-${{ github.sha }}
           path: |
             reports/wallet_flow_confirmation/wallet_flow_confirmation_study.csv
+            reports/wallet_flow_confirmation/wallet_flow_confirmation_sides.csv
             reports/wallet_flow_confirmation/wallet_flow_confirmation_summary.json
           if-no-files-found: warn
           retention-days: 90
