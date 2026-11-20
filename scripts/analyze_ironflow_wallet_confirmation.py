@@ -58,9 +58,9 @@ def analyze(
             CASE WHEN c.cohort_participant_notional > 0
                 THEN c.cohort_signed_notional / c.cohort_participant_notional
                 ELSE NULL END AS flow_ratio,
-            CASE WHEN c.cohort_participant_notional > 0
+            CASE WHEN c.cohort_taker_notional > 0
                 THEN c.cohort_aggressive_signed_notional
-                    / c.cohort_participant_notional
+                    / c.cohort_taker_notional
                 ELSE NULL END AS aggressive_flow_ratio,
             CASE WHEN c.active_wallets > 0
                 THEN (c.net_buy_wallets - c.net_sell_wallets)::DOUBLE
@@ -191,25 +191,42 @@ def analyze(
                                 bucket_ts
                             ) AS gap_minutes
                         FROM selected
+                    ),
+                    baseline AS (
+                        SELECT b.market,
+                            avg(100.0 * (f.close / b.close - 1.0))
+                                AS baseline_return_pct
+                        FROM bars b
+                        INNER JOIN bars f
+                          ON f.market = b.market
+                         AND f.bucket_ts = b.bucket_ts
+                            + INTERVAL '{minutes} minutes'
+                        WHERE b.close > 0 AND f.close > 0
+                        GROUP BY b.market
                     )
                     SELECT
-                        market,
-                        signal_side,
+                        s.market,
+                        s.signal_side,
                         count(*) AS observations,
-                        avg(abs(signal_value)) AS mean_abs_signal_value,
-                        avg(raw_return_pct) AS mean_raw_return_pct,
-                        avg(directional_return_pct)
+                        avg(abs(s.signal_value)) AS mean_abs_signal_value,
+                        avg(s.raw_return_pct) AS mean_raw_return_pct,
+                        avg(b.baseline_return_pct) AS baseline_return_pct,
+                        avg(s.directional_return_pct)
                             AS mean_directional_return_pct,
-                        median(directional_return_pct)
+                        avg(s.directional_return_pct)
+                            - s.signal_side * avg(b.baseline_return_pct)
+                            AS excess_directional_return_pct,
+                        median(s.directional_return_pct)
                             AS median_directional_return_pct,
                         100.0 * avg(
-                            CASE WHEN directional_return_pct > 0
+                            CASE WHEN s.directional_return_pct > 0
                                 THEN 1.0 ELSE 0.0 END
                         ) AS directional_hit_rate_pct,
-                        min(gap_minutes) AS min_gap_minutes
-                    FROM selected_with_gap
-                    GROUP BY market, signal_side
-                    ORDER BY market, signal_side
+                        min(s.gap_minutes) AS min_gap_minutes
+                    FROM selected_with_gap s
+                    INNER JOIN baseline b ON b.market = s.market
+                    GROUP BY s.market, s.signal_side
+                    ORDER BY s.market, s.signal_side
                 """
                 side_result = con.execute(side_query)
                 side_columns = [item[0] for item in side_result.description]
@@ -229,6 +246,10 @@ def analyze(
                             side_row["mean_abs_signal_value"]
                         ),
                         "mean_raw_return_pct": float(side_row["mean_raw_return_pct"]),
+                        "baseline_return_pct": float(side_row["baseline_return_pct"]),
+                        "excess_directional_return_pct": float(
+                            side_row["excess_directional_return_pct"]
+                        ),
                         "mean_directional_return_pct": float(
                             side_row["mean_directional_return_pct"]
                         ),
@@ -293,6 +314,7 @@ def analyze(
     side_fields = [
         "horizon", "metric", "sample_type", "market", "signal_side",
         "observations", "mean_abs_signal_value", "mean_raw_return_pct",
+        "baseline_return_pct", "excess_directional_return_pct",
         "mean_directional_return_pct", "median_directional_return_pct",
         "directional_hit_rate_pct", "min_gap_minutes",
     ]
