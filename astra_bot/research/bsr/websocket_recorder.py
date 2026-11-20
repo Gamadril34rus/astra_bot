@@ -146,6 +146,13 @@ class BingXMarketRecorder:
                 "received_at_ms": received_at_ms, "synchronized": synchronized,
                 "last_update_id": state.last_update_id, "payload": payload,
             })
+            if isinstance(payload, dict) and payload.get("action") == "update" and not synchronized:
+                self._write({
+                    "venue": "bingx_swap", "kind": "connection_error",
+                    "symbol": symbol, "received_at_ms": received_at_ms,
+                    "reason": "depth_book_invalidated; reconnect for a fresh action=all snapshot",
+                })
+                await ws.close()
             return
         if channel.endswith("@trade"):
             rows = payload if isinstance(payload, list) else [payload]
