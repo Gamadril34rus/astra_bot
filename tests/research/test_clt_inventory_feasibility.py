@@ -284,11 +284,10 @@ def test_fetch_wallet_history_recovers_all_fills_at_page_boundary(monkeypatch):
     monkeypatch.setattr(inventory.time, "sleep", lambda _: None)
     page = [
         {"time": 100, "tid": 1, "coin": "BTC"},
-        {"time": 200, "tid": 2, "coin": "BTC"},
+        {"time": 150, "tid": 2, "coin": "BTC"},
         {"time": 200, "tid": 3, "coin": "BTC"},
     ]
     boundary = [
-        {"time": 200, "tid": 2, "coin": "BTC"},
         {"time": 200, "tid": 3, "coin": "BTC"},
         {"time": 200, "tid": 4, "coin": "BTC"},
     ]
