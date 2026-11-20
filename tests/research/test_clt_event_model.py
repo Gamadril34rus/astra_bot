@@ -337,6 +337,8 @@ def test_crowd_to_large_window_includes_full_twelve_bar_boundary():
     rows[0]["small_long_add_wallets"] = 1
     rows[1]["small_long_add_wallets"] = 1
     rows[2]["small_long_add_wallets"] = 1
+    rows[2]["large_short_delta_usd"] = 0.0
+    rows[2]["large_short_add_wallets"] = 0
     rows[12]["small_long_add_wallets_prev_12"] = 3
     rows[12]["large_short_delta_usd"] = 90_000
     rows[12]["large_short_add_wallets"] = 1
