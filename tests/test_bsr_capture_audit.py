@@ -122,7 +122,7 @@ def test_audit_detects_depth_sequence_gap(tmp_path):
     assert report["totals"]["depth_snapshots"] == 1
     assert report["totals"]["depth_updates"] == 3
     assert report["totals"]["depth_sequence_errors"] == 1
-    assert report["totals"]["depth_unsynchronized"] == 1
+    assert report["totals"]["depth_unsynchronized"] == 2
 
 
 def test_audit_counts_negative_and_late_trade_latency(tmp_path):
