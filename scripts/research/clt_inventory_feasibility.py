@@ -476,6 +476,13 @@ def audit(
             "large": {address for _, address in candidates[-large_count:]},
         }
 
+    calibration_candidates_by_market = {}
+    for coin in sorted(CORE_COINS):
+        calibration_candidates_by_market[coin] = sum(
+            1 for (address, market), values in calibration_exposure.items()
+            if market == coin and len(values) >= 3 and (address, market) in eligible_wallet_markets
+        )
+
     buckets: dict[tuple[str, int], dict[str, float]] = defaultdict(lambda: defaultdict(float))
     market_counts: dict[str, dict[str, Any]] = {}
     for coin in CORE_COINS:
@@ -592,6 +599,9 @@ def audit(
             "wallet_market_pairs_excluded_for_boundary_collision": len(incomplete_wallet_markets),
         },
         "by_market": {f"{coin}-PERP": values for coin, values in market_counts.items()},
+        "cohort_calibration_candidates_by_market": {
+            f"{coin}-PERP": count for coin, count in calibration_candidates_by_market.items()
+        },
         "wallet_coverage": {
             "manifest_fill_count_min": min((row["manifest_fills"] for row in selected if row["manifest_fills"] is not None), default=None),
             "manifest_fill_count_max": max((row["manifest_fills"] for row in selected if row["manifest_fills"] is not None), default=None),
