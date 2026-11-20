@@ -286,7 +286,7 @@ def analyze(
                         )
                         SELECT
                             s.market,
-                            s.bucket_ts,
+                            CAST(s.bucket_ts AS VARCHAR) AS bucket_ts,
                             s.signal_side,
                             s.signal_value,
                             s.prior_1h_return_pct,
@@ -309,7 +309,7 @@ def analyze(
                             "horizon": horizon,
                             "metric": metric,
                             "market": event_row["market"],
-                            "bucket_ts": event_row["bucket_ts"].isoformat(),
+                            "bucket_ts": str(event_row["bucket_ts"]),
                             "signal_side": (
                                 "buy_pressure" if event_row["signal_side"] > 0
                                 else "sell_pressure"
