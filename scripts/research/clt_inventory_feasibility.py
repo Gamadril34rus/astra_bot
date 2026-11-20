@@ -623,39 +623,39 @@ def audit(
         for phase, phase_start_ms, phase_end_ms in phase_windows:
             for bucket_ms in range(phase_start_ms, phase_end_ms, BAR_MS):
                 values = buckets.get((coin, phase, bucket_ms), {})
-        small_active = sum(1 for key in values if key.startswith("small_wallet_"))
-        large_active = sum(1 for key in values if key.startswith("large_wallet_"))
-        row = {
-            "market": f"{coin}-PERP",
-            "phase": phase,
-            "bucket_ts_ms": bucket_ms,
-            "small_active_wallets": small_active,
-            "large_active_wallets": large_active,
-            "small_long_add_wallets": count_net_add_wallets(values, cohort="small", direction="long"),
-            "small_short_add_wallets": count_net_add_wallets(values, cohort="small", direction="short"),
-            "large_long_add_wallets": count_net_add_wallets(values, cohort="large", direction="long"),
-            "large_short_add_wallets": count_net_add_wallets(values, cohort="large", direction="short"),
-            "small_fill_count": int(values.get("small_fill_count", 0)),
-            "large_fill_count": int(values.get("large_fill_count", 0)),
-            "small_long_delta_usd": values.get("small_open_long_usd", 0.0) - values.get("small_close_long_usd", 0.0),
-            "small_short_delta_usd": values.get("small_open_short_usd", 0.0) - values.get("small_close_short_usd", 0.0),
-            "large_long_delta_usd": values.get("large_open_long_usd", 0.0) - values.get("large_close_long_usd", 0.0),
-            "large_short_delta_usd": values.get("large_open_short_usd", 0.0) - values.get("large_close_short_usd", 0.0),
-        }
-        row.update(rolling_unique_add_wallet_counts(
-            buckets,
-            market=coin,
-            phase=phase,
-            bucket_ms=bucket_ms,
-            max_window=8,
-        ))
-        for field in fields:
-            if field not in row and field not in {"market", "phase", "bucket_ts_ms"}:
-                row[field] = values.get(field, 0.0)
-        output_rows.append(row)
-        market_counts[coin][f"{phase}_timeline_buckets"] += 1
-        if values:
-            market_counts[coin][f"{phase}_buckets"] += 1
+                small_active = sum(1 for key in values if key.startswith("small_wallet_"))
+                large_active = sum(1 for key in values if key.startswith("large_wallet_"))
+                row = {
+                    "market": f"{coin}-PERP",
+                    "phase": phase,
+                    "bucket_ts_ms": bucket_ms,
+                    "small_active_wallets": small_active,
+                    "large_active_wallets": large_active,
+                    "small_long_add_wallets": count_net_add_wallets(values, cohort="small", direction="long"),
+                    "small_short_add_wallets": count_net_add_wallets(values, cohort="small", direction="short"),
+                    "large_long_add_wallets": count_net_add_wallets(values, cohort="large", direction="long"),
+                    "large_short_add_wallets": count_net_add_wallets(values, cohort="large", direction="short"),
+                    "small_fill_count": int(values.get("small_fill_count", 0)),
+                    "large_fill_count": int(values.get("large_fill_count", 0)),
+                    "small_long_delta_usd": values.get("small_open_long_usd", 0.0) - values.get("small_close_long_usd", 0.0),
+                    "small_short_delta_usd": values.get("small_open_short_usd", 0.0) - values.get("small_close_short_usd", 0.0),
+                    "large_long_delta_usd": values.get("large_open_long_usd", 0.0) - values.get("large_close_long_usd", 0.0),
+                    "large_short_delta_usd": values.get("large_open_short_usd", 0.0) - values.get("large_close_short_usd", 0.0),
+                }
+                row.update(rolling_unique_add_wallet_counts(
+                    buckets,
+                    market=coin,
+                    phase=phase,
+                    bucket_ms=bucket_ms,
+                    max_window=8,
+                ))
+                for field in fields:
+                    if field not in row and field not in {"market", "phase", "bucket_ts_ms"}:
+                        row[field] = values.get(field, 0.0)
+                output_rows.append(row)
+                market_counts[coin][f"{phase}_timeline_buckets"] += 1
+                if values:
+                    market_counts[coin][f"{phase}_buckets"] += 1
 
     with csv_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
