@@ -76,6 +76,7 @@ def analyze(
 
     rows: list[dict[str, Any]] = []
     side_rows: list[dict[str, Any]] = []
+    event_rows: list[dict[str, Any]] = []
     for horizon, minutes in HORIZONS.items():
         close_col = f"close_{horizon}"
         for metric in METRICS:
@@ -228,6 +229,84 @@ def analyze(
                     GROUP BY s.market, s.signal_side
                     ORDER BY s.market, s.signal_side
                 """
+                if sample_type == "non_overlapping":
+                    event_query = f"""
+                        WITH eligible AS (
+                            SELECT
+                                market,
+                                bucket_ts,
+                                {metric} AS signal_value,
+                                sign({metric}) AS signal_side,
+                                100.0 * ({close_col} / close_t - 1.0)
+                                    AS raw_return_pct,
+                                sign({metric}) * 100.0 *
+                                    ({close_col} / close_t - 1.0)
+                                    AS directional_return_pct
+                            FROM response
+                            WHERE active_wallets >= 3
+                              AND {metric} IS NOT NULL
+                              AND abs({metric}) > 0
+                              AND close_t > 0
+                              AND {close_col} IS NOT NULL
+                              AND {close_col} > 0
+                        ),
+                        selected AS (
+                            SELECT * FROM eligible
+                            {overlap_clause}
+                        ),
+                        baseline AS (
+                            SELECT b.market,
+                                avg(100.0 * (f.close / b.close - 1.0))
+                                    AS baseline_return_pct
+                            FROM bars b
+                            INNER JOIN bars f
+                              ON f.market = b.market
+                             AND f.bucket_ts = b.bucket_ts
+                                + INTERVAL '{minutes} minutes'
+                            WHERE b.close > 0 AND f.close > 0
+                            GROUP BY b.market
+                        )
+                        SELECT
+                            s.market,
+                            s.bucket_ts,
+                            s.signal_side,
+                            s.signal_value,
+                            s.raw_return_pct,
+                            s.directional_return_pct,
+                            b.baseline_return_pct,
+                            s.directional_return_pct
+                                - s.signal_side * b.baseline_return_pct
+                                AS excess_directional_return_pct
+                        FROM selected s
+                        INNER JOIN baseline b ON b.market = s.market
+                        ORDER BY s.market, s.bucket_ts
+                    """
+                    event_result = con.execute(event_query)
+                    event_columns = [item[0] for item in event_result.description]
+                    for values in event_result.fetchall():
+                        event_row = dict(zip(event_columns, values, strict=True))
+                        event_rows.append({
+                            "horizon": horizon,
+                            "metric": metric,
+                            "market": event_row["market"],
+                            "bucket_ts": event_row["bucket_ts"].isoformat(),
+                            "signal_side": (
+                                "buy_pressure" if event_row["signal_side"] > 0
+                                else "sell_pressure"
+                            ),
+                            "signal_value": float(event_row["signal_value"]),
+                            "raw_return_pct": float(event_row["raw_return_pct"]),
+                            "directional_return_pct": float(
+                                event_row["directional_return_pct"]
+                            ),
+                            "baseline_return_pct": float(
+                                event_row["baseline_return_pct"]
+                            ),
+                            "excess_directional_return_pct": float(
+                                event_row["excess_directional_return_pct"]
+                            ),
+                        })
+
                 side_result = con.execute(side_query)
                 side_columns = [item[0] for item in side_result.description]
                 for values in side_result.fetchall():
@@ -323,6 +402,17 @@ def analyze(
         writer.writeheader()
         writer.writerows(side_rows)
 
+    event_csv_path = out_dir / "wallet_flow_confirmation_events.csv"
+    event_fields = [
+        "horizon", "metric", "market", "bucket_ts", "signal_side",
+        "signal_value", "raw_return_pct", "directional_return_pct",
+        "baseline_return_pct", "excess_directional_return_pct",
+    ]
+    with event_csv_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=event_fields)
+        writer.writeheader()
+        writer.writerows(event_rows)
+
     markets = con.execute(
         "SELECT count(DISTINCT market) FROM cohort"
     ).fetchone()[0]
@@ -364,6 +454,8 @@ def analyze(
             "rows": len(rows),
             "side_rows": len(side_rows),
             "sides_csv": str(side_csv_path),
+            "event_rows": len(event_rows),
+            "events_csv": str(event_csv_path),
         },
     }
     json_path.write_text(
