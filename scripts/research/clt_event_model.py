@@ -118,6 +118,16 @@ def detect_clt_events(
                 for large_start in range(crowd_start + 1, min(crowd_end, signal_index)):
                     if large_start - crowd_start > max_lag_bars:
                         continue
+                    if _number(rows[large_start], large_key) <= 0:
+                        continue
+                    prior_large_add = _sum(
+                        rows,
+                        max(0, crowd_start - crowd_window_bars),
+                        large_start,
+                        large_key,
+                    )
+                    if prior_large_add > 0:
+                        continue
                     crowd_build += _number(rows[large_start - 1], crowd_key)
                     if crowd_build < min_crowd_add_usd:
                         continue
