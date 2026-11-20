@@ -326,7 +326,7 @@ def audit(
 
     incomplete_wallet_markets = {
         (wallet["address"], market)
-        for wallet, stats in zip(selected, wallet_fetch_stats, strict=True)
+        for wallet, stats in zip(selected, wallet_stats, strict=True)
         for market in stats["boundary_collision_markets"]
     }
     continuity_failures = 0
