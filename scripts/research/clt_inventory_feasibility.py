@@ -592,8 +592,9 @@ def audit(
             "large_long_delta_usd": values["large_open_long_usd"] - values["large_close_long_usd"],
             "large_short_delta_usd": values["large_open_short_usd"] - values["large_close_short_usd"],
         }
-        for field in fields[10:]:
-            row[field] = values[field]
+        for field in fields:
+            if field not in row and field not in {"market", "phase", "bucket_ts_ms"}:
+                row[field] = values[field]
         output_rows.append(row)
         market_counts[coin][f"{phase}_buckets"] += 1
 
