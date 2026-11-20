@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 import statistics
@@ -56,30 +57,86 @@ def post_info(payload: dict[str, Any], *, timeout: int = 20) -> list[dict[str, A
     raise RuntimeError("Hyperliquid Info API retry loop exhausted")
 
 
+def _leaderboard_month_volume(row: dict[str, Any]) -> float:
+    performances = row.get("windowPerformances", [])
+    if isinstance(performances, dict):
+        month = performances.get("month", {})
+    else:
+        month = next(
+            (
+                item[1] for item in performances
+                if isinstance(item, list) and len(item) == 2 and item[0] == "month"
+                and isinstance(item[1], dict)
+            ),
+            {},
+        )
+    try:
+        volume = float(month.get("vlm") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+    return volume if math.isfinite(volume) and volume > 0 else 0.0
+
+
 def select_wallets(manifest_path: Path, *, max_wallets: int) -> list[dict[str, Any]]:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    selected = []
-    for row in manifest.get("wallet_summaries", []):
-        address = str(row.get("address", "")).lower()
-        fills = int(row.get("native_perp_fills") or 0)
-        markets = {
-            item.get("market")
-            for item in row.get("top_markets_by_notional", [])
-            if isinstance(item, dict)
-        }
-        if (
-            len(address) == 42
-            and address.startswith("0x")
-            and 0 < fills <= MAX_FILLS_PER_ADDRESS
-            and markets.intersection({f"{coin}-PERP" for coin in CORE_COINS})
-        ):
-            selected.append({
+    summaries = manifest.get("wallet_summaries")
+    if isinstance(summaries, list):
+        selected = []
+        for row in summaries:
+            address = str(row.get("address", "")).lower()
+            fills = int(row.get("native_perp_fills") or 0)
+            markets = {
+                item.get("market")
+                for item in row.get("top_markets_by_notional", [])
+                if isinstance(item, dict)
+            }
+            if (
+                len(address) == 42
+                and address.startswith("0x")
+                and 0 < fills <= MAX_FILLS_PER_ADDRESS
+                and markets.intersection({f"{coin}-PERP" for coin in CORE_COINS})
+            ):
+                selected.append({
+                    "address": address,
+                    "manifest_fills": fills,
+                    "month_volume": float(row.get("month_volume") or 0.0),
+                })
+        selected.sort(key=lambda row: row["manifest_fills"])
+        return selected[:max_wallets]
+
+    leaderboard_rows = manifest.get("leaderboardRows")
+    if not isinstance(leaderboard_rows, list):
+        raise ValueError("manifest must contain wallet_summaries or leaderboardRows")
+    candidates = []
+    for row in leaderboard_rows:
+        if not isinstance(row, dict):
+            continue
+        address = str(row.get("ethAddress", "")).lower()
+        volume = _leaderboard_month_volume(row)
+        if len(address) == 42 and address.startswith("0x") and volume > 0:
+            candidates.append({
                 "address": address,
-                "manifest_fills": fills,
-                "month_volume": float(row.get("month_volume") or 0.0),
+                "manifest_fills": None,
+                "month_volume": volume,
             })
-    selected.sort(key=lambda row: row["manifest_fills"])
-    return selected[:max_wallets]
+    candidates.sort(key=lambda row: (row["month_volume"], row["address"]))
+    if len(candidates) <= max_wallets:
+        return candidates
+
+    # Deterministic, evenly spaced sampling across monthly-volume deciles.
+    sample: list[dict[str, Any]] = []
+    decile_count = 10
+    for decile in range(decile_count):
+        lo = decile * len(candidates) // decile_count
+        hi = (decile + 1) * len(candidates) // decile_count
+        group = candidates[lo:hi]
+        quota = max_wallets // decile_count + (1 if decile < max_wallets % decile_count else 0)
+        for slot in range(min(quota, len(group))):
+            index = min(len(group) - 1, int((slot + 0.5) * len(group) / min(quota, len(group))))
+            sample.append(group[index])
+    # Stable de-duplication protects against small deciles and rounding collisions.
+    unique = {row["address"]: row for row in sample}
+    return sorted(unique.values(), key=lambda row: (row["month_volume"], row["address"]))
 
 
 def _fill_key(fill: dict[str, Any], *, twap: bool = False) -> tuple[Any, ...]:
@@ -518,6 +575,8 @@ def audit(
         ),
         "counts": {
             "wallets_selected": len(selected),
+        "wallet_source": "hyperliquid_public_leaderboard" if selected and selected[0]["manifest_fills"] is None else "wallet_archive_manifest",
+        "wallet_sampling": "deterministic monthly-volume deciles" if selected and selected[0]["manifest_fills"] is None else "lowest manifest fill counts",
             "wallets_with_core_market_fills": len({address for address, _ in wallet_market_fills}),
             "api_pages": total_pages,
             "api_fill_rows": total_api_fills,
@@ -535,8 +594,8 @@ def audit(
         },
         "by_market": {f"{coin}-PERP": values for coin, values in market_counts.items()},
         "wallet_coverage": {
-            "manifest_fill_count_min": min(row["manifest_fills"] for row in selected),
-            "manifest_fill_count_max": max(row["manifest_fills"] for row in selected),
+            "manifest_fill_count_min": min((row["manifest_fills"] for row in selected if row["manifest_fills"] is not None), default=None),
+            "manifest_fill_count_max": max((row["manifest_fills"] for row in selected if row["manifest_fills"] is not None), default=None),
             "api_fill_count_min": min((row["returned_api_fills"] for row in wallet_stats), default=0),
             "api_fill_count_max": max((row["returned_api_fills"] for row in wallet_stats), default=0),
             "per_wallet_counts": wallet_stats,
