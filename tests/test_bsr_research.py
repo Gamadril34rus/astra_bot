@@ -92,7 +92,7 @@ def test_funding_events_charge_only_settlements_crossed_by_position():
 
 def test_funding_event_cost_requires_valid_window_and_unique_timestamps():
     model = CostModel()
-    with pytest.raises(ValueError, match="timestamps"):
+    with pytest.raises(ValueError, match="entry_time_ms"):
         net_pnl(notional=1_000, gross_return_rate=0, model=model,
                 funding_events=[], entry_time_ms=1_000)
     with pytest.raises(ValueError, match="duplicate fundingTime"):
