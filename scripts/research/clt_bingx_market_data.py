@@ -60,7 +60,13 @@ def _optional_float(row: dict[str, Any], *keys: str) -> float | None:
 def parse_kline(raw: Any, *, interval_ms: int) -> dict[str, float | int | None]:
     """Accept both documented positional arrays and object-form swap kline rows."""
     if isinstance(raw, dict):
-        ts = int(raw.get("time") or raw.get("openTime") or raw.get("open_time") or 0)
+        timestamp_value = next(
+            (raw[key] for key in ("time", "openTime", "open_time") if raw.get(key) is not None),
+            None,
+        )
+        if timestamp_value is None:
+            raise RuntimeError("BingX kline row missing timestamp")
+        ts = int(timestamp_value)
         open_price = float(raw["open"])
         high = float(raw["high"])
         low = float(raw["low"])
@@ -87,8 +93,11 @@ def parse_kline(raw: Any, *, interval_ms: int) -> dict[str, float | int | None]:
         raise RuntimeError("malformed BingX kline row")
 
     required_values = (open_price, high, low, close, volume)
+    optional_values = (quote_volume, trade_count, taker_base, taker_quote)
     if any(not math.isfinite(value) for value in required_values):
         raise RuntimeError("non-finite BingX kline value")
+    if any(value is not None and not math.isfinite(value) for value in optional_values):
+        raise RuntimeError("non-finite optional BingX kline value")
     if (
         min(open_price, high, low, close) <= 0
         or volume < 0
