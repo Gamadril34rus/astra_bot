@@ -96,6 +96,11 @@ def test_short_event_requires_long_crowd_and_short_large_add_then_break():
     assert events[0]["direction"] == -1
     assert events[0]["entry_index"] == 9
     assert events[0]["entry_price"] == 98.1
+    assert events[0]["crowd_start_ts"] == 1
+    assert events[0]["large_add_start_ts"] == 2
+    assert events[0]["crowd_to_large_bars"] == 1
+    assert events[0]["large_to_break_bars"] == 6
+    assert events[0]["continued_bars"] == 5
 
 
 def test_long_event_is_mirror_of_short_event():
