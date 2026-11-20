@@ -18,20 +18,28 @@ def _bars(*, crowd_direction: str) -> list[dict]:
             "crowd_short_delta_usd": 0.0,
             "large_long_delta_usd": 0.0,
             "large_short_delta_usd": 0.0,
+            "small_active_wallets": 0,
+            "large_active_wallets": 0,
             "prior_volatility_pct": 0.2,
         })
 
     if crowd_direction == "long":
         rows[1]["crowd_long_delta_usd"] = 120_000
+        rows[1]["small_active_wallets"] = 3
         rows[2]["large_short_delta_usd"] = 90_000
+        rows[2]["large_active_wallets"] = 1
         rows[3]["crowd_long_delta_usd"] = 60_000
+        rows[3]["small_active_wallets"] = 3
         rows[8]["close"] = 98.0
         rows[8]["low"] = 97.8
         rows[9]["open"] = 98.1
     else:
         rows[1]["crowd_short_delta_usd"] = 120_000
+        rows[1]["small_active_wallets"] = 3
         rows[2]["large_long_delta_usd"] = 90_000
+        rows[2]["large_active_wallets"] = 1
         rows[3]["crowd_short_delta_usd"] = 60_000
+        rows[3]["small_active_wallets"] = 3
         rows[8]["close"] = 102.0
         rows[8]["high"] = 102.2
         rows[9]["open"] = 101.9
@@ -128,8 +136,11 @@ def test_whale_add_must_follow_crowd_within_max_lag():
     rows = _bars(crowd_direction="long")
     rows[2]["large_short_delta_usd"] = 0.0
     rows[3]["crowd_long_delta_usd"] = 0.0
+    rows[3]["small_active_wallets"] = 0
     rows[4]["large_short_delta_usd"] = 90_000
+    rows[4]["large_active_wallets"] = 1
     rows[5]["crowd_long_delta_usd"] = 60_000
+    rows[5]["small_active_wallets"] = 3
     events = detect_clt_events(
         rows,
         min_crowd_add_usd=100_000,
@@ -148,10 +159,15 @@ def test_whale_add_must_follow_crowd_within_max_lag():
 def test_crowd_build_accumulates_across_bars_before_large_opposite_add():
     rows = _bars(crowd_direction="long")
     rows[1]["crowd_long_delta_usd"] = 60_000
+    rows[1]["small_active_wallets"] = 3
     rows[2]["crowd_long_delta_usd"] = 60_000
+    rows[2]["small_active_wallets"] = 3
     rows[2]["large_short_delta_usd"] = 0.0
+    rows[2]["large_active_wallets"] = 0
     rows[3]["large_short_delta_usd"] = 90_000
+    rows[3]["large_active_wallets"] = 1
     rows[4]["crowd_long_delta_usd"] = 60_000
+    rows[4]["small_active_wallets"] = 3
     events = detect_clt_events(
         rows,
         min_crowd_add_usd=100_000,
@@ -165,3 +181,22 @@ def test_crowd_build_accumulates_across_bars_before_large_opposite_add():
     )
     assert len(events) == 1
     assert events[0]["crowd_build_usd"] == 120_000
+
+
+
+def test_one_small_wallet_is_not_a_crowd():
+    rows = _bars(crowd_direction="long")
+    rows[1]["small_active_wallets"] = 1
+    rows[3]["small_active_wallets"] = 1
+    events = detect_clt_events(
+        rows,
+        min_crowd_add_usd=100_000,
+        min_large_add_usd=80_000,
+        min_continued_crowd_add_usd=50_000,
+        max_crowd_progress_z=0.8,
+        crowd_window_bars=8,
+        max_lag_bars=8,
+        swing_lookback_bars=8,
+        cooldown_bars=36,
+    )
+    assert events == []
