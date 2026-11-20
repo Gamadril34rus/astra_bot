@@ -79,7 +79,7 @@ def test_long_event_is_mirror_of_short_event():
         min_crowd_add_usd=100_000,
         min_large_add_usd=80_000,
         min_continued_crowd_add_usd=50_000,
-        max_crowd_progress_pct=0.1,
+        max_crowd_progress_z=0.8,
         crowd_window_bars=8,
         max_lag_bars=8,
         swing_lookback_bars=8,
@@ -98,7 +98,7 @@ def test_no_entry_without_next_bar():
         min_crowd_add_usd=100_000,
         min_large_add_usd=80_000,
         min_continued_crowd_add_usd=50_000,
-        max_crowd_progress_pct=0.1,
+        max_crowd_progress_z=0.8,
         crowd_window_bars=8,
         max_lag_bars=8,
         swing_lookback_bars=8,
@@ -127,8 +127,9 @@ def test_crowd_must_continue_after_whale_add_not_in_same_bar():
 def test_whale_add_must_follow_crowd_within_max_lag():
     rows = _bars(crowd_direction="long")
     rows[2]["large_short_delta_usd"] = 0.0
-    rows[7]["large_short_delta_usd"] = 90_000
-    rows[7]["crowd_long_delta_usd"] = 60_000
+    rows[3]["crowd_long_delta_usd"] = 0.0
+    rows[4]["large_short_delta_usd"] = 90_000
+    rows[5]["crowd_long_delta_usd"] = 60_000
     events = detect_clt_events(
         rows,
         min_crowd_add_usd=100_000,
