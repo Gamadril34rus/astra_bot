@@ -130,11 +130,15 @@ The published first artifact predates this correction. Its 27 collision flags, c
 
 ## 2026-11-20 follow-up collector audit
 
-The official Hyperliquid `userTwapSliceFills` response wraps each slice as `{"fill": {...}, "twapId": ...}`. The collector previously unwrapped `fill` but dropped the sibling `twapId`, even though its TWAP de-duplication key uses that identifier. The collector now preserves the outer `twapId` on the normalized fill, with a regression fixture containing otherwise-identical slices from two TWAP orders. Official response example: https://hyperliquid.gitbook.io/Hyperliquid-docs/for-developers/api/info-endpoint.
+The official Hyperliquid `userTwapSliceFills` response wraps each slice as `{"fill": {..., "tid": ...}, "twapId": ...}`. The collector now preserves the outer `twapId` as TWAP-order lineage and uses the unique inner `tid` as the fill-level de-duplication key. A regression fixture covers two distinct fills within one TWAP order and a duplicate delivery of the same trade ID. Official response example: https://hyperliquid.gitbook.io/Hyperliquid-docs/for-developers/api/info-endpoint.
 
 The previous continuity counter could also include artificial mismatches: when a same-millisecond group had no unique position-transition ordering, the series was correctly invalidated but its fills were still traversed in arbitrary API order. Continuity diagnostics now count only transitions inside uniquely ordered groups, reset the chain anchor across ambiguous groups or invalid position fields, and report the number of checked transitions, mismatch rate, and distinct wallet-market pairs with a mismatch. Ambiguous same-time groups remain excluded; they are not silently repaired.
 
 The first feasibility artifact and the pagination-corrected run started before this follow-up code change. Their continuity-failure counts and TWAP cohort aggregates are not final. A fresh run on the corrected collector is required.
+
+A further audit on 2026-11-20 found a separate aggregation defect in `audit()`: parsing and cohort-calibration exposure collection were indented outside the per-fill loop. When multiple fills shared one millisecond, continuity checked the complete ordered group, but the parsed inventory retained only its final fill. This understated activity, exposure samples and potentially changed cohort eligibility. The per-fill parsing, direction-label validation, parsed-record append and calibration exposure update now all execute inside the fill loop. Regression test `test_audit_keeps_every_fill_in_a_multi_fill_timestamp_group` constructs six continuous BTC wallets with three uniquely ordered same-millisecond fills each and verifies that all 15 fills from the five cohort-assigned wallets reach calibration totals.
+
+Consequently, inventory artifacts from run `44808263231` (head `eb9c5e86`) and run `44810126611` (head `4619f5b8`) are superseded and must not be used for cohort statistics or CLT event counts, even though the former is a successful workflow and the latter contains the TWAP/continuity fixes. The corrected source is in commit `f64965d` plus the JSON-safe regression-fixture correction in `3b68d6f`; a new historical inventory run must complete against this code before any cohort-level conclusion is reported.
 
 ## 2026-11-20 price-only swing-break control
 
