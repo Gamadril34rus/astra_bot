@@ -7,9 +7,11 @@ import csv
 import json
 import math
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -215,7 +217,7 @@ def archive(
             interval_ms = INTERVAL_MS[interval]
             gaps = [
                 {"after": int(left["open_time"]), "before": int(right["open_time"])}
-                for left, right in zip(rows, rows[1:])
+                for left, right in pairwise(rows)
                 if int(right["open_time"]) - int(left["open_time"]) != interval_ms
             ]
             symbol_report[interval] = {
