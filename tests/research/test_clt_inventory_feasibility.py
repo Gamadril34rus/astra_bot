@@ -7,6 +7,7 @@ from scripts.research.clt_inventory_feasibility import (
     order_timestamp_group,
     possible_direction_labels,
     select_wallets,
+    split_market_cohorts,
     split_fill_inventory,
 )
 
@@ -156,3 +157,17 @@ def test_public_leaderboard_ignores_zero_volume_and_bad_addresses(tmp_path):
     selected = select_wallets(path, max_wallets=10)
     assert len(selected) == 1
     assert selected[0]["month_volume"] == 100.0
+
+
+
+def test_market_cohort_split_requires_three_distinct_crowd_wallets():
+    assert split_market_cohorts([(1.0, "a"), (2.0, "b"), (3.0, "c"), (4.0, "d"), (5.0, "e")]) == {
+        "small": set(), "large": set()
+    }
+    cohorts = split_market_cohorts([
+        (1.0, "a"), (2.0, "b"), (3.0, "c"),
+        (4.0, "d"), (5.0, "e"), (6.0, "f"),
+    ])
+    assert cohorts["small"] == {"a", "b", "c"}
+    assert cohorts["large"] == {"e", "f"}
+    assert cohorts["small"].isdisjoint(cohorts["large"])
