@@ -32,7 +32,12 @@ def public_get(path: str, params: dict[str, Any], *, timeout: int = 20) -> Any:
         try:
             with urlopen(request, timeout=timeout) as response:
                 payload = json.loads(response.read().decode("utf-8"))
-            if not isinstance(payload, dict) or payload.get("code") != 0:
+            if not isinstance(payload, dict):
+                raise RuntimeError(f"BingX public API returned an invalid response: {payload!r}")
+            if payload.get("code") == 100410 and attempt < 3:
+                time.sleep((5, 15, 30)[attempt])
+                continue
+            if payload.get("code") != 0:
                 raise RuntimeError(f"BingX public API returned an invalid response: {payload!r}")
             return payload.get("data")
         except HTTPError as exc:
