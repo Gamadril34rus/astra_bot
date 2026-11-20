@@ -2,6 +2,12 @@ name: CLT BingX public market data
 
 on:
   workflow_dispatch:
+  push:
+    branches: [research/crowd-liquidity-trap]
+    paths:
+      - ".github/workflows/clt-bingx-market-data.yml"
+      - "scripts/research/clt_bingx_market_data.py"
+      - "tests/research/test_clt_bingx_market_data.py"
 
 permissions:
   contents: read
@@ -13,7 +19,7 @@ concurrency:
 jobs:
   public-market-data:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
