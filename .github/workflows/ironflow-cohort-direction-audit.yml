@@ -1,0 +1,50 @@
+name: Ironflow large-wallet open-close direction audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      lookback_hours:
+        description: "Free keyless history window (1-24 hours)"
+        type: number
+        required: false
+        default: 24
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ironflow-wallet-direction-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.12"
+      - name: Download immutable wallet cohort manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: hyperliquid-wallet-archive-research
+          run-id: 43250750091
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: evidence
+      - name: Run read-only keyless direction audit
+        run: |
+          python scripts/research/ironflow_cohort_direction_audit.py \
+            --manifest evidence/hyperliquid_wallet_archive/wallet_archive_manifest.json \
+            --lookback-hours "${{ inputs.lookback_hours }}" \
+            --out-dir reports/ironflow_direction_audit
+      - name: Upload aggregate-only audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: ironflow-wallet-direction-audit-${{ github.sha }}
+          path: |
+            reports/ironflow_direction_audit/ironflow_wallet_direction_hourly.csv
+            reports/ironflow_direction_audit/ironflow_wallet_direction_summary.json
+          if-no-files-found: error
+          retention-days: 30
