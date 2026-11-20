@@ -16,6 +16,7 @@ import statistics
 import time
 from collections import defaultdict
 from datetime import UTC, datetime
+from itertools import groupby
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -307,10 +308,11 @@ def audit(
         total_pages += stats["pages"]
         total_api_fills += stats["api_fills"]
         total_twap_fills += stats["twap_fills"]
-        if stats["api_cap_reached"] or stats["twap_cap_reached"] or stats["page_boundary_collision"]:
+        if stats["api_cap_reached"] or stats["twap_cap_reached"]:
             incomplete_addresses.add(wallet["address"])
         wallet_stats.append({
             "manifest_fills": wallet["manifest_fills"],
+            "boundary_collision_markets": stats["boundary_collision_markets"],
             "returned_api_fills": stats["api_fills"],
             "returned_twap_fills": stats["twap_fills"],
             **{key: value for key, value in stats.items()
@@ -322,7 +324,13 @@ def audit(
                 continue
             wallet_market_fills[(wallet["address"], coin)].append(fill)
 
+    incomplete_wallet_markets = {
+        (wallet["address"], market)
+        for wallet, stats in zip(selected, wallet_fetch_stats, strict=True)
+        for market in stats["boundary_collision_markets"]
+    }
     continuity_failures = 0
+    ambiguous_timestamp_groups = 0
     unknown_fills = 0
     direction_label_mismatches = 0
     unknown_direction_labels = 0
@@ -331,13 +339,21 @@ def audit(
     parsed: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
 
     for key, fills in wallet_market_fills.items():
-        fills.sort(key=lambda fill: (
-            int(fill.get("time") or 0),
-            int(fill.get("tid") or fill.get("oid") or 0),
-        ))
+        fills.sort(key=lambda fill: int(fill.get("time") or 0))
         previous_after: float | None = None
-        market_continuous = key[0] not in incomplete_addresses
-        for fill in fills:
+        market_continuous = (
+            key[0] not in incomplete_addresses and key not in incomplete_wallet_markets
+        )
+        ordered_fills = []
+        for _, group_iter in groupby(fills, key=lambda fill: int(fill.get("time") or 0)):
+            group = list(group_iter)
+            ordered_group = order_timestamp_group(group)
+            if ordered_group is None:
+                ambiguous_timestamp_groups += 1
+                market_continuous = False
+                ordered_group = group
+            ordered_fills.extend(ordered_group)
+        for fill in ordered_fills:
             try:
                 timestamp = int(fill["time"])
                 start_position = float(fill["startPosition"])
@@ -504,6 +520,8 @@ def audit(
             "wallets_at_api_10000_fill_cap": sum(bool(row["api_cap_reached"]) for row in wallet_stats),
             "wallets_at_twap_2000_fill_cap": sum(bool(row["twap_cap_reached"]) for row in wallet_stats),
             "page_boundary_timestamp_collisions": sum(bool(row["page_boundary_collision"]) for row in wallet_stats),
+            "ambiguous_same_timestamp_groups": ambiguous_timestamp_groups,
+            "wallet_market_pairs_excluded_for_boundary_collision": len(incomplete_wallet_markets),
         },
         "by_market": {f"{coin}-PERP": values for coin, values in market_counts.items()},
         "wallet_coverage": {
