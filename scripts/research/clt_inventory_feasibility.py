@@ -28,6 +28,7 @@ PAGE_SIZE = 2_000
 MAX_FILLS_PER_ADDRESS = 10_000
 BAR_MS = 15 * 60 * 1_000
 CALIBRATION_DAYS = 7
+MIN_COHORT_WALLETS = 6
 
 
 def post_info(payload: dict[str, Any], *, timeout: int = 20) -> list[dict[str, Any]]:
@@ -336,6 +337,23 @@ def possible_direction_labels(
     raise ValueError(f"unknown fill side: {side!r}")
 
 
+def split_market_cohorts(
+    candidates: list[tuple[float, str]],
+) -> dict[str, set[str]]:
+    """Split prior-only median exposure ranks into disjoint small/large cohorts."""
+    ordered = sorted(candidates)
+    if len(ordered) < MIN_COHORT_WALLETS:
+        return {"small": set(), "large": set()}
+    small_count = max(3, len(ordered) // 2)
+    large_count = max(1, math.ceil(len(ordered) * 0.25))
+    if small_count + large_count > len(ordered):
+        return {"small": set(), "large": set()}
+    return {
+        "small": {address for _, address in ordered[:small_count]},
+        "large": {address for _, address in ordered[-large_count:]},
+    }
+
+
 def audit(
     manifest_path: Path,
     out_dir: Path,
@@ -465,16 +483,7 @@ def audit(
         for (address, market), values in calibration_exposure.items():
             if market == coin and len(values) >= 3 and (address, market) in eligible_wallet_markets:
                 candidates.append((statistics.median(values), address))
-        candidates.sort()
-        if len(candidates) < 4:
-            cohort_by_market[coin] = {"small": set(), "large": set()}
-            continue
-        small_count = max(1, len(candidates) // 2)
-        large_count = max(1, math.ceil(len(candidates) * 0.25))
-        cohort_by_market[coin] = {
-            "small": {address for _, address in candidates[:small_count]},
-            "large": {address for _, address in candidates[-large_count:]},
-        }
+        cohort_by_market[coin] = split_market_cohorts(candidates)
 
     calibration_candidates_by_market = {}
     for coin in sorted(CORE_COINS):
