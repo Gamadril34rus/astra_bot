@@ -95,6 +95,8 @@ def analyze(
                             bucket_ts,
                             active_wallets,
                             {metric} AS signal_value,
+                            100.0 * ({close_col} / close_t - 1.0)
+                                AS raw_return_pct,
                             sign({metric}) * 100.0 *
                                 ({close_col} / close_t - 1.0)
                                 AS directional_return_pct
@@ -110,6 +112,12 @@ def analyze(
                         SELECT * FROM eligible
                         {overlap_clause}
                     ),
+                    baseline AS (
+                        SELECT market, avg(raw_return_pct)
+                            AS baseline_return_pct
+                        FROM selected
+                        GROUP BY market
+                    ),
                     ranked AS (
                         SELECT *,
                             ntile(10) OVER (
@@ -118,22 +126,29 @@ def analyze(
                         FROM selected
                     )
                     SELECT
-                        market,
+                        r.market,
                         count(*) AS observations,
-                        signal_decile,
-                        avg(signal_value) AS mean_signal_value,
-                        avg(directional_return_pct)
+                        r.signal_decile,
+                        avg(r.signal_value) AS mean_signal_value,
+                        avg(r.raw_return_pct) AS mean_raw_return_pct,
+                        avg(b.baseline_return_pct) AS baseline_return_pct,
+                        sum(CASE WHEN r.signal_value < 0 THEN 1 ELSE 0 END)
+                            AS negative_signal_observations,
+                        sum(CASE WHEN r.signal_value > 0 THEN 1 ELSE 0 END)
+                            AS positive_signal_observations,
+                        avg(r.directional_return_pct)
                             AS mean_directional_return_pct,
-                        median(directional_return_pct)
+                        median(r.directional_return_pct)
                             AS median_directional_return_pct,
                         100.0 * avg(
-                            CASE WHEN directional_return_pct > 0
+                            CASE WHEN r.directional_return_pct > 0
                                 THEN 1.0 ELSE 0.0 END
                         ) AS directional_hit_rate_pct,
-                        avg(active_wallets) AS mean_active_wallets
-                    FROM ranked
-                    GROUP BY market, signal_decile
-                    ORDER BY market, signal_decile
+                        avg(r.active_wallets) AS mean_active_wallets
+                    FROM ranked r
+                    INNER JOIN baseline b ON b.market = r.market
+                    GROUP BY r.market, r.signal_decile
+                    ORDER BY r.market, r.signal_decile
                 """
                 result = con.execute(query)
                 columns = [item[0] for item in result.description]
@@ -147,6 +162,14 @@ def analyze(
                         "signal_decile": int(row["signal_decile"]),
                         "observations": int(row["observations"]),
                         "mean_signal_value": float(row["mean_signal_value"]),
+                        "mean_raw_return_pct": float(row["mean_raw_return_pct"]),
+                        "baseline_return_pct": float(row["baseline_return_pct"]),
+                        "negative_signal_observations": int(
+                            row["negative_signal_observations"]
+                        ),
+                        "positive_signal_observations": int(
+                            row["positive_signal_observations"]
+                        ),
                         "mean_directional_return_pct": float(
                             row["mean_directional_return_pct"]
                         ),
@@ -161,8 +184,10 @@ def analyze(
 
     fields = [
         "horizon", "metric", "sample_type", "market", "signal_decile",
-        "observations", "mean_signal_value",
-        "mean_directional_return_pct", "median_directional_return_pct",
+        "observations", "mean_signal_value", "mean_raw_return_pct",
+        "baseline_return_pct", "negative_signal_observations",
+        "positive_signal_observations", "mean_directional_return_pct",
+        "median_directional_return_pct",
         "directional_hit_rate_pct", "mean_active_wallets",
     ]
     with csv_path.open("w", encoding="utf-8", newline="") as handle:
