@@ -735,6 +735,9 @@ def audit(
             "wallets_at_api_10000_fill_cap": sum(bool(row["api_cap_reached"]) for row in wallet_stats),
             "wallets_at_twap_2000_fill_cap": sum(bool(row["twap_cap_reached"]) for row in wallet_stats),
             "page_boundary_timestamp_collisions": sum(bool(row["page_boundary_collision"]) for row in wallet_stats),
+            "wallets_with_recovered_boundary_timestamps": sum(
+                bool(row["boundary_recovered_markets"]) for row in wallet_stats
+            ),
             "ambiguous_same_timestamp_groups": ambiguous_timestamp_groups,
             "wallet_market_pairs_excluded_for_boundary_collision": len(incomplete_wallet_markets),
         },
