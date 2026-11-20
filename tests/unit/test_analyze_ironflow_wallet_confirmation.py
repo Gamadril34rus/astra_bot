@@ -76,6 +76,11 @@ def test_non_overlapping_samples_are_thinned_per_market_and_horizon(
     assert observations("1h", "non_overlapping") == 2
     assert observations("4h", "non_overlapping") == 1
     assert observations("9h", "non_overlapping") == 1
+    assert all(float(row["mean_raw_return_pct"]) > 0 for row in study)
+    assert all(float(row["baseline_return_pct"]) > 0 for row in study)
+    assert all(
+        int(row["negative_signal_observations"]) == 0 for row in study
+    )
 
     summary = json.loads(
         (tmp_path / "out" / "wallet_flow_confirmation_summary.json").read_text()
