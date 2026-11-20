@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import csv
 
+import pytest
 from scripts.research.clt_venue_alignment import (
     compare_candles,
     load_candles,
 )
-
-import pytest
 
 
 def _bars(*, final_close: float = 98.0) -> list[dict]:
