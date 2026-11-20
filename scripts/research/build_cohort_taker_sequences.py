@@ -175,13 +175,6 @@ def build_sequences(
         ORDER BY market, side
         """
     ).fetchall()
-    unique_wallets = con.execute(
-        f"""
-        WITH cohort AS (
-            SELECT lower(address) AS address
-            FROM read_json_auto('{manifest_path.as_posix()}')
-            """
-    ) if False else None
     total = con.execute("SELECT count(*) FROM sequences").fetchone()[0]
     con.close()
 
