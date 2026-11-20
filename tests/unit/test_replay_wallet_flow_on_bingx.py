@@ -17,7 +17,7 @@ def test_cross_venue_replay_uses_closed_context_next_open_and_funding(
         "2026-10-02T19:30:00Z", "2026-10-03T10:00:00Z", freq="30min"
     )
     bars = pd.DataFrame({
-        "open_time": (times.view("int64") // 1_000_000).astype("int64"),
+        "open_time": [int(timestamp.timestamp() * 1000) for timestamp in times],
         "open": [100.0] * len(times),
         "high": [101.0] * len(times),
         "low": [98.0] * len(times),
@@ -38,7 +38,7 @@ def test_cross_venue_replay_uses_closed_context_next_open_and_funding(
         utc=True,
     )
     pd.DataFrame({
-        "funding_time": (funding_times.view("int64") // 1_000_000).astype("int64"),
+        "funding_time": [int(timestamp.timestamp() * 1000) for timestamp in funding_times],
         "rate": [0.0, 0.0001, 0.0001],
     }).to_csv(data_dir / "funding_BTCUSDT.csv", index=False)
 
