@@ -20,6 +20,8 @@ BASE_URL = "https://open-api.bingx.com"
 SYMBOLS = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
 INTERVAL_MS = {"15m": 15 * 60_000, "1h": 60 * 60_000}
 PAGE_LIMIT = 1_000
+HYPERLIQUID_INFO_URL = "https://api.hyperliquid.xyz/info"
+HYPERLIQUID_MAX_CANDLES = 5_000
 
 
 def public_get(path: str, params: dict[str, Any], *, timeout: int = 20) -> Any:
@@ -129,6 +131,139 @@ def parse_kline(raw: Any, *, interval_ms: int) -> dict[str, float | int | None]:
         "taker_buy_base": taker_base,
         "taker_buy_quote": taker_quote,
     }
+
+
+def hyperliquid_post(payload: dict[str, Any], *, timeout: int = 20) -> Any:
+    request = Request(
+        HYPERLIQUID_INFO_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "ASTRA-CLT-research/0.1",
+        },
+        method="POST",
+    )
+    for attempt in range(4):
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            if not isinstance(data, list):
+                raise RuntimeError(
+                    f"Hyperliquid candle API returned an invalid response: {data!r}"
+                )
+            return data
+        except HTTPError as exc:
+            if (exc.code != 429 and exc.code < 500) or attempt == 3:
+                detail = exc.read().decode("utf-8", errors="replace")
+                raise RuntimeError(
+                    f"Hyperliquid HTTP {exc.code}: {detail[:500]}"
+                ) from exc
+            time.sleep((1, 2, 4)[attempt])
+        except (URLError, TimeoutError, json.JSONDecodeError) as exc:
+            if attempt == 3:
+                raise RuntimeError(
+                    f"Hyperliquid public request failed: {exc}"
+                ) from exc
+            time.sleep((1, 2, 4)[attempt])
+    raise RuntimeError("Hyperliquid retry loop exhausted")
+
+
+def parse_hyperliquid_kline(
+    raw: Any, *, interval_ms: int
+) -> dict[str, float | int]:
+    if not isinstance(raw, dict):
+        raise RuntimeError("malformed Hyperliquid candle row")
+    try:
+        ts = int(raw["t"])
+        close_time = int(raw["T"])
+        open_price = float(raw["o"])
+        high = float(raw["h"])
+        low = float(raw["l"])
+        close = float(raw["c"])
+        volume = float(raw["v"])
+        trade_count = int(raw["n"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError("malformed Hyperliquid candle fields") from exc
+    values = (open_price, high, low, close, volume)
+    if any(not math.isfinite(value) for value in values):
+        raise RuntimeError("non-finite Hyperliquid candle value")
+    if (
+        min(open_price, high, low, close) <= 0
+        or volume < 0
+        or trade_count < 0
+        or high < low
+        or not low <= open_price <= high
+        or not low <= close <= high
+        or not ts <= close_time < ts + interval_ms
+    ):
+        raise RuntimeError("invalid Hyperliquid OHLC")
+    return {
+        "open_time": ts,
+        "open": open_price,
+        "high": high,
+        "low": low,
+        "close": close,
+        "volume": volume,
+        "close_time": close_time,
+        "trade_count": trade_count,
+    }
+
+
+def fetch_hyperliquid_klines(
+    fetch: Callable[[dict[str, Any]], Any],
+    *,
+    coin: str,
+    interval: str,
+    start_ms: int,
+    end_ms: int,
+) -> list[dict[str, float | int]]:
+    if interval not in INTERVAL_MS:
+        raise ValueError(f"unsupported Hyperliquid interval: {interval}")
+    if start_ms < 0 or end_ms <= start_ms:
+        raise ValueError("invalid Hyperliquid candle range")
+    interval_ms = INTERVAL_MS[interval]
+    requested_bars = (end_ms - start_ms + interval_ms - 1) // interval_ms
+    if requested_bars > HYPERLIQUID_MAX_CANDLES:
+        raise ValueError("Hyperliquid candle request exceeds 5,000-bar history limit")
+    data = fetch({
+        "type": "candleSnapshot",
+        "req": {
+            "coin": coin,
+            "interval": interval,
+            "startTime": start_ms,
+            "endTime": end_ms - 1,
+        },
+    })
+    if not isinstance(data, list):
+        raise RuntimeError(f"unexpected Hyperliquid response for {coin} {interval}")
+    rows: dict[int, dict[str, float | int]] = {}
+    for raw in data:
+        row = parse_hyperliquid_kline(raw, interval_ms=interval_ms)
+        ts = int(row["open_time"])
+        if start_ms <= ts < end_ms:
+            if ts in rows:
+                raise RuntimeError("duplicate Hyperliquid candle timestamp")
+            rows[ts] = row
+    return [rows[key] for key in sorted(rows)]
+
+
+class HyperliquidRateLimitedFetcher:
+    """Serialize public Hyperliquid Info API calls."""
+
+    def __init__(self, minimum_interval_seconds: float = 1.05):
+        self.minimum_interval_seconds = minimum_interval_seconds
+        self.last_call_monotonic: float | None = None
+
+    def __call__(self, payload: dict[str, Any]) -> Any:
+        if self.last_call_monotonic is not None:
+            elapsed = time.monotonic() - self.last_call_monotonic
+            delay = self.minimum_interval_seconds - elapsed
+            if delay > 0:
+                time.sleep(delay)
+        result = hyperliquid_post(payload)
+        self.last_call_monotonic = time.monotonic()
+        return result
 
 
 def fetch_klines(
@@ -258,9 +393,15 @@ def archive(
         "window_start_utc": start.isoformat(),
         "window_end_utc": end.isoformat(),
         "symbols": {},
+        "hyperliquid": {},
+        "cross_venue_use": {
+            "Hyperliquid": "position-inventory signal and source-venue candle validation",
+            "BingX": "target execution prices and funding",
+        },
         "auth": "public read-only endpoints; no API key",
     }
     fetcher = RateLimitedFetcher()
+    hyperliquid_fetcher = HyperliquidRateLimitedFetcher()
     for symbol in symbols:
         symbol_report = {}
         for interval in ("15m", "1h"):
@@ -300,6 +441,35 @@ def archive(
             "file": funding_path.name,
         }
         report["symbols"][symbol] = symbol_report
+
+        coin = symbol.removesuffix("-USDT")
+        hyperliquid_report = {}
+        for interval in ("15m", "1h"):
+            hl_rows = fetch_hyperliquid_klines(
+                hyperliquid_fetcher,
+                coin=coin,
+                interval=interval,
+                start_ms=start_ms,
+                end_ms=end_ms,
+            )
+            hl_path = out_dir / f"{coin}_HL_{interval}.csv"
+            _write_csv(hl_path, hl_rows)
+            interval_ms = INTERVAL_MS[interval]
+            gaps = [
+                {"after": int(left["open_time"]), "before": int(right["open_time"])}
+                for left, right in pairwise(hl_rows)
+                if int(right["open_time"]) - int(left["open_time"]) != interval_ms
+            ]
+            hyperliquid_report[interval] = {
+                "rows": len(hl_rows),
+                "gaps": len(gaps),
+                "first_open_time": hl_rows[0]["open_time"] if hl_rows else None,
+                "last_open_time": hl_rows[-1]["open_time"] if hl_rows else None,
+                "file": hl_path.name,
+                "gap_examples": gaps[:10],
+            }
+        report["hyperliquid"][coin] = hyperliquid_report
+
     (out_dir / "coverage.json").write_text(
         json.dumps(report, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
