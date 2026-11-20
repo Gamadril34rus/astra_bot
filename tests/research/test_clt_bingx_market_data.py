@@ -5,6 +5,7 @@ from scripts.research.clt_bingx_market_data import (
     INTERVAL_MS,
     fetch_funding,
     fetch_klines,
+    parse_kline,
 )
 
 
@@ -86,3 +87,35 @@ def test_unsupported_kline_interval_fails_closed():
             start_ms=0,
             end_ms=1,
         )
+
+
+
+def test_object_form_klines_are_supported_without_inventing_missing_fields():
+    row = parse_kline({
+        "time": 900_000,
+        "open": "100",
+        "high": "102",
+        "low": "99",
+        "close": "101",
+        "volume": "12.5",
+    }, interval_ms=INTERVAL_MS["15m"])
+    assert row["open_time"] == 900_000
+    assert row["close_time"] == 2 * INTERVAL_MS["15m"] - 1
+    assert row["quote_volume"] is None
+    assert row["trade_count"] is None
+    assert row["taker_buy_quote"] is None
+
+
+def test_seven_field_array_klines_are_supported():
+    raw = [0, "100", "102", "99", "101", "10", INTERVAL_MS["15m"] - 1]
+    row = parse_kline(raw, interval_ms=INTERVAL_MS["15m"])
+    assert row["close_time"] == INTERVAL_MS["15m"] - 1
+    assert row["quote_volume"] is None
+
+
+def test_object_kline_missing_timestamp_is_rejected():
+    with pytest.raises(RuntimeError, match="timestamp"):
+        parse_kline({
+            "open": "100", "high": "102", "low": "99",
+            "close": "101", "volume": "10",
+        }, interval_ms=INTERVAL_MS["15m"])
