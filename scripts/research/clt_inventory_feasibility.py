@@ -573,6 +573,12 @@ def audit(
         "large_open_long_usd", "large_close_long_usd",
         "large_open_short_usd", "large_close_short_usd",
         "small_liquidation_notional_usd", "large_liquidation_notional_usd",
+        *[
+            f"{cohort}_{direction}_add_wallets_prev_{window}"
+            for cohort in ("small", "large")
+            for direction in ("long", "short")
+            for window in range(1, 9)
+        ],
     ]
     output_rows = []
     for (coin, phase, bucket_ms), values in sorted(buckets.items()):
@@ -595,6 +601,21 @@ def audit(
             "large_long_delta_usd": values["large_open_long_usd"] - values["large_close_long_usd"],
             "large_short_delta_usd": values["large_open_short_usd"] - values["large_close_short_usd"],
         }
+        for cohort in ("small", "large"):
+            for direction in ("long", "short"):
+                prefix = f"{cohort}_{direction}_net_wallet_"
+                for window in range(1, 9):
+                    active_wallets: set[str] = set()
+                    for prior_bucket in range(
+                        bucket_ms - window * BAR_MS, bucket_ms, BAR_MS
+                    ):
+                        prior_values = buckets.get((coin, phase, prior_bucket), {})
+                        active_wallets.update(
+                            key[len(prefix):]
+                            for key, value in prior_values.items()
+                            if key.startswith(prefix) and value > 0
+                        )
+                    row[f"{cohort}_{direction}_add_wallets_prev_{window}"] = len(active_wallets)
         for field in fields:
             if field not in row and field not in {"market", "phase", "bucket_ts_ms"}:
                 row[field] = values[field]
