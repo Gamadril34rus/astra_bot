@@ -34,8 +34,15 @@ jobs:
           python -m pip install duckdb pyarrow pandas pytest ruff
       - name: Run unit tests and lint
         run: |
-          python -m pytest tests/unit/test_analyze_ironflow_wallet_confirmation.py -q --confcutdir=tests/unit
-          python -m ruff check scripts/analyze_ironflow_wallet_confirmation.py tests/unit/test_analyze_ironflow_wallet_confirmation.py
+          python -m pytest \
+            tests/unit/test_analyze_ironflow_wallet_confirmation.py \
+            tests/unit/test_replay_wallet_flow_on_bingx.py \
+            -q --confcutdir=tests/unit
+          python -m ruff check \
+            scripts/analyze_ironflow_wallet_confirmation.py \
+            tests/unit/test_analyze_ironflow_wallet_confirmation.py \
+            scripts/replay_wallet_flow_on_bingx.py \
+            tests/unit/test_replay_wallet_flow_on_bingx.py
       - name: Download immutable 37-day wallet-flow archive
         uses: actions/download-artifact@v4
         with:
