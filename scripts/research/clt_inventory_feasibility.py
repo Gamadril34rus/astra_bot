@@ -365,24 +365,36 @@ def rolling_unique_add_wallet_counts(
     max_window: int = 8,
 ) -> dict[str, int]:
     """Count distinct net adders in prior bars, including when the current bar is empty."""
-    if not 1 <= max_window <= 8:
-        raise ValueError("max_window must be between 1 and 8")
+    if not 1 <= max_window <= 12:
+        raise ValueError("max_window must be between 1 and 12")
+    cohorts = ("small", "large")
+    directions = ("long", "short")
+    prefixes = {
+        (cohort, direction): f"{cohort}_{direction}_net_wallet_"
+        for cohort in cohorts
+        for direction in directions
+    }
+    prior_bucket_adders = []
+    for window in range(1, max_window + 1):
+        prior_bucket = bucket_ms - window * BAR_MS
+        prior_values = buckets.get((market, phase, prior_bucket), {})
+        adders = {key: set() for key in prefixes}
+        for field, value in prior_values.items():
+            if value <= 0:
+                continue
+            for key, prefix in prefixes.items():
+                if field.startswith(prefix):
+                    adders[key].add(field[len(prefix):])
+                    break
+        prior_bucket_adders.append(adders)
+
     counts = {}
-    for cohort in ("small", "large"):
-        for direction in ("long", "short"):
-            prefix = f"{cohort}_{direction}_net_wallet_"
-            for window in range(1, max_window + 1):
-                active_wallets: set[str] = set()
-                for prior_bucket in range(
-                    bucket_ms - window * BAR_MS, bucket_ms, BAR_MS
-                ):
-                    prior_values = buckets.get((market, phase, prior_bucket), {})
-                    active_wallets.update(
-                        key[len(prefix):]
-                        for key, value in prior_values.items()
-                        if key.startswith(prefix) and value > 0
-                    )
-                counts[f"{cohort}_{direction}_add_wallets_prev_{window}"] = len(active_wallets)
+    for key in prefixes:
+        active_wallets: set[str] = set()
+        for window, adders in enumerate(prior_bucket_adders, start=1):
+            active_wallets.update(adders[key])
+            cohort, direction = key
+            counts[f"{cohort}_{direction}_add_wallets_prev_{window}"] = len(active_wallets)
     return counts
 
 
@@ -611,7 +623,7 @@ def audit(
             f"{cohort}_{direction}_add_wallets_prev_{window}"
             for cohort in ("small", "large")
             for direction in ("long", "short")
-            for window in range(1, 9)
+            for window in range(1, 13)
         ],
     ]
     output_rows = []
@@ -647,7 +659,7 @@ def audit(
                     market=coin,
                     phase=phase,
                     bucket_ms=bucket_ms,
-                    max_window=8,
+                    max_window=12,
                 ))
                 for field in fields:
                     if field not in row and field not in {"market", "phase", "bucket_ts_ms"}:
