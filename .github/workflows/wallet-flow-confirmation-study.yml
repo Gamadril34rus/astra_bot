@@ -10,6 +10,8 @@ on:
       - "tests/unit/test_replay_wallet_flow_on_bingx.py"
       - "scripts/research/hyperliquid_cohort_direction_audit.py"
       - "tests/unit/test_hyperliquid_cohort_direction_audit.py"
+      - "scripts/research/build_cohort_taker_sequences.py"
+      - "tests/unit/test_build_cohort_taker_sequences.py"
       - ".github/workflows/wallet-flow-confirmation-study.yml"
   workflow_dispatch:
 
@@ -40,6 +42,9 @@ jobs:
             tests/unit/test_analyze_ironflow_wallet_confirmation.py \
             tests/unit/test_replay_wallet_flow_on_bingx.py \
             tests/unit/test_hyperliquid_cohort_direction_audit.py \
+            scripts/research/build_cohort_taker_sequences.py \
+            tests/unit/test_build_cohort_taker_sequences.py \
+            tests/unit/test_build_cohort_taker_sequences.py \
             -q --confcutdir=tests/unit
           python -m ruff check \
             scripts/analyze_ironflow_wallet_confirmation.py \
@@ -74,6 +79,19 @@ jobs:
             --events reports/wallet_flow_confirmation/wallet_flow_confirmation_events.csv \
             --bingx-dir bingx_evidence/data/bingx_usdm \
             --out-dir reports/wallet_flow_bingx
+      - name: Download frozen wallet cohort manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: hyperliquid-wallet-archive-summary
+          run-id: 43250750091
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: manifest_evidence
+      - name: Build causal cohort taker execution sequences
+        run: |
+          python scripts/research/build_cohort_taker_sequences.py \
+            --trades evidence/hyperliquid_wallet_archive/wallet_trades.parquet \
+            --manifest manifest_evidence/hyperliquid_wallet_archive/wallet_archive_manifest.json \
+            --out-dir reports/taker_sequences
       - name: Upload compact confirmation results
         if: always()
         uses: actions/upload-artifact@v4
@@ -88,5 +106,7 @@ jobs:
             reports/wallet_flow_bingx/wallet_flow_bingx_candidate_events.csv
             reports/wallet_flow_bingx/wallet_flow_bingx_regime_baseline.csv
             reports/wallet_flow_bingx/wallet_flow_bingx_replay_summary.json
+            reports/taker_sequences/cohort_taker_sequences.csv
+            reports/taker_sequences/cohort_taker_sequence_summary.json
           if-no-files-found: warn
           retention-days: 90
