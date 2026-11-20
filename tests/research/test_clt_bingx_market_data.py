@@ -4,7 +4,9 @@ import pytest
 from scripts.research.clt_bingx_market_data import (
     INTERVAL_MS,
     fetch_funding,
+    fetch_hyperliquid_klines,
     fetch_klines,
+    parse_hyperliquid_kline,
     parse_kline,
 )
 
@@ -119,3 +121,73 @@ def test_object_kline_missing_timestamp_is_rejected():
             "open": "100", "high": "102", "low": "99",
             "close": "101", "volume": "10",
         }, interval_ms=INTERVAL_MS["15m"])
+
+
+
+def _raw_hyperliquid_kline(ts: int, interval: str = "15m") -> dict:
+    return {
+        "t": ts,
+        "T": ts + INTERVAL_MS[interval] - 1,
+        "o": "100",
+        "h": "102",
+        "l": "99",
+        "c": "101",
+        "v": "10",
+        "n": 50,
+    }
+
+
+def test_hyperliquid_candles_use_documented_snapshot_schema():
+    calls = []
+
+    def fake_fetch(payload):
+        calls.append(payload)
+        return [
+            _raw_hyperliquid_kline(INTERVAL_MS["15m"]),
+            _raw_hyperliquid_kline(0),
+        ]
+
+    rows = fetch_hyperliquid_klines(
+        fake_fetch,
+        coin="BTC",
+        interval="15m",
+        start_ms=0,
+        end_ms=2 * INTERVAL_MS["15m"],
+    )
+    assert [row["open_time"] for row in rows] == [0, INTERVAL_MS["15m"]]
+    assert rows[0]["trade_count"] == 50
+    assert calls[0]["type"] == "candleSnapshot"
+    assert calls[0]["req"]["coin"] == "BTC"
+    assert calls[0]["req"]["endTime"] == 2 * INTERVAL_MS["15m"] - 1
+
+
+def test_hyperliquid_candles_reject_invalid_ohlc():
+    raw = _raw_hyperliquid_kline(0)
+    raw["h"] = "98"
+    with pytest.raises(RuntimeError, match="invalid Hyperliquid OHLC"):
+        parse_hyperliquid_kline(raw, interval_ms=INTERVAL_MS["15m"])
+
+
+def test_hyperliquid_candles_reject_more_than_5000_bars():
+    with pytest.raises(ValueError, match="5,000-bar"):
+        fetch_hyperliquid_klines(
+            lambda *_: [],
+            coin="BTC",
+            interval="15m",
+            start_ms=0,
+            end_ms=5_001 * INTERVAL_MS["15m"],
+        )
+
+
+def test_hyperliquid_candles_reject_duplicate_timestamps():
+    def fake_fetch(payload):
+        return [_raw_hyperliquid_kline(0), _raw_hyperliquid_kline(0)]
+
+    with pytest.raises(RuntimeError, match="duplicate"):
+        fetch_hyperliquid_klines(
+            fake_fetch,
+            coin="BTC",
+            interval="15m",
+            start_ms=0,
+            end_ms=INTERVAL_MS["15m"],
+        )
