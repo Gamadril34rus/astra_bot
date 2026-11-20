@@ -47,6 +47,72 @@ def public_get(path: str, params: dict[str, Any], *, timeout: int = 20) -> Any:
     raise RuntimeError("BingX retry loop exhausted")
 
 
+def _optional_float(row: dict[str, Any], *keys: str) -> float | None:
+    for key in keys:
+        if row.get(key) not in (None, ""):
+            value = float(row[key])
+            if not math.isfinite(value):
+                raise RuntimeError(f"non-finite BingX kline field: {key}")
+            return value
+    return None
+
+
+def parse_kline(raw: Any, *, interval_ms: int) -> dict[str, float | int | None]:
+    """Accept both documented positional arrays and object-form swap kline rows."""
+    if isinstance(raw, dict):
+        ts = int(raw.get("time") or raw.get("openTime") or raw.get("open_time") or 0)
+        open_price = float(raw["open"])
+        high = float(raw["high"])
+        low = float(raw["low"])
+        close = float(raw["close"])
+        volume = float(raw.get("volume") or 0.0)
+        close_time = int(
+            raw.get("closeTime") or raw.get("close_time") or ts + interval_ms - 1
+        )
+        quote_volume = _optional_float(raw, "quoteVolume", "quote_volume")
+        trade_count = _optional_float(raw, "trades", "tradeCount", "trade_count")
+        taker_base = _optional_float(raw, "takerBuyBaseVolume", "taker_buy_base")
+        taker_quote = _optional_float(raw, "takerBuyQuoteVolume", "taker_buy_quote")
+    elif isinstance(raw, list) and len(raw) >= 7:
+        ts = int(raw[0])
+        open_price, high, low, close, volume = (
+            float(raw[index]) for index in (1, 2, 3, 4, 5)
+        )
+        close_time = int(raw[6])
+        quote_volume = float(raw[7]) if len(raw) > 7 else None
+        trade_count = float(raw[8]) if len(raw) > 8 else None
+        taker_base = float(raw[9]) if len(raw) > 9 else None
+        taker_quote = float(raw[10]) if len(raw) > 10 else None
+    else:
+        raise RuntimeError("malformed BingX kline row")
+
+    required_values = (open_price, high, low, close, volume)
+    if any(not math.isfinite(value) for value in required_values):
+        raise RuntimeError("non-finite BingX kline value")
+    if (
+        min(open_price, high, low, close) <= 0
+        or volume < 0
+        or high < low
+        or not low <= open_price <= high
+        or not low <= close <= high
+        or close_time < ts
+    ):
+        raise RuntimeError("invalid BingX OHLC")
+    return {
+        "open_time": ts,
+        "open": open_price,
+        "high": high,
+        "low": low,
+        "close": close,
+        "volume": volume,
+        "close_time": close_time,
+        "quote_volume": quote_volume,
+        "trade_count": trade_count,
+        "taker_buy_base": taker_base,
+        "taker_buy_quote": taker_quote,
+    }
+
+
 def fetch_klines(
     fetch: Callable[[str, dict[str, Any]], Any],
     *,
@@ -76,35 +142,10 @@ def fetch_klines(
         if not isinstance(data, list):
             raise RuntimeError(f"unexpected kline response for {symbol} {interval}")
         for raw in data:
-            if not isinstance(raw, list) or len(raw) < 11:
-                raise RuntimeError(f"malformed kline row for {symbol} {interval}")
-            ts = int(raw[0])
-            if not start_ms <= ts < end_ms:
-                continue
-            values = [float(raw[index]) for index in (1, 2, 3, 4, 5, 7, 8, 9, 10)]
-            if any(not math.isfinite(value) for value in values):
-                raise RuntimeError("non-finite BingX kline value")
-            open_price, high, low, close, volume, quote_volume, trade_count, taker_base, taker_quote = values
-            if (
-                min(open_price, high, low, close) <= 0
-                or high < low
-                or not low <= open_price <= high
-                or not low <= close <= high
-            ):
-                raise RuntimeError("invalid BingX OHLC")
-            rows[ts] = {
-                "open_time": ts,
-                "open": open_price,
-                "high": high,
-                "low": low,
-                "close": close,
-                "volume": volume,
-                "close_time": int(raw[6]),
-                "quote_volume": quote_volume,
-                "trade_count": trade_count,
-                "taker_buy_base": taker_base,
-                "taker_buy_quote": taker_quote,
-            }
+            row = parse_kline(raw, interval_ms=interval_ms)
+            ts = int(row["open_time"])
+            if start_ms <= ts < end_ms:
+                rows[ts] = row
         cursor = chunk_end
         if cursor < end_ms:
             time.sleep(pause_seconds)
