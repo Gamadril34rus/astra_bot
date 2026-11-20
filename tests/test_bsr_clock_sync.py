@@ -60,3 +60,18 @@ def test_clock_sync_summary_reports_offset_spread_and_drift(tmp_path):
     assert bx["offset_ms"]["first_to_last_drift"] == 4
     assert bx["rtt_ms"]["p50"] == 6
     assert report["by_venue"]["binance_spot"]["errors"] == 1
+
+
+def test_clock_sync_summary_counts_invalid_utf8_without_aborting(tmp_path):
+    path = tmp_path / "clock.jsonl"
+    valid = {
+        "kind": "clock_sync",
+        "venue": "bingx_swap",
+        "offset_ms": 10,
+        "rtt_ms": 4,
+        "local_receive_ms": 100,
+    }
+    path.write_bytes((json.dumps(valid) + "\n").encode("utf-8") + b"\xff\n")
+    report = summarize_clock_sync(path)
+    assert report["malformed_records"] == 1
+    assert report["by_venue"]["bingx_swap"]["samples"] == 1
