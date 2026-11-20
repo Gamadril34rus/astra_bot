@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from scripts.research.clt_bingx_market_data import (
     INTERVAL_MS,
     fetch_funding,
