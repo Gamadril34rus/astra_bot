@@ -33,7 +33,7 @@ def _bars(*, crowd_direction: str) -> list[dict]:
         })
         for cohort in ("small", "large"):
             for direction in ("long", "short"):
-                for window in range(1, 13)
+                for window in range(1, 13):
                     rows[-1][f"{cohort}_{direction}_add_wallets_prev_{window}"] = 0
 
     if crowd_direction == "long":
