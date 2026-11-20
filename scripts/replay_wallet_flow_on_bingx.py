@@ -80,7 +80,7 @@ def _funding_for_short(
     inside = funding.loc[
         (funding["fund_dt"] > entry_time) & (funding["fund_dt"] <= exit_time)
     ]
-    before = funding.loc[funding["fund_dt"] < entry_time, "fund_dt"]
+    before = funding.loc[funding["fund_dt"] <= entry_time, "fund_dt"]
     after = funding.loc[funding["fund_dt"] > exit_time, "fund_dt"]
     if before.empty or after.empty:
         return None, False, int(len(inside))
@@ -247,8 +247,8 @@ def replay(events_path: Path, bingx_dir: Path, out_dir: Path) -> dict[str, Any]:
     all_event_rows: list[dict[str, Any]] = []
     baseline_rows: list[dict[str, Any]] = []
     data_quality: dict[str, dict[str, Any]] = {}
-    window_start = events["bucket_ts"].min().floor("D")
-    window_end = events["bucket_ts"].max().ceil("D") + HOLD
+    window_start = events["bucket_ts"].min() + pd.Timedelta(minutes=15)
+    window_end = events["bucket_ts"].max() + pd.Timedelta(minutes=15)
 
     for market, symbol in SYMBOLS.items():
         market_events = events.loc[events["market"] == market].sort_values("bucket_ts")
@@ -328,7 +328,9 @@ def replay(events_path: Path, bingx_dir: Path, out_dir: Path) -> dict[str, Any]:
         & all_events["funding_coverage"]
     ].copy()
     candidate = _non_overlapping(candidate, "entry_time")
-    baseline = _non_overlapping(pd.DataFrame(baseline_rows), "entry_time")
+    baseline_frame = pd.DataFrame(baseline_rows)
+    baseline_frame = baseline_frame.loc[baseline_frame["funding_coverage"]].copy()
+    baseline = _non_overlapping(baseline_frame, "entry_time")
 
     all_events.to_csv(out_dir / "wallet_flow_bingx_all_events.csv", index=False)
     candidate.to_csv(out_dir / "wallet_flow_bingx_candidate_events.csv", index=False)
@@ -339,7 +341,7 @@ def replay(events_path: Path, bingx_dir: Path, out_dir: Path) -> dict[str, Any]:
     for market in SYMBOLS:
         c = candidate.loc[candidate["market"] == market]
         b = baseline.loc[baseline["market"] == market]
-        if len(c) >= 5:
+        if len(c) >= 5 and len(b.loc[b["funding_coverage"]]) >= 5:
             markets_with_candidate.append(market)
         diff = None
         if len(c) and len(b):
