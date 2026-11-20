@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -71,48 +70,43 @@ def audit(manifest_path: Path, out_dir: Path, lookback_hours: int = 24) -> dict:
     requests = 0
 
     for market in MARKETS:
-        cursor = start
-        while cursor < end:
-            nxt = min(cursor + timedelta(hours=6), end)
-            sql = f"""
-                SELECT
-                    market,
-                    toStartOfInterval(ts, INTERVAL 1 HOUR) AS hour_utc,
-                    side,
-                    direction,
-                    is_taker,
-                    count() AS fill_rows,
-                    uniqExact(oid) AS order_ids,
-                    uniqExact(address) AS wallets,
-                    sum(notional) AS notional_usd,
-                    sum(fee) AS fees_usd,
-                    sum(realized_pnl) AS realized_pnl_usd,
-                    countIf(is_liquidation) AS liquidation_fills,
-                    sumIf(notional, is_liquidation) AS liquidation_notional_usd
-                FROM hl.wallet_fills
-                WHERE address IN ({address_sql})
-                  AND market = '{market}'
-                  AND ts >= toDateTime64('{cursor.strftime("%Y-%m-%d %H:%M:%S")}', 6, 'UTC')
-                  AND ts < toDateTime64('{nxt.strftime("%Y-%m-%d %H:%M:%S")}', 6, 'UTC')
-                GROUP BY market, hour_utc, side, direction, is_taker
-                ORDER BY hour_utc, direction, side, is_taker
-                LIMIT 1000
-            """
-            data = post_query(sql)
-            requests += 1
-            query_seconds += float(data.get("query_seconds") or 0.0)
-            if query_seconds > 55:
-                raise RuntimeError(
-                    f"Stopped before keyless hourly query budget: {query_seconds:.2f}s"
-                )
-            columns = [col["name"] for col in data.get("columns", [])]
-            for values in data.get("rows", []):
-                row = dict(zip(columns, values, strict=True))
-                row["market"] = market
-                row["hour_utc"] = str(row["hour_utc"])
-                all_rows.append(row)
-            cursor = nxt
-            time.sleep(1.05)
+        sql = f"""
+            SELECT
+                market,
+                toStartOfInterval(ts, INTERVAL 1 HOUR) AS hour_utc,
+                side,
+                direction,
+                is_taker,
+                count() AS fill_rows,
+                uniqExact(oid) AS order_ids,
+                uniqExact(address) AS wallets,
+                sum(notional) AS notional_usd,
+                sum(fee) AS fees_usd,
+                sum(realized_pnl) AS realized_pnl_usd,
+                countIf(is_liquidation) AS liquidation_fills,
+                sumIf(notional, is_liquidation) AS liquidation_notional_usd
+            FROM hl.wallet_fills
+            WHERE address IN ({address_sql})
+              AND market = '{market}'
+              AND ts >= toDateTime64('{start.strftime("%Y-%m-%d %H:%M:%S")}', 6, 'UTC')
+              AND ts < toDateTime64('{end.strftime("%Y-%m-%d %H:%M:%S")}', 6, 'UTC')
+            GROUP BY market, hour_utc, side, direction, is_taker
+            ORDER BY hour_utc, direction, side, is_taker
+            LIMIT 1000
+        """
+        data = post_query(sql)
+        requests += 1
+        query_seconds += float(data.get("query_seconds") or 0.0)
+        if query_seconds > 55:
+            raise RuntimeError(
+                f"Stopped before keyless hourly query budget: {query_seconds:.2f}s"
+            )
+        columns = [col["name"] for col in data.get("columns", [])]
+        for values in data.get("rows", []):
+            row = dict(zip(columns, values, strict=True))
+            row["market"] = market
+            row["hour_utc"] = str(row["hour_utc"])
+            all_rows.append(row)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     csv_path = out_dir / "ironflow_wallet_direction_hourly.csv"
@@ -158,6 +152,8 @@ def audit(manifest_path: Path, out_dir: Path, lookback_hours: int = 24) -> dict:
         "cohort_wallets": len(addresses),
         "markets": list(MARKETS),
         "requests": requests,
+        "estimated_credits": requests * 10,
+        "keyless_rolling_24h_credit_limit": 100,
         "query_seconds_reported": round(query_seconds, 3),
         "aggregate_rows": len(all_rows),
         "directional_aggregates": aggregates,
