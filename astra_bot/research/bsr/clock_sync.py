@@ -11,7 +11,6 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-
 ENDPOINTS = {
     "bingx_swap": ("https://open-api.bingx.com/openApi/swap/v2/server/time", True),
     "binance_spot": ("https://data-api.binance.vision/api/v3/time", False),
