@@ -7,6 +7,7 @@ from scripts.research.clt_inventory_feasibility import (
     count_net_add_wallets,
     order_timestamp_group,
     possible_direction_labels,
+    rolling_unique_add_wallet_counts,
     select_wallets,
     split_fill_inventory,
     split_market_cohorts,
@@ -194,3 +195,66 @@ def test_net_add_wallet_count_rejects_unknown_cohort_or_direction():
         assert "cohort" in str(exc)
     else:
         raise AssertionError("unknown cohort must fail")
+
+
+
+def test_rolling_unique_add_counts_include_empty_current_bars_and_exclude_current_bar():
+    from scripts.research.clt_inventory_feasibility import BAR_MS
+
+    buckets = {
+        ("BTC", "test", 0): {
+            "small_long_net_wallet_a": 100.0,
+            "small_long_net_wallet_b": -20.0,
+            "small_short_net_wallet_c": 50.0,
+            "large_short_net_wallet_d": 75.0,
+        },
+        ("BTC", "test", BAR_MS): {
+            "small_long_net_wallet_a": 10.0,
+            "small_long_net_wallet_e": 25.0,
+        },
+        ("BTC", "test", 2 * BAR_MS): {
+            "small_long_net_wallet_z": 999.0,
+        },
+        ("BTC", "calibration", 0): {
+            "small_long_net_wallet_out_of_phase": 500.0,
+        },
+    }
+    counts = rolling_unique_add_wallet_counts(
+        buckets,
+        market="BTC",
+        phase="test",
+        bucket_ms=2 * BAR_MS,
+        max_window=2,
+    )
+    assert counts["small_long_add_wallets_prev_1"] == 2
+    assert counts["small_long_add_wallets_prev_2"] == 2
+    assert counts["small_short_add_wallets_prev_2"] == 1
+    assert counts["large_short_add_wallets_prev_2"] == 1
+
+
+def test_rolling_unique_add_counts_are_phase_scoped_and_validate_window():
+    from scripts.research.clt_inventory_feasibility import BAR_MS
+
+    buckets = {
+        ("BTC", "calibration", 0): {"small_long_net_wallet_a": 100.0},
+    }
+    counts = rolling_unique_add_wallet_counts(
+        buckets,
+        market="BTC",
+        phase="test",
+        bucket_ms=BAR_MS,
+        max_window=1,
+    )
+    assert counts["small_long_add_wallets_prev_1"] == 0
+    try:
+        rolling_unique_add_wallet_counts(
+            buckets,
+            market="BTC",
+            phase="test",
+            bucket_ms=BAR_MS,
+            max_window=9,
+        )
+    except ValueError as exc:
+        assert "between 1 and 8" in str(exc)
+    else:
+        raise AssertionError("oversized rolling window must fail")
