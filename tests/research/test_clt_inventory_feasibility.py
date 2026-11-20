@@ -97,10 +97,14 @@ def test_fill_key_uses_unique_trade_id_for_twap_slices():
     }
     duplicate = dict(base)
     different_fill = {**base, "tid": 124}
+    same_tid_other_market = {**base, "coin": "ETH"}
 
     assert inventory._fill_key(base, twap=True) == inventory._fill_key(duplicate, twap=True)
     assert inventory._fill_key(base, twap=True) != inventory._fill_key(
         different_fill, twap=True
+    )
+    assert inventory._fill_key(base, twap=True) != inventory._fill_key(
+        same_tid_other_market, twap=True
     )
 
 

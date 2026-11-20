@@ -141,8 +141,13 @@ def select_wallets(manifest_path: Path, *, max_wallets: int) -> list[dict[str, A
 
 def _fill_key(fill: dict[str, Any], *, twap: bool = False) -> tuple[Any, ...]:
     if fill.get("tid") is not None:
-        # Hyperliquid trade IDs identify individual fills, including TWAP slices.
-        return ("twap" if twap else "fill", str(fill["tid"]))
+        # Scope the trade ID by timestamp and market to avoid cross-market collisions.
+        return (
+            "twap" if twap else "fill",
+            int(fill.get("time") or 0),
+            str(fill.get("coin") or ""),
+            str(fill["tid"]),
+        )
     return (
         "twap" if twap else "fill-fallback",
         fill.get("twapId"),
