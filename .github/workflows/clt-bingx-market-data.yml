@@ -1,4 +1,4 @@
-name: CLT BingX public market data
+name: CLT cross-venue public market data
 
 on:
   workflow_dispatch:
@@ -8,6 +8,8 @@ on:
       - ".github/workflows/clt-bingx-market-data.yml"
       - "scripts/research/clt_bingx_market_data.py"
       - "tests/research/test_clt_bingx_market_data.py"
+      - "scripts/research/clt_venue_alignment.py"
+      - "tests/research/test_clt_venue_alignment.py"
 
 permissions:
   contents: read
@@ -31,12 +33,17 @@ jobs:
         run: python -m pytest tests/research/test_clt_bingx_market_data.py -q --confcutdir=tests/research
       - name: Lint public market-data collector
         run: python -m ruff check scripts/research/clt_bingx_market_data.py tests/research/test_clt_bingx_market_data.py
-      - name: Download BingX USDT-M 15m/1h candles and funding
+      - name: Download BingX and Hyperliquid 15m/1h candles plus BingX funding
         run: |
           python scripts/research/clt_bingx_market_data.py \
             --out-dir reports/clt_bingx_market_data \
             --start 2026-10-03T00:00:00+00:00 \
             --end 2026-11-09T00:00:00+00:00
+      - name: Compare source-venue and execution-venue candles
+        run: |
+          python scripts/research/clt_venue_alignment.py \
+            --data-dir reports/clt_bingx_market_data \
+            --output reports/clt_bingx_market_data/venue_alignment.json
       - name: Upload read-only market-data artifact
         if: always()
         uses: actions/upload-artifact@v4
