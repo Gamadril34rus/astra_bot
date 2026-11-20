@@ -83,7 +83,7 @@ def _funding_for_short(
     before = funding.loc[funding["fund_dt"] <= entry_time, "fund_dt"]
     after = funding.loc[funding["fund_dt"] > exit_time, "fund_dt"]
     if before.empty or after.empty:
-        return None, False, int(len(inside))
+        return None, False, len(inside)
     nearby = funding.loc[
         (funding["fund_dt"] >= before.iloc[-1])
         & (funding["fund_dt"] <= after.iloc[0]),
@@ -97,9 +97,9 @@ def _funding_for_short(
         and float(gaps.max()) <= cadence_hours * 1.5 + 1e-9
     )
     if not coverage:
-        return None, False, int(len(inside))
+        return None, False, len(inside)
     # Positive funding is received by a short; negative funding is paid.
-    return float(inside["rate"].sum() * 100.0), True, int(len(inside))
+    return float(inside["rate"].sum() * 100.0), True, len(inside)
 
 
 def _make_trade(
@@ -181,7 +181,7 @@ def _stats(frame: pd.DataFrame) -> dict[str, Any]:
     valid = frame.loc[frame["net_base_pct"].notna()]
     if valid.empty:
         return {
-            "events": int(len(frame)),
+            "events": len(frame),
             "funding_covered_events": 0,
             "mean_net_base_pct": None,
             "median_net_base_pct": None,
@@ -189,8 +189,8 @@ def _stats(frame: pd.DataFrame) -> dict[str, Any]:
             "mean_net_stress_pct": None,
         }
     return {
-        "events": int(len(frame)),
-        "funding_covered_events": int(len(valid)),
+        "events": len(frame),
+        "funding_covered_events": len(valid),
         "mean_gross_short_return_pct": float(valid["gross_short_return_pct"].mean()),
         "median_gross_short_return_pct": float(valid["gross_short_return_pct"].median()),
         "mean_funding_return_pct": float(valid["funding_return_pct"].mean()),
@@ -256,14 +256,14 @@ def replay(events_path: Path, bingx_dir: Path, out_dir: Path) -> dict[str, Any]:
             continue
         bars, funding, cadence = _load_market_data(bingx_dir, symbol)
         data_quality[market] = {
-            "bars": int(len(bars)),
+            "bars": len(bars),
             "first_bar_utc": bars.index[0].isoformat(),
             "last_bar_utc": bars.index[-1].isoformat(),
             "gaps": 0,
             "funding_cadence_hours": cadence,
-            "funding_events": int(len(funding)),
-            "quote_volume_nonzero_rows": int((bars["quote_volume"] > 0).sum()),
-            "trades_count_nonzero_rows": int((bars["trades_count"] > 0).sum()),
+            "funding_events": len(funding),
+            "quote_volume_nonzero_rows": (bars["quote_volume"] > 0).sum().item(),
+            "trades_count_nonzero_rows": (bars["trades_count"] > 0).sum().item(),
         }
 
         for _, event in market_events.iterrows():
@@ -422,10 +422,10 @@ def replay(events_path: Path, bingx_dir: Path, out_dir: Path) -> dict[str, Any]:
             "data_quality": data_quality,
         },
         "counts": {
-            "hyperliquid_sell_flow_events": int(len(all_events)),
-            "bingx_price_regime_events": int(all_events["regime_1h_up_4h_down"].sum()),
-            "candidate_non_overlapping_events": int(len(candidate)),
-            "matched_regime_baseline_non_overlapping_events": int(len(baseline)),
+            "hyperliquid_sell_flow_events": len(all_events),
+            "bingx_price_regime_events": all_events["regime_1h_up_4h_down"].sum().item(),
+            "candidate_non_overlapping_events": len(candidate),
+            "matched_regime_baseline_non_overlapping_events": len(baseline),
             "markets_with_at_least_5_candidate_events": markets_with_candidate,
         },
         "candidate_equal_market_mean_net_base_pct": equal_market_candidate,
