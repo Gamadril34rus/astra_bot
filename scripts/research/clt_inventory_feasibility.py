@@ -398,7 +398,13 @@ def audit(
         total_pages += stats["pages"]
         total_api_fills += stats["api_fills"]
         total_twap_fills += stats["twap_fills"]
-        if stats["api_cap_reached"] or stats["twap_cap_reached"]:
+        if (
+            stats["api_cap_reached"]
+            or stats["twap_cap_reached"]
+            or stats["page_boundary_collision"]
+        ):
+            # A skipped same-timestamp fill may belong to any market for this
+            # address; invalidate all of its market series conservatively.
             incomplete_addresses.add(wallet["address"])
         wallet_stats.append({
             "manifest_fills": wallet["manifest_fills"],
