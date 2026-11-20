@@ -43,20 +43,14 @@ jobs:
       - name: Download immutable wallet cohort manifest
         uses: actions/download-artifact@v4
         with:
-          name: hyperliquid-wallet-archive-research
+          name: hyperliquid-wallet-archive-summary
           run-id: 43250750091
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: evidence
-      - name: Locate wallet cohort manifest
-        id: manifest
-        run: |
-          manifest="$(find evidence -type f -name wallet_archive_manifest.json -print -quit)"
-          test -n "$manifest"
-          echo "path=$manifest" >> "$GITHUB_OUTPUT"
+          path: manifest_evidence
       - name: Run read-only keyless direction audit
         run: |
           python scripts/research/ironflow_cohort_direction_audit.py \
-            --manifest "${{ steps.manifest.outputs.path }}" \
+            --manifest manifest_evidence/hyperliquid_wallet_archive/wallet_archive_manifest.json \
             --lookback-hours "$LOOKBACK_HOURS" \
             --out-dir reports/ironflow_direction_audit
       - name: Upload aggregate-only audit
