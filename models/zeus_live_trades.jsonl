@@ -3282,3 +3282,4 @@
 {"event": "order_cancel", "symbol": "SOL-USDT", "order_id": "2123882104936292352", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795208226.2115219, "environment": "VST"}
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2123883344009191424", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795209148.2871253, "environment": "VST"}
 {"event": "order_cancel", "symbol": "SOL-USDT", "order_id": "2123883357430964224", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795209150.3878472, "environment": "VST"}
+{"event": "partial_fill", "symbol": "INJ-USDT", "side": null, "position_side": null, "qty": null, "price": null, "pnl": -305.619, "income_type": "REALIZED_PNL", "income_id": "1794554371927782975_512_405081_PNL", "trade_id": "1794554371927782975_512_405080", "signal_id": null, "source": "income_tape", "ts": 1795212759.0, "environment": "VST"}
