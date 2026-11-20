@@ -113,7 +113,7 @@ def fetch_wallet_history(
             "user": address,
             "startTime": cursor,
             "endTime": end_ms,
-            "aggregateByTime": True,
+            "aggregateByTime": False,
         })
         pages += 1
         for fill in page:
@@ -235,10 +235,10 @@ def audit(
                 continue
             wallet_market_fills[(wallet["address"], coin)].append(fill)
 
-    inventory_rows: list[dict[str, Any]] = []
     continuity_failures = 0
     unknown_fills = 0
     direction_label_mismatches = 0
+    unknown_direction_labels = 0
     eligible_wallet_markets: set[tuple[str, str]] = set()
     calibration_exposure: dict[tuple[str, str], list[float]] = defaultdict(list)
     parsed: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
@@ -270,12 +270,29 @@ def audit(
             previous_after = split["position_after"]
 
             direction = str(fill.get("dir") or "")
-            if direction and direction not in {
+            known_directions = {
                 "Open Long", "Add Long", "Close Long",
                 "Open Short", "Add Short", "Close Short",
                 "Long > Short", "Short > Long",
-            }:
-                direction_label_mismatches += 1
+            }
+            if direction not in known_directions:
+                unknown_direction_labels += 1
+            else:
+                if split["open_long_usd"] > 0 and split["close_short_usd"] > 0:
+                    expected_direction = "Short > Long"
+                elif split["open_short_usd"] > 0 and split["close_long_usd"] > 0:
+                    expected_direction = "Long > Short"
+                elif split["open_long_usd"] > 0:
+                    expected_direction = "Open Long" if start_position == 0 else "Add Long"
+                elif split["close_long_usd"] > 0:
+                    expected_direction = "Close Long"
+                elif split["open_short_usd"] > 0:
+                    expected_direction = "Open Short" if start_position == 0 else "Add Short"
+                else:
+                    expected_direction = "Close Short"
+                if direction != expected_direction:
+                    direction_label_mismatches += 1
+                    market_continuous = False
 
             record = {
                 "time": timestamp,
@@ -335,9 +352,6 @@ def audit(
             bucket = buckets[(coin, fill["bucket"])]
             market_counts[coin]["test_fills"] += 1
             market_counts[coin]["test_buckets"] += 0
-            bucket[f"{cohort}_active_wallets"] = max(
-                bucket[f"{cohort}_active_wallets"], 0.0
-            )
             bucket[f"{cohort}_wallet_{address}"] = 1.0
             bucket[f"{cohort}_fill_count"] += 1
             bucket[f"{cohort}_open_long_usd"] += fill["open_long_usd"]
@@ -403,14 +417,15 @@ def audit(
         ),
         "counts": {
             "wallets_selected": len(selected),
-            "wallets_with_core_market_fills": len(wallet_market_fills),
+            "wallets_with_core_market_fills": len({address for address, _ in wallet_market_fills}),
             "api_pages": total_pages,
             "api_fill_rows": total_api_fills,
             "twap_fill_rows": total_twap_fills,
             "continuous_wallet_market_pairs": len(eligible_wallet_markets),
             "position_continuity_failures": continuity_failures,
             "fills_with_missing_or_invalid_position_fields": unknown_fills,
-            "unrecognized_direction_labels": direction_label_mismatches,
+            "direction_label_mismatches_vs_position_math": direction_label_mismatches,
+            "unrecognized_direction_labels": unknown_direction_labels,
             "wallets_at_api_10000_fill_cap": sum(bool(row["api_cap_reached"]) for row in wallet_stats),
             "wallets_at_twap_2000_fill_cap": sum(bool(row["twap_cap_reached"]) for row in wallet_stats),
             "page_boundary_timestamp_collisions": sum(bool(row["page_boundary_collision"]) for row in wallet_stats),
