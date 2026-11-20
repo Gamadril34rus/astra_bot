@@ -1,12 +1,6 @@
 name: Ironflow large-wallet open-close direction audit
 
 on:
-  push:
-    branches: [research/wallet-flow-confirmation]
-    paths:
-      - "scripts/research/ironflow_cohort_direction_audit.py"
-      - "tests/unit/test_ironflow_cohort_direction_audit.py"
-      - ".github/workflows/ironflow-cohort-direction-audit.yml"
   workflow_dispatch:
     inputs:
       lookback_hours:
