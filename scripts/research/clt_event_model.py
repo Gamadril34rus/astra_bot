@@ -80,6 +80,9 @@ def detect_clt_events(
         "small_long_add_wallets", "small_short_add_wallets",
         "large_long_add_wallets", "large_short_add_wallets",
         "prior_volatility_pct",
+        "htf_context_ready", "htf_context_ts", "htf_context_age_ms",
+        "htf_return_pct", "htf_range_pct", "htf_structure_break",
+        "htf_close_location",
     )
     previous_ts = None
     for row in rows:
@@ -94,11 +97,26 @@ def detect_clt_events(
                 raise ValueError(f"{key} must be positive")
         if _number(row, "prior_volatility_pct") < 0:
             raise ValueError("prior_volatility_pct cannot be negative")
+        if not isinstance(row["htf_context_ready"], bool):
+            raise ValueError("htf_context_ready must be boolean")
+        if row["htf_context_ready"]:
+            if row["htf_context_ts"] is None:
+                raise ValueError("ready 1h context requires htf_context_ts")
+            if _number(row, "htf_context_age_ms") < 0:
+                raise ValueError("htf_context_age_ms cannot be negative")
+            if _number(row, "htf_range_pct") < 0:
+                raise ValueError("htf_range_pct cannot be negative")
+            if not 0 <= _number(row, "htf_close_location") <= 1:
+                raise ValueError("htf_close_location must be within [0, 1]")
+            if _number(row, "htf_structure_break") not in (-1, 0, 1):
+                raise ValueError("htf_structure_break must be -1, 0 or 1")
 
     events: list[dict[str, Any]] = []
     last_event_index = -cooldown_bars - 1
     for signal_index in range(len(rows) - 1):
         if signal_index - last_event_index <= cooldown_bars:
+            continue
+        if not rows[signal_index]["htf_context_ready"]:
             continue
         swing_start = max(0, signal_index - swing_lookback_bars)
         if signal_index - swing_start < swing_lookback_bars:
@@ -215,6 +233,12 @@ def detect_clt_events(
                         "crowd_directional_progress_z": round(progress_z, 6),
                         "prior_swing_low": min(prior_lows),
                         "prior_swing_high": max(prior_highs),
+                        "htf_context_ts": rows[signal_index]["htf_context_ts"],
+                        "htf_context_age_ms": rows[signal_index]["htf_context_age_ms"],
+                        "htf_return_pct": rows[signal_index]["htf_return_pct"],
+                        "htf_range_pct": rows[signal_index]["htf_range_pct"],
+                        "htf_structure_break": rows[signal_index]["htf_structure_break"],
+                        "htf_close_location": rows[signal_index]["htf_close_location"],
                     }
                     break
                 if found:
