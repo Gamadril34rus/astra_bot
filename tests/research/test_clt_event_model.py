@@ -18,6 +18,7 @@ def _bars(*, crowd_direction: str) -> list[dict]:
             "crowd_short_delta_usd": 0.0,
             "large_long_delta_usd": 0.0,
             "large_short_delta_usd": 0.0,
+            "prior_volatility_pct": 0.2,
         })
 
     if crowd_direction == "long":
@@ -59,7 +60,7 @@ def test_short_event_requires_long_crowd_and_short_large_add_then_break():
         min_crowd_add_usd=100_000,
         min_large_add_usd=80_000,
         min_continued_crowd_add_usd=50_000,
-        max_crowd_progress_pct=0.1,
+        max_crowd_progress_z=0.8,
         crowd_window_bars=8,
         max_lag_bars=8,
         swing_lookback_bars=8,
@@ -100,6 +101,42 @@ def test_no_entry_without_next_bar():
         max_crowd_progress_pct=0.1,
         crowd_window_bars=8,
         max_lag_bars=8,
+        swing_lookback_bars=8,
+        cooldown_bars=36,
+    )
+    assert events == []
+
+
+def test_crowd_must_continue_after_whale_add_not_in_same_bar():
+    rows = _bars(crowd_direction="long")
+    rows[3]["crowd_long_delta_usd"] = 0.0
+    events = detect_clt_events(
+        rows,
+        min_crowd_add_usd=100_000,
+        min_large_add_usd=80_000,
+        min_continued_crowd_add_usd=50_000,
+        max_crowd_progress_z=0.8,
+        crowd_window_bars=8,
+        max_lag_bars=8,
+        swing_lookback_bars=8,
+        cooldown_bars=36,
+    )
+    assert events == []
+
+
+def test_whale_add_must_follow_crowd_within_max_lag():
+    rows = _bars(crowd_direction="long")
+    rows[2]["large_short_delta_usd"] = 0.0
+    rows[7]["large_short_delta_usd"] = 90_000
+    rows[7]["crowd_long_delta_usd"] = 60_000
+    events = detect_clt_events(
+        rows,
+        min_crowd_add_usd=100_000,
+        min_large_add_usd=80_000,
+        min_continued_crowd_add_usd=50_000,
+        max_crowd_progress_z=0.8,
+        crowd_window_bars=8,
+        max_lag_bars=2,
         swing_lookback_bars=8,
         cooldown_bars=36,
     )
