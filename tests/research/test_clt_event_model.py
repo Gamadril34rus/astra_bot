@@ -31,13 +31,19 @@ def _bars(*, crowd_direction: str) -> list[dict]:
             "htf_structure_break": 0,
             "htf_close_location": 0.5,
         })
+        for cohort in ("small", "large"):
+            for direction in ("long", "short"):
+                for window in range(1, 9):
+                    rows[-1][f"{cohort}_{direction}_add_wallets_prev_{window}"] = 0
 
     if crowd_direction == "long":
         rows[1]["crowd_long_delta_usd"] = 120_000
         rows[1]["small_long_add_wallets"] = 3
         rows[2]["large_short_delta_usd"] = 90_000
         rows[2]["large_short_add_wallets"] = 1
+        rows[2]["small_long_add_wallets_prev_1"] = 3
         rows[3]["crowd_long_delta_usd"] = 60_000
+        rows[8]["small_long_add_wallets_prev_5"] = 3
         rows[3]["small_long_add_wallets"] = 3
         rows[8]["close"] = 98.0
         rows[8]["low"] = 97.8
@@ -47,7 +53,9 @@ def _bars(*, crowd_direction: str) -> list[dict]:
         rows[1]["small_short_add_wallets"] = 3
         rows[2]["large_long_delta_usd"] = 90_000
         rows[2]["large_long_add_wallets"] = 1
+        rows[2]["small_short_add_wallets_prev_1"] = 3
         rows[3]["crowd_short_delta_usd"] = 60_000
+        rows[8]["small_short_add_wallets_prev_5"] = 3
         rows[3]["small_short_add_wallets"] = 3
         rows[8]["close"] = 102.0
         rows[8]["high"] = 102.2
@@ -173,6 +181,7 @@ def test_crowd_build_accumulates_across_bars_before_large_opposite_add():
     rows[2]["small_long_add_wallets"] = 3
     rows[2]["large_short_delta_usd"] = 0.0
     rows[2]["large_short_add_wallets"] = 0
+    rows[3]["small_long_add_wallets_prev_2"] = 3
     rows[3]["large_short_delta_usd"] = 90_000
     rows[3]["large_short_add_wallets"] = 1
     rows[4]["crowd_long_delta_usd"] = 60_000
@@ -196,7 +205,9 @@ def test_crowd_build_accumulates_across_bars_before_large_opposite_add():
 def test_one_small_wallet_is_not_a_crowd():
     rows = _bars(crowd_direction="long")
     rows[1]["small_long_add_wallets"] = 1
+    rows[2]["small_long_add_wallets_prev_1"] = 1
     rows[3]["small_long_add_wallets"] = 1
+    rows[8]["small_long_add_wallets_prev_5"] = 1
     events = detect_clt_events(
         rows,
         min_crowd_add_usd=100_000,
