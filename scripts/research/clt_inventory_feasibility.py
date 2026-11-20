@@ -356,6 +356,36 @@ def count_net_add_wallets(
     )
 
 
+def rolling_unique_add_wallet_counts(
+    buckets: dict[tuple[str, str, int], dict[str, float]],
+    *,
+    market: str,
+    phase: str,
+    bucket_ms: int,
+    max_window: int = 8,
+) -> dict[str, int]:
+    """Count distinct net adders in prior bars, including when the current bar is empty."""
+    if not 1 <= max_window <= 8:
+        raise ValueError("max_window must be between 1 and 8")
+    counts = {}
+    for cohort in ("small", "large"):
+        for direction in ("long", "short"):
+            prefix = f"{cohort}_{direction}_net_wallet_"
+            for window in range(1, max_window + 1):
+                active_wallets: set[str] = set()
+                for prior_bucket in range(
+                    bucket_ms - window * BAR_MS, bucket_ms, BAR_MS
+                ):
+                    prior_values = buckets.get((market, phase, prior_bucket), {})
+                    active_wallets.update(
+                        key[len(prefix):]
+                        for key, value in prior_values.items()
+                        if key.startswith(prefix) and value > 0
+                    )
+                counts[f"{cohort}_{direction}_add_wallets_prev_{window}"] = len(active_wallets)
+    return counts
+
+
 def split_market_cohorts(
     candidates: list[tuple[float, str]],
 ) -> dict[str, set[str]]:
@@ -389,6 +419,8 @@ def audit(
     start_ms = int(start.timestamp() * 1000)
     end_ms = int(end.timestamp() * 1000)
     calibration_end_ms = start_ms + CALIBRATION_DAYS * 24 * 60 * 60 * 1000
+    if start_ms % BAR_MS or end_ms % BAR_MS:
+        raise ValueError("audit start/end must align to 15m UTC boundaries")
 
     wallet_market_fills: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     wallet_stats = []
@@ -530,6 +562,8 @@ def audit(
             "calibration_buckets": 0,
             "test_fills": 0,
             "test_buckets": 0,
+            "calibration_timeline_buckets": 0,
+            "test_timeline_buckets": 0,
         }
     for (address, coin), fills in parsed.items():
         cohorts = cohort_by_market[coin]
@@ -581,7 +615,14 @@ def audit(
         ],
     ]
     output_rows = []
-    for (coin, phase, bucket_ms), values in sorted(buckets.items()):
+    phase_windows = (
+        ("calibration", start_ms, calibration_end_ms),
+        ("test", calibration_end_ms, end_ms),
+    )
+    for coin in sorted(CORE_COINS):
+        for phase, phase_start_ms, phase_end_ms in phase_windows:
+            for bucket_ms in range(phase_start_ms, phase_end_ms, BAR_MS):
+                values = buckets.get((coin, phase, bucket_ms), {})
         small_active = sum(1 for key in values if key.startswith("small_wallet_"))
         large_active = sum(1 for key in values if key.startswith("large_wallet_"))
         row = {
@@ -594,33 +635,27 @@ def audit(
             "small_short_add_wallets": count_net_add_wallets(values, cohort="small", direction="short"),
             "large_long_add_wallets": count_net_add_wallets(values, cohort="large", direction="long"),
             "large_short_add_wallets": count_net_add_wallets(values, cohort="large", direction="short"),
-            "small_fill_count": int(values["small_fill_count"]),
-            "large_fill_count": int(values["large_fill_count"]),
-            "small_long_delta_usd": values["small_open_long_usd"] - values["small_close_long_usd"],
-            "small_short_delta_usd": values["small_open_short_usd"] - values["small_close_short_usd"],
-            "large_long_delta_usd": values["large_open_long_usd"] - values["large_close_long_usd"],
-            "large_short_delta_usd": values["large_open_short_usd"] - values["large_close_short_usd"],
+            "small_fill_count": int(values.get("small_fill_count", 0)),
+            "large_fill_count": int(values.get("large_fill_count", 0)),
+            "small_long_delta_usd": values.get("small_open_long_usd", 0.0) - values.get("small_close_long_usd", 0.0),
+            "small_short_delta_usd": values.get("small_open_short_usd", 0.0) - values.get("small_close_short_usd", 0.0),
+            "large_long_delta_usd": values.get("large_open_long_usd", 0.0) - values.get("large_close_long_usd", 0.0),
+            "large_short_delta_usd": values.get("large_open_short_usd", 0.0) - values.get("large_close_short_usd", 0.0),
         }
-        for cohort in ("small", "large"):
-            for direction in ("long", "short"):
-                prefix = f"{cohort}_{direction}_net_wallet_"
-                for window in range(1, 9):
-                    active_wallets: set[str] = set()
-                    for prior_bucket in range(
-                        bucket_ms - window * BAR_MS, bucket_ms, BAR_MS
-                    ):
-                        prior_values = buckets.get((coin, phase, prior_bucket), {})
-                        active_wallets.update(
-                            key[len(prefix):]
-                            for key, value in prior_values.items()
-                            if key.startswith(prefix) and value > 0
-                        )
-                    row[f"{cohort}_{direction}_add_wallets_prev_{window}"] = len(active_wallets)
+        row.update(rolling_unique_add_wallet_counts(
+            buckets,
+            market=coin,
+            phase=phase,
+            bucket_ms=bucket_ms,
+            max_window=8,
+        ))
         for field in fields:
             if field not in row and field not in {"market", "phase", "bucket_ts_ms"}:
-                row[field] = values[field]
+                row[field] = values.get(field, 0.0)
         output_rows.append(row)
-        market_counts[coin][f"{phase}_buckets"] += 1
+        market_counts[coin][f"{phase}_timeline_buckets"] += 1
+        if values:
+            market_counts[coin][f"{phase}_buckets"] += 1
 
     with csv_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
