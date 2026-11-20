@@ -166,6 +166,7 @@ def fetch_wallet_history(
     capped = False
     boundary_collision = False
     boundary_collision_markets: set[str] = set()
+    boundary_recovered_markets: set[str] = set()
     while pages < math.ceil(MAX_FILLS_PER_ADDRESS / PAGE_SIZE):
         page = post_info({
             "type": "userFillsByTime",
@@ -183,13 +184,45 @@ def fetch_wallet_history(
             break
         last_time = max(int(fill["time"]) for fill in page)
         boundary_rows = [fill for fill in page if int(fill["time"]) == last_time]
-        if len(boundary_rows) > 1:
-            boundary_collision = True
-            boundary_collision_markets.update(
-                str(fill.get("coin") or "") for fill in boundary_rows if fill.get("coin")
-            )
         if last_time < cursor:
             raise RuntimeError("Hyperliquid fills pagination moved backwards")
+
+        # startTime is inclusive. Re-query the exact boundary millisecond so
+        # fills sharing the page's final timestamp are not silently skipped
+        # by advancing the next page to last_time + 1. A full exact-time
+        # response is still ambiguous because it may itself be truncated.
+        boundary_probe = post_info({
+            "type": "userFillsByTime",
+            "user": address,
+            "startTime": last_time,
+            "endTime": last_time,
+            "aggregateByTime": False,
+        })
+        probe_weight = 20 + math.ceil(len(boundary_probe) / 20)
+        time.sleep(probe_weight / 20.0 + 0.1)
+        probe_markets = {
+            str(fill.get("coin") or "")
+            for fill in boundary_probe
+            if fill.get("coin")
+        }
+        boundary_is_ambiguous = (
+            len(boundary_probe) >= PAGE_SIZE
+            or len(boundary_probe) < len(boundary_rows)
+            or any(int(fill.get("time") or 0) != last_time for fill in boundary_probe)
+        )
+        if boundary_is_ambiguous:
+            boundary_collision = True
+            boundary_collision_markets.update(probe_markets or {
+                str(fill.get("coin") or "")
+                for fill in boundary_rows
+                if fill.get("coin")
+            })
+        else:
+            if len(boundary_probe) > len(boundary_rows):
+                boundary_recovered_markets.update(probe_markets)
+            for fill in boundary_probe:
+                fills[_fill_key(fill)] = fill
+
         cursor = last_time + 1
         if len(fills) >= MAX_FILLS_PER_ADDRESS:
             capped = True
@@ -225,6 +258,7 @@ def fetch_wallet_history(
         "twap_cap_reached": twap_capped,
         "page_boundary_collision": boundary_collision,
         "boundary_collision_markets": sorted(boundary_collision_markets),
+        "boundary_recovered_markets": sorted(boundary_recovered_markets),
     }
 
 
