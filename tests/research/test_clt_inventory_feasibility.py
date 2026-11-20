@@ -230,6 +230,14 @@ def test_rolling_unique_add_counts_include_empty_current_bars_and_exclude_curren
     assert counts["small_long_add_wallets_prev_2"] == 2
     assert counts["small_short_add_wallets_prev_2"] == 1
     assert counts["large_short_add_wallets_prev_2"] == 1
+    counts_12 = rolling_unique_add_wallet_counts(
+        buckets,
+        market="BTC",
+        phase="test",
+        bucket_ms=2 * BAR_MS,
+        max_window=12,
+    )
+    assert counts_12["small_long_add_wallets_prev_12"] == 2
 
 
 def test_rolling_unique_add_counts_are_phase_scoped_and_validate_window():
@@ -252,9 +260,9 @@ def test_rolling_unique_add_counts_are_phase_scoped_and_validate_window():
             market="BTC",
             phase="test",
             bucket_ms=BAR_MS,
-            max_window=9,
+            max_window=13,
         )
     except ValueError as exc:
-        assert "between 1 and 8" in str(exc)
+        assert "between 1 and 12" in str(exc)
     else:
         raise AssertionError("oversized rolling window must fail")
