@@ -29,33 +29,29 @@
     "HYPE-USDT|short": {
       "symbol": "HYPE-USDT",
       "side": "short",
-      "qty": "193.89264242",
-      "stop": "68.91499999999999",
+      "qty": "193.8926",
+      "stop": "66.2546790",
       "tp": "64.08990470",
       "entry": "66.321",
-      "leverage": 6,
+      "leverage": 5,
       "pending_verify": false,
       "signal_id": "zeus_multi_top_breakdown|HYPE-USDT|short|1795132800000",
-      "ts": 1795136595.8623328,
-      "be_moved": false,
+      "ts": 1795150010.0356395,
+      "be_moved": true,
       "initial_stop": "70.363446",
-      "tp_frac": "0.3",
       "opened_at_ms": 1795136595862,
-      "plan_qty": "193.89264242",
-      "qty_ratio": 1.0,
-      "tp1": "64.08990470",
-      "initial_stop_v1": true,
       "tp_parity_v1": true,
-      "early_tp1": true,
-      "peak_low": "65.083",
       "be_earned": true,
-      "current_regime": "RANGE"
+      "tp_frac": "0.3",
+      "peak_low": "64.961",
+      "current_regime": "RANGE",
+      "tp1": "64.08990470"
     },
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
       "side": "short",
       "qty": "9.89661273",
-      "stop": "1800.33",
+      "stop": "1800.16",
       "tp": "1696.3050430",
       "entry": "1740.01",
       "leverage": 6,
@@ -72,11 +68,11 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "1723.37",
+      "peak_low": "1723.20",
       "be_earned": true,
       "migrate_stop_v1": true,
       "current_regime": "WEAK_BEAR_TREND"
     }
   },
-  "ts": 1795149746.3626409
+  "ts": 1795150040.8334491
 }
