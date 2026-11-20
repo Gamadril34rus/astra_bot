@@ -1,4 +1,4 @@
-""""Public BingX/Binance server-clock calibration for BSR research only."""
+"""Public BingX/Binance server-clock calibration for BSR research only."""
 from __future__ import annotations
 
 import asyncio
@@ -77,7 +77,7 @@ class PublicClockCalibrator:
     def _write(self, row: dict[str, Any]) -> None:
         self.output.parent.mkdir(parents=True, exist_ok=True)
         with self.output.open("a", encoding="utf-8") as stream:
-            stream.write(json.dumps(row, separators=(",", ":"), ensure_ascii=False) + "\\n")
+            stream.write(json.dumps(row, separators=(",", ":"), ensure_ascii=False) + "\n")
 
     def _request_sample(self, venue: str) -> dict[str, Any]:
         url, bingx = ENDPOINTS[venue]
