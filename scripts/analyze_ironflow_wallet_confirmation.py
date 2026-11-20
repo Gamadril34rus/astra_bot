@@ -83,11 +83,11 @@ def analyze(
             for sample_type in ("all", "non_overlapping"):
                 overlap_clause = ""
                 if sample_type == "non_overlapping":
+                    bars_per_horizon = minutes // 15
                     overlap_clause = (
                         "QUALIFY row_number() OVER ("
-                        "PARTITION BY market, "
-                        f"floor(epoch(bucket_ts) / {seconds}) "
-                        "ORDER BY bucket_ts) = 1"
+                        "PARTITION BY market ORDER BY bucket_ts) "
+                        f"% {bars_per_horizon} = 1"
                     )
                 query = f"""
                     WITH eligible AS (
@@ -181,6 +181,17 @@ def analyze(
                     selected AS (
                         SELECT * FROM eligible
                         {overlap_clause}
+                    ),
+                    selected_with_gap AS (
+                        SELECT *,
+                            date_diff(
+                                'minute',
+                                lag(bucket_ts) OVER (
+                                    PARTITION BY market ORDER BY bucket_ts
+                                ),
+                                bucket_ts
+                            ) AS gap_minutes
+                        FROM selected
                     )
                     SELECT
                         market,
@@ -195,8 +206,9 @@ def analyze(
                         100.0 * avg(
                             CASE WHEN directional_return_pct > 0
                                 THEN 1.0 ELSE 0.0 END
-                        ) AS directional_hit_rate_pct
-                    FROM selected
+                        ) AS directional_hit_rate_pct,
+                        min(gap_minutes) AS min_gap_minutes
+                    FROM selected_with_gap
                     GROUP BY market, signal_side
                     ORDER BY market, signal_side
                 """
@@ -226,6 +238,10 @@ def analyze(
                         ),
                         "directional_hit_rate_pct": float(
                             side_row["directional_hit_rate_pct"]
+                        ),
+                        "min_gap_minutes": (
+                            int(side_row["min_gap_minutes"])
+                            if side_row["min_gap_minutes"] is not None else None
                         ),
                     })
 
@@ -279,7 +295,7 @@ def analyze(
         "horizon", "metric", "sample_type", "market", "signal_side",
         "observations", "mean_abs_signal_value", "mean_raw_return_pct",
         "mean_directional_return_pct", "median_directional_return_pct",
-        "directional_hit_rate_pct",
+        "directional_hit_rate_pct", "min_gap_minutes",
     ]
     with side_csv_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=side_fields)
@@ -307,9 +323,10 @@ def analyze(
             "metrics": list(METRICS),
             "sample_types": ["all", "non_overlapping"],
             "non_overlapping_rule": (
-                "One earliest eligible 15m observation per market and "
-                "fixed UTC horizon-sized bucket; selected forward windows "
-                "cannot overlap within a market."
+                "Every Nth eligible 15m observation per market in chronological "
+                "order, where N=horizon_minutes/15. Since each market has at most "
+                "one row per 15m bucket, selected timestamps are separated by "
+                "at least the forward horizon; gaps are also reported."
             ),
             "deciles": "Ranked separately within each market.",
         },
