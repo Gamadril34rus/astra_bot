@@ -329,3 +329,19 @@ def test_audit_counts_connection_errors_and_depth_sequence_gap(tmp_path):
     assert report["totals"]["connection_errors"] == 1
     assert report["totals"]["depth_sequence_errors"] == 1
     assert report["totals"]["depth_snapshots"] == 2
+
+
+
+def test_audit_groups_mark_price_market_events_by_symbol(tmp_path):
+    path = tmp_path / "mark-price.jsonl"
+    _write_jsonl(path, [
+        {
+            "venue": "bingx_swap",
+            "kind": "market_event",
+            "channel": "BTC-USDT@markPrice",
+            "received_at_ms": 1_100,
+            "payload": {"e": "markPriceUpdate", "E": 1_000, "s": "BTC-USDT", "p": "100"},
+        },
+    ])
+    report = audit_capture_files([path])
+    assert report["by_venue_symbol"]["bingx_swap:BTC-USDT"]["records"] == 1
