@@ -13,7 +13,7 @@ deviation is used.
 - Isolated under astra_bot/research/bsr; not imported by Zeus or live VST.
 - BingX client exposes public GET market-data methods only.
 - No API keys, signatures, private endpoints, account access or order methods.
-- No live workflow is added. REAL and current DEMO/VST settings are untouched.
+- A manual-only workflow captures public market data and uploads an audit artifact; it is not a trading workflow. No scheduled capture is enabled. REAL and current DEMO/VST settings are untouched.
 
 ## Event definition
 
@@ -36,9 +36,11 @@ or distinguish cancellation from execution.
 - bingx_public.py: read-only public REST bootstrap for depth, trades,
   premium index, funding history, V3 klines and Binance spot ticker.
 - websocket_recorder.py: GZIP-aware public BingX Swap WS recorder for incremental
-  depth, trades and mark price; persists raw normalized JSONL events.
-- binance_spot_recorder.py: public Binance Spot trade-stream recorder with exchange
-  and local receive timestamps for cross-venue basis measurement.
+  depth, trades and mark price; persists raw normalized JSONL events and reconnects
+  after an invalid depth sequence to obtain a fresh full snapshot.
+- binance_spot_recorder.py: public Binance Spot trade-stream recorder using
+  Binance's market-data-only WebSocket endpoint, with exchange and local receive
+  timestamps for cross-venue basis measurement.
 - basis.py: backward as-of join of BingX Perpetual prints to the latest earlier
   Binance Spot print; future spot events are never used and stale matches are excluded.
 - scripts/bsr_capture.py: runs both venue recorders concurrently; writes separate
@@ -53,10 +55,11 @@ It subscribes to {symbol}@incrDepth, {symbol}@trade and {symbol}@markPrice on
 wss://open-api-swap.bingx.com/swap-market. Frames are GZIP-decoded and Ping is
 answered with Pong. Local depth is unusable until an action=all snapshot arrives
 on the active connection; action=update quantities replace absolute quantities,
-zero deletes a level, and every disconnect invalidates the local book. The
-each incremental update must advance lastUpdateId by exactly one. A missing,
-duplicate or skipped ID invalidates and clears the local book; wait for a fresh
-full snapshot after reconnect before using depth again. No checksum is assumed.
+zero deletes a level, and every disconnect invalidates the local book. Each
+incremental update must advance lastUpdateId by exactly one. A missing, duplicate
+or skipped ID invalidates and clears the local book; the recorder closes that
+socket and reconnects so a fresh action=all snapshot is required before depth is
+used again. No checksum is assumed.
 
 REST is bootstrap only. Binance Spot trades are streamed independently.
 `align_cross_venue_trades` performs a backward as-of join on exchange event time:
@@ -71,8 +74,9 @@ Audit both files without modifying them:
 
 The report records malformed line byte offsets, duplicate `(venue, symbol, trade_id)`
 keys, trade receive latency p50/p95/p99, depth message timestamp-to-receive age
-p50/p95/p99, negative/late timestamps, parser errors, and depth snapshot/update
-sequence continuity. Depth message age is only `received_at_ms - payload.T`;
+p50/p95/p99, negative/late timestamps, parser and connection errors, and depth
+snapshot/update sequence continuity. Depth message age is calculated from
+`received_at_ms - payload.T` (or `payload.time` where that is the field present);
 it is not the age of the underlying order-book state and must be interpreted with
 server/client clock offset and BingX message-construction semantics. `ready_for_downstream_filtering` is a
 conservative precondition, not a claim that the data is statistically valid or
