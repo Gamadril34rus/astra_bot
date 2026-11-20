@@ -200,6 +200,69 @@ def moving_block_confidence_intervals(
     return result
 
 
+def _summarize_events(
+    events: list[dict[str, Any]],
+    *,
+    horizons_bars: tuple[int, ...],
+    start_date: date,
+    end_date: date,
+    block_days: int,
+    resamples: int,
+    seed: int,
+) -> dict[str, Any]:
+    if not events:
+        return {"events": 0, "gross_mean_bps": {}}
+
+    gross = {
+        str(horizon): statistics.fmean(
+            float(event[f"gross_bps_{horizon}"]) for event in events
+        )
+        for horizon in horizons_bars
+    }
+    maker_fee = 2 * MAKER_FEE_BPS_PER_SIDE
+    taker_fee = 2 * TAKER_FEE_BPS_PER_SIDE
+    net = {
+        "maker_maker": {
+            str(horizon): gross[str(horizon)] - maker_fee
+            for horizon in horizons_bars
+        },
+        "taker_taker": {
+            str(horizon): gross[str(horizon)] - taker_fee
+            for horizon in horizons_bars
+        },
+    }
+    gross_intervals = moving_block_confidence_intervals(
+        events,
+        horizons_bars=horizons_bars,
+        start_date=start_date,
+        end_date=end_date,
+        block_days=block_days,
+        resamples=resamples,
+        seed=seed,
+    )
+    net_intervals = {
+        fee_model: {
+            str(horizon): {
+                "lower_95_bps": gross_intervals[str(horizon)]["lower_95_bps"] - fee,
+                "upper_95_bps": gross_intervals[str(horizon)]["upper_95_bps"] - fee,
+                "resamples": gross_intervals[str(horizon)]["resamples"],
+            }
+            for horizon in horizons_bars
+        }
+        for fee_model, fee in (
+            ("maker_maker", maker_fee),
+            ("taker_taker", taker_fee),
+        )
+    }
+    return {
+        "events": len(events),
+        "gross_mean_bps": gross,
+        "net_mean_bps": net,
+        "gross_moving_block_bootstrap_95pct": gross_intervals,
+        "net_moving_block_bootstrap_95pct": net_intervals,
+    }
+
+
 def build_report(
     data_dir: Path,
     *,
@@ -214,7 +277,7 @@ def build_report(
     if not symbols:
         raise ValueError("at least one symbol is required")
     all_events: list[dict[str, Any]] = []
-    market_stats: dict[str, Any] = {}
+    events_by_market: dict[str, list[dict[str, Any]]] = {}
     first_date: date | None = None
     last_date: date | None = None
 
@@ -231,43 +294,38 @@ def build_report(
             cooldown_bars=cooldown_bars,
             horizons_bars=horizons_bars,
         )
-        if not events:
-            market_stats[symbol] = {"events": 0, "gross_mean_bps": {}}
-            continue
+        events_by_market[symbol] = events
         all_events.extend(events)
-        market_stats[symbol] = {
-            "events": len(events),
-            "gross_mean_bps": {
-                str(horizon): statistics.fmean(
-                    float(event[f"gross_bps_{horizon}"]) for event in events
-                )
-                for horizon in horizons_bars
-            },
-        }
 
     if not all_events or first_date is None or last_date is None:
         raise RuntimeError("no complete price-only events in the requested archive")
 
-    pooled_gross = {
-        str(horizon): statistics.fmean(
-            float(event[f"gross_bps_{horizon}"]) for event in all_events
+    market_stats = {
+        symbol: _summarize_events(
+            events,
+            horizons_bars=horizons_bars,
+            start_date=first_date,
+            end_date=last_date,
+            block_days=block_days,
+            resamples=resamples,
+            seed=seed,
         )
-        for horizon in horizons_bars
+        for symbol, events in events_by_market.items()
     }
-    maker_round_trip_bps = 2 * MAKER_FEE_BPS_PER_SIDE
-    taker_round_trip_bps = 2 * TAKER_FEE_BPS_PER_SIDE
-    pooled_net = {
-        "maker_maker": {
-            str(horizon): pooled_gross[str(horizon)] - maker_round_trip_bps
-            for horizon in horizons_bars
-        },
-        "taker_taker": {
-            str(horizon): pooled_gross[str(horizon)] - taker_round_trip_bps
-            for horizon in horizons_bars
-        },
-    }
-    intervals = moving_block_confidence_intervals(
+    pooled = _summarize_events(
         all_events,
+        horizons_bars=horizons_bars,
+        start_date=first_date,
+        end_date=last_date,
+        block_days=block_days,
+        resamples=resamples,
+        seed=seed,
+    )
+    excluding_hype_events = [
+        event for event in all_events if event["symbol"] != "HYPE"
+    ]
+    excluding_hype = _summarize_events(
+        excluding_hype_events,
         horizons_bars=horizons_bars,
         start_date=first_date,
         end_date=last_date,
@@ -288,15 +346,21 @@ def build_report(
         "horizons_bars": list(horizons_bars),
         "events_total": len(all_events),
         "markets": market_stats,
-        "pooled_gross_mean_bps": pooled_gross,
-        "pooled_net_mean_bps": pooled_net,
+        "pooled_gross_mean_bps": pooled["gross_mean_bps"],
+        "pooled_net_mean_bps": pooled["net_mean_bps"],
+        "pooled_gross_moving_block_bootstrap_95pct": (
+            pooled["gross_moving_block_bootstrap_95pct"]
+        ),
+        "pooled_net_moving_block_bootstrap_95pct": (
+            pooled["net_moving_block_bootstrap_95pct"]
+        ),
+        "excluding_hype": excluding_hype,
         "round_trip_fee_assumptions_bps": {
-            "maker_maker": maker_round_trip_bps,
-            "taker_taker": taker_round_trip_bps,
+            "maker_maker": 2 * MAKER_FEE_BPS_PER_SIDE,
+            "taker_taker": 2 * TAKER_FEE_BPS_PER_SIDE,
         },
-        "gross_moving_block_bootstrap_95pct": intervals,
         "bootstrap": {
-            "method": "non-circular moving blocks of UTC calendar dates; same sampled blocks across all markets; event-weighted pooled mean",
+            "method": "non-circular moving blocks of UTC calendar dates; identical sampled calendar blocks across pooled, per-market and ex-HYPE views; event-weighted means",
             "block_days": block_days,
             "resamples": resamples,
             "seed": seed,
@@ -306,6 +370,7 @@ def build_report(
             "Fee scenarios use published BingX base rates, not the owner's confirmed account rates.",
             "Spread, slippage, funding and market impact are excluded.",
             "All horizons use the same events with complete forward data through the maximum horizon.",
+            "Per-market and ex-HYPE intervals are descriptive multiple views of one sample, not independent confirmatory tests.",
         ],
     }
 
@@ -337,7 +402,9 @@ def main() -> None:
         "events_total": report["events_total"],
         "pooled_gross_mean_bps": report["pooled_gross_mean_bps"],
         "pooled_net_mean_bps": report["pooled_net_mean_bps"],
-        "gross_moving_block_bootstrap_95pct": report["gross_moving_block_bootstrap_95pct"],
+        "pooled_gross_moving_block_bootstrap_95pct": report["pooled_gross_moving_block_bootstrap_95pct"],
+        "excluding_hype": report["excluding_hype"],
+        "markets": report["markets"],
     }, ensure_ascii=False))
 
 

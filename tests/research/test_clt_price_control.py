@@ -7,6 +7,7 @@ from scripts.research.clt_price_control import (
     _percentile,
     detect_price_only_events,
     moving_block_confidence_intervals,
+    _summarize_events,
 )
 
 
@@ -96,3 +97,45 @@ def test_moving_block_bootstrap_is_deterministic_and_clusters_by_date():
 
 def test_percentile_linearly_interpolates():
     assert _percentile([0.0, 10.0], 0.25) == pytest.approx(2.5)
+
+
+
+def test_event_summaries_separate_each_market_and_exclude_hype():
+    events = []
+    for day in range(10):
+        signal_date = (date(2026, 10, 1).fromordinal(
+            date(2026, 10, 1).toordinal() + day
+        )).isoformat()
+        for symbol, value in (("BTC", 8.0), ("ETH", 4.0), ("HYPE", 30.0)):
+            events.append({
+                "symbol": symbol,
+                "signal_date_utc": signal_date,
+                "gross_bps_2": value,
+            })
+
+    common = {
+        "horizons_bars": (2,),
+        "start_date": date(2026, 10, 1),
+        "end_date": date(2026, 10, 10),
+        "block_days": 3,
+        "resamples": 500,
+        "seed": 1234,
+    }
+    pooled = _summarize_events(events, **common)
+    btc = _summarize_events(
+        [event for event in events if event["symbol"] == "BTC"], **common
+    )
+    without_hype = _summarize_events(
+        [event for event in events if event["symbol"] != "HYPE"], **common
+    )
+
+    assert pooled["events"] == 30
+    assert pooled["gross_mean_bps"]["2"] == pytest.approx(14.0)
+    assert btc["events"] == 10
+    assert btc["gross_mean_bps"]["2"] == pytest.approx(8.0)
+    assert without_hype["events"] == 20
+    assert without_hype["gross_mean_bps"]["2"] == pytest.approx(6.0)
+    assert without_hype["net_mean_bps"]["maker_maker"]["2"] == pytest.approx(2.0)
+    assert without_hype["net_moving_block_bootstrap_95pct"]["maker_maker"]["2"]["lower_95_bps"] == pytest.approx(
+        without_hype["gross_moving_block_bootstrap_95pct"]["2"]["lower_95_bps"] - 4.0
+    )

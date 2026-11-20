@@ -169,3 +169,8 @@ Fee source: BingX Perpetual Futures fee schedule, https://bingxservice.zendesk.c
 ## 2026-11-20 reproducible price-control implementation
 
 The pooled price-only baseline is now reproducible by `scripts/research/clt_price_control.py`, tested by `tests/research/test_clt_price_control.py`, and invoked from the public-market-data workflow after candle collection and cross-venue comparison. Defaults are eight prior candles for the swing, 36 bars of cooldown, next-candle-open entry, horizons of 2/4/8/16/36 bars, 20,000 three-day moving-block bootstrap resamples and fixed seed 20261120. All horizons use the same events by requiring complete 36-bar follow-up. The bootstrap samples calendar-date blocks shared across markets and calculates an event-weighted pooled mean. The JSON artifact records per-market counts, gross mean, pooled gross/net fee scenarios and confidence intervals. It is explicitly a price-only control, not a CLT result.
+
+
+## 2026-11-20 per-market uncertainty and leave-one-market-out control
+
+The price-only control artifact now emits event counts, gross means, maker/maker and taker/taker fee-adjusted means, three-day moving-block 95% intervals before fees, and intervals shifted by the same fixed round-trip fee assumptions for each market separately. It also emits the complete pooled summary excluding HYPE. All summaries use the same calendar date range, block length and random seed, so each resample uses the same sampled calendar blocks across the pooled, per-market and ex-HYPE views. These are descriptive multiple views of one archive, not five independent confirmatory tests. The JSON also keeps the original pooled fields for compatibility.
