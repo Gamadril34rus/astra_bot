@@ -66,6 +66,7 @@ def audit_capture_files(
             "depth_updates": 0,
             "depth_unsynchronized": 0,
             "depth_sequence_errors": 0,
+            "connection_errors": 0,
         },
         "by_venue_symbol": {},
         "latency_ms": {"count": 0, "p50": None, "p95": None, "p99": None},
@@ -90,6 +91,7 @@ def audit_capture_files(
             "duplicate_trades": 0,
             "invalid_timestamps": 0,
             "late_trades": 0,
+            "connection_errors": 0,
             "latency_ms": [],
         }
     )
@@ -188,7 +190,7 @@ def audit_capture_files(
                     state_key = (venue, symbol)
                     payload = row.get("payload")
                     depth_exchange_ts = _positive_int(
-                        payload.get("T") if isinstance(payload, dict) else None
+                        (payload.get("T", payload.get("time")) if isinstance(payload, dict) else None)
                     )
                     depth_receive_ts = _positive_int(row.get("received_at_ms"))
                     if depth_exchange_ts is None or depth_receive_ts is None:
@@ -224,13 +226,14 @@ def audit_capture_files(
                         totals["depth_updates"] += 1
                         stats["depth_updates"] += 1
                         previous = depth_state.get(state_key)
-                        if (not synchronized or update_id is None or previous is None):
-                            depth_state[state_key] = None
-                            totals["depth_unsynchronized"] += 1
-                            stats["depth_unsynchronized"] += 1
-                        elif update_id != previous + 1:
+                        if update_id is not None and previous is not None and update_id != previous + 1:
                             depth_state[state_key] = None
                             totals["depth_sequence_errors"] += 1
+                            totals["depth_unsynchronized"] += 1
+                            stats["depth_unsynchronized"] += 1
+                        elif (not synchronized or update_id is None or previous is None):
+                            depth_state[state_key] = None
+                            totals["depth_unsynchronized"] += 1
                             stats["depth_unsynchronized"] += 1
                         else:
                             depth_state[state_key] = update_id
@@ -240,6 +243,8 @@ def audit_capture_files(
                         stats["depth_unsynchronized"] += 1
 
                 elif kind == "connection_error":
+                    totals["connection_errors"] += 1
+                    stats["connection_errors"] += 1
                     for state_key in list(depth_state):
                         if state_key[0] == venue:
                             depth_state[state_key] = None
