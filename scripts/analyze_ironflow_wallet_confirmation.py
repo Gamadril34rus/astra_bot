@@ -121,7 +121,7 @@ def analyze(
                         INNER JOIN bars f
                           ON f.market = b.market
                          AND f.bucket_ts = b.bucket_ts
-                            + INTERVAL '${minutes} minutes'
+                            + INTERVAL '{minutes} minutes'
                         WHERE b.close > 0 AND f.close > 0
                         GROUP BY b.market
                     ),
