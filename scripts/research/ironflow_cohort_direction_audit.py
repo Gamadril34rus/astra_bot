@@ -73,7 +73,7 @@ def audit(manifest_path: Path, out_dir: Path, lookback_hours: int = 24) -> dict:
     for market in MARKETS:
         cursor = start
         while cursor < end:
-            nxt = min(cursor + timedelta(hours=1), end)
+            nxt = min(cursor + timedelta(hours=6), end)
             sql = f"""
                 SELECT
                     market,
