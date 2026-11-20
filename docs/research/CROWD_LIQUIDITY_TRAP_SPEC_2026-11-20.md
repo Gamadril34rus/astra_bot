@@ -9,9 +9,10 @@ Does a repeatable sequence predict a 30-minute to 9-hour move on BingX USDT-M pe
 
 1. A broad cohort of smaller participants materially increases LONG or SHORT inventory.
 2. After that build begins, a separately classified large-participant cohort materially increases the opposite inventory. Closing an existing position is not an opening/addition.
-3. The crowd continues adding, but its directional price progress per unit of crowd inventory deteriorates (absorption).
-4. A completed 15m candle breaks the relevant prior swing structure, with closed 1h context available only as a filter/regime descriptor.
-5. Entry is at the next 15m bar open. No prediction of a whale entry and no intrabar look-ahead.
+3. In a later 15m bucket, the crowd continues adding after the large opposite addition; same-bucket ordering is not assumed.
+4. Before the break candle, price makes weak progress in the crowd's direction relative to prior-only volatility (absorption proxy).
+5. A subsequent completed 15m candle breaks the relevant prior swing structure, with closed 1h context available only as a filter/regime descriptor.
+6. Entry is at the next 15m bar open. No prediction of a whale entry and no intrabar look-ahead.
 
 The SHORT setup is: crowd net LONG inventory rises, large cohort net SHORT inventory rises, upward price progress stalls, then a closed 15m candle breaks below prior structure. LONG is the exact mirror.
 
@@ -40,7 +41,7 @@ All values are causal and available at the close of the event bar:
 - crowd_long_inventory_delta_usd, crowd_short_inventory_delta_usd
 - large_long_inventory_delta_usd, large_short_inventory_delta_usd
 - crowd directional additions and opposing large-cohort additions over a bounded sequence window
-- price progress in the crowd's direction per unit of crowd inventory, normalized against a prior-only market/volatility baseline
+- pre-break price progress in the crowd's direction, normalized by prior-only 15m volatility over elapsed bars; retain crowd notional to test progress-per-dollar as a separate feature
 - 15m swing high/low calculated from bars strictly before the event bar
 - closed 1h context; no unfinished 1h candle
 - funding, spread and slippage inputs for execution replay
