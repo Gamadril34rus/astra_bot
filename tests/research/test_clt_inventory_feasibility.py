@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from scripts.research.clt_inventory_feasibility import (
     MAX_FILLS_PER_ADDRESS,
+    possible_direction_labels,
     select_wallets,
     split_fill_inventory,
 )
@@ -73,3 +74,19 @@ def test_wallet_selection_respects_public_api_history_ceiling(tmp_path):
     selected = select_wallets(manifest, max_wallets=10)
     assert len(selected) == 1
     assert selected[0]["manifest_fills"] == MAX_FILLS_PER_ADDRESS
+
+
+
+def test_direction_labels_allow_open_label_for_add_to_existing_position():
+    assert possible_direction_labels(2.0, "B", 1.0) == {"Open Long", "Add Long"}
+    assert possible_direction_labels(-2.0, "A", 1.0) == {"Open Short", "Add Short"}
+
+
+def test_direction_labels_split_close_and_flip():
+    assert possible_direction_labels(-2.0, "B", 1.0) == {"Close Short"}
+    assert possible_direction_labels(-2.0, "B", 3.0) == {
+        "Short > Long", "Open Long", "Add Long"
+    }
+    assert possible_direction_labels(2.0, "A", 3.0) == {
+        "Long > Short", "Open Short", "Add Short"
+    }
