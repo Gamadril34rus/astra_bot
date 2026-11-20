@@ -7,6 +7,12 @@ on:
       - "scripts/research/clt_event_model.py"
       - "tests/research/test_clt_event_model.py"
       - ".github/workflows/clt-research-checks.yml"
+  pull_request:
+    branches: [master]
+    paths:
+      - "scripts/research/clt_event_model.py"
+      - "tests/research/test_clt_event_model.py"
+      - ".github/workflows/clt-research-checks.yml"
   workflow_dispatch:
 
 permissions:
