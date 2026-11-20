@@ -39,20 +39,20 @@ jobs:
       - name: Run unit tests and lint
         run: |
           python -m pytest \
-            tests/unit/test_analyze_ironflow_wallet_confirmation.py \
+            tests/unit/test_analyze_ironflow_wallet_flow.py \
             tests/unit/test_replay_wallet_flow_on_bingx.py \
             tests/unit/test_hyperliquid_cohort_direction_audit.py \
-            scripts/research/build_cohort_taker_sequences.py \
-            tests/unit/test_build_cohort_taker_sequences.py \
             tests/unit/test_build_cohort_taker_sequences.py \
             -q --confcutdir=tests/unit
           python -m ruff check \
             scripts/analyze_ironflow_wallet_confirmation.py \
-            tests/unit/test_analyze_ironflow_wallet_confirmation.py \
+            tests/unit/test_analyze_ironflow_wallet_flow.py \
             scripts/replay_wallet_flow_on_bingx.py \
             tests/unit/test_replay_wallet_flow_on_bingx.py \
             scripts/research/hyperliquid_cohort_direction_audit.py \
-            tests/unit/test_hyperliquid_cohort_direction_audit.py
+            tests/unit/test_hyperliquid_cohort_direction_audit.py \
+            scripts/research/build_cohort_taker_sequences.py \
+            tests/unit/test_build_cohort_taker_sequences.py
       - name: Download immutable 37-day wallet-flow archive
         uses: actions/download-artifact@v4
         with:
