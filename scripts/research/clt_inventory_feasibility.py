@@ -337,6 +337,22 @@ def possible_direction_labels(
     raise ValueError(f"unknown fill side: {side!r}")
 
 
+def count_net_add_wallets(
+    bucket_values: dict[str, float],
+    *,
+    cohort: str,
+    direction: str,
+) -> int:
+    """Count distinct wallets whose net position inventory increased in-bar."""
+    if cohort not in {"small", "large"} or direction not in {"long", "short"}:
+        raise ValueError("cohort must be small/large and direction long/short")
+    prefix = f"{cohort}_{direction}_net_wallet_"
+    return sum(
+        1 for key, value in bucket_values.items()
+        if key.startswith(prefix) and value > 0
+    )
+
+
 def split_market_cohorts(
     candidates: list[tuple[float, str]],
 ) -> dict[str, set[str]]:
@@ -521,10 +537,12 @@ def audit(
             bucket[f"{cohort}_close_long_usd"] += fill["close_long_usd"]
             bucket[f"{cohort}_open_short_usd"] += fill["open_short_usd"]
             bucket[f"{cohort}_close_short_usd"] += fill["close_short_usd"]
-            if fill["open_long_usd"] > 0:
-                bucket[f"{cohort}_open_long_wallet_{address}"] = 1.0
-            if fill["open_short_usd"] > 0:
-                bucket[f"{cohort}_open_short_wallet_{address}"] = 1.0
+            bucket[f"{cohort}_long_net_wallet_{address}"] += (
+                fill["open_long_usd"] - fill["close_long_usd"]
+            )
+            bucket[f"{cohort}_short_net_wallet_{address}"] += (
+                fill["open_short_usd"] - fill["close_short_usd"]
+            )
             if fill["liquidation"]:
                 bucket[f"{cohort}_liquidation_notional_usd"] += (
                     fill["open_long_usd"] + fill["close_long_usd"]
@@ -556,10 +574,10 @@ def audit(
             "bucket_ts_ms": bucket_ms,
             "small_active_wallets": small_active,
             "large_active_wallets": large_active,
-            "small_long_add_wallets": sum(1 for key in values if key.startswith("small_open_long_wallet_")),
-            "small_short_add_wallets": sum(1 for key in values if key.startswith("small_open_short_wallet_")),
-            "large_long_add_wallets": sum(1 for key in values if key.startswith("large_open_long_wallet_")),
-            "large_short_add_wallets": sum(1 for key in values if key.startswith("large_open_short_wallet_")),
+            "small_long_add_wallets": count_net_add_wallets(values, cohort="small", direction="long"),
+            "small_short_add_wallets": count_net_add_wallets(values, cohort="small", direction="short"),
+            "large_long_add_wallets": count_net_add_wallets(values, cohort="large", direction="long"),
+            "large_short_add_wallets": count_net_add_wallets(values, cohort="large", direction="short"),
             "small_fill_count": int(values["small_fill_count"]),
             "large_fill_count": int(values["large_fill_count"]),
             "small_long_delta_usd": values["small_open_long_usd"] - values["small_close_long_usd"],
