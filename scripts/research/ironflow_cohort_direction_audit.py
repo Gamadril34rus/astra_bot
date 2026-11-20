@@ -133,13 +133,14 @@ def audit(manifest_path: Path, out_dir: Path, lookback_hours: int = 24) -> dict:
         for row in rows:
             key = f"{row['side']}|{row['direction']}|{'taker' if row['is_taker'] else 'maker'}"
             agg = by_direction.setdefault(key, {
-                "fill_rows": 0, "order_ids": 0, "wallets_max_per_hour": 0,
+                "fill_rows": 0, "order_ids_by_hour_sum": 0,
+                "wallets_max_per_hour": 0,
                 "notional_usd": 0.0, "fees_usd": 0.0,
                 "realized_pnl_usd": 0.0, "liquidation_fills": 0,
                 "liquidation_notional_usd": 0.0,
             })
             agg["fill_rows"] += int(row["fill_rows"])
-            agg["order_ids"] += int(row["order_ids"])
+            agg["order_ids_by_hour_sum"] += int(row["order_ids"])
             agg["wallets_max_per_hour"] = max(
                 agg["wallets_max_per_hour"], int(row["wallets"])
             )
@@ -173,6 +174,7 @@ def audit(manifest_path: Path, out_dir: Path, lookback_hours: int = 24) -> dict:
             "Realized PnL is per-fill and does not include funding or unrealized PnL.",
             "No wallet addresses or raw fill rows are exported.",
             "A participant's side and direction describe its own position action, not a copy-trading instruction.",
+            "order_ids_by_hour_sum sums per-hour distinct order IDs and can double-count an order crossing an hour boundary.",
         ],
         "output_csv": str(csv_path),
     }
