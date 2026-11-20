@@ -104,6 +104,8 @@ def test_non_overlapping_samples_are_thinned_per_market_and_horizon(
         and row["market"] == "BTC-PERP"
     ]
     assert len(selected) == 3
+    assert all("prior_1h_return_pct" in row for row in selected)
+    assert all("prior_4h_return_pct" in row for row in selected)
     event_times = [
         datetime.fromisoformat(row["bucket_ts"]) for row in selected
     ]
