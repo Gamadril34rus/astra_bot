@@ -253,6 +253,8 @@ def analyze(
                                 bucket_ts,
                                 {metric} AS signal_value,
                                 sign({metric}) AS signal_side,
+                                prior_1h_return_pct,
+                                prior_4h_return_pct,
                                 100.0 * ({close_col} / close_t - 1.0)
                                     AS raw_return_pct,
                                 sign({metric}) * 100.0 *
