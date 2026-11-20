@@ -114,7 +114,6 @@ def detect_clt_events(
                     "large_short_delta_usd" if crowd_direction == 1
                     else "large_long_delta_usd"
                 )
-                crowd_build = 0.0
                 for large_start in range(crowd_start + 1, min(crowd_end, signal_index)):
                     if large_start - crowd_start > max_lag_bars:
                         continue
@@ -128,7 +127,7 @@ def detect_clt_events(
                     )
                     if prior_large_add > 0:
                         continue
-                    crowd_build += _number(rows[large_start - 1], crowd_key)
+                    crowd_build = _sum(rows, crowd_start, large_start, crowd_key)
                     if crowd_build < min_crowd_add_usd:
                         continue
                     large_add = _sum(rows, large_start, signal_index, large_key)
