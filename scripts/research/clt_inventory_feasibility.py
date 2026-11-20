@@ -107,13 +107,14 @@ def fetch_wallet_history(
     pages = 0
     capped = False
     boundary_collision = False
+    boundary_collision_markets: set[str] = set()
     while pages < math.ceil(MAX_FILLS_PER_ADDRESS / PAGE_SIZE):
         page = post_info({
             "type": "userFillsByTime",
             "user": address,
             "startTime": cursor,
             "endTime": end_ms,
-            "aggregateByTime": False,
+            "aggregateByTime": True,
         })
         pages += 1
         for fill in page:
@@ -123,9 +124,12 @@ def fetch_wallet_history(
         if len(page) < PAGE_SIZE:
             break
         last_time = max(int(fill["time"]) for fill in page)
-        same_time_at_boundary = sum(int(fill["time"]) == last_time for fill in page)
-        if same_time_at_boundary > 1:
+        boundary_rows = [fill for fill in page if int(fill["time"]) == last_time]
+        if len(boundary_rows) > 1:
             boundary_collision = True
+            boundary_collision_markets.update(
+                str(fill.get("coin") or "") for fill in boundary_rows if fill.get("coin")
+            )
         if last_time < cursor:
             raise RuntimeError("Hyperliquid fills pagination moved backwards")
         cursor = last_time + 1
@@ -159,6 +163,7 @@ def fetch_wallet_history(
         "api_cap_reached": capped,
         "twap_cap_reached": twap_capped,
         "page_boundary_collision": boundary_collision,
+        "boundary_collision_markets": sorted(boundary_collision_markets),
     }
 
 
