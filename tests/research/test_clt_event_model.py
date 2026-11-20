@@ -33,7 +33,7 @@ def _bars(*, crowd_direction: str) -> list[dict]:
         })
         for cohort in ("small", "large"):
             for direction in ("long", "short"):
-                for window in range(1, 9):
+                for window in range(1, 13)
                     rows[-1][f"{cohort}_{direction}_add_wallets_prev_{window}"] = 0
 
     if crowd_direction == "long":
@@ -285,3 +285,19 @@ def test_structure_break_must_follow_large_add_within_confirmation_window():
         cooldown_bars=36,
     )
     assert events == []
+
+
+
+def test_default_clt_windows_cover_three_hour_stages():
+    events = detect_clt_events(
+        _bars(crowd_direction="long"),
+        min_crowd_add_usd=100_000,
+        min_large_add_usd=80_000,
+        min_continued_crowd_add_usd=50_000,
+        max_crowd_progress_z=0.8,
+        swing_lookback_bars=8,
+        cooldown_bars=36,
+    )
+    assert len(events) == 1
+    assert events[0]["crowd_to_large_bars"] == 1
+    assert events[0]["large_to_break_bars"] == 6
