@@ -50,6 +50,7 @@ def detect_clt_events(
     max_crowd_progress_z: float,
     crowd_window_bars: int = 8,
     max_lag_bars: int = 8,
+    max_confirmation_bars: int = 8,
     swing_lookback_bars: int = 8,
     cooldown_bars: int = 36,
     min_crowd_active_wallets: int = 3,
@@ -68,9 +69,12 @@ def detect_clt_events(
         raise ValueError("inventory thresholds must be positive")
     if min_continued_crowd_add_usd < 0 or max_crowd_progress_z < 0:
         raise ValueError("progress and continuation thresholds cannot be negative")
-    if min(crowd_window_bars, max_lag_bars, swing_lookback_bars, cooldown_bars) < 1:
+    if min(
+        crowd_window_bars, max_lag_bars, max_confirmation_bars,
+        swing_lookback_bars, cooldown_bars,
+    ) < 1:
         raise ValueError("bar windows must be positive")
-    if max(crowd_window_bars, max_lag_bars) > 8:
+    if max(crowd_window_bars, max_lag_bars, max_confirmation_bars) > 8:
         raise ValueError("rolling participant coverage is limited to 8 prior bars")
     if min(min_crowd_active_wallets, min_large_active_wallets) < 1:
         raise ValueError("active wallet thresholds must be positive")
@@ -157,6 +161,8 @@ def detect_clt_events(
                 )
                 for large_start in range(crowd_start + 1, min(crowd_end, signal_index)):
                     if large_start - crowd_start > max_lag_bars:
+                        continue
+                    if signal_index - large_start > max_confirmation_bars:
                         continue
                     if _number(rows[large_start], large_key) <= 0:
                         continue
