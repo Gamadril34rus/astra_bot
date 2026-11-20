@@ -238,6 +238,13 @@ def test_rolling_unique_add_counts_include_empty_current_bars_and_exclude_curren
         max_window=12,
     )
     assert counts_12["small_long_add_wallets_prev_12"] == 2
+    default_counts = rolling_unique_add_wallet_counts(
+        buckets,
+        market="BTC",
+        phase="test",
+        bucket_ms=2 * BAR_MS,
+    )
+    assert default_counts["small_long_add_wallets_prev_12"] == 2
 
 
 def test_rolling_unique_add_counts_are_phase_scoped_and_validate_window():
