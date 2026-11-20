@@ -70,7 +70,7 @@ prints are not a spot order book, so they cannot substitute for spot depth.
 
 Audit both files without modifying them:
 
-`python scripts/bsr_audit.py --bingx data/bsr/bingx_market.jsonl --binance data/bsr/bingx_market_binance_spot.jsonl --output data/bsr/capture_audit.json`
+`python scripts/bsr_audit.py --bingx data/bsr/bingx_market.jsonl --binance data/bsr/bingx_market_binance_spot.jsonl --clock data/bsr/clock_sync.jsonl --output data/bsr/capture_audit.json`
 
 The report records malformed line byte offsets, duplicate `(venue, symbol, trade_id)`
 keys, trade receive latency p50/p95/p99, depth message timestamp-to-receive age

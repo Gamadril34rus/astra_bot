@@ -6,6 +6,7 @@ import asyncio
 from pathlib import Path
 
 from astra_bot.research.bsr.binance_spot_recorder import BinanceSpotRecorder
+from astra_bot.research.bsr.clock_sync import PublicClockCalibrator
 from astra_bot.research.bsr.websocket_recorder import BingXMarketRecorder
 
 
@@ -19,17 +20,23 @@ def main() -> None:
         "--duration-seconds", type=float, default=None,
         help="Stop cleanly after this many seconds; omit to run until interrupted.",
     )
+    parser.add_argument(
+        "--clock-output", type=Path, default=None,
+        help="Public server-time calibration JSONL; defaults beside --output.",
+    )
     args = parser.parse_args()
     if args.duration_seconds is not None and args.duration_seconds <= 0:
         parser.error("--duration-seconds must be greater than zero")
     spot_output = args.output.with_name(
         args.output.stem + "_binance_spot" + args.output.suffix
     )
+    clock_output = args.clock_output or args.output.with_name("clock_sync.jsonl")
 
     async def capture() -> None:
         tasks = [
             asyncio.create_task(BingXMarketRecorder(args.symbols, args.output).run_forever()),
             asyncio.create_task(BinanceSpotRecorder(args.symbols, spot_output).run_forever()),
+            asyncio.create_task(PublicClockCalibrator(clock_output).run_forever()),
         ]
         try:
             if args.duration_seconds is None:

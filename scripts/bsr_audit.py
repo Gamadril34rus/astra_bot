@@ -1,4 +1,4 @@
-"""Audit immutable BSR BingX and Binance JSONL capture files."""
+"""Audit immutable BSR BingX, Binance and public clock calibration captures."""
 from __future__ import annotations
 
 import argparse
@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from astra_bot.research.bsr.capture_audit import audit_capture_files
+from astra_bot.research.bsr.clock_sync import summarize_clock_sync
 
 
 def main() -> None:
@@ -22,6 +23,12 @@ def main() -> None:
         default=Path("data/bsr/bingx_market_binance_spot.jsonl"),
         help="Binance Spot JSONL capture",
     )
+    parser.add_argument(
+        "--clock",
+        type=Path,
+        default=Path("data/bsr/clock_sync.jsonl"),
+        help="Public server clock calibration JSONL",
+    )
     parser.add_argument("--output", type=Path, help="optional report JSON path")
     parser.add_argument("--max-latency-ms", type=int, default=5_000)
     args = parser.parse_args()
@@ -30,6 +37,7 @@ def main() -> None:
         [args.bingx, args.binance],
         max_latency_ms=args.max_latency_ms,
     )
+    report["clock_sync"] = summarize_clock_sync(args.clock)
     rendered = json.dumps(report, ensure_ascii=False, indent=2)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
