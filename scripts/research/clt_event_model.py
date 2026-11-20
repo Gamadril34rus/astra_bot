@@ -142,7 +142,7 @@ def detect_clt_events(
         found = None
         search_start = max(0, signal_index - max_lag_bars - crowd_window_bars)
         for crowd_start in range(search_start, signal_index):
-            crowd_end = min(signal_index, crowd_start + crowd_window_bars)
+            crowd_end = min(signal_index, crowd_start + crowd_window_bars + 1)
             for crowd_direction in (1, -1):
                 crowd_key = (
                     "crowd_long_delta_usd" if crowd_direction == 1
