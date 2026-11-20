@@ -13,7 +13,6 @@ import json
 import math
 import random
 import statistics
-from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
