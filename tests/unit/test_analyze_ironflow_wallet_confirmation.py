@@ -114,7 +114,7 @@ def test_non_overlapping_samples_are_thinned_per_market_and_horizon(
     assert all(
         abs(float(row["excess_directional_return_pct"]) -
             (float(row["directional_return_pct"]) -
-             float(row["signal_side"] == "buy_pressure") *
+             (1.0 if row["signal_side"] == "buy_pressure" else -1.0) *
              float(row["baseline_return_pct"]))) < 1e-9
         for row in selected
     )
