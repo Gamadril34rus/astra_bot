@@ -63,8 +63,8 @@ def test_audit_keeps_every_fill_in_a_multi_fill_timestamp_group(tmp_path, monkey
                 "api_cap_reached": False,
                 "twap_cap_reached": False,
                 "page_boundary_collision": False,
-                "boundary_collision_markets": set(),
-                "boundary_recovered_markets": set(),
+                "boundary_collision_markets": [],
+                "boundary_recovered_markets": [],
             },
         ),
     )
