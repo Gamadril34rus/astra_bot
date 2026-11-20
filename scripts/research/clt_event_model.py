@@ -70,6 +70,8 @@ def detect_clt_events(
         raise ValueError("progress and continuation thresholds cannot be negative")
     if min(crowd_window_bars, max_lag_bars, swing_lookback_bars, cooldown_bars) < 1:
         raise ValueError("bar windows must be positive")
+    if max(crowd_window_bars, max_lag_bars) > 8:
+        raise ValueError("rolling participant coverage is limited to 8 prior bars")
     if min(min_crowd_active_wallets, min_large_active_wallets) < 1:
         raise ValueError("active wallet thresholds must be positive")
 
@@ -84,6 +86,13 @@ def detect_clt_events(
         "htf_return_pct", "htf_range_pct", "htf_structure_break",
         "htf_close_location",
     )
+    rolling_participant_fields = [
+        f"{cohort}_{direction}_add_wallets_prev_{window}"
+        for cohort in ("small", "large")
+        for direction in ("long", "short")
+        for window in range(1, max(crowd_window_bars, max_lag_bars) + 1)
+    ]
+    required = required + tuple(rolling_participant_fields)
     previous_ts = None
     for row in rows:
         missing = [key for key in required if key not in row]
@@ -159,13 +168,10 @@ def detect_clt_events(
                     )
                     if prior_large_add > 0:
                         continue
-                    crowd_build_rows = [
-                        row for row in rows[crowd_start:large_start]
-                        if _number(row, crowd_key) > 0
-                    ]
-                    crowd_active_wallets = max(
-                        (_number(row, crowd_active_key) for row in crowd_build_rows),
-                        default=0,
+                    crowd_build_bars = large_start - crowd_start
+                    crowd_active_wallets = _number(
+                        rows[large_start],
+                        f"{crowd_active_key}_prev_{crowd_build_bars}",
                     )
                     if crowd_active_wallets < min_crowd_active_wallets:
                         continue
@@ -178,13 +184,13 @@ def detect_clt_events(
                     large_add = _sum(rows, large_start, signal_index, large_key)
                     if large_add < min_large_add_usd:
                         continue
-                    continued_rows = [
-                        row for row in rows[large_start + 1:signal_index]
-                        if _number(row, crowd_key) > 0
-                    ]
-                    continued_active_wallets = max(
-                        (_number(row, crowd_active_key) for row in continued_rows),
-                        default=0,
+                    continued_bars = signal_index - large_start - 1
+                    continued_active_wallets = (
+                        _number(
+                            rows[signal_index],
+                            f"{crowd_active_key}_prev_{continued_bars}",
+                        )
+                        if continued_bars > 0 else 0
                     )
                     continued_add = _sum(rows, large_start + 1, signal_index, crowd_key)
                     if (
