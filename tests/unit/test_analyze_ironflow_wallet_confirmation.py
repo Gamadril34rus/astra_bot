@@ -81,6 +81,27 @@ def test_non_overlapping_samples_are_thinned_per_market_and_horizon(
     assert all(
         int(row["negative_signal_observations"]) == 0 for row in study
     )
+    expected_30m_baseline = sum(
+        100.0 * (closes[i + 2] / closes[i] - 1.0)
+        for i in range(len(closes) - 2)
+    ) / (len(closes) - 2)
+    assert all(
+        abs(float(row["baseline_return_pct"]) - expected_30m_baseline) < 1e-9
+        for row in study if row["horizon"] == "30m"
+    )
+
+    sides_path = tmp_path / "out" / "wallet_flow_confirmation_sides.csv"
+    with sides_path.open(encoding="utf-8", newline="") as handle:
+        sides = list(csv.DictReader(handle))
+    assert sides
+    assert any(
+        row["horizon"] == "30m"
+        and row["metric"] == "flow_ratio"
+        and row["sample_type"] == "non_overlapping"
+        and row["signal_side"] == "buy_pressure"
+        and int(row["observations"]) == 3
+        for row in sides
+    )
 
     summary = json.loads(
         (tmp_path / "out" / "wallet_flow_confirmation_summary.json").read_text()
