@@ -200,6 +200,58 @@ def _position_tolerance(left: float, right: float) -> float:
     return max(1e-8, abs(left) * 1e-7, abs(right) * 1e-7)
 
 
+def order_timestamp_group(fills: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
+    """Find a unique position-transition path; tid is not an execution sequence."""
+    if len(fills) <= 1:
+        return fills
+    edges = []
+    for fill in fills:
+        try:
+            start = float(fill["startPosition"])
+            size = float(fill["sz"])
+            side = str(fill["side"])
+            if size <= 0 or not math.isfinite(start) or not math.isfinite(size):
+                return None
+            if side == "B":
+                after = start + size
+            elif side == "A":
+                after = start - size
+            else:
+                return None
+        except (KeyError, TypeError, ValueError):
+            return None
+        edges.append((start, after, fill))
+    starts = []
+    for index, (start, _, _) in enumerate(edges):
+        has_predecessor = any(
+            other != index and abs(after - start) <= _position_tolerance(after, start)
+            for other, (_, after, _) in enumerate(edges)
+        )
+        if not has_predecessor:
+            starts.append(index)
+    if len(starts) != 1:
+        return None
+    remaining = set(range(len(edges)))
+    current = starts[0]
+    ordered = []
+    while remaining:
+        if current not in remaining:
+            return None
+        remaining.remove(current)
+        start, after, fill = edges[current]
+        ordered.append(fill)
+        if not remaining:
+            break
+        candidates = [
+            index for index in remaining
+            if abs(edges[index][0] - after) <= _position_tolerance(edges[index][0], after)
+        ]
+        if len(candidates) != 1:
+            return None
+        current = candidates[0]
+    return ordered
+
+
 def possible_direction_labels(
     start_position: float,
     side: str,
