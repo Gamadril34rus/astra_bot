@@ -45,13 +45,6 @@ jobs:
           run-id: 43250750091
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: manifest_evidence
-      - name: Extract manifest
-        run: |
-          python - <<'PY'
-          import zipfile
-          with zipfile.ZipFile("manifest_evidence/hyperliquid-wallet-archive-summary.zip") as archive:
-              archive.extract("hyperliquid_wallet_archive/wallet_archive_manifest.json", "manifest_evidence")
-          PY
       - name: Audit direction-aware historical inventory coverage
         run: |
           python scripts/research/clt_inventory_feasibility.py \
