@@ -38,21 +38,21 @@ jobs:
         run: python -m pytest tests/research/test_clt_inventory_feasibility.py -q --confcutdir=tests/research
       - name: Lint CLT inventory research files
         run: python -m ruff check scripts/research/clt_inventory_feasibility.py tests/research/test_clt_inventory_feasibility.py
-      - name: Download frozen Hyperliquid cohort manifest
-        uses: actions/download-artifact@v4
-        with:
-          name: hyperliquid-wallet-archive-summary
-          run-id: 43250750091
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: manifest_evidence
+      - name: Download public Hyperliquid leaderboard snapshot
+        run: |
+          mkdir -p manifest_evidence
+          curl --fail --location --silent --show-error --retry 3 \
+            https://stats-data.hyperliquid.xyz/Mainnet/leaderboard \
+            -o manifest_evidence/leaderboard.json
+          test -s manifest_evidence/leaderboard.json
       - name: Audit direction-aware historical inventory coverage
         run: |
           python scripts/research/clt_inventory_feasibility.py \
-            --manifest manifest_evidence/hyperliquid_wallet_archive/wallet_archive_manifest.json \
+            --manifest manifest_evidence/leaderboard.json \
             --out-dir reports/clt_inventory_feasibility \
             --start 2026-10-03T00:00:00+00:00 \
             --end 2026-11-09T00:00:00+00:00 \
-            --max-wallets 40
+            --max-wallets 120
       - name: Upload aggregate-only feasibility report
         if: always()
         uses: actions/upload-artifact@v4
