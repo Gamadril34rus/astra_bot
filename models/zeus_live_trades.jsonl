@@ -3235,3 +3235,7 @@
 {"event": "order_cancel", "symbol": "SOL-USDT", "order_id": "2123751193687187456", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795187815.206053, "environment": "VST"}
 {"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2123751171809697792", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795187816.8335128, "environment": "VST"}
 {"event": "order_cancel", "symbol": "ETH-USDT", "order_id": "2123748882562768896", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795187820.4927, "environment": "VST"}
+{"event": "qty_reconcile", "symbol": "ETH-USDT", "side": "short", "old_qty": 9.896, "new_qty": 6.927, "rel_diff": 0.30002, "signal_id": "zeus_multi_top_breakdown|ETH-USDT|short|1795136400000", "ts": 1795188120.6241865, "environment": "VST"}
+{"event": "leverage_reconcile", "symbol": "ETH-USDT", "side": "short", "old_leverage": 5, "exchange_leverage": 6, "source": "bingx_position", "signal_id": "zeus_multi_top_breakdown|ETH-USDT|short|1795136400000", "ts": 1795188120.6243157, "environment": "VST"}
+{"event": "order_cancel", "symbol": "SOL-USDT", "order_id": "2123797745147404288", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795188123.1116476, "environment": "VST"}
+{"event": "order_cancel", "symbol": "ETH-USDT", "order_id": "2123797767322689536", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795188151.4488306, "environment": "VST"}
