@@ -288,6 +288,81 @@ def test_structure_break_must_follow_large_add_within_confirmation_window():
 
 
 
+def test_continuation_volume_must_precede_the_break_bar():
+    rows = _bars(crowd_direction="long")
+    rows[3]["crowd_long_delta_usd"] = 10_000
+    rows[8]["crowd_long_delta_usd"] = 50_000
+    events = detect_clt_events(
+        rows,
+        min_crowd_add_usd=100_000,
+        min_large_add_usd=80_000,
+        min_continued_crowd_add_usd=50_000,
+        max_crowd_progress_z=0.8,
+        crowd_window_bars=8,
+        max_lag_bars=8,
+        swing_lookback_bars=8,
+        cooldown_bars=36,
+    )
+    assert events == []
+
+
+def test_crowd_to_large_window_includes_full_twelve_bar_boundary():
+    rows = _bars(crowd_direction="long")
+    for index in range(10, 22):
+        row = dict(rows[-1])
+        price = 100.0 - 0.05 * index
+        row.update({
+            "ts": index,
+            "open": price,
+            "high": price + 0.4,
+            "low": price - 0.4,
+            "close": price,
+            "crowd_long_delta_usd": 0.0,
+            "crowd_short_delta_usd": 0.0,
+            "large_long_delta_usd": 0.0,
+            "large_short_delta_usd": 0.0,
+            "small_long_add_wallets": 0,
+            "small_short_add_wallets": 0,
+            "large_long_add_wallets": 0,
+            "large_short_add_wallets": 0,
+        })
+        for cohort in ("small", "large"):
+            for direction in ("long", "short"):
+                for window in range(1, 13):
+                    row[f"{cohort}_{direction}_add_wallets_prev_{window}"] = 0
+        rows.append(row)
+
+    rows[0]["crowd_long_delta_usd"] = 60_000
+    rows[1]["crowd_long_delta_usd"] = 60_000
+    rows[0]["small_long_add_wallets"] = 1
+    rows[1]["small_long_add_wallets"] = 1
+    rows[2]["small_long_add_wallets"] = 1
+    rows[12]["small_long_add_wallets_prev_12"] = 3
+    rows[12]["large_short_delta_usd"] = 90_000
+    rows[12]["large_short_add_wallets"] = 1
+    rows[13]["crowd_long_delta_usd"] = 60_000
+    rows[20]["small_long_add_wallets_prev_7"] = 3
+    rows[20]["close"] = 98.0
+    rows[20]["low"] = 97.8
+    rows[21]["open"] = 98.1
+
+    events = detect_clt_events(
+        rows,
+        min_crowd_add_usd=100_000,
+        min_large_add_usd=80_000,
+        min_continued_crowd_add_usd=50_000,
+        max_crowd_progress_z=0.8,
+        crowd_window_bars=12,
+        max_lag_bars=12,
+        max_confirmation_bars=12,
+        swing_lookback_bars=8,
+        cooldown_bars=36,
+    )
+    assert len(events) == 1
+    assert events[0]["crowd_to_large_bars"] == 12
+    assert events[0]["large_to_break_bars"] == 8
+
+
 def test_default_clt_windows_cover_three_hour_stages():
     events = detect_clt_events(
         _bars(crowd_direction="long"),
