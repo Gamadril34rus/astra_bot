@@ -25,7 +25,7 @@ def test_horizons_and_metrics_are_explicit() -> None:
 def test_non_overlapping_samples_are_thinned_per_market_and_horizon(
     tmp_path: Path,
 ) -> None:
-    start = datetime(2026, 10, 3, 0, 0, tzinfo=timezone.utc)
+    start = datetime(2026, 10, 3, 0, 15, tzinfo=timezone.utc)
     times = [start + timedelta(minutes=15 * i) for i in range(6)]
     cohort = pa.table({
         "market": ["BTC-PERP"] * 6,
@@ -100,6 +100,7 @@ def test_non_overlapping_samples_are_thinned_per_market_and_horizon(
         and row["sample_type"] == "non_overlapping"
         and row["signal_side"] == "buy_pressure"
         and int(row["observations"]) == 3
+        and int(row["min_gap_minutes"]) >= 30
         for row in sides
     )
 
