@@ -17,9 +17,9 @@ import time
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from typing import Any
 
 API_URL = "https://api.hyperliquid.xyz/info"
 CORE_COINS = {"BTC", "ETH", "SOL", "HYPE", "INJ"}
