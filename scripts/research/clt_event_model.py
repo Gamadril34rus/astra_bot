@@ -62,8 +62,6 @@ def detect_clt_events(
     Signal is known only after the current bar closes; entry is next bar open.
     Direction is +1 LONG and -1 SHORT. No event is emitted without a next bar.
     """
-    if min(rows and 1 or 0, 1) < 0:  # keep empty input valid without special casing below
-        raise ValueError("invalid input")
     if min_crowd_add_usd <= 0 or min_large_add_usd <= 0:
         raise ValueError("inventory thresholds must be positive")
     if min_continued_crowd_add_usd < 0 or max_crowd_progress_pct < 0:
