@@ -71,7 +71,7 @@ def test_clock_sync_summary_counts_invalid_utf8_without_aborting(tmp_path):
         "rtt_ms": 4,
         "local_receive_ms": 100,
     }
-    path.write_bytes((json.dumps(valid) + "\\n").encode("utf-8") + b"\\xff\\n")
+    path.write_bytes((json.dumps(valid) + "\n").encode("utf-8") + b"\xff\n")
     report = summarize_clock_sync(path)
     assert report["malformed_records"] == 1
     assert report["by_venue"]["bingx_swap"]["samples"] == 1
