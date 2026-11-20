@@ -28,7 +28,7 @@ def _verified_trade_environment() -> str | None:
 
 
 def _mfe_r_from_plan(plan: dict[str, Any], entry_price: Any, side: str) -> float | None:
-    """Derive exit MFE in R from persisted peak prices when explicit telemetry is absent."""
+    """Derive exit MFE in R from persisted peaks when explicit telemetry is absent."""
     try:
         if plan.get("mfe_r") is not None:
             value = Decimal(str(plan["mfe_r"]))
