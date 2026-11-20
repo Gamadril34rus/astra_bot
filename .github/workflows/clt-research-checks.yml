@@ -9,6 +9,7 @@ on:
       - "scripts/research/clt_inventory_feasibility.py"
       - "scripts/research/clt_bingx_market_data.py"
       - "scripts/research/clt_venue_alignment.py"
+      - "scripts/research/clt_price_control.py"
       - "tests/research/test_clt_event_model.py"
       - "tests/research/test_clt_market_context.py"
       - "tests/research/test_clt_inventory_feasibility.py"
@@ -23,6 +24,7 @@ on:
       - "scripts/research/clt_inventory_feasibility.py"
       - "scripts/research/clt_bingx_market_data.py"
       - "scripts/research/clt_venue_alignment.py"
+      - "scripts/research/clt_price_control.py"
       - "tests/research/test_clt_event_model.py"
       - "tests/research/test_clt_market_context.py"
       - "tests/research/test_clt_inventory_feasibility.py"
@@ -57,6 +59,7 @@ jobs:
             tests/research/test_clt_inventory_feasibility.py \
             tests/research/test_clt_bingx_market_data.py \
             tests/research/test_clt_venue_alignment.py \
+            tests/research/test_clt_price_control.py \
             -q --confcutdir=tests/research
       - name: Lint all CLT research files
         run: |
@@ -70,4 +73,6 @@ jobs:
             tests/research/test_clt_market_context.py \
             tests/research/test_clt_inventory_feasibility.py \
             tests/research/test_clt_bingx_market_data.py \
-            tests/research/test_clt_venue_alignment.py
+            tests/research/test_clt_venue_alignment.py \
+            scripts/research/clt_price_control.py \
+            tests/research/test_clt_price_control.py
