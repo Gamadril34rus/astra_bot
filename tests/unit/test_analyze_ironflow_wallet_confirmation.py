@@ -95,6 +95,29 @@ def test_non_overlapping_samples_are_thinned_per_market_and_horizon(
     with sides_path.open(encoding="utf-8", newline="") as handle:
         sides = list(csv.DictReader(handle))
     assert sides
+    events_path = tmp_path / "out" / "wallet_flow_confirmation_events.csv"
+    with events_path.open(encoding="utf-8", newline="") as handle:
+        events = list(csv.DictReader(handle))
+    selected = [
+        row for row in events
+        if row["horizon"] == "30m" and row["metric"] == "flow_ratio"
+        and row["market"] == "BTC-PERP"
+    ]
+    assert len(selected) == 3
+    event_times = [
+        datetime.fromisoformat(row["bucket_ts"]) for row in selected
+    ]
+    assert all(
+        (event_times[i] - event_times[i - 1]).total_seconds() >= 1800
+        for i in range(1, len(event_times))
+    )
+    assert all(
+        abs(float(row["excess_directional_return_pct"]) -
+            (float(row["directional_return_pct"]) -
+             float(row["signal_side"] == "buy_pressure") *
+             float(row["baseline_return_pct"]))) < 1e-9
+        for row in selected
+    )
     assert any(
         row["horizon"] == "30m"
         and row["metric"] == "flow_ratio"
