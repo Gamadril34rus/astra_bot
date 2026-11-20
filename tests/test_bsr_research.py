@@ -1,12 +1,17 @@
 """Unit tests for isolated BingX Sweep Reversion research math."""
 from __future__ import annotations
 
+import json
 import math
 
 import pytest
 from astra_bot.research.bsr.basis import align_cross_venue_trades
 from astra_bot.research.bsr.binance_spot_recorder import BinanceSpotRecorder
-from astra_bot.research.bsr.bingx_public import BingXPublicAPIError, BingXPublicClient
+from astra_bot.research.bsr.bingx_public import (
+    BingXPublicAPIError,
+    BingXPublicClient,
+    PublicEndpoints,
+)
 from astra_bot.research.bsr.economics import (
     CostModel,
     net_pnl,
@@ -15,7 +20,7 @@ from astra_bot.research.bsr.economics import (
 )
 from astra_bot.research.bsr.features import book_metrics, evaluate_signal, trade_flow
 from astra_bot.research.bsr.models import BookSnapshot, MarketTrade, SignalConfig
-from astra_bot.research.bsr.websocket_recorder import DepthBookState
+from astra_bot.research.bsr.websocket_recorder import BingXMarketRecorder, DepthBookState
 
 
 def _book(ts: int, mid: float, bid_depth: float, ask_depth: float) -> BookSnapshot:
@@ -148,6 +153,32 @@ def test_incremental_depth_waits_for_full_snapshot():
     assert state.asks == {101.0: 5.0}
 
 
+@pytest.mark.asyncio
+async def test_depth_sequence_gap_closes_socket_for_fresh_snapshot(tmp_path):
+    class FakeWebSocket:
+        closed = False
+
+        async def close(self):
+            self.closed = True
+
+    recorder = BingXMarketRecorder(["BTC-USDT"], tmp_path / "market.jsonl")
+    recorder._active_channels.add("BTC-USDT@incrDepth")
+    recorder.books["BTC-USDT"].apply({
+        "action": "all", "lastUpdateId": 10,
+        "bids": [["100", "2"]], "asks": [["101", "3"]],
+    })
+    ws = FakeWebSocket()
+    await recorder._handle(ws, json.dumps({
+        "dataType": "BTC-USDT@incrDepth",
+        "data": {"action": "update", "lastUpdateId": 12,
+                 "bids": [["100", "1"]], "asks": []},
+    }))
+    assert ws.closed is True
+    records = [json.loads(line) for line in (tmp_path / "market.jsonl").read_text().splitlines()]
+    assert records[-1]["kind"] == "connection_error"
+    assert records[-1]["reason"].startswith("depth_book_invalidated")
+
+
 def test_depth_sequence_gap_invalidates_and_clears_book():
     state = DepthBookState()
     assert state.apply({"action": "all", "lastUpdateId": 10,
@@ -195,6 +226,14 @@ def test_crossed_incremental_book_is_invalidated():
     assert state.synchronized is False
     assert state.bids == {}
 
+
+
+def test_binance_spot_rest_uses_public_market_data_only_endpoint():
+    assert PublicEndpoints().binance_spot_base_url == "https://data-api.binance.vision"
+
+
+def test_binance_spot_stream_uses_public_market_data_only_endpoint():
+    assert BinanceSpotRecorder.URL == "wss://data-stream.binance.vision:443/stream"
 
 
 def test_binance_spot_stream_symbol_normalization():

@@ -40,7 +40,7 @@ def test_audit_reports_latency_percentiles_and_clean_capture(tmp_path):
             "payload": {
                 "action": "all",
                 "lastUpdateId": 10,
-                "T": 1_000,
+                "time": 1_000,
                 "bids": [["100", "2"]],
                 "asks": [["101", "3"]],
             },
@@ -122,7 +122,7 @@ def test_audit_detects_depth_sequence_gap(tmp_path):
     assert report["totals"]["depth_snapshots"] == 1
     assert report["totals"]["depth_updates"] == 3
     assert report["totals"]["depth_sequence_errors"] == 1
-    assert report["totals"]["depth_unsynchronized"] == 1
+    assert report["totals"]["depth_unsynchronized"] == 2
 
 
 def test_audit_counts_negative_and_late_trade_latency(tmp_path):
@@ -173,7 +173,7 @@ def test_audit_reports_depth_message_age_separately(tmp_path):
             "payload": {
                 "action": "all",
                 "lastUpdateId": 1,
-                "T": 1_100,
+                "time": 1_100,
                 "bids": [["100", "1"]],
                 "asks": [["101", "1"]],
             },
@@ -280,3 +280,68 @@ def test_audit_rejects_fractional_timestamp_values(tmp_path):
     report = audit_capture_files([path])
 
     assert report["totals"]["invalid_timestamps"] == 1
+
+
+
+def test_audit_recovers_depth_timestamp_from_bingx_time_field(tmp_path):
+    path = tmp_path / "bingx-time-field.jsonl"
+    _write_jsonl(path, [
+        {
+            "venue": "bingx_swap", "kind": "depth", "symbol": "BTC-USDT",
+            "synchronized": True, "received_at_ms": 1_250,
+            "payload": {
+                "action": "all", "lastUpdateId": 10, "time": 1_000,
+                "bids": [["100", "1"]], "asks": [["101", "1"]],
+            },
+        },
+    ])
+    report = audit_capture_files([path])
+    assert report["totals"]["depth_timestamp_records"] == 1
+    assert report["totals"]["depth_invalid_timestamps"] == 0
+    assert report["depth_message_age_ms"]["p50"] == 250.0
+
+
+def test_audit_counts_connection_errors_and_depth_sequence_gap(tmp_path):
+    path = tmp_path / "resync.jsonl"
+    _write_jsonl(path, [
+        {
+            "venue": "bingx_swap", "kind": "depth", "symbol": "BTC-USDT",
+            "synchronized": True, "received_at_ms": 1_100,
+            "payload": {"action": "all", "lastUpdateId": 10, "time": 1_000},
+        },
+        {
+            "venue": "bingx_swap", "kind": "depth", "symbol": "BTC-USDT",
+            "synchronized": False, "received_at_ms": 1_200,
+            "payload": {"action": "update", "lastUpdateId": 12, "time": 1_100},
+        },
+        {
+            "venue": "bingx_swap", "kind": "connection_error",
+            "symbol": "BTC-USDT", "received_at_ms": 1_200,
+            "reason": "depth_book_invalidated",
+        },
+        {
+            "venue": "bingx_swap", "kind": "depth", "symbol": "BTC-USDT",
+            "synchronized": True, "received_at_ms": 1_400,
+            "payload": {"action": "all", "lastUpdateId": 20, "time": 1_300},
+        },
+    ])
+    report = audit_capture_files([path])
+    assert report["totals"]["connection_errors"] == 1
+    assert report["totals"]["depth_sequence_errors"] == 1
+    assert report["totals"]["depth_snapshots"] == 2
+
+
+
+def test_audit_groups_mark_price_market_events_by_symbol(tmp_path):
+    path = tmp_path / "mark-price.jsonl"
+    _write_jsonl(path, [
+        {
+            "venue": "bingx_swap",
+            "kind": "market_event",
+            "channel": "BTC-USDT@markPrice",
+            "received_at_ms": 1_100,
+            "payload": {"e": "markPriceUpdate", "E": 1_000, "s": "BTC-USDT", "p": "100"},
+        },
+    ])
+    report = audit_capture_files([path])
+    assert report["by_venue_symbol"]["bingx_swap:BTC-USDT"]["records"] == 1

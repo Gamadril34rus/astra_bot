@@ -13,7 +13,7 @@ import aiohttp
 class BinanceSpotRecorder:
     """Persist public Binance Spot trades with exchange and receive timestamps."""
 
-    URL = "wss://stream.binance.com:9443/stream"
+    URL = "wss://data-stream.binance.vision:443/stream"
 
     def __init__(self, symbols: list[str], output: Path) -> None:
         if not symbols:

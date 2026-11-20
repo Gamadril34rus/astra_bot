@@ -19,7 +19,7 @@ class BingXPublicAPIError(RuntimeError):
 @dataclass(frozen=True, slots=True)
 class PublicEndpoints:
     bingx_base_url: str = "https://open-api.bingx.com"
-    binance_spot_base_url: str = "https://api.binance.com"
+    binance_spot_base_url: str = "https://data-api.binance.vision"
 
 
 class BingXPublicClient:
