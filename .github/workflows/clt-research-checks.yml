@@ -28,6 +28,6 @@ jobs:
       - name: Install isolated test tools
         run: python -m pip install pytest ruff
       - name: Run CLT unit tests
-        run: python -m pytest tests/research/test_clt_event_model.py -q
+        run: python -m pytest tests/research/test_clt_event_model.py -q --confcutdir=tests/research
       - name: Lint CLT research files
         run: python -m ruff check scripts/research/clt_event_model.py tests/research/test_clt_event_model.py
