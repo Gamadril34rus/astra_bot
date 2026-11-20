@@ -449,6 +449,10 @@ def audit(
             bucket[f"{cohort}_close_long_usd"] += fill["close_long_usd"]
             bucket[f"{cohort}_open_short_usd"] += fill["open_short_usd"]
             bucket[f"{cohort}_close_short_usd"] += fill["close_short_usd"]
+            if fill["open_long_usd"] > 0:
+                bucket[f"{cohort}_open_long_wallet_{address}"] = 1.0
+            if fill["open_short_usd"] > 0:
+                bucket[f"{cohort}_open_short_wallet_{address}"] = 1.0
             if fill["liquidation"]:
                 bucket[f"{cohort}_liquidation_notional_usd"] += (
                     fill["open_long_usd"] + fill["close_long_usd"]
@@ -460,6 +464,8 @@ def audit(
     fields = [
         "market", "bucket_ts_ms",
         "small_active_wallets", "large_active_wallets",
+        "small_long_add_wallets", "small_short_add_wallets",
+        "large_long_add_wallets", "large_short_add_wallets",
         "small_fill_count", "large_fill_count",
         "small_long_delta_usd", "small_short_delta_usd",
         "large_long_delta_usd", "large_short_delta_usd",
@@ -478,6 +484,10 @@ def audit(
             "bucket_ts_ms": bucket_ms,
             "small_active_wallets": small_active,
             "large_active_wallets": large_active,
+            "small_long_add_wallets": sum(1 for key in values if key.startswith("small_open_long_wallet_")),
+            "small_short_add_wallets": sum(1 for key in values if key.startswith("small_open_short_wallet_")),
+            "large_long_add_wallets": sum(1 for key in values if key.startswith("large_open_long_wallet_")),
+            "large_short_add_wallets": sum(1 for key in values if key.startswith("large_open_short_wallet_")),
             "small_fill_count": int(values["small_fill_count"]),
             "large_fill_count": int(values["large_fill_count"]),
             "small_long_delta_usd": values["small_open_long_usd"] - values["small_close_long_usd"],
