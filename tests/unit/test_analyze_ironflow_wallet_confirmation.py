@@ -33,6 +33,7 @@ def test_non_overlapping_samples_are_thinned_per_market_and_horizon(
         "cohort_signed_notional": [100.0] * 6,
         "cohort_participant_notional": [100.0] * 6,
         "cohort_aggressive_signed_notional": [80.0] * 6,
+        "cohort_taker_notional": [80.0] * 6,
         "active_wallets": [5] * 6,
         "net_buy_wallets": [5] * 6,
         "net_sell_wallets": [0] * 6,
@@ -101,6 +102,10 @@ def test_non_overlapping_samples_are_thinned_per_market_and_horizon(
         and row["signal_side"] == "buy_pressure"
         and int(row["observations"]) == 3
         and int(row["min_gap_minutes"]) >= 30
+        and abs(float(row["baseline_return_pct"]) - expected_30m_baseline) < 1e-9
+        and abs(float(row["excess_directional_return_pct"]) -
+                (float(row["mean_directional_return_pct"]) -
+                 float(row["baseline_return_pct"]))) < 1e-9
         for row in sides
     )
 
