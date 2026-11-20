@@ -34,7 +34,7 @@ def public_get(path: str, params: dict[str, Any], *, timeout: int = 20) -> Any:
                 raise RuntimeError(f"BingX public API returned an invalid response: {payload!r}")
             return payload.get("data")
         except HTTPError as exc:
-            if exc.code != 429 and exc.code < 500 or attempt == 3:
+            if (exc.code != 429 and exc.code < 500) or attempt == 3:
                 detail = exc.read().decode("utf-8", errors="replace")
                 raise RuntimeError(f"BingX HTTP {exc.code}: {detail[:500]}") from exc
             time.sleep((1, 2, 4)[attempt])
@@ -53,7 +53,7 @@ def fetch_klines(
     start_ms: int,
     end_ms: int,
     limit: int = PAGE_LIMIT,
-    pause_seconds: float = 1.05,
+    pause_seconds: float = 0.0,
 ) -> list[dict[str, float | int]]:
     if interval not in INTERVAL_MS:
         raise ValueError(f"unsupported interval: {interval}")
@@ -83,7 +83,12 @@ def fetch_klines(
             if any(not math.isfinite(value) for value in values):
                 raise RuntimeError("non-finite BingX kline value")
             open_price, high, low, close, volume, quote_volume, trade_count, taker_base, taker_quote = values
-            if min(open_price, high, low, close) <= 0 or high < low:
+            if (
+                min(open_price, high, low, close) <= 0
+                or high < low
+                or not low <= open_price <= high
+                or not low <= close <= high
+            ):
                 raise RuntimeError("invalid BingX OHLC")
             rows[ts] = {
                 "open_time": ts,
@@ -157,6 +162,24 @@ def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         writer.writerows(rows)
 
 
+class RateLimitedFetcher:
+    """Serialize public market-data requests to at most one per second."""
+
+    def __init__(self, minimum_interval_seconds: float = 1.05):
+        self.minimum_interval_seconds = minimum_interval_seconds
+        self.last_call_monotonic: float | None = None
+
+    def __call__(self, path: str, params: dict[str, Any]) -> Any:
+        if self.last_call_monotonic is not None:
+            elapsed = time.monotonic() - self.last_call_monotonic
+            delay = self.minimum_interval_seconds - elapsed
+            if delay > 0:
+                time.sleep(delay)
+        result = public_get(path, params)
+        self.last_call_monotonic = time.monotonic()
+        return result
+
+
 def archive(
     out_dir: Path,
     *,
@@ -176,11 +199,12 @@ def archive(
         "symbols": {},
         "auth": "public read-only endpoints; no API key",
     }
+    fetcher = RateLimitedFetcher()
     for symbol in symbols:
         symbol_report = {}
         for interval in ("15m", "1h"):
             rows = fetch_klines(
-                public_get,
+                fetcher,
                 symbol=symbol,
                 interval=interval,
                 start_ms=start_ms,
@@ -203,7 +227,7 @@ def archive(
                 "gap_examples": gaps[:10],
             }
         funding = fetch_funding(
-            public_get,
+            fetcher,
             symbol=symbol,
             start_ms=start_ms,
             end_ms=end_ms,
