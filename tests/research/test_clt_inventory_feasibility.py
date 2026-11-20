@@ -455,6 +455,32 @@ def test_fetch_wallet_history_recovers_all_fills_at_page_boundary(monkeypatch):
     assert stats["boundary_recovered_markets"] == ["BTC"]
 
 
+def test_fetch_wallet_history_fails_closed_when_boundary_probe_omits_a_page_fill(monkeypatch):
+    monkeypatch.setattr(inventory, "PAGE_SIZE", 3)
+    monkeypatch.setattr(inventory, "MAX_FILLS_PER_ADDRESS", 10)
+    monkeypatch.setattr(inventory.time, "sleep", lambda _: None)
+    page = [
+        {"time": 100, "tid": 1, "coin": "BTC"},
+        {"time": 200, "tid": 2, "coin": "BTC"},
+        {"time": 200, "tid": 3, "coin": "BTC"},
+    ]
+    # Same row count and timestamps, but one fill from the page boundary is missing.
+    boundary = [
+        {"time": 200, "tid": 2, "coin": "BTC"},
+        {"time": 200, "tid": 4, "coin": "BTC"},
+    ]
+    calls = iter([page, boundary, []])
+    monkeypatch.setattr(inventory, "post_info", lambda payload: next(calls))
+
+    _rows, stats = inventory.fetch_wallet_history(
+        "0x" + "4" * 40, start_ms=0, end_ms=1_000
+    )
+
+    assert stats["page_boundary_collision"] is True
+    assert stats["boundary_collision_markets"] == ["BTC"]
+    assert stats["boundary_recovered_markets"] == []
+
+
 def test_fetch_wallet_history_fails_closed_when_boundary_probe_is_capped(monkeypatch):
     monkeypatch.setattr(inventory, "PAGE_SIZE", 3)
     monkeypatch.setattr(inventory, "MAX_FILLS_PER_ADDRESS", 10)

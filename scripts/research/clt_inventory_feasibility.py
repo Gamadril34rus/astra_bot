@@ -206,9 +206,12 @@ def fetch_wallet_history(
             for fill in boundary_probe
             if fill.get("coin")
         }
+        page_boundary_keys = {_fill_key(fill) for fill in boundary_rows}
+        probe_boundary_keys = {_fill_key(fill) for fill in boundary_probe}
         boundary_is_ambiguous = (
             len(boundary_probe) >= PAGE_SIZE
             or len(boundary_probe) < len(boundary_rows)
+            or not page_boundary_keys.issubset(probe_boundary_keys)
             or any(int(fill.get("time") or 0) != last_time for fill in boundary_probe)
         )
         if boundary_is_ambiguous:
