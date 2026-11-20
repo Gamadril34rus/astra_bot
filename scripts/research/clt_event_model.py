@@ -58,9 +58,10 @@ def detect_clt_events(
 ) -> list[dict[str, Any]]:
     """Detect non-overlapping CLT structure-break events from normalized 15m rows.
 
-    Each row requires OHLC, four cohort inventory-delta fields, and
-    prior_volatility_pct computed only from bars before that row. Absorption is
-    proxied by pre-break crowd-directional progress normalized by prior volatility.
+    Each row requires OHLC, cohort inventory deltas, rolling unique participant
+    counts, a closed 1h context, and prior_volatility_pct computed only from bars
+    before that row. Absorption is proxied by pre-break crowd-directional progress
+    normalized by prior volatility.
 
     Signal is known only after the current bar closes; entry is next bar open.
     Direction is +1 LONG and -1 SHORT. No event is emitted without a next bar.
@@ -227,8 +228,13 @@ def detect_clt_events(
                         continue
 
                     found = {
+                        "crowd_start_ts": rows[crowd_start]["ts"],
+                        "large_add_start_ts": rows[large_start]["ts"],
                         "signal_ts": rows[signal_index]["ts"],
                         "entry_ts": rows[signal_index + 1]["ts"],
+                        "crowd_to_large_bars": crowd_build_bars,
+                        "large_to_break_bars": signal_index - large_start,
+                        "continued_bars": continued_bars,
                         "entry_price": _number(rows[signal_index + 1], "open"),
                         "signal_index": signal_index,
                         "entry_index": signal_index + 1,
