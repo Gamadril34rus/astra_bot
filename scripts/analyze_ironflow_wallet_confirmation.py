@@ -34,10 +34,10 @@ def analyze(
     con = duckdb.connect()
     con.execute("SET threads=2")
     con.execute(
-        f"CREATE VIEW cohort AS SELECT * FROM read_parquet('{_sql_path(cohort_path)}')"
+        f"CREATE TEMP TABLE cohort AS SELECT * FROM read_parquet('{_sql_path(cohort_path)}')"
     )
     con.execute(
-        f"CREATE VIEW bars AS SELECT * FROM read_parquet('{_sql_path(market_bars_path)}')"
+        f"CREATE TEMP TABLE bars AS SELECT * FROM read_parquet('{_sql_path(market_bars_path)}')"
     )
 
     joins = []
@@ -51,7 +51,7 @@ def analyze(
         selects.append(f"f_{label}.close AS close_{label}")
     con.execute(
         f"""
-        CREATE VIEW response AS
+        CREATE TEMP TABLE response AS
         SELECT
             c.*,
             b.close AS close_t,
@@ -87,6 +87,44 @@ def analyze(
         {" ".join(joins)}
         """
     )
+
+    for horizon, minutes in HORIZONS.items():
+        con.execute(
+            f"""
+            CREATE TEMP TABLE baseline_{horizon} AS
+            SELECT b.market,
+                avg(100.0 * (f.close / b.close - 1.0)) AS baseline_return_pct
+            FROM bars b
+            INNER JOIN bars f
+              ON f.market = b.market
+             AND f.bucket_ts = b.bucket_ts + INTERVAL '{minutes} minutes'
+            WHERE b.close > 0 AND f.close > 0
+            GROUP BY b.market
+            """
+        )
+        con.execute(
+            f"""
+            CREATE TEMP TABLE regime_baseline_{horizon} AS
+            SELECT b.market,
+                avg(100.0 * (f.close / b.close - 1.0))
+                    AS regime_baseline_return_pct
+            FROM bars b
+            INNER JOIN bars p1
+              ON p1.market = b.market
+             AND p1.bucket_ts = b.bucket_ts - INTERVAL '60 minutes'
+            INNER JOIN bars p4
+              ON p4.market = b.market
+             AND p4.bucket_ts = b.bucket_ts - INTERVAL '240 minutes'
+            INNER JOIN bars f
+              ON f.market = b.market
+             AND f.bucket_ts = b.bucket_ts + INTERVAL '{minutes} minutes'
+            WHERE b.close > 0 AND p1.close > 0
+              AND p4.close > 0 AND f.close > 0
+              AND b.close > p1.close
+              AND b.close < p4.close
+            GROUP BY b.market
+            """
+        )
 
     rows: list[dict[str, Any]] = []
     side_rows: list[dict[str, Any]] = []
@@ -209,39 +247,6 @@ def analyze(
                             ) AS gap_minutes
                         FROM selected
                     ),
-                    baseline AS (
-                        SELECT b.market,
-                            avg(100.0 * (f.close / b.close - 1.0))
-                                AS baseline_return_pct
-                        FROM bars b
-                        INNER JOIN bars f
-                          ON f.market = b.market
-                         AND f.bucket_ts = b.bucket_ts
-                            + INTERVAL '{minutes} minutes'
-                        WHERE b.close > 0 AND f.close > 0
-                        GROUP BY b.market
-                    ),
-                    regime_baseline AS (
-                        SELECT b.market,
-                            avg(100.0 * (f.close / b.close - 1.0))
-                                AS regime_baseline_return_pct
-                        FROM bars b
-                        INNER JOIN bars p1
-                          ON p1.market = b.market
-                         AND p1.bucket_ts = b.bucket_ts - INTERVAL '60 minutes'
-                        INNER JOIN bars p4
-                          ON p4.market = b.market
-                         AND p4.bucket_ts = b.bucket_ts - INTERVAL '240 minutes'
-                        INNER JOIN bars f
-                          ON f.market = b.market
-                         AND f.bucket_ts = b.bucket_ts
-                            + INTERVAL '{minutes} minutes'
-                        WHERE b.close > 0 AND p1.close > 0
-                          AND p4.close > 0 AND f.close > 0
-                          AND b.close > p1.close
-                          AND b.close < p4.close
-                        GROUP BY b.market
-                    )
                     SELECT
                         s.market,
                         s.signal_side,
@@ -267,8 +272,8 @@ def analyze(
                         ) AS directional_hit_rate_pct,
                         min(s.gap_minutes) AS min_gap_minutes
                     FROM selected_with_gap s
-                    INNER JOIN baseline b ON b.market = s.market
-                    LEFT JOIN regime_baseline rb ON rb.market = s.market
+                    INNER JOIN baseline_{horizon} b ON b.market = s.market
+                    LEFT JOIN regime_baseline_{horizon} rb ON rb.market = s.market
                     GROUP BY s.market, s.signal_side
                     ORDER BY s.market, s.signal_side
                 """
@@ -299,40 +304,7 @@ def analyze(
                             SELECT * FROM eligible
                             {overlap_clause}
                         ),
-                        baseline AS (
-                            SELECT b.market,
-                                avg(100.0 * (f.close / b.close - 1.0))
-                                    AS baseline_return_pct
-                            FROM bars b
-                            INNER JOIN bars f
-                              ON f.market = b.market
-                             AND f.bucket_ts = b.bucket_ts
-                                + INTERVAL '{minutes} minutes'
-                            WHERE b.close > 0 AND f.close > 0
-                            GROUP BY b.market
-                        ),
-                    regime_baseline AS (
-                        SELECT b.market,
-                            avg(100.0 * (f.close / b.close - 1.0))
-                                AS regime_baseline_return_pct
-                        FROM bars b
-                        INNER JOIN bars p1
-                          ON p1.market = b.market
-                         AND p1.bucket_ts = b.bucket_ts - INTERVAL '60 minutes'
-                        INNER JOIN bars p4
-                          ON p4.market = b.market
-                         AND p4.bucket_ts = b.bucket_ts - INTERVAL '240 minutes'
-                        INNER JOIN bars f
-                          ON f.market = b.market
-                         AND f.bucket_ts = b.bucket_ts
-                            + INTERVAL '{minutes} minutes'
-                        WHERE b.close > 0 AND p1.close > 0
-                          AND p4.close > 0 AND f.close > 0
-                          AND b.close > p1.close
-                          AND b.close < p4.close
-                        GROUP BY b.market
-                    )
-                        SELECT
+                            SELECT
                             s.market,
                             CAST(s.bucket_ts AS VARCHAR) AS bucket_ts,
                             s.signal_side,
@@ -350,8 +322,8 @@ def analyze(
                                 - s.signal_side * rb.regime_baseline_return_pct
                                 AS excess_vs_regime_pct
                         FROM selected s
-                        INNER JOIN baseline b ON b.market = s.market
-                        LEFT JOIN regime_baseline rb ON rb.market = s.market
+                        INNER JOIN baseline_{horizon} b ON b.market = s.market
+                        LEFT JOIN regime_baseline_{horizon} rb ON rb.market = s.market
                         ORDER BY s.market, s.bucket_ts
                     """
                     event_result = con.execute(event_query)
