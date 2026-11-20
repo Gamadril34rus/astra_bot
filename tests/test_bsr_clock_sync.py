@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from astra_bot.research.bsr.clock_sync import (
     build_clock_sample,
     parse_server_time,
