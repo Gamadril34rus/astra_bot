@@ -1,0 +1,52 @@
+name: CLT BingX public market data
+
+on:
+  push:
+    branches: [research/crowd-liquidity-trap]
+    paths:
+      - "scripts/research/clt_bingx_market_data.py"
+      - "tests/research/test_clt_bingx_market_data.py"
+      - ".github/workflows/clt-bingx-market-data.yml"
+  pull_request:
+    branches: [master]
+    paths:
+      - "scripts/research/clt_bingx_market_data.py"
+      - "tests/research/test_clt_bingx_market_data.py"
+      - ".github/workflows/clt-bingx-market-data.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clt-bingx-market-data
+  cancel-in-progress: false
+
+jobs:
+  public-market-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.12"
+      - name: Install isolated test tools
+        run: python -m pip install pytest ruff
+      - name: Test public market-data pagination
+        run: python -m pytest tests/research/test_clt_bingx_market_data.py -q --confcutdir=tests/research
+      - name: Lint public market-data collector
+        run: python -m ruff check scripts/research/clt_bingx_market_data.py tests/research/test_clt_bingx_market_data.py
+      - name: Download BingX USDT-M 15m/1h candles and funding
+        run: |
+          python scripts/research/clt_bingx_market_data.py \
+            --out-dir reports/clt_bingx_market_data \
+            --start 2026-10-03T00:00:00+00:00 \
+            --end 2026-11-09T00:00:00+00:00
+      - name: Upload read-only market-data artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clt-bingx-market-data-\${{ github.sha }}
+          path: reports/clt_bingx_market_data/
+          if-no-files-found: warn
+          retention-days: 30
