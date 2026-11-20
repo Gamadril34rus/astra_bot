@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from scripts.research.clt_inventory_feasibility import (
     MAX_FILLS_PER_ADDRESS,
+    order_timestamp_group,
     possible_direction_labels,
     select_wallets,
     split_fill_inventory,
@@ -90,3 +91,23 @@ def test_direction_labels_split_close_and_flip():
     assert possible_direction_labels(2.0, "A", 3.0) == {
         "Long > Short", "Open Short", "Add Short"
     }
+
+
+
+def test_order_timestamp_group_recovers_position_path_without_tid_order():
+    fills = [
+        {"startPosition": "1.0", "sz": "2.0", "side": "B", "tid": 99},
+        {"startPosition": "0.0", "sz": "1.0", "side": "B", "tid": 1},
+        {"startPosition": "3.0", "sz": "1.0", "side": "A", "tid": 7},
+    ]
+    ordered = order_timestamp_group(fills)
+    assert ordered is not None
+    assert [float(row["startPosition"]) for row in ordered] == [0.0, 1.0, 3.0]
+
+
+def test_order_timestamp_group_rejects_ambiguous_parallel_edges():
+    fills = [
+        {"startPosition": "0.0", "sz": "1.0", "side": "B"},
+        {"startPosition": "0.0", "sz": "2.0", "side": "B"},
+    ]
+    assert order_timestamp_group(fills) is None
