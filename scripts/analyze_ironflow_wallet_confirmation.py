@@ -78,7 +78,6 @@ def analyze(
     side_rows: list[dict[str, Any]] = []
     for horizon, minutes in HORIZONS.items():
         close_col = f"close_{horizon}"
-        seconds = minutes * 60
         for metric in METRICS:
             for sample_type in ("all", "non_overlapping"):
                 overlap_clause = ""
