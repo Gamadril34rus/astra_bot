@@ -7,7 +7,11 @@ import math
 import pytest
 from astra_bot.research.bsr.basis import align_cross_venue_trades
 from astra_bot.research.bsr.binance_spot_recorder import BinanceSpotRecorder
-from astra_bot.research.bsr.bingx_public import BingXPublicAPIError, BingXPublicClient, PublicEndpoints
+from astra_bot.research.bsr.bingx_public import (
+    BingXPublicAPIError,
+    BingXPublicClient,
+    PublicEndpoints,
+)
 from astra_bot.research.bsr.economics import (
     CostModel,
     net_pnl,
