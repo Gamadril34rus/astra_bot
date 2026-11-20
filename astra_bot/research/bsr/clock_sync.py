@@ -125,11 +125,16 @@ def summarize_clock_sync(path: str | Path) -> dict[str, Any]:
     errors: dict[str, int] = {venue: 0 for venue in ENDPOINTS}
     malformed = 0
     if source.is_file():
-        with source.open("r", encoding="utf-8") as stream:
-            for line in stream:
+        with source.open("rb") as stream:
+            for raw_line in stream:
+                try:
+                    line = raw_line.decode("utf-8")
+                except UnicodeDecodeError:
+                    malformed += 1
+                    continue
                 try:
                     row = json.loads(line)
-                except (json.JSONDecodeError, UnicodeDecodeError):
+                except json.JSONDecodeError:
                     malformed += 1
                     continue
                 venue = row.get("venue") if isinstance(row, dict) else None
