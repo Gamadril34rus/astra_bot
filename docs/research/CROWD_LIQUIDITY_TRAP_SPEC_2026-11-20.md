@@ -80,3 +80,21 @@ The pilot's small and large groups are relative to the selected leaderboard samp
 The first 100-wallet archive-manifest pilot completed but produced no calibrated cohort: 19 continuous wallet-market pairs were spread across markets, with fewer than four eligible calibration candidates in each market. Its 15m aggregate CSV contained only a header. This is a data-coverage failure, not evidence against or for CLT.
 
 The follow-up workflow samples 120 addresses deterministically across monthly-volume deciles from the public Hyperliquid leaderboard JSON, then fetches the 2026-10-03 to 2026-11-09 individual-fill history. The public leaderboard is an undocumented snapshot and is not a representative census. All fills remain read-only research data; any address with API/TWAP caps, page-boundary ambiguity, ambiguous same-timestamp ordering, direction-label mismatch or position discontinuity is excluded. The run must report calibrated wallet counts and non-empty market buckets before any event study can proceed.
+
+## 2026-11-20 BingX analytics endpoint discovery (not yet admitted to dataset)
+
+A read-only source review found a potentially better venue-native data path for the next CLT feasibility gate. A BingX change feed reports these newly added USDT-M perpetual endpoints on 2026-11-18:
+
+- `GET /openApi/swap/v1/openInterest/history`
+- `GET /openApi/swap/v1/longShortRatio/history`
+- `GET /openApi/swap/v1/liquidation/statistics`
+- `GET /openApi/swap/v1/liquidation/heatmap`
+- `GET /openApi/swap/v1/liquidation/levels`
+
+The first two are the highest-priority candidates: historical OI and long/short-ratio series could provide market-wide positioning context directly from the execution venue. They do not reveal individual participant identities or prove that a specific cohort opened versus closed inventory. They can validate/condition the CLT hypothesis, not replace the event's explicit inventory accounting.
+
+Important distinction: BingX's separate Trading Data announcement lists `/openApi/swap/v2/quote/marketOpenInterest`, `/openApi/swap/v2/quote/topTraderLongShortRatio`, and liquidation snapshot endpoints, and explicitly says those v2 quote analytics routes return only the latest snapshot and require signature verification. Do not assume those snapshot semantics apply to the separately announced v1 `/history` routes.
+
+An unauthenticated, read-only smoke request to the new v1 open-interest history, long/short-ratio history, and liquidation-statistics routes returned BingX error `100413`: an API key must be supplied in the `X-BX-APIKEY` header. Therefore these endpoints are **not anonymously accessible**. Their full signing requirements, accepted parameters/periods, response schema, maximum historical range, and actual timestamp coverage remain unverified. No credentials were used or requested, and no private/trading endpoint was called.
+
+Admission rule: before using any of these series in a CLT event study, run an authenticated read-only schema/coverage probe using an owner-configured secret outside source control; verify response code, units, timestamps, interval, pagination/history depth, symbol coverage and stable repeatability. Preserve raw response metadata and aggregate-only research outputs. Until that probe succeeds, treat these endpoints as a promising lead, not available historical data.
