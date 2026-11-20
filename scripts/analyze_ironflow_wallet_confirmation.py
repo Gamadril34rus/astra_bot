@@ -55,6 +55,14 @@ def analyze(
         SELECT
             c.*,
             b.close AS close_t,
+            p1.close AS close_prev_1h,
+            p4.close AS close_prev_4h,
+            CASE WHEN p1.close > 0
+                THEN 100.0 * (b.close / p1.close - 1.0)
+                ELSE NULL END AS prior_1h_return_pct,
+            CASE WHEN p4.close > 0
+                THEN 100.0 * (b.close / p4.close - 1.0)
+                ELSE NULL END AS prior_4h_return_pct,
             CASE WHEN c.cohort_participant_notional > 0
                 THEN c.cohort_signed_notional / c.cohort_participant_notional
                 ELSE NULL END AS flow_ratio,
@@ -70,6 +78,12 @@ def analyze(
         FROM cohort c
         INNER JOIN bars b
           ON b.market = c.market AND b.bucket_ts = c.bucket_ts
+        LEFT JOIN bars p1
+          ON p1.market = c.market
+         AND p1.bucket_ts = c.bucket_ts - INTERVAL '60 minutes'
+        LEFT JOIN bars p4
+          ON p4.market = c.market
+         AND p4.bucket_ts = c.bucket_ts - INTERVAL '240 minutes'
         {" ".join(joins)}
         """
     )
@@ -165,6 +179,8 @@ def analyze(
                             active_wallets,
                             {metric} AS signal_value,
                             sign({metric}) AS signal_side,
+                            prior_1h_return_pct,
+                            prior_4h_return_pct,
                             100.0 * ({close_col} / close_t - 1.0)
                                 AS raw_return_pct,
                             sign({metric}) * 100.0 *
@@ -271,6 +287,8 @@ def analyze(
                             s.bucket_ts,
                             s.signal_side,
                             s.signal_value,
+                            s.prior_1h_return_pct,
+                            s.prior_4h_return_pct,
                             s.raw_return_pct,
                             s.directional_return_pct,
                             b.baseline_return_pct,
@@ -295,6 +313,14 @@ def analyze(
                                 else "sell_pressure"
                             ),
                             "signal_value": float(event_row["signal_value"]),
+                            "prior_1h_return_pct": (
+                                float(event_row["prior_1h_return_pct"])
+                                if event_row["prior_1h_return_pct"] is not None else None
+                            ),
+                            "prior_4h_return_pct": (
+                                float(event_row["prior_4h_return_pct"])
+                                if event_row["prior_4h_return_pct"] is not None else None
+                            ),
                             "raw_return_pct": float(event_row["raw_return_pct"]),
                             "directional_return_pct": float(
                                 event_row["directional_return_pct"]
@@ -405,8 +431,9 @@ def analyze(
     event_csv_path = out_dir / "wallet_flow_confirmation_events.csv"
     event_fields = [
         "horizon", "metric", "market", "bucket_ts", "signal_side",
-        "signal_value", "raw_return_pct", "directional_return_pct",
-        "baseline_return_pct", "excess_directional_return_pct",
+        "signal_value", "prior_1h_return_pct", "prior_4h_return_pct",
+        "raw_return_pct", "directional_return_pct", "baseline_return_pct",
+        "excess_directional_return_pct",
     ]
     with event_csv_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=event_fields)
