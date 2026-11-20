@@ -1,14 +1,14 @@
-"""Public BingX/Binance server-clock calibration for BSR research only."""
+""""Public BingX/Binance server-clock calibration for BSR research only."""
 from __future__ import annotations
 
 import asyncio
 import json
 import statistics
 import time
-from pathlib import Path
-from typing import Any
 import urllib.error
 import urllib.request
+from pathlib import Path
+from typing import Any
 
 
 ENDPOINTS = {
@@ -77,7 +77,7 @@ class PublicClockCalibrator:
     def _write(self, row: dict[str, Any]) -> None:
         self.output.parent.mkdir(parents=True, exist_ok=True)
         with self.output.open("a", encoding="utf-8") as stream:
-            stream.write(json.dumps(row, separators=(",", ":"), ensure_ascii=False) + "\n")
+            stream.write(json.dumps(row, separators=(",", ":"), ensure_ascii=False) + "\\n")
 
     def _request_sample(self, venue: str) -> dict[str, Any]:
         url, bingx = ENDPOINTS[venue]
@@ -138,8 +138,10 @@ def summarize_clock_sync(path: str | Path) -> dict[str, Any]:
                 if row.get("kind") == "clock_sync_error":
                     errors[venue] += 1
                 elif row.get("kind") == "clock_sync":
-                    if all(isinstance(row.get(key), (int, float)) for key in
-                           ("offset_ms", "rtt_ms", "local_receive_ms")):
+                    if all(
+                        isinstance(row.get(key), (int, float))
+                        for key in ("offset_ms", "rtt_ms", "local_receive_ms")
+                    ):
                         rows[venue].append(row)
                     else:
                         malformed += 1
@@ -159,7 +161,8 @@ def summarize_clock_sync(path: str | Path) -> dict[str, Any]:
             "rtt_ms": {
                 "p50": round(statistics.median(rtts), 3) if rtts else None,
                 "p95": round(sorted(rtts)[max(0, int(0.95 * len(rtts) + 0.999) - 1)], 3)
-                if rtts else None,
+                if rtts
+                else None,
             },
             "offset_ms": {
                 "median": round(statistics.median(offsets), 3) if offsets else None,
@@ -167,7 +170,8 @@ def summarize_clock_sync(path: str | Path) -> dict[str, Any]:
                 "max": round(max(offsets), 3) if offsets else None,
                 "spread": round(max(offsets) - min(offsets), 3) if offsets else None,
                 "first_to_last_drift": round(offsets[-1] - offsets[0], 3)
-                if len(offsets) > 1 else None,
+                if len(offsets) > 1
+                else None,
             },
         }
     return result
