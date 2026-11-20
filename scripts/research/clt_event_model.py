@@ -77,7 +77,8 @@ def detect_clt_events(
         "ts", "open", "high", "low", "close",
         "crowd_long_delta_usd", "crowd_short_delta_usd",
         "large_long_delta_usd", "large_short_delta_usd",
-        "small_active_wallets", "large_active_wallets",
+        "small_long_add_wallets", "small_short_add_wallets",
+        "large_long_add_wallets", "large_short_add_wallets",
         "prior_volatility_pct",
     )
     previous_ts = None
@@ -119,6 +120,14 @@ def detect_clt_events(
                     "large_short_delta_usd" if crowd_direction == 1
                     else "large_long_delta_usd"
                 )
+                crowd_active_key = (
+                    "small_long_add_wallets" if crowd_direction == 1
+                    else "small_short_add_wallets"
+                )
+                large_active_key = (
+                    "large_short_add_wallets" if crowd_direction == 1
+                    else "large_long_add_wallets"
+                )
                 for large_start in range(crowd_start + 1, min(crowd_end, signal_index)):
                     if large_start - crowd_start > max_lag_bars:
                         continue
@@ -137,7 +146,7 @@ def detect_clt_events(
                         if _number(row, crowd_key) > 0
                     ]
                     crowd_active_wallets = max(
-                        (_number(row, "small_active_wallets") for row in crowd_build_rows),
+                        (_number(row, crowd_active_key) for row in crowd_build_rows),
                         default=0,
                     )
                     if crowd_active_wallets < min_crowd_active_wallets:
@@ -145,7 +154,7 @@ def detect_clt_events(
                     crowd_build = _sum(rows, crowd_start, large_start, crowd_key)
                     if crowd_build < min_crowd_add_usd:
                         continue
-                    large_active_wallets = _number(rows[large_start], "large_active_wallets")
+                    large_active_wallets = _number(rows[large_start], large_active_key)
                     if large_active_wallets < min_large_active_wallets:
                         continue
                     large_add = _sum(rows, large_start, signal_index, large_key)
@@ -156,7 +165,7 @@ def detect_clt_events(
                         if _number(row, crowd_key) > 0
                     ]
                     continued_active_wallets = max(
-                        (_number(row, "small_active_wallets") for row in continued_rows),
+                        (_number(row, crowd_active_key) for row in continued_rows),
                         default=0,
                     )
                     continued_add = _sum(rows, large_start + 1, signal_index, crowd_key)
