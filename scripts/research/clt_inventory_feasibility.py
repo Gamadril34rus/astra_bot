@@ -115,7 +115,7 @@ def fetch_wallet_history(
             "user": address,
             "startTime": cursor,
             "endTime": end_ms,
-            "aggregateByTime": True,
+            "aggregateByTime": False,
         })
         pages += 1
         for fill in page:
