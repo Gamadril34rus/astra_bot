@@ -263,3 +263,20 @@ def test_clt_event_is_not_emitted_when_closed_1h_context_is_unavailable():
         cooldown_bars=36,
     )
     assert events == []
+
+
+
+def test_structure_break_must_follow_large_add_within_confirmation_window():
+    events = detect_clt_events(
+        _bars(crowd_direction="long"),
+        min_crowd_add_usd=100_000,
+        min_large_add_usd=80_000,
+        min_continued_crowd_add_usd=50_000,
+        max_crowd_progress_z=0.8,
+        crowd_window_bars=8,
+        max_lag_bars=8,
+        max_confirmation_bars=4,
+        swing_lookback_bars=8,
+        cooldown_bars=36,
+    )
+    assert events == []
