@@ -246,7 +246,7 @@ def analyze(
                                 bucket_ts
                             ) AS gap_minutes
                         FROM selected
-                    ),
+                    )
                     SELECT
                         s.market,
                         s.signal_side,
@@ -303,8 +303,8 @@ def analyze(
                         selected AS (
                             SELECT * FROM eligible
                             {overlap_clause}
-                        ),
-                            SELECT
+                        )
+                        SELECT
                             s.market,
                             CAST(s.bucket_ts AS VARCHAR) AS bucket_ts,
                             s.signal_side,
