@@ -23,6 +23,13 @@ def _bars(*, crowd_direction: str) -> list[dict]:
             "large_long_add_wallets": 0,
             "large_short_add_wallets": 0,
             "prior_volatility_pct": 0.2,
+            "htf_context_ready": True,
+            "htf_context_ts": index,
+            "htf_context_age_ms": 1,
+            "htf_return_pct": 0.25,
+            "htf_range_pct": 0.8,
+            "htf_structure_break": 0,
+            "htf_close_location": 0.5,
         })
 
     if crowd_direction == "long":
@@ -190,6 +197,48 @@ def test_one_small_wallet_is_not_a_crowd():
     rows = _bars(crowd_direction="long")
     rows[1]["small_long_add_wallets"] = 1
     rows[3]["small_long_add_wallets"] = 1
+    events = detect_clt_events(
+        rows,
+        min_crowd_add_usd=100_000,
+        min_large_add_usd=80_000,
+        min_continued_crowd_add_usd=50_000,
+        max_crowd_progress_z=0.8,
+        crowd_window_bars=8,
+        max_lag_bars=8,
+        swing_lookback_bars=8,
+        cooldown_bars=36,
+    )
+    assert events == []
+
+
+
+def test_clt_event_carries_closed_1h_context_for_regime_analysis():
+    events = detect_clt_events(
+        _bars(crowd_direction="long"),
+        min_crowd_add_usd=100_000,
+        min_large_add_usd=80_000,
+        min_continued_crowd_add_usd=50_000,
+        max_crowd_progress_z=0.8,
+        crowd_window_bars=8,
+        max_lag_bars=8,
+        swing_lookback_bars=8,
+        cooldown_bars=36,
+    )
+    assert len(events) == 1
+    assert events[0]["htf_context_ts"] == 8
+    assert events[0]["htf_return_pct"] == 0.25
+    assert events[0]["htf_structure_break"] == 0
+
+
+def test_clt_event_is_not_emitted_when_closed_1h_context_is_unavailable():
+    rows = _bars(crowd_direction="long")
+    rows[8]["htf_context_ready"] = False
+    rows[8]["htf_context_ts"] = None
+    rows[8]["htf_context_age_ms"] = None
+    rows[8]["htf_return_pct"] = None
+    rows[8]["htf_range_pct"] = None
+    rows[8]["htf_structure_break"] = None
+    rows[8]["htf_close_location"] = None
     events = detect_clt_events(
         rows,
         min_crowd_add_usd=100_000,
