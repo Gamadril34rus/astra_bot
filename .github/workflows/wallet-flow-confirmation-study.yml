@@ -6,6 +6,8 @@ on:
     paths:
       - "scripts/analyze_ironflow_wallet_confirmation.py"
       - "tests/unit/test_analyze_ironflow_wallet_confirmation.py"
+      - "scripts/replay_wallet_flow_on_bingx.py"
+      - "tests/unit/test_replay_wallet_flow_on_bingx.py"
       - ".github/workflows/wallet-flow-confirmation-study.yml"
   workflow_dispatch:
 
@@ -29,7 +31,7 @@ jobs:
       - name: Install isolated research dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install duckdb pyarrow pytest ruff
+          python -m pip install duckdb pyarrow pandas pytest ruff
       - name: Run unit tests and lint
         run: |
           python -m pytest tests/unit/test_analyze_ironflow_wallet_confirmation.py -q --confcutdir=tests/unit
@@ -41,12 +43,25 @@ jobs:
           run-id: 43250750091
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: evidence
+      - name: Download frozen BingX OHLC and funding archive
+        uses: actions/download-artifact@v4
+        with:
+          name: adaptive-bingx-perpetual-research
+          run-id: 42692378936
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: bingx_evidence
       - name: Run market-level aggressive-flow and consensus study
         run: |
           python scripts/analyze_ironflow_wallet_confirmation.py \
             --cohort-flow evidence/hyperliquid_wallet_flow/cohort_flow_15m.parquet \
             --market-bars evidence/hyperliquid_wallet_archive/market_15m.parquet \
             --out-dir reports/wallet_flow_confirmation
+      - name: Replay wallet-flow events on BingX OHLC and funding
+        run: |
+          python scripts/replay_wallet_flow_on_bingx.py \
+            --events reports/wallet_flow_confirmation/wallet_flow_confirmation_events.csv \
+            --bingx-dir bingx_evidence/data/bingx_usdm \
+            --out-dir reports/wallet_flow_bingx
       - name: Upload compact confirmation results
         if: always()
         uses: actions/upload-artifact@v4
@@ -57,5 +72,9 @@ jobs:
             reports/wallet_flow_confirmation/wallet_flow_confirmation_sides.csv
             reports/wallet_flow_confirmation/wallet_flow_confirmation_events.csv
             reports/wallet_flow_confirmation/wallet_flow_confirmation_summary.json
+            reports/wallet_flow_bingx/wallet_flow_bingx_all_events.csv
+            reports/wallet_flow_bingx/wallet_flow_bingx_candidate_events.csv
+            reports/wallet_flow_bingx/wallet_flow_bingx_regime_baseline.csv
+            reports/wallet_flow_bingx/wallet_flow_bingx_replay_summary.json
           if-no-files-found: warn
           retention-days: 90
