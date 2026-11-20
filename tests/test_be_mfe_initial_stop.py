@@ -96,3 +96,31 @@ def test_mfe_uses_initial_not_tight_stop(tmp_path, monkeypatch):
     ticks = [j for j in journals if j.get("event") == "be_mark_tick"]
     assert ticks, "expected be_mark_tick journal"
     assert abs(float(ticks[0]["mfe_r"]) - 0.3) < 0.05
+
+
+
+def test_exit_mfe_uses_persisted_peak_high_for_long():
+    from astra_bot.decision.live_broker import _mfe_r_from_plan
+
+    assert _mfe_r_from_plan(
+        {"initial_stop": "90", "peak_high": "115"}, "100", "long"
+    ) == 1.5
+
+
+def test_exit_mfe_uses_persisted_peak_low_for_short():
+    from astra_bot.decision.live_broker import _mfe_r_from_plan
+
+    assert _mfe_r_from_plan(
+        {"initial_stop": "110", "peak_low": "85"}, "100", "short"
+    ) == 1.5
+
+
+def test_exit_mfe_prefers_explicit_mfe_r_and_rejects_invalid_risk():
+    from astra_bot.decision.live_broker import _mfe_r_from_plan
+
+    assert _mfe_r_from_plan(
+        {"mfe_r": "0.75", "peak_high": "120"}, "100", "long"
+    ) == 0.75
+    assert _mfe_r_from_plan(
+        {"initial_stop": "100", "peak_high": "120"}, "100", "long"
+    ) is None
