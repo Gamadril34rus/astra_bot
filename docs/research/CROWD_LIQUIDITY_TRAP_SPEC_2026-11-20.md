@@ -141,3 +141,22 @@ The first feasibility artifact and the pagination-corrected run started before t
 Using the public BingX 15-minute OHLC archive for 2026-10-03 through 2026-11-09, a price-only control was evaluated on BTC, ETH, SOL, HYPE and INJ. A signal is a close outside the prior eight completed candles' swing high/low; signals are separated by a 36-bar cooldown; entry is the next 15-minute open. The same 415 events were retained at every horizon so each trade had a complete nine-hour follow-up. Mean gross directional returns were +3.59 bps at 30m, +5.98 bps at 1h, +2.72 bps at 2h, +3.23 bps at 4h, and +0.95 bps at 9h. A three-day moving-block bootstrap over UTC dates (20,000 resamples, preserving cross-market clustering within sampled date blocks) produced 95% intervals that crossed zero at every horizon: [-3.21, 11.86], [-1.26, 14.88], [-6.43, 13.09], [-9.28, 16.54], and [-20.13, 22.31] bps, respectively.
 
 This is a baseline control only, not a CLT result. It is gross of fees, spread, slippage and funding. Excluding HYPE reduced mean returns to +2.75, +1.23, -5.78, -5.18 and -1.26 bps across the same horizons. The current control therefore has no statistically robust edge in this short sample and is not a substitute for the cohort-inventory event test.
+
+
+## 2026-11-20 cross-venue alignment and execution-cost baseline
+
+The archived signal/source venue is Hyperliquid; the target execution venue is BingX USDT-M perpetuals. The 2026-10-03 to 2026-11-09 archive contains 3,552 exactly timestamp-matched 15m candles per market and 888 1h candles per market. On 15m bars, candle direction agreed between venues in 94.3%–97.2% of observations. For an eight-bar swing-break rule, same-direction break overlap over the union of break events was:
+
+| Market | 15m candle direction agreement | 15m break overlap | 1h break overlap | Median signed close basis (bps) | 95th percentile absolute basis (bps) |
+|---|---:|---:|---:|---:|---:|
+| BTC | 96.57% | 90.58% | 96.03% | -1.15 | 3.81 |
+| ETH | 96.23% | 90.22% | 93.02% | -0.82 | 3.67 |
+| SOL | 95.92% | 90.42% | 92.86% | -0.83 | 4.09 |
+| HYPE | 97.16% | 87.81% | 92.07% | +6.01 | 12.86 |
+| INJ | 94.26% | 89.35% | 92.76% | -1.17 | 13.71 |
+
+No opposite-direction swing-break observations occurred in this archive, but venue-only break events did occur. HYPE has a persistent positive close basis; INJ has a materially wider tail basis. Keep per-market results separate and report venue-only breaks explicitly. The alignment is sufficient to justify a cross-venue research experiment, not to treat Hyperliquid and BingX prices as interchangeable.
+
+BingX's published base perpetual fees are 0.02% maker and 0.05% taker per execution. A two-sided round trip is therefore approximately 4 bps maker/maker or 10 bps taker/taker, before spread, slippage and funding. On the price-only control above, gross pooled mean returns of +3.59, +5.98, +2.72, +3.23 and +0.95 bps at 30m, 1h, 2h, 4h and 9h become approximately -0.41, +1.98, -1.28, -0.77 and -3.05 bps under maker/maker fees, or -6.41, -4.02, -7.28, -6.77 and -9.05 bps under taker/taker fees. These are illustrations using published base rates, not a claim about the owner's actual account tier or fee discount. Funding, spread and slippage remain excluded, and the original block-bootstrap confidence intervals still cross zero before any costs.
+
+Fee source: BingX Perpetual Futures fee schedule, https://bingxservice.zendesk.com/hc/en-001/articles/11263240298255-Perpetual-Futures-Fee-Schedule. The actual account commission rate must replace these base assumptions before a final strategy decision.

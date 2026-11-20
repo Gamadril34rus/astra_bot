@@ -16,6 +16,26 @@ from scripts.research.clt_inventory_feasibility import (
 )
 
 
+def test_fill_key_uses_unique_trade_id_for_twap_slices():
+    base = {
+        "tid": 123,
+        "twapId": 7,
+        "time": 100,
+        "oid": 10,
+        "coin": "BTC",
+        "side": "B",
+        "px": "100",
+        "sz": "1",
+    }
+    duplicate = dict(base)
+    different_fill = {**base, "tid": 124}
+
+    assert inventory._fill_key(base, twap=True) == inventory._fill_key(duplicate, twap=True)
+    assert inventory._fill_key(base, twap=True) != inventory._fill_key(
+        different_fill, twap=True
+    )
+
+
 def test_buy_from_flat_opens_long():
     result = split_fill_inventory(0.0, "B", 2.0, 100.0)
     assert result["open_long_usd"] == 200.0
@@ -165,9 +185,11 @@ def test_fetch_wallet_history_preserves_outer_twap_id_for_deduplication(monkeypa
         "startPosition": "0",
         "dir": "Open Long",
     }
+    second_fill = {**fill, "tid": 1000}
     twap_rows = [
         {"fill": dict(fill), "twapId": 11},
-        {"fill": dict(fill), "twapId": 12},
+        {"fill": dict(second_fill), "twapId": 11},
+        {"fill": dict(fill), "twapId": 11},
     ]
     calls = iter([[], twap_rows])
     monkeypatch.setattr(inventory, "post_info", lambda payload: next(calls))
@@ -178,7 +200,8 @@ def test_fetch_wallet_history_preserves_outer_twap_id_for_deduplication(monkeypa
 
     assert len(rows) == 2
     assert stats["twap_fills"] == 2
-    assert {row["twapId"] for row in rows} == {11, 12}
+    assert {row["tid"] for row in rows} == {999, 1000}
+    assert {row["twapId"] for row in rows} == {11}
 
 
 def test_public_leaderboard_sampling_is_stratified_and_deterministic(tmp_path):
