@@ -137,7 +137,14 @@ def audit_capture_files(
 
                 venue = str(row.get("venue") or "unknown")
                 kind = str(row.get("kind") or "unknown")
-                symbol = str(row.get("symbol") or "unknown").upper()
+                raw_symbol = row.get("symbol")
+                if not raw_symbol and kind == "market_event":
+                    payload_for_symbol = row.get("payload")
+                    if isinstance(payload_for_symbol, dict):
+                        raw_symbol = payload_for_symbol.get("s")
+                    if not raw_symbol and row.get("channel"):
+                        raw_symbol = str(row["channel"]).split("@", 1)[0]
+                symbol = str(raw_symbol or "unknown").upper()
                 key = f"{venue}:{symbol}"
                 stats = grouped[key]
                 stats["records"] += 1
