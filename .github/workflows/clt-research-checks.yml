@@ -8,10 +8,12 @@ on:
       - "scripts/research/clt_market_context.py"
       - "scripts/research/clt_inventory_feasibility.py"
       - "scripts/research/clt_bingx_market_data.py"
+      - "scripts/research/clt_venue_alignment.py"
       - "tests/research/test_clt_event_model.py"
       - "tests/research/test_clt_market_context.py"
       - "tests/research/test_clt_inventory_feasibility.py"
       - "tests/research/test_clt_bingx_market_data.py"
+      - "tests/research/test_clt_venue_alignment.py"
       - ".github/workflows/clt-research-checks.yml"
   pull_request:
     branches: [master]
@@ -20,10 +22,12 @@ on:
       - "scripts/research/clt_market_context.py"
       - "scripts/research/clt_inventory_feasibility.py"
       - "scripts/research/clt_bingx_market_data.py"
+      - "scripts/research/clt_venue_alignment.py"
       - "tests/research/test_clt_event_model.py"
       - "tests/research/test_clt_market_context.py"
       - "tests/research/test_clt_inventory_feasibility.py"
       - "tests/research/test_clt_bingx_market_data.py"
+      - "tests/research/test_clt_venue_alignment.py"
       - ".github/workflows/clt-research-checks.yml"
   workflow_dispatch:
 
@@ -52,6 +56,7 @@ jobs:
             tests/research/test_clt_market_context.py \
             tests/research/test_clt_inventory_feasibility.py \
             tests/research/test_clt_bingx_market_data.py \
+            tests/research/test_clt_venue_alignment.py \
             -q --confcutdir=tests/research
       - name: Lint all CLT research files
         run: |
@@ -60,7 +65,9 @@ jobs:
             scripts/research/clt_market_context.py \
             scripts/research/clt_inventory_feasibility.py \
             scripts/research/clt_bingx_market_data.py \
+            scripts/research/clt_venue_alignment.py \
             tests/research/test_clt_event_model.py \
             tests/research/test_clt_market_context.py \
             tests/research/test_clt_inventory_feasibility.py \
-            tests/research/test_clt_bingx_market_data.py
+            tests/research/test_clt_bingx_market_data.py \
+            tests/research/test_clt_venue_alignment.py
