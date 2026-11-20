@@ -514,7 +514,7 @@ def audit(
             if market == coin and len(values) >= 3 and (address, market) in eligible_wallet_markets
         )
 
-    buckets: dict[tuple[str, int], dict[str, float]] = defaultdict(lambda: defaultdict(float))
+    buckets: dict[tuple[str, str, int], dict[str, float]] = defaultdict(lambda: defaultdict(float))
     market_counts: dict[str, dict[str, Any]] = {}
     for coin in CORE_COINS:
         cohorts = cohort_by_market[coin]
@@ -523,6 +523,8 @@ def audit(
             "calibrated_wallets": len(cohorts["small"]) + len(cohorts["large"]),
             "small_wallets": len(cohorts["small"]),
             "large_wallets": len(cohorts["large"]),
+            "calibration_fills": 0,
+            "calibration_buckets": 0,
             "test_fills": 0,
             "test_buckets": 0,
         }
@@ -532,11 +534,9 @@ def audit(
         if cohort is None:
             continue
         for fill in fills:
-            if fill["time"] < calibration_end_ms:
-                continue
-            bucket = buckets[(coin, fill["bucket"])]
-            market_counts[coin]["test_fills"] += 1
-            market_counts[coin]["test_buckets"] += 0
+            phase = "calibration" if fill["time"] < calibration_end_ms else "test"
+            bucket = buckets[(coin, phase, fill["bucket"])]
+            market_counts[coin][f"{phase}_fills"] += 1
             bucket[f"{cohort}_wallet_{address}"] = 1.0
             bucket[f"{cohort}_fill_count"] += 1
             bucket[f"{cohort}_open_long_usd"] += fill["open_long_usd"]
@@ -558,7 +558,7 @@ def audit(
     out_dir.mkdir(parents=True, exist_ok=True)
     csv_path = out_dir / "clt_inventory_15m.csv"
     fields = [
-        "market", "bucket_ts_ms",
+        "market", "phase", "bucket_ts_ms",
         "small_active_wallets", "large_active_wallets",
         "small_long_add_wallets", "small_short_add_wallets",
         "large_long_add_wallets", "large_short_add_wallets",
@@ -572,11 +572,12 @@ def audit(
         "small_liquidation_notional_usd", "large_liquidation_notional_usd",
     ]
     output_rows = []
-    for (coin, bucket_ms), values in sorted(buckets.items()):
+    for (coin, phase, bucket_ms), values in sorted(buckets.items()):
         small_active = sum(1 for key in values if key.startswith("small_wallet_"))
         large_active = sum(1 for key in values if key.startswith("large_wallet_"))
         row = {
             "market": f"{coin}-PERP",
+            "phase": phase,
             "bucket_ts_ms": bucket_ms,
             "small_active_wallets": small_active,
             "large_active_wallets": large_active,
@@ -594,7 +595,7 @@ def audit(
         for field in fields[10:]:
             row[field] = values[field]
         output_rows.append(row)
-        market_counts[coin]["test_buckets"] += 1
+        market_counts[coin][f"{phase}_buckets"] += 1
 
     with csv_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
