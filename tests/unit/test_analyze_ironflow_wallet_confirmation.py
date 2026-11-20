@@ -36,9 +36,6 @@ def test_non_overlapping_samples_are_thinned_per_market_and_horizon(
         "active_wallets": [5] * 6,
         "net_buy_wallets": [5] * 6,
         "net_sell_wallets": [0] * 6,
-        "flow_ratio": [1.0] * 6,
-        "aggressive_flow_ratio": [0.8] * 6,
-        "wallet_consensus_ratio": [1.0] * 6,
     })
     cohort_path = tmp_path / "cohort.parquet"
     pq.write_table(cohort, cohort_path)
