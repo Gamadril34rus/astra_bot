@@ -197,7 +197,7 @@ def audit_capture_files(
                     state_key = (venue, symbol)
                     payload = row.get("payload")
                     depth_exchange_ts = _positive_int(
-                        (payload.get("T", payload.get("time")) if isinstance(payload, dict) else None)
+                        payload.get("T", payload.get("time")) if isinstance(payload, dict) else None
                     )
                     depth_receive_ts = _positive_int(row.get("received_at_ms"))
                     if depth_exchange_ts is None or depth_receive_ts is None:
