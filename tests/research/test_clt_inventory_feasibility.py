@@ -8,8 +8,8 @@ from scripts.research.clt_inventory_feasibility import (
     order_timestamp_group,
     possible_direction_labels,
     select_wallets,
-    split_market_cohorts,
     split_fill_inventory,
+    split_market_cohorts,
 )
 
 
