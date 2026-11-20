@@ -3209,3 +3209,4 @@
 {"event": "order_cancel", "symbol": "HYPE-USDT", "order_id": "2123638064592543744", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795150009.1444685, "environment": "VST"}
 {"event": "order_cancel", "symbol": "ETH-USDT", "order_id": "2123638070972080128", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795150039.909339, "environment": "VST"}
 {"event": "leverage_reconcile", "symbol": "HYPE-USDT", "side": "short", "old_leverage": 5, "exchange_leverage": 6, "source": "bingx_position", "signal_id": "zeus_multi_top_breakdown|HYPE-USDT|short|1795132800000", "ts": 1795150305.779755, "environment": "VST"}
+{"event": "order_cancel", "symbol": "ETH-USDT", "order_id": "2123639305775177728", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795151843.0500746, "environment": "VST"}
