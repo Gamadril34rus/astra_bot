@@ -455,13 +455,20 @@ def archive(
             hl_path = out_dir / f"{coin}_HL_{interval}.csv"
             _write_csv(hl_path, hl_rows)
             interval_ms = INTERVAL_MS[interval]
+            expected_bars = (end_ms - start_ms) // interval_ms
             gaps = [
                 {"after": int(left["open_time"]), "before": int(right["open_time"])}
                 for left, right in pairwise(hl_rows)
                 if int(right["open_time"]) - int(left["open_time"]) != interval_ms
             ]
+            if len(hl_rows) != expected_bars or gaps:
+                raise RuntimeError(
+                    f"incomplete Hyperliquid {coin} {interval} history: "
+                    f"{len(hl_rows)}/{expected_bars} bars, {len(gaps)} gaps"
+                )
             hyperliquid_report[interval] = {
                 "rows": len(hl_rows),
+                "expected_rows": expected_bars,
                 "gaps": len(gaps),
                 "first_open_time": hl_rows[0]["open_time"] if hl_rows else None,
                 "last_open_time": hl_rows[-1]["open_time"] if hl_rows else None,
