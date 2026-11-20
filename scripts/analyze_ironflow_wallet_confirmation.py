@@ -55,6 +55,17 @@ def analyze(
         SELECT
             c.*,
             b.close AS close_t,
+            CASE WHEN c.cohort_participant_notional > 0
+                THEN c.cohort_signed_notional / c.cohort_participant_notional
+                ELSE NULL END AS flow_ratio,
+            CASE WHEN c.cohort_participant_notional > 0
+                THEN c.cohort_aggressive_signed_notional
+                    / c.cohort_participant_notional
+                ELSE NULL END AS aggressive_flow_ratio,
+            CASE WHEN c.active_wallets > 0
+                THEN (c.net_buy_wallets - c.net_sell_wallets)::DOUBLE
+                    / c.active_wallets
+                ELSE NULL END AS wallet_consensus_ratio,
             {", ".join(selects)}
         FROM cohort c
         INNER JOIN bars b
