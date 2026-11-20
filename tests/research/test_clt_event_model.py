@@ -182,6 +182,7 @@ def test_crowd_build_accumulates_across_bars_before_large_opposite_add():
     rows[2]["large_short_delta_usd"] = 0.0
     rows[2]["large_short_add_wallets"] = 0
     rows[3]["small_long_add_wallets_prev_2"] = 3
+    rows[8]["small_long_add_wallets_prev_4"] = 3
     rows[3]["large_short_delta_usd"] = 90_000
     rows[3]["large_short_add_wallets"] = 1
     rows[4]["crowd_long_delta_usd"] = 60_000
