@@ -623,33 +623,34 @@ def audit(
                     unknown_fills += 1
                     market_continuous = False
                     continue
-            direction = str(fill.get("dir") or "")
-            known_directions = {
-                "Open Long", "Add Long", "Close Long",
-                "Open Short", "Add Short", "Close Short",
-                "Long > Short", "Short > Long",
-            }
-            if direction not in known_directions:
-                unknown_direction_labels += 1
-                market_continuous = False
-            elif direction not in possible_direction_labels(start_position, side, size):
-                direction_label_mismatches += 1
-                market_continuous = False
 
-            record = {
-                "time": timestamp,
-                "bucket": timestamp // BAR_MS * BAR_MS,
-                "price": price,
-                "start_position": start_position,
-                **split,
-                "liquidation": bool(fill.get("liquidation")),
-                "direction": direction,
-            }
-            parsed[key].append(record)
-            if timestamp < calibration_end_ms:
-                exposure = max(abs(start_position), abs(split["position_after"])) * price
-                if exposure > 0:
-                    calibration_exposure[key].append(exposure)
+                direction = str(fill.get("dir") or "")
+                known_directions = {
+                    "Open Long", "Add Long", "Close Long",
+                    "Open Short", "Add Short", "Close Short",
+                    "Long > Short", "Short > Long",
+                }
+                if direction not in known_directions:
+                    unknown_direction_labels += 1
+                    market_continuous = False
+                elif direction not in possible_direction_labels(start_position, side, size):
+                    direction_label_mismatches += 1
+                    market_continuous = False
+
+                record = {
+                    "time": timestamp,
+                    "bucket": timestamp // BAR_MS * BAR_MS,
+                    "price": price,
+                    "start_position": start_position,
+                    **split,
+                    "liquidation": bool(fill.get("liquidation")),
+                    "direction": direction,
+                }
+                parsed[key].append(record)
+                if timestamp < calibration_end_ms:
+                    exposure = max(abs(start_position), abs(split["position_after"])) * price
+                    if exposure > 0:
+                        calibration_exposure[key].append(exposure)
 
         if market_continuous and parsed[key]:
             eligible_wallet_markets.add(key)

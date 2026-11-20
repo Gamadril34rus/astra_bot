@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 
 import scripts.research.clt_inventory_feasibility as inventory
 from scripts.research.clt_inventory_feasibility import (
@@ -14,6 +15,73 @@ from scripts.research.clt_inventory_feasibility import (
     split_fill_inventory,
     split_market_cohorts,
 )
+
+
+def test_audit_keeps_every_fill_in_a_multi_fill_timestamp_group(tmp_path, monkeypatch):
+    start = datetime(2026, 10, 3, tzinfo=UTC)
+    start_ms = int(start.timestamp() * 1000)
+    selected = [
+        {
+            "address": f"0x{index:040x}",
+            "manifest_fills": None,
+        }
+        for index in range(1, 7)
+    ]
+
+    history = {}
+    for wallet in selected:
+        address = wallet["address"]
+        history[address] = [
+            {
+                "time": start_ms,
+                "coin": "BTC",
+                "startPosition": str(position),
+                "sz": "1",
+                "px": "100",
+                "side": "B",
+                "dir": "Open Long",
+                "tid": index + 1,
+                "liquidation": False,
+            }
+            for index, position in enumerate((0, 1, 2))
+        ]
+
+    monkeypatch.setattr(
+        inventory,
+        "select_wallets",
+        lambda *_args, **_kwargs: selected,
+    )
+    monkeypatch.setattr(
+        inventory,
+        "fetch_wallet_history",
+        lambda address, **_kwargs: (
+            history[address],
+            {
+                "pages": 1,
+                "api_fills": 3,
+                "twap_fills": 0,
+                "api_cap_reached": False,
+                "twap_cap_reached": False,
+                "page_boundary_collision": False,
+                "boundary_collision_markets": set(),
+                "boundary_recovered_markets": set(),
+            },
+        ),
+    )
+
+    report = inventory.audit(
+        tmp_path / "unused-manifest.json",
+        tmp_path / "out",
+        start=start,
+        end=start + timedelta(days=8),
+        max_wallets=6,
+    )
+
+    btc = report["by_market"]["BTC-PERP"]
+    assert report["cohort_calibration_candidates_by_market"]["BTC-PERP"] == 6
+    # 5 of 6 wallets are assigned to the disjoint small/large cohorts.
+    assert btc["calibrated_wallets"] == 5
+    assert btc["calibration_fills"] == 15
 
 
 def test_fill_key_uses_unique_trade_id_for_twap_slices():
