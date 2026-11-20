@@ -1,0 +1,72 @@
+name: CLT historical inventory feasibility
+
+on:
+  push:
+    branches: [research/crowd-liquidity-trap]
+    paths:
+      - "scripts/research/clt_inventory_feasibility.py"
+      - "tests/research/test_clt_inventory_feasibility.py"
+      - ".github/workflows/clt-inventory-feasibility.yml"
+  pull_request:
+    branches: [master]
+    paths:
+      - "scripts/research/clt_inventory_feasibility.py"
+      - "tests/research/test_clt_inventory_feasibility.py"
+      - ".github/workflows/clt-inventory-feasibility.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: clt-inventory-feasibility
+  cancel-in-progress: true
+
+jobs:
+  feasibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.12"
+      - name: Install isolated test tools
+        run: python -m pip install pytest ruff
+      - name: Run CLT inventory unit tests
+        run: python -m pytest tests/research/test_clt_inventory_feasibility.py -q --confcutdir=tests/research
+      - name: Lint CLT inventory research files
+        run: python -m ruff check scripts/research/clt_inventory_feasibility.py tests/research/test_clt_inventory_feasibility.py
+      - name: Download frozen Hyperliquid cohort manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: hyperliquid-wallet-archive-summary
+          run-id: 43250750091
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: manifest_evidence
+      - name: Extract manifest
+        run: |
+          python - <<'PY'
+          import zipfile
+          with zipfile.ZipFile("manifest_evidence/hyperliquid-wallet-archive-summary.zip") as archive:
+              archive.extract("hyperliquid_wallet_archive/wallet_archive_manifest.json", "manifest_evidence")
+          PY
+      - name: Audit direction-aware historical inventory coverage
+        run: |
+          python scripts/research/clt_inventory_feasibility.py \
+            --manifest manifest_evidence/hyperliquid_wallet_archive/wallet_archive_manifest.json \
+            --out-dir reports/clt_inventory_feasibility \
+            --start 2026-10-03T00:00:00+00:00 \
+            --end 2026-11-09T00:00:00+00:00 \
+            --max-wallets 40
+      - name: Upload aggregate-only feasibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clt-inventory-feasibility-${{ github.sha }}
+          path: |
+            reports/clt_inventory_feasibility/clt_inventory_15m.csv
+            reports/clt_inventory_feasibility/clt_inventory_feasibility.json
+          if-no-files-found: warn
+          retention-days: 90
