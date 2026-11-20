@@ -4,7 +4,7 @@
       "symbol": "SOL-USDT",
       "side": "short",
       "qty": "237.29211978",
-      "stop": "75.758214",
+      "stop": "75.70314285714286",
       "tp": "70.92215370",
       "entry": "72.414",
       "leverage": 6,
@@ -43,13 +43,13 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "tp_frac": "0.3",
-      "peak_low": "63.926",
+      "peak_low": "63.829",
       "current_regime": "RANGE",
       "tp1": "64.08990470",
       "initial_stop_v1": true,
       "early_tp1": true,
       "early_tp_repair_v1": true,
-      "peak_high": "66.116",
+      "peak_high": "66.182",
       "runner_tp_rr": 1.5,
       "runner_tp_healed_v1": true
     },
@@ -57,7 +57,7 @@
       "symbol": "ETH-USDT",
       "side": "short",
       "qty": "9.89661273",
-      "stop": "1791.4900000000002",
+      "stop": "1791.3400000000001",
       "tp": "1696.3050430",
       "entry": "1740.01",
       "leverage": 6,
@@ -78,7 +78,7 @@
       "be_earned": true,
       "migrate_stop_v1": true,
       "current_regime": "WEAK_BEAR_TREND",
-      "peak_high": "1755.86"
+      "peak_high": "1763.31"
     },
     "BTC-USDT|short": {
       "symbol": "BTC-USDT",
@@ -107,5 +107,5 @@
       "runner_tp_healed_v1": true
     }
   },
-  "ts": 1795175808.0796182
+  "ts": 1795176166.1672363
 }
