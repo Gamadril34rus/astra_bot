@@ -199,13 +199,13 @@ def fetch_wallet_history(
 
     twap_rows = post_info({"type": "userTwapSliceFills", "user": address})
     twap_capped = len(twap_rows) >= 2_000
+    twap_weight = 20 + math.ceil(len(twap_rows) / 20)
+    time.sleep(twap_weight / 20.0 + 0.1)
     for item in twap_rows:
         fill = item.get("fill", item)
         timestamp = int(fill.get("time") or 0)
         if start_ms <= timestamp <= end_ms:
             fills[_fill_key(fill, twap=True)] = fill
-    time.sleep(6.1)
-
     ordered = sorted(
         fills.values(),
         key=lambda fill: (
