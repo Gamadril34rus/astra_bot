@@ -233,7 +233,7 @@ def audit(
     for coin in sorted(CORE_COINS):
         market = f"{coin}-PERP"
         rows = [row for row in output_rows if row["market"] == market]
-        def total(side: str, direction: str) -> float:
+        def total(side: str, direction: str, rows=rows) -> float:
             return sum(
                 row["notional_usd"] for row in rows
                 if row["side"] == side and row["direction"] == direction
