@@ -362,7 +362,7 @@ def rolling_unique_add_wallet_counts(
     market: str,
     phase: str,
     bucket_ms: int,
-    max_window: int = 8,
+    max_window: int = 12,
 ) -> dict[str, int]:
     """Count distinct net adders in prior bars, including when the current bar is empty."""
     if not 1 <= max_window <= 12:
