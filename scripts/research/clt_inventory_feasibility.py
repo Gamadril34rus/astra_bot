@@ -317,7 +317,7 @@ def audit(
             eligible_wallet_markets.add(key)
 
     cohort_by_market: dict[str, dict[str, set[str]]] = {}
-    for coin in CORE_COINS:
+    for coin in sorted(CORE_COINS):
         candidates = []
         for (address, market), values in calibration_exposure.items():
             if market == coin and len(values) >= 3 and (address, market) in eligible_wallet_markets:
@@ -338,7 +338,7 @@ def audit(
     for coin in CORE_COINS:
         cohorts = cohort_by_market[coin]
         market_counts[coin] = {
-            "continuous_wallets": sum(1 for address, market in eligible_wallet_markets if market == coin),
+            "continuous_wallet_market_pairs": sum(1 for address, market in eligible_wallet_markets if market == coin),
             "calibrated_wallets": len(cohorts["small"]) + len(cohorts["large"]),
             "small_wallets": len(cohorts["small"]),
             "large_wallets": len(cohorts["large"]),
