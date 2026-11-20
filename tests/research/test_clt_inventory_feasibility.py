@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import scripts.research.clt_inventory_feasibility as inventory
+
 from scripts.research.clt_inventory_feasibility import (
     MAX_FILLS_PER_ADDRESS,
     count_net_add_wallets,
@@ -273,3 +275,56 @@ def test_rolling_unique_add_counts_are_phase_scoped_and_validate_window():
         assert "between 1 and 12" in str(exc)
     else:
         raise AssertionError("oversized rolling window must fail")
+
+
+
+def test_fetch_wallet_history_recovers_all_fills_at_page_boundary(monkeypatch):
+    monkeypatch.setattr(inventory, "PAGE_SIZE", 3)
+    monkeypatch.setattr(inventory, "MAX_FILLS_PER_ADDRESS", 10)
+    monkeypatch.setattr(inventory.time, "sleep", lambda _: None)
+    page = [
+        {"time": 100, "tid": 1, "coin": "BTC"},
+        {"time": 200, "tid": 2, "coin": "BTC"},
+        {"time": 200, "tid": 3, "coin": "BTC"},
+    ]
+    boundary = [
+        {"time": 200, "tid": 2, "coin": "BTC"},
+        {"time": 200, "tid": 3, "coin": "BTC"},
+        {"time": 200, "tid": 4, "coin": "BTC"},
+    ]
+    calls = iter([page, boundary, [], []])
+    monkeypatch.setattr(inventory, "post_info", lambda payload: next(calls))
+
+    rows, stats = inventory.fetch_wallet_history(
+        "0x" + "1" * 40, start_ms=0, end_ms=1_000
+    )
+
+    assert {row["tid"] for row in rows} == {1, 2, 3, 4}
+    assert stats["page_boundary_collision"] is False
+    assert stats["boundary_collision_markets"] == []
+    assert stats["boundary_recovered_markets"] == ["BTC"]
+
+
+def test_fetch_wallet_history_fails_closed_when_boundary_probe_is_capped(monkeypatch):
+    monkeypatch.setattr(inventory, "PAGE_SIZE", 3)
+    monkeypatch.setattr(inventory, "MAX_FILLS_PER_ADDRESS", 10)
+    monkeypatch.setattr(inventory.time, "sleep", lambda _: None)
+    page = [
+        {"time": 100, "tid": 1, "coin": "BTC"},
+        {"time": 200, "tid": 2, "coin": "BTC"},
+        {"time": 200, "tid": 3, "coin": "BTC"},
+    ]
+    boundary = [
+        {"time": 200, "tid": index, "coin": "BTC"}
+        for index in range(10, 13)
+    ]
+    calls = iter([page, boundary, []])
+    monkeypatch.setattr(inventory, "post_info", lambda payload: next(calls))
+
+    rows, stats = inventory.fetch_wallet_history(
+        "0x" + "2" * 40, start_ms=0, end_ms=1_000
+    )
+
+    assert stats["page_boundary_collision"] is True
+    assert stats["boundary_collision_markets"] == ["BTC"]
+    assert stats["boundary_recovered_markets"] == []
