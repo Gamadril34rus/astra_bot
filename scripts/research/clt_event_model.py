@@ -47,7 +47,7 @@ def detect_clt_events(
     min_crowd_add_usd: float,
     min_large_add_usd: float,
     min_continued_crowd_add_usd: float,
-    max_crowd_progress_pct: float,
+    max_crowd_progress_z: float,
     crowd_window_bars: int = 8,
     max_lag_bars: int = 8,
     swing_lookback_bars: int = 8,
@@ -55,16 +55,16 @@ def detect_clt_events(
 ) -> list[dict[str, Any]]:
     """Detect non-overlapping CLT structure-break events from normalized 15m rows.
 
-    Each row requires ts, open, high, low, close and four cohort inventory-delta
-    fields: crowd_long_delta_usd, crowd_short_delta_usd,
-    large_long_delta_usd, large_short_delta_usd.
+    Each row requires OHLC, four cohort inventory-delta fields, and
+    prior_volatility_pct computed only from bars before that row. Absorption is
+    proxied by pre-break crowd-directional progress normalized by prior volatility.
 
     Signal is known only after the current bar closes; entry is next bar open.
     Direction is +1 LONG and -1 SHORT. No event is emitted without a next bar.
     """
     if min_crowd_add_usd <= 0 or min_large_add_usd <= 0:
         raise ValueError("inventory thresholds must be positive")
-    if min_continued_crowd_add_usd < 0 or max_crowd_progress_pct < 0:
+    if min_continued_crowd_add_usd < 0 or max_crowd_progress_z < 0:
         raise ValueError("progress and continuation thresholds cannot be negative")
     if min(crowd_window_bars, max_lag_bars, swing_lookback_bars, cooldown_bars) < 1:
         raise ValueError("bar windows must be positive")
@@ -73,6 +73,7 @@ def detect_clt_events(
         "ts", "open", "high", "low", "close",
         "crowd_long_delta_usd", "crowd_short_delta_usd",
         "large_long_delta_usd", "large_short_delta_usd",
+        "prior_volatility_pct",
     )
     previous_ts = None
     for row in rows:
@@ -85,6 +86,8 @@ def detect_clt_events(
         for key in ("open", "high", "low", "close"):
             if _number(row, key) <= 0:
                 raise ValueError(f"{key} must be positive")
+        if _number(row, "prior_volatility_pct") < 0:
+            raise ValueError("prior_volatility_pct cannot be negative")
 
     events: list[dict[str, Any]] = []
     last_event_index = -cooldown_bars - 1
@@ -113,19 +116,30 @@ def detect_clt_events(
                 )
                 crowd_build = 0.0
                 for large_start in range(crowd_start + 1, min(crowd_end, signal_index)):
+                    if large_start - crowd_start > max_lag_bars:
+                        continue
                     crowd_build += _number(rows[large_start - 1], crowd_key)
                     if crowd_build < min_crowd_add_usd:
                         continue
                     large_add = _sum(rows, large_start, signal_index, large_key)
                     if large_add < min_large_add_usd:
                         continue
-                    continued_add = _sum(rows, large_start, signal_index, crowd_key)
+                    continued_add = _sum(rows, large_start + 1, signal_index, crowd_key)
                     if continued_add < min_continued_crowd_add_usd:
                         continue
 
                     start_close = _number(rows[crowd_start], "close")
-                    progress_pct = crowd_direction * (close / start_close - 1.0) * 100.0
-                    if progress_pct > max_crowd_progress_pct:
+                    pre_break_close = _number(rows[signal_index - 1], "close")
+                    progress_pct = (
+                        crowd_direction * (pre_break_close / start_close - 1.0) * 100.0
+                    )
+                    volatility_pct = _number(rows[signal_index], "prior_volatility_pct")
+                    if volatility_pct <= 0:
+                        continue
+                    elapsed_bars = max(1, signal_index - crowd_start)
+                    expected_move_pct = volatility_pct * elapsed_bars**0.5
+                    progress_z = progress_pct / expected_move_pct
+                    if progress_z > max_crowd_progress_z:
                         continue
 
                     structure_broken = (
@@ -148,6 +162,7 @@ def detect_clt_events(
                         "large_opposite_add_usd": round(large_add, 2),
                         "continued_crowd_add_usd": round(continued_add, 2),
                         "crowd_directional_progress_pct": round(progress_pct, 6),
+                        "crowd_directional_progress_z": round(progress_z, 6),
                         "prior_swing_low": min(prior_lows),
                         "prior_swing_high": max(prior_highs),
                     }
