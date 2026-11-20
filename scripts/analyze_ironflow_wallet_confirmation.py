@@ -75,6 +75,7 @@ def analyze(
     )
 
     rows: list[dict[str, Any]] = []
+    side_rows: list[dict[str, Any]] = []
     for horizon, minutes in HORIZONS.items():
         close_col = f"close_{horizon}"
         seconds = minutes * 60
@@ -113,10 +114,16 @@ def analyze(
                         {overlap_clause}
                     ),
                     baseline AS (
-                        SELECT market, avg(raw_return_pct)
-                            AS baseline_return_pct
-                        FROM selected
-                        GROUP BY market
+                        SELECT b.market,
+                            avg(100.0 * (f.close / b.close - 1.0))
+                                AS baseline_return_pct
+                        FROM bars b
+                        INNER JOIN bars f
+                          ON f.market = b.market
+                         AND f.bucket_ts = b.bucket_ts
+                            + INTERVAL '${minutes} minutes'
+                        WHERE b.close > 0 AND f.close > 0
+                        GROUP BY b.market
                     ),
                     ranked AS (
                         SELECT *,
@@ -150,6 +157,78 @@ def analyze(
                     GROUP BY r.market, r.signal_decile
                     ORDER BY r.market, r.signal_decile
                 """
+                side_query = f"""
+                    WITH eligible AS (
+                        SELECT
+                            market,
+                            bucket_ts,
+                            active_wallets,
+                            {metric} AS signal_value,
+                            sign({metric}) AS signal_side,
+                            100.0 * ({close_col} / close_t - 1.0)
+                                AS raw_return_pct,
+                            sign({metric}) * 100.0 *
+                                ({close_col} / close_t - 1.0)
+                                AS directional_return_pct
+                        FROM response
+                        WHERE active_wallets >= 3
+                          AND {metric} IS NOT NULL
+                          AND abs({metric}) > 0
+                          AND close_t > 0
+                          AND {close_col} IS NOT NULL
+                          AND {close_col} > 0
+                    ),
+                    selected AS (
+                        SELECT * FROM eligible
+                        {overlap_clause}
+                    )
+                    SELECT
+                        market,
+                        signal_side,
+                        count(*) AS observations,
+                        avg(abs(signal_value)) AS mean_abs_signal_value,
+                        avg(raw_return_pct) AS mean_raw_return_pct,
+                        avg(directional_return_pct)
+                            AS mean_directional_return_pct,
+                        median(directional_return_pct)
+                            AS median_directional_return_pct,
+                        100.0 * avg(
+                            CASE WHEN directional_return_pct > 0
+                                THEN 1.0 ELSE 0.0 END
+                        ) AS directional_hit_rate_pct
+                    FROM selected
+                    GROUP BY market, signal_side
+                    ORDER BY market, signal_side
+                """
+                side_result = con.execute(side_query)
+                side_columns = [item[0] for item in side_result.description]
+                for values in side_result.fetchall():
+                    side_row = dict(zip(side_columns, values, strict=True))
+                    side_rows.append({
+                        "horizon": horizon,
+                        "metric": metric,
+                        "sample_type": sample_type,
+                        "market": side_row["market"],
+                        "signal_side": (
+                            "buy_pressure" if side_row["signal_side"] > 0
+                            else "sell_pressure"
+                        ),
+                        "observations": int(side_row["observations"]),
+                        "mean_abs_signal_value": float(
+                            side_row["mean_abs_signal_value"]
+                        ),
+                        "mean_raw_return_pct": float(side_row["mean_raw_return_pct"]),
+                        "mean_directional_return_pct": float(
+                            side_row["mean_directional_return_pct"]
+                        ),
+                        "median_directional_return_pct": float(
+                            side_row["median_directional_return_pct"]
+                        ),
+                        "directional_hit_rate_pct": float(
+                            side_row["directional_hit_rate_pct"]
+                        ),
+                    })
+
                 result = con.execute(query)
                 columns = [item[0] for item in result.description]
                 for values in result.fetchall():
@@ -195,6 +274,18 @@ def analyze(
         writer.writeheader()
         writer.writerows(rows)
 
+    side_csv_path = out_dir / "wallet_flow_confirmation_sides.csv"
+    side_fields = [
+        "horizon", "metric", "sample_type", "market", "signal_side",
+        "observations", "mean_abs_signal_value", "mean_raw_return_pct",
+        "mean_directional_return_pct", "median_directional_return_pct",
+        "directional_hit_rate_pct",
+    ]
+    with side_csv_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=side_fields)
+        writer.writeheader()
+        writer.writerows(side_rows)
+
     markets = con.execute(
         "SELECT count(DISTINCT market) FROM cohort"
     ).fetchone()[0]
@@ -233,6 +324,8 @@ def analyze(
         "outputs": {
             "csv": str(csv_path),
             "rows": len(rows),
+            "side_rows": len(side_rows),
+            "sides_csv": str(side_csv_path),
         },
     }
     json_path.write_text(
