@@ -17,12 +17,15 @@ The SHORT setup is: crowd net LONG inventory rises, large cohort net SHORT inven
 
 ## Inventory accounting contract
 
-For each wallet, market and 15m bucket, reconstruct inventory changes from explicit fill direction, not buy/sell side:
+For each wallet, market and 15m bucket, reconstruct inventory changes from the fill's position immediately before execution:
 
-- LONG inventory delta = Open Long notional minus Close Long notional.
-- SHORT inventory delta = Open Short notional minus Close Short notional.
+- LONG inventory delta = Open/Add Long notional minus Close Long notional.
+- SHORT inventory delta = Open/Add Short notional minus Close Short notional.
+- A fill that crosses through zero must be split into the closing portion and the newly opened opposite portion.
 
-A buy can be Open Long or Close Short. A sell can be Open Short or Close Long. Raw aggressor side is never a substitute for position direction. Liquidations, ADL, transfers, subaccounts, TWAP coverage, and position-mode semantics must be audited separately. If a known position anchor and a complete fill ledger are unavailable, inventory is **unknown**, not assumed flat.
+A buy can open/add LONG or close SHORT. A sell can open/add SHORT or close LONG. The Hyperliquid user-fill schema exposes `startPosition`, `side`, `sz`, `px`, and a `dir` label; use startPosition + side + size to split the fill, then cross-check the derived action against `dir`. Seed the first observed fill from its own startPosition; do not assume the account was flat at the beginning of the archive. Verify that each next fill's startPosition matches the previous reconstructed position. Any mismatch, missing field, unknown direction label, API history cap, TWAP cap, or unresolved page-boundary collision invalidates that wallet-market series rather than imputing inventory.
+
+The public Info API is bounded: userFillsByTime returns at most 2,000 fills per response and exposes only the 10,000 most recent fills per address; TWAP slice fills are a separate endpoint with its own 2,000-row ceiling. These limits mean API history coverage must be proven per wallet before using its position series. Paired public trade prints alone remain insufficient for exact inventory reconstruction.
 
 ## Participant cohorts
 
@@ -62,3 +65,10 @@ The time between crowd build and opposing large additions is measured from the t
 The frozen 37-day Ironflow paired-trade archive has wallet addresses and aggressor side, but no order ID, explicit position direction, fees or realized PnL. It cannot establish whether a wallet opened/added or closed/reduced a position. The recent 24h public-API audit covers only a selected subset and is an interpretation check, not historical reconstruction. The earlier 32-event BingX flow replay is not a CLT backtest and its candidate-minus-control interval crossed zero.
 
 Therefore the first gate is **historical inventory-data feasibility**. Until a complete, auditable historical position-direction series is available, the model may be tested on synthetic fixtures and aggressor-flow controls only. No CLT performance claim, parameter tuning, or strategy promotion from those proxies.
+
+
+## Historical inventory feasibility pilot
+
+A research-only pilot is being added for the frozen 2026-10-03 through 2026-11-08 cohort. It selects only addresses whose manifest fill count is at or below the 10,000-fill API ceiling and whose top markets include one of BTC/ETH/SOL/HYPE/INJ. It retrieves direction-aware fills and TWAP slices, validates startPosition continuity, and builds 15m inventory deltas. The first 7 days are reserved for a prior-only position-size calibration; later bars are used for event discovery.
+
+The pilot's small and large groups are relative to the selected leaderboard sample (lower half vs upper quartile of median position notional), not a market-wide retail/whale census. It is a feasibility diagnostic only. If too few continuous wallet-market histories remain, the correct result is insufficient data, not a weakened completeness gate.
