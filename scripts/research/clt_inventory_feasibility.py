@@ -195,6 +195,33 @@ def _position_tolerance(left: float, right: float) -> float:
     return max(1e-8, abs(left) * 1e-7, abs(right) * 1e-7)
 
 
+def possible_direction_labels(
+    start_position: float,
+    side: str,
+    size: float,
+) -> set[str]:
+    """Return API direction labels compatible with the position transition.
+
+    Hyperliquid examples use "Open Long/Short" for some fills that add to an
+    already-open position, so both Open and Add labels are accepted there.
+    """
+    if size <= 0:
+        raise ValueError("fill size must be positive")
+    if side == "B":
+        if start_position < 0:
+            if size <= abs(start_position):
+                return {"Close Short"}
+            return {"Short > Long", "Open Long", "Add Long"}
+        return {"Open Long", "Add Long"}
+    if side == "A":
+        if start_position > 0:
+            if size <= start_position:
+                return {"Close Long"}
+            return {"Long > Short", "Open Short", "Add Short"}
+        return {"Open Short", "Add Short"}
+    raise ValueError(f"unknown fill side: {side!r}")
+
+
 def audit(
     manifest_path: Path,
     out_dir: Path,
@@ -281,22 +308,9 @@ def audit(
             if direction not in known_directions:
                 unknown_direction_labels += 1
                 market_continuous = False
-            else:
-                if split["open_long_usd"] > 0 and split["close_short_usd"] > 0:
-                    expected_direction = "Short > Long"
-                elif split["open_short_usd"] > 0 and split["close_long_usd"] > 0:
-                    expected_direction = "Long > Short"
-                elif split["open_long_usd"] > 0:
-                    expected_direction = "Open Long" if start_position == 0 else "Add Long"
-                elif split["close_long_usd"] > 0:
-                    expected_direction = "Close Long"
-                elif split["open_short_usd"] > 0:
-                    expected_direction = "Open Short" if start_position == 0 else "Add Short"
-                else:
-                    expected_direction = "Close Short"
-                if direction != expected_direction:
-                    direction_label_mismatches += 1
-                    market_continuous = False
+            elif direction not in possible_direction_labels(start_position, side, size):
+                direction_label_mismatches += 1
+                market_continuous = False
 
             record = {
                 "time": timestamp,
