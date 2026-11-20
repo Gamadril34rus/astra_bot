@@ -2832,8 +2832,8 @@ async def _one_tick_with_client(client, *, dry: bool = False) -> int:
             logger.warning("tp_parity_v1 failed: %s", type(_p_exc).__name__)
         _set_margin_warn_tg(_send_live_tg)
         rest = await broker.restore_missing_stops(send_tg=_send_live_tg)
-        if rest.get("restored") or rest.get("closed_naked"):
-            logger.info("restore_missing_stops: %s", rest)
+        if rest.get("restored") or rest.get("tp_restored_legs") or rest.get("closed_naked"):
+            logger.info("restore_missing_stops outcome: %s", rest)
     except Exception as exc:
         logger.warning("restore_missing_stops failed: %s", type(exc).__name__)
 
