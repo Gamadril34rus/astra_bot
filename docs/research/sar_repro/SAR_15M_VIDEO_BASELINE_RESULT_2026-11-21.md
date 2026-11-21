@@ -1,54 +1,75 @@
-# SAR video baseline on BingX 15m: final discovery result
+# SAR video baseline on BingX 15m: corrected discovery result
 
 **Date:** 2026-11-21  
 **Verdict:** NOT PASSED under standard BingX taker execution  
 **Scope:** research only; no production or Zeus changes
 
-## Frozen rule
+## Strategy rule tested
 
-- Parabolic SAR: start 0.02, increment 0.02, maximum 0.20.
-- No EMA, volume, ATR, session, trend or other filters.
-- No take-profit. Exit uses the prior completed SAR point as the stop for the current 15m bar; gap-through exits at bar open, otherwise a touched stop fills at the stop price.
-- A completed SAR trend flip is acted on at the next 15m open.
-- The same fixed rule is tested on BTC-USDT, ETH-USDT and SOL-USDT perpetuals.
-- Portfolio profiles are 1% risk / 3% max open risk, 1.5% / 6%, and 2% / 8%.
+- Parabolic SAR: acceleration start 0.02, step 0.02, maximum 0.20.
+- No EMA, volume, ATR, session or other filters.
+- No take-profit.
+- A completed SAR flip is acted on at the next 15m open.
+- The stop for the current bar is the SAR value from the prior completed bar. Gap-through stops fill at bar open; otherwise a touched stop fills at the stop price.
+- Markets: BTC-USDT, ETH-USDT and SOL-USDT perpetuals.
 
-## Data coverage
+## Data
 
-The BingX public endpoint returned 9,600 bars, not the requested 36,000, for 15m history. The final archive covers approximately 100 days:
+The public BingX endpoint returned approximately 9,600 15m candles per market, not the requested 36,000. Final scored archive:
 
-| Market | Bars | First UTC | Last UTC | Gaps |
+| Market | Bars | First UTC | Last candle open UTC | Gaps |
 |---|---:|---|---|---:|
-| BTC-USDT | 9,600 | 2026-08-13 13:45 | 2026-11-21 13:30 | 0 |
-| ETH-USDT | 9,599 | 2026-08-13 14:00 | 2026-11-21 13:30 | 0 |
-| SOL-USDT | 9,599 | 2026-08-13 14:00 | 2026-11-21 13:30 | 0 |
+| BTC-USDT | 9,602 | 2026-08-13 14:00 | 2026-11-21 14:15 | 0 |
+| ETH-USDT | 9,602 | 2026-08-13 14:00 | 2026-11-21 14:15 | 0 |
+| SOL-USDT | 9,602 | 2026-08-13 14:00 | 2026-11-21 14:15 | 0 |
 
-Raw candles are included in the workflow artifact with SHA-256 checksums. The test is not a one-year backtest; the API history limit prevents that claim.
+The raw candles are frozen in the workflow artifact with SHA-256 checksums. This is about 100 days of discovery data, not a one-year backtest and not an untouched out-of-sample test.
 
-## Full 100-day replay, before funding
+## Important correction to the first replay
 
-- 2,319 trades across the three markets using the corrected canonical PSAR implementation.
-- Mean net return: **-27.81 bps per trade** under the 10 bps/side slippage stress assumption.
-- Median net return: approximately **-46.7 bps**.
-- Win rate: **21.47%**.
-- Raw per-trade profit factor: **0.442**.
-- Portfolio profit factor at 1% risk / 3% max open risk: **0.425**.
+The first implementation omitted the standard reversal clamp to the previous/current candle range, used strict crossing rather than touch-inclusive reversal, and forced long as the initial trend. Those differences can change the SAR path and trades. That first 2,311-trade replay is superseded.
 
-The earlier portfolio simulator printed about $3.17 terminal equity and -99.948% drawdown for the 1% / 3% profile. **These figures are withdrawn as exchange-realistic performance claims**: the simulator does not model maintenance margin, liquidation/bankruptcy prices or full margin availability, and it does not replay funding cashflows into portfolio equity. See the independent audit note. Do not use those ending balances to forecast live account outcomes.
+The corrected engine now uses TA-Lib-compatible initial direction inference and reversal clamps. Tests cover both reversal clamps, equal-price touch and initial-direction inference. A separate replay matched all **2,319** workflow trades on symbol, side, entry/exit timestamps and exit reason.
 
-| Market | Trades | Mean net bps | Raw PF |
+See `SAR_15M_INDEPENDENT_AUDIT_2026-11-21.md` for the detailed correction record.
+
+## Corrected trade results
+
+From entry/exit mid-prices before costs:
+
+- Trades: **2,319**
+- Mean: **+2.1931 bps/trade**
+- Median: **-16.8433 bps**
+- Win rate: **35.23%**
+- Price-only PF: **1.0781**
+
+With the published BingX base perpetual taker fee of **0.05% per side** and **zero slippage**:
+
+- Mean net: **-7.8068 bps/trade**
+- Median: **-26.8349 bps**
+- Win rate: **29.24%**
+- PF: **0.7760**
+
+This is the decisive sensitivity. The next-open entries and triggered stop exits are taker-like. The price-only edge does not cover even the base taker fee when slippage is set to zero.
+
+With the original stress assumption of 10 bps slippage per side plus 5 bps taker fee per side:
+
+- Mean net: **-27.8062 bps/trade**
+- Median: **-46.8199 bps**
+- Win rate: **21.47%**
+- PF: **0.4424**
+
+The 10 bps/side slippage is a stress assumption, not measured market-impact data. It is not required to make the baseline fail.
+
+| Market | Trades | Mean after stress costs | PF after stress costs |
 |---|---:|---:|---:|
-| BTC-USDT | 780 | -28.55 | 0.345 |
-| ETH-USDT | 762 | -26.00 | 0.470 |
-| SOL-USDT | 777 | -28.82 | 0.494 |
+| BTC-USDT | 780 | -28.55 bps | 0.345 |
+| ETH-USDT | 762 | -26.00 bps | 0.470 |
+| SOL-USDT | 777 | -28.82 bps | 0.494 |
 
-Both directions lose: long mean -28.06 bps / PF 0.437; short mean -27.55 bps / PF 0.447.
+Both directions lose under the stress model: long mean **-28.06 bps / PF 0.437**; short mean **-27.55 bps / PF 0.447**.
 
-## Cost and edge decomposition
-
-The frozen cost model is 5 bps taker fee per side plus 10 bps slippage per side: 30 bps round trip.
-
-The mean direction-adjusted price-only move before fees and slippage was only **+2.19 bps** per trade (price-only PF 1.093). After the 10 bps/side slippage assumption, mean gross return was **-17.81 bps**; after taker fees, mean net was **-27.81 bps**. With the published 5 bps/side base taker fee and zero slippage, the corrected replay still averages **-7.81 bps/trade** (PF 0.776). This is not merely a position-sizing or high-slippage problem.
+Official BingX fee schedule: https://bingxservice.zendesk.com/hc/en-001/articles/11263240298255-Perpetual-Futures-Fee-Schedule
 
 ## Holding time
 
@@ -57,35 +78,38 @@ The mean direction-adjusted price-only move before fees and slippage was only **
 - **96.55%** of trades lasted between 30 minutes and 9 hours.
 - Maximum: 1,095 minutes (18h15m).
 
-The holding-time profile mostly fits the intended intraday window. The failure is expectancy after executable costs, not excessive trade duration.
+The holding-time distribution mostly fits the intended intraday window.
 
-## Archived funding adjustment
+## Funding
 
-Funding was applied to the subset fully covered by the frozen BingX funding archive (workflow run `42692378936`). The archive ends at 2026-11-09 20:23 UTC, so later trades are excluded from this funding-adjusted subset.
+Funding was applied to the subset fully covered by the frozen BingX funding archive:
 
-- 2,052 trades were funding-adjusted; 267 later trades were excluded at the archive boundary.
-- All trades inside the archive-eligible period had complete funding coverage.
-- Mean funding contribution: approximately **-0.024 bps per trade**, effectively negligible.
-- Funding-covered subset without funding: mean **-27.96 bps**, PF **0.416**.
-- Same subset with funding: mean **-28.02 bps**, PF **0.416**; win rate **20.86%**.
+- Covered: **2,052 / 2,319 trades (88.49%)**.
+- Excluded after archive boundary: **267 trades**.
+- Covered subset mean without funding: **-27.96 bps**.
+- Covered subset mean with funding: **-28.02 bps**.
+- Covered subset PF with funding: **0.4165**.
+- Mean funding contribution on the covered subset: about **-0.061 bps/trade**.
 
-Per-market funding-adjusted PF: BTC 0.312, ETH 0.454, SOL 0.466. Funding does not change the conclusion.
+The archive's last settlement timestamp is 2026-11-09 16:00 UTC. Funding does not change the conclusion, but the entire portfolio equity curve was not rerun with funding cashflows.
 
-The funding adjustment is trade-level. The original portfolio sizing/equity profiles are reported pre-funding; this report does not claim a full portfolio rerun with settlement cashflows.
+## Portfolio simulator limitation
 
-## Engine and execution caveat
+The earlier portfolio simulator's ending equity and drawdown are **withdrawn as exchange-realistic performance claims**. It does not model maintenance-margin tiers, liquidation/bankruptcy prices or full margin-availability checks. Funding cashflows are not replayed through portfolio equity, and intrabar stop timing is approximated at candle-close timestamps for the MTM curve.
 
-The original replay was superseded after an audit found missing reversal clamps, strict instead of touch-inclusive reversal checks, and fixed-long initialization. The corrected engine now uses TA-Lib-compatible initialization and reversal clamps. A separate replay matched all 2,319 archived trades. The engine identifies itself as `v4_mtm_batch_entries_interval_aware` and retains its upstream `re-audit required` status. A separate replay matched all 2,311 archived trades on symbol, side, entry/exit timestamps and exit reason. The current test suite remains narrow; portfolio margin accounting is not fully validated. A fee-only sensitivity is decisive: with the published 0.05% BingX base taker fee per side and **zero slippage**, mean net is still -7.85 bps/trade and PF 0.775. The fixed 10 bps/side slippage is a stress assumption, not measured execution data. See `SAR_15M_INDEPENDENT_AUDIT_2026-11-21.md` for corrections and limits.
+Per-trade expectancy and PF are separate from that compounding model and are reproducible under the stated fill/fee assumptions. Do not use the simulated ending balance or drawdown as a live-account forecast.
 
 ## Final decision
 
-**Reject the fixed SAR video baseline for BingX USDT-M perpetuals.** It loses on BTC, ETH and SOL, in both long and short directions, under the documented cost model. Funding is negligible and does not rescue it. Increasing risk/leverage only accelerates equity destruction.
+**Reject the unfiltered video baseline, SAR 0.02 / 0.02 / 0.20, for BingX USDT-M perpetuals under standard taker execution.** The corrected implementation still has only a small positive pre-cost price move, insufficient to cover base taker fees even with zero slippage.
 
-Do not merge this strategy into master or connect it to Zeus. Any future SAR variant must be treated as a new hypothesis with a separately frozen out-of-sample period; do not tune this 100-day discovery sample to manufacture a pass.
+This verdict is limited to the corrected 100-day discovery sample and these three markets. It is not a claim that every possible SAR variant is unprofitable, and it is not a direct reproduction of the video's XAUUSD market.
+
+No parameter optimization was performed. No master merge, Zeus integration, or live changes.
 
 ## Reproducibility
 
 - Corrected workflow run: `44914714370` (success).
 - Code revision: `0cec06fa10cfeaa08da29794a0b63f180926d88d`.
 - Artifact: `14710849082`.
-- Workflow tests, funding-adjustment tests and Ruff passed.
+- SAR tests, funding tests and Ruff: passed.
