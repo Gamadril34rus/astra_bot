@@ -245,3 +245,30 @@ The previous run `44813460457` generated its swing signal from BingX candles and
 The reproducible price-only control now reports LONG and SHORT separately for each market, pooled, and ex-HYPE. Each direction retains its own event count, gross/fee-adjusted means and date-block confidence intervals; the two sides are never pooled inside a directional view.
 
 A 1.5x taker-fee-only sensitivity is emitted as a lower-bound fee stress (15 bps round trip using the published 5 bps/side base rate). It is **not** a full 1.5x execution-cost stress: spread, slippage, funding, market impact and the owner's actual fee tier remain unavailable. The report remains a price-only benchmark, not a CLT event study or promotion result.
+
+
+## 2026-11-21 corrected Hyperliquid inventory feasibility result
+
+Historical inventory workflow run `44879898930`, code head `c07a8722`, completed successfully. Its artifact covers 2026-10-03 00:00 UTC through 2026-11-09 00:00 UTC, with seven calibration days followed by the test phase. The selected 120-wallet leaderboard sample has SHA-256 fingerprint `83ad8df62510f41373b53eb10cccaee12bba5950b19a053323c3fc0733d467a4`; this is a cohort fingerprint, not a frozen public leaderboard manifest.
+
+The collector returned 199,303 API fill rows and 10,911 TWAP slice rows over 186 API pages. It recovered same-millisecond page-boundary fills for 23 wallets and found zero unresolved page-boundary collisions or ambiguous same-timestamp groups. Position continuity was checked over 60,940 transitions: 13 failures (0.0213%) affected four wallet-market pairs. No fill had missing/invalid position fields and no direction label contradicted the reconstructed position math; one unrecognized direction label caused its wallet-market series to be excluded.
+
+Coverage limits remain material. Seven wallets hit the 10,000-fill API ceiling and 13 hit the 2,000-row TWAP endpoint ceiling; these sets did not overlap, so 20 of 120 selected wallets were conservatively excluded from cohort construction. Eighty selected wallets had fills in at least one core market. The TWAP endpoint still returns a capped recent slice rather than a demonstrated complete historical TWAP interval, so the result cannot claim full TWAP coverage. No raw wallet addresses are written to the artifact.
+
+Market calibration coverage was BTC 14 wallets (9 small / 5 large), ETH 7 (4 / 3), HYPE 10 (6 / 4), SOL 5 (3 / 2, below the six-wallet minimum and therefore not cohort-calibrated), and INJ 0. Only BTC, ETH and HYPE support the minimum cohort size. The sample remains selected from leaderboard monthly-volume deciles, not a representative retail/large-trader census; small/large labels mean relative position-notional size within this sample only.
+
+In the test phase, a candidate inventory sequence was defined narrowly as at least three distinct small-cohort wallets adding net inventory in one direction during the preceding 12 completed 15-minute bars, followed by at least one large-cohort wallet adding net inventory in the opposite direction in the current bar. This produced:
+
+| Market | Large SHORT-add buckets after small LONG crowd | Large LONG-add buckets after small SHORT crowd |
+|---|---:|---:|
+| BTC | 8 of 74 | 3 of 151 |
+| ETH | 0 of 4 | 0 of 36 |
+| HYPE | 0 of 22 | 0 of 51 |
+| SOL | 0 of 10 | 0 of 17 |
+| INJ | 0 of 0 | 0 of 0 |
+
+All 11 qualifying buckets occurred in BTC. They were clustered in time: using a simple grouping rule that starts a new cluster only after a gap greater than 12 bars, the eight small-LONG/large-SHORT buckets form three clusters and the three small-SHORT/large-LONG buckets form two clusters. They are therefore not 11 independent events. The qualifying BTC buckets were 2026-10-14 14:00 and 15:00 UTC; 2026-11-04 17:30 UTC; 2026-11-05 15:30, 15:45, 17:30, 18:30 and 19:15 UTC for small-LONG then large-SHORT, and 2026-11-02 14:30 and 15:15 UTC plus 2026-11-04 23:45 UTC for small-SHORT then large-LONG.
+
+Interpretation: the corrected sample does contain a small number of BTC inventory configurations consistent with the first two legs of the hypothesis. It does not show that large traders were absorbing retail liquidity, that a structural break followed, or that price then moved against the crowd. The evidence is sparse, BTC-concentrated and clustered; ETH/HYPE/SOL do not reproduce the pattern in this sample. This is neither a rejection nor validation of CLT, and it provides no profitability estimate.
+
+The next decisive test is to join these inventory candidate windows to the Hyperliquid source-price series, label a pre-registered structural break and post-break reversal, then compare against matched non-crowd windows and the direction-aware Hyperliquid-signal/BingX-execution price-only baseline. TWAP pagination/coverage and the non-representative wallet sample must be improved or explicitly bounded before any broad market claim. Do not promote or merge the strategy based on this feasibility pilot.
