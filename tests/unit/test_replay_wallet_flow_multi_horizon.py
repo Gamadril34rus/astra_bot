@@ -87,7 +87,7 @@ def test_non_overlapping_rule_keeps_entries_at_least_nine_hours_apart():
 def test_replay_uses_same_candidate_entries_for_all_horizons(tmp_path):
     data_dir = tmp_path / "bingx"
     data_dir.mkdir()
-    bars = _bars(count=24)
+    bars = _bars(count=40)
     funding_times = [
         "2026-10-02T20:00:00Z",
         "2026-10-03T00:00:00Z",
