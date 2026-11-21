@@ -2,12 +2,7 @@ name: CLT historical inventory feasibility
 
 on:
   workflow_dispatch:
-  push:
-    branches: [research/crowd-liquidity-trap]
-    paths:
-      - ".github/workflows/clt-inventory-feasibility.yml"
-      - "scripts/research/clt_inventory_feasibility.py"
-      - "tests/research/test_clt_inventory_feasibility.py"
+
 
 permissions:
   actions: read
