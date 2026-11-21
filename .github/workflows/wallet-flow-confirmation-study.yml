@@ -12,6 +12,8 @@ on:
       - "tests/unit/test_hyperliquid_cohort_direction_audit.py"
       - "scripts/research/build_cohort_taker_sequences.py"
       - "tests/unit/test_build_cohort_taker_sequences.py"
+      - "scripts/research/replay_wallet_flow_multi_horizon.py"
+      - "tests/unit/test_replay_wallet_flow_multi_horizon.py"
       - ".github/workflows/wallet-flow-confirmation-study.yml"
   workflow_dispatch:
 
@@ -43,6 +45,7 @@ jobs:
             tests/unit/test_replay_wallet_flow_on_bingx.py \
             tests/unit/test_hyperliquid_cohort_direction_audit.py \
             tests/unit/test_build_cohort_taker_sequences.py \
+            tests/unit/test_replay_wallet_flow_multi_horizon.py \
             -q --confcutdir=tests/unit
           python -m ruff check \
             scripts/analyze_ironflow_wallet_confirmation.py \
@@ -52,7 +55,9 @@ jobs:
             scripts/research/hyperliquid_cohort_direction_audit.py \
             tests/unit/test_hyperliquid_cohort_direction_audit.py \
             scripts/research/build_cohort_taker_sequences.py \
-            tests/unit/test_build_cohort_taker_sequences.py
+            tests/unit/test_build_cohort_taker_sequences.py \
+            scripts/research/replay_wallet_flow_multi_horizon.py \
+            tests/unit/test_replay_wallet_flow_multi_horizon.py
       - name: Download immutable 37-day wallet-flow archive
         uses: actions/download-artifact@v4
         with:
@@ -79,6 +84,12 @@ jobs:
             --events reports/wallet_flow_confirmation/wallet_flow_confirmation_events.csv \
             --bingx-dir bingx_evidence/data/bingx_usdm \
             --out-dir reports/wallet_flow_bingx
+      - name: Replay the fixed flow signal at 30m to 9h horizons
+        run: |
+          python scripts/research/replay_wallet_flow_multi_horizon.py \
+            --events reports/wallet_flow_confirmation/wallet_flow_confirmation_events.csv \
+            --bingx-dir bingx_evidence/data/bingx_usdm \
+            --out-dir reports/wallet_flow_multi_horizon
       - name: Download frozen wallet cohort manifest
         uses: actions/download-artifact@v4
         with:
@@ -106,6 +117,8 @@ jobs:
             reports/wallet_flow_bingx/wallet_flow_bingx_candidate_events.csv
             reports/wallet_flow_bingx/wallet_flow_bingx_regime_baseline.csv
             reports/wallet_flow_bingx/wallet_flow_bingx_replay_summary.json
+            reports/wallet_flow_multi_horizon/wallet_flow_multi_horizon_events.csv
+            reports/wallet_flow_multi_horizon/wallet_flow_multi_horizon_summary.json
             reports/taker_sequences/cohort_taker_sequences.csv
             reports/taker_sequences/cohort_taker_sequence_summary.json
           if-no-files-found: warn
