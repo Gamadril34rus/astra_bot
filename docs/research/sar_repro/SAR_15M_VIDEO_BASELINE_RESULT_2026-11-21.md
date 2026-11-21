@@ -38,11 +38,11 @@ The earlier portfolio simulator printed about $3.17 terminal equity and -99.948%
 
 | Market | Trades | Mean net bps | Raw PF |
 |---|---:|---:|---:|
-| BTC-USDT | 779 | -28.79 | 0.341 |
-| ETH-USDT | 757 | -25.83 | 0.472 |
-| SOL-USDT | 775 | -28.87 | 0.493 |
+| BTC-USDT | 780 | -28.55 | 0.345 |
+| ETH-USDT | 762 | -26.00 | 0.470 |
+| SOL-USDT | 777 | -28.82 | 0.494 |
 
-Both directions lose: long PF 0.438, short PF 0.445.
+Both directions lose: long mean -28.06 bps / PF 0.437; short mean -27.55 bps / PF 0.447.
 
 ## Cost and edge decomposition
 
@@ -54,7 +54,7 @@ The mean direction-adjusted price-only move before fees and slippage was only **
 
 - Median: **165 minutes** (2h45m).
 - 90th percentile: **330 minutes** (5h30m).
-- **96.67%** of trades lasted between 30 minutes and 9 hours.
+- **96.55%** of trades lasted between 30 minutes and 9 hours.
 - Maximum: 1,095 minutes (18h15m).
 
 The holding-time profile mostly fits the intended intraday window. The failure is expectancy after executable costs, not excessive trade duration.
