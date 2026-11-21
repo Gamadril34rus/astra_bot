@@ -64,10 +64,11 @@ def test_sar_reversal_clamps_new_long_sar_to_current_bar_low():
 
 def test_sar_equal_touch_reverses_instead_of_waiting_for_strict_penetration():
     high = np.array([10.0, 11.0, 12.0, 13.0])
-    low = np.array([9.0, 10.0, 11.0, 9.1584])
+    projected_sar = 9.04 + 0.04 * (12.0 - 9.04)
+    low = np.array([9.0, 10.0, 11.0, projected_sar])
     sar, trend = engine.parabolic_sar_series(high, low)
-    assert sar[2] == pytest.approx(9.1584)
     assert trend[3] == -1
+    assert sar[3] == pytest.approx(13.0)
 
 
 def test_sar_auto_initial_direction_uses_first_two_bar_directional_move():
