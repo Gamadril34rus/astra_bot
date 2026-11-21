@@ -37,6 +37,19 @@ def build_sequences(
     })
     if not addresses:
         raise ValueError("wallet archive manifest contains no cohort addresses")
+    filters = manifest.get("filters")
+    dex_filter = str((filters or {}).get("dex") or "").lower()
+    if (
+        not isinstance(filters, dict)
+        or filters.get("market_class") != "perp"
+        or filters.get("spot_excluded") is not True
+        or filters.get("hip3_excluded") is not True
+        or "empty string" not in dex_filter
+    ):
+        raise ValueError(
+            "wallet archive manifest must confirm native perpetual-only data "
+            "(market_class=perp, spot/hip3 excluded, empty dex)"
+        )
     address_sql = ", ".join("'" + address.replace("'", "''") + "'" for address in addresses)
     market_sql = ", ".join("'" + market + "'" for market in CORE_MARKETS)
 
@@ -45,25 +58,39 @@ def build_sequences(
     csv_path = out_dir / "cohort_taker_sequences.csv"
     con = duckdb.connect()
     con.execute("SET threads=2")
+    trades_sql = trades_path.as_posix().replace("'", "''")
+    schema_rows = con.execute(
+        f"DESCRIBE SELECT * FROM read_parquet('{trades_sql}', union_by_name=true)"
+    ).fetchall()
+    available_columns = {row[0] for row in schema_rows}
+    required_columns = {
+        "timestamp", "market", "wallet", "side", "crossed",
+        "price", "size", "notional", "block", "tid",
+    }
+    missing_columns = sorted(required_columns - available_columns)
+    if missing_columns:
+        raise ValueError(
+            "wallet trade archive missing required cohort-fill columns: "
+            + ", ".join(missing_columns)
+        )
     sql = f"""
         CREATE TEMP TABLE sequences AS
         WITH raw AS (
             SELECT
                 CAST(epoch_ms(timestamp) AS BIGINT) AS ts_ms,
                 market,
-                CASE WHEN lower(taker_side)='buy' THEN buyer ELSE seller END AS address,
-                lower(taker_side) AS side,
+                lower(wallet) AS address,
+                lower(side) AS side,
                 CAST(price AS DOUBLE) AS price,
                 CAST(size AS DOUBLE) AS size,
                 CAST(notional AS DOUBLE) AS notional,
                 block,
                 tid
-            FROM read_parquet('{trades_path.as_posix()}', union_by_name=true)
-            WHERE market_class='perp'
-              AND market IN ({market_sql})
-              AND lower(taker_side) IN ('buy','sell')
-              AND CASE WHEN lower(taker_side)='buy' THEN lower(buyer)
-                       ELSE lower(seller) END IN ({address_sql})
+            FROM read_parquet('{trades_sql}', union_by_name=true)
+            WHERE market IN ({market_sql})
+              AND crossed = TRUE
+              AND lower(side) IN ('buy','sell')
+              AND lower(wallet) IN ({address_sql})
         ),
         ordered AS (
             SELECT *,
@@ -200,6 +227,8 @@ def build_sequences(
         "core_markets": list(CORE_MARKETS),
         "rules": {
             "taker_wallet_only": True,
+            "taker_definition": "crossed=true for the cohort wallet fill",
+            "native_perpetual_manifest_verified": True,
             "same_wallet_market_side_gap_minutes": gap_minutes,
             "minimum_child_fills": min_trades,
             "maximum_sequence_duration_hours": max_duration_hours,
