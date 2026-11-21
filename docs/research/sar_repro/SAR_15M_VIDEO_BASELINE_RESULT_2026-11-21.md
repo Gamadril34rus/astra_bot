@@ -1,7 +1,7 @@
 # SAR video baseline on BingX 15m: final discovery result
 
 **Date:** 2026-11-21  
-**Verdict:** NOT PROFITABLE under the tested execution model  
+**Verdict:** NOT PASSED under standard BingX taker execution  
 **Scope:** research only; no production or Zeus changes
 
 ## Frozen rule
@@ -27,14 +27,14 @@ Raw candles are included in the workflow artifact with SHA-256 checksums. The te
 
 ## Full 100-day replay, before funding
 
-- 2,311 trades across the three markets.
-- Mean net return: **-27.85 bps per trade**.
+- 2,319 trades across the three markets using the corrected canonical PSAR implementation.
+- Mean net return: **-27.81 bps per trade** under the 10 bps/side slippage stress assumption.
 - Median net return: approximately **-46.7 bps**.
-- Win rate: **21.46%**.
-- Raw per-trade profit factor: **0.441**.
-- Portfolio profit factor at 1% risk / 3% max open risk: **0.421**.
+- Win rate: **21.47%**.
+- Raw per-trade profit factor: **0.442**.
+- Portfolio profit factor at 1% risk / 3% max open risk: **0.425**.
 
-The earlier portfolio simulator printed $3.24 terminal equity and -99.947% drawdown for the 1% / 3% profile. **These figures are withdrawn as exchange-realistic performance claims**: the simulator does not model maintenance margin, liquidation/bankruptcy prices or full margin availability, and it does not replay funding cashflows into portfolio equity. See the independent audit note. Do not use those ending balances to forecast live account outcomes.
+The earlier portfolio simulator printed about $3.17 terminal equity and -99.948% drawdown for the 1% / 3% profile. **These figures are withdrawn as exchange-realistic performance claims**: the simulator does not model maintenance margin, liquidation/bankruptcy prices or full margin availability, and it does not replay funding cashflows into portfolio equity. See the independent audit note. Do not use those ending balances to forecast live account outcomes.
 
 | Market | Trades | Mean net bps | Raw PF |
 |---|---:|---:|---:|
@@ -48,7 +48,7 @@ Both directions lose: long PF 0.438, short PF 0.445.
 
 The frozen cost model is 5 bps taker fee per side plus 10 bps slippage per side: 30 bps round trip.
 
-The mean direction-adjusted price-only move before fees and slippage was only **+2.15 bps** per trade (price-only PF 1.093). After slippage, mean gross return was **-17.85 bps**; after taker fees, mean net was **-27.85 bps**. Even with zero slippage, the measured price-only edge is below the 10 bps round-trip taker fee. This is not merely a position-sizing problem.
+The mean direction-adjusted price-only move before fees and slippage was only **+2.19 bps** per trade (price-only PF 1.093). After the 10 bps/side slippage assumption, mean gross return was **-17.81 bps**; after taker fees, mean net was **-27.81 bps**. With the published 5 bps/side base taker fee and zero slippage, the corrected replay still averages **-7.81 bps/trade** (PF 0.776). This is not merely a position-sizing or high-slippage problem.
 
 ## Holding time
 
@@ -63,11 +63,11 @@ The holding-time profile mostly fits the intended intraday window. The failure i
 
 Funding was applied to the subset fully covered by the frozen BingX funding archive (workflow run `42692378936`). The archive ends at 2026-11-09 20:23 UTC, so later trades are excluded from this funding-adjusted subset.
 
-- 2,046 trades were funding-adjusted; 265 later trades were excluded at the archive boundary.
+- 2,052 trades were funding-adjusted; 267 later trades were excluded at the archive boundary.
 - All trades inside the archive-eligible period had complete funding coverage.
 - Mean funding contribution: approximately **-0.024 bps per trade**, effectively negligible.
-- Funding-covered subset without funding: mean **-27.96 bps**, PF **0.417**.
-- Same subset with funding: mean **-27.98 bps**, PF **0.417**; win rate **20.87%**.
+- Funding-covered subset without funding: mean **-27.96 bps**, PF **0.416**.
+- Same subset with funding: mean **-28.02 bps**, PF **0.416**; win rate **20.86%**.
 
 Per-market funding-adjusted PF: BTC 0.312, ETH 0.454, SOL 0.466. Funding does not change the conclusion.
 
@@ -75,7 +75,7 @@ The funding adjustment is trade-level. The original portfolio sizing/equity prof
 
 ## Engine and execution caveat
 
-The engine identifies itself as `v4_mtm_batch_entries_interval_aware` and retains its upstream `re-audit required` status. A separate replay matched all 2,311 archived trades on symbol, side, entry/exit timestamps and exit reason. The current test suite remains narrow; portfolio margin accounting is not fully validated. A fee-only sensitivity is decisive: with the published 0.05% BingX base taker fee per side and **zero slippage**, mean net is still -7.85 bps/trade and PF 0.775. The fixed 10 bps/side slippage is a stress assumption, not measured execution data. See `SAR_15M_INDEPENDENT_AUDIT_2026-11-21.md` for corrections and limits.
+The original replay was superseded after an audit found missing reversal clamps, strict instead of touch-inclusive reversal checks, and fixed-long initialization. The corrected engine now uses TA-Lib-compatible initialization and reversal clamps. A separate replay matched all 2,319 archived trades. The engine identifies itself as `v4_mtm_batch_entries_interval_aware` and retains its upstream `re-audit required` status. A separate replay matched all 2,311 archived trades on symbol, side, entry/exit timestamps and exit reason. The current test suite remains narrow; portfolio margin accounting is not fully validated. A fee-only sensitivity is decisive: with the published 0.05% BingX base taker fee per side and **zero slippage**, mean net is still -7.85 bps/trade and PF 0.775. The fixed 10 bps/side slippage is a stress assumption, not measured execution data. See `SAR_15M_INDEPENDENT_AUDIT_2026-11-21.md` for corrections and limits.
 
 ## Final decision
 
@@ -85,7 +85,7 @@ Do not merge this strategy into master or connect it to Zeus. Any future SAR var
 
 ## Reproducibility
 
-- Workflow run: `44910671263` (success).
-- Code revision: `97bbd7411b0fed2071e8766ebec9bda0a52cfc98`.
-- Artifact: `14709825927`.
+- Corrected workflow run: `44914714370` (success).
+- Code revision: `0cec06fa10cfeaa08da29794a0b63f180926d88d`.
+- Artifact: `14710849082`.
 - Workflow tests, funding-adjustment tests and Ruff passed.
