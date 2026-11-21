@@ -233,6 +233,7 @@ def _summarize_events(
     }
     maker_fee = 2 * MAKER_FEE_BPS_PER_SIDE
     taker_fee = 2 * TAKER_FEE_BPS_PER_SIDE
+    stress_fee = taker_fee * 1.5
     net = {
         "maker_maker": {
             str(horizon): gross[str(horizon)] - maker_fee
@@ -266,12 +267,62 @@ def _summarize_events(
             ("taker_taker", taker_fee),
         )
     }
+    stress_intervals = {
+        str(horizon): {
+            "lower_95_bps": gross_intervals[str(horizon)]["lower_95_bps"] - stress_fee,
+            "upper_95_bps": gross_intervals[str(horizon)]["upper_95_bps"] - stress_fee,
+            "resamples": gross_intervals[str(horizon)]["resamples"],
+        }
+        for horizon in horizons_bars
+    }
+    stress_net = {
+        str(horizon): gross[str(horizon)] - stress_fee
+        for horizon in horizons_bars
+    }
     return {
         "events": len(events),
         "gross_mean_bps": gross,
         "net_mean_bps": net,
         "gross_moving_block_bootstrap_95pct": gross_intervals,
         "net_moving_block_bootstrap_95pct": net_intervals,
+        "fee_only_1_5x_taker_stress": {
+            "round_trip_fee_bps": stress_fee,
+            "net_mean_bps": stress_net,
+            "moving_block_bootstrap_95pct": stress_intervals,
+        },
+    }
+
+
+def _directional_summaries(
+    events: list[dict[str, Any]],
+    *,
+    horizons_bars: tuple[int, ...],
+    start_date: date,
+    end_date: date,
+    block_days: int,
+    resamples: int,
+    seed: int,
+) -> dict[str, dict[str, Any]]:
+    """Keep LONG and SHORT price-control samples and uncertainty separate."""
+    if any(event.get("direction") not in (-1, 1) for event in events):
+        raise ValueError("directional summaries require direction -1 or 1")
+    common = {
+        "horizons_bars": horizons_bars,
+        "start_date": start_date,
+        "end_date": end_date,
+        "block_days": block_days,
+        "resamples": resamples,
+        "seed": seed,
+    }
+    return {
+        "long": _summarize_events(
+            [event for event in events if event["direction"] == 1],
+            **common,
+        ),
+        "short": _summarize_events(
+            [event for event in events if event["direction"] == -1],
+            **common,
+        ),
     }
 
 
@@ -351,6 +402,36 @@ def build_report(
         resamples=resamples,
         seed=seed,
     )
+    directional_by_market = {
+        symbol: _directional_summaries(
+            market_events,
+            horizons_bars=horizons_bars,
+            start_date=first_date,
+            end_date=last_date,
+            block_days=block_days,
+            resamples=resamples,
+            seed=seed,
+        )
+        for symbol, market_events in events_by_market.items()
+    }
+    directional_pooled = _directional_summaries(
+        all_events,
+        horizons_bars=horizons_bars,
+        start_date=first_date,
+        end_date=last_date,
+        block_days=block_days,
+        resamples=resamples,
+        seed=seed,
+    )
+    directional_excluding_hype = _directional_summaries(
+        excluding_hype_events,
+        horizons_bars=horizons_bars,
+        start_date=first_date,
+        end_date=last_date,
+        block_days=block_days,
+        resamples=resamples,
+        seed=seed,
+    )
 
     return {
         "status": "PRICE_ONLY_SWING_BREAK_CONTROL",
@@ -374,6 +455,11 @@ def build_report(
             pooled["net_moving_block_bootstrap_95pct"]
         ),
         "excluding_hype": excluding_hype,
+        "directional_summaries": {
+            "by_market": directional_by_market,
+            "pooled": directional_pooled,
+            "excluding_hype": directional_excluding_hype,
+        },
         "round_trip_fee_assumptions_bps": {
             "maker_maker": 2 * MAKER_FEE_BPS_PER_SIDE,
             "taker_taker": 2 * TAKER_FEE_BPS_PER_SIDE,
@@ -388,6 +474,7 @@ def build_report(
             "Price-only control, not a CLT event study or a strategy promotion result.",
             "Fee scenarios use published BingX base rates, not the owner's confirmed account rates.",
             "Spread, slippage, funding and market impact are excluded.",
+            "The 1.5x taker stress is fee-only and is not a complete execution-cost stress.",
             "All horizons use the same events with complete forward data through the maximum horizon.",
             "Per-market and ex-HYPE intervals are descriptive multiple views of one sample, not independent confirmatory tests.",
         ],
@@ -423,6 +510,7 @@ def main() -> None:
         "pooled_net_mean_bps": report["pooled_net_mean_bps"],
         "pooled_gross_moving_block_bootstrap_95pct": report["pooled_gross_moving_block_bootstrap_95pct"],
         "excluding_hype": report["excluding_hype"],
+        "directional_summaries": report["directional_summaries"],
         "markets": report["markets"],
     }, ensure_ascii=False))
 
