@@ -26,13 +26,20 @@ def _bars(count: int = 80) -> list[dict]:
 
 
 def test_price_only_break_enters_next_open_and_uses_directional_return():
-    rows = _bars()
-    rows[10].update({"high": 101.2, "close": 101.0})
-    rows[11]["open"] = 100.0
-    rows[12]["close"] = 102.0
+    signal_rows = _bars()
+    execution_rows = _bars()
+    signal_rows[10].update({"high": 101.2, "close": 101.0})
+    # The signal candle is deliberately not a breakout on the execution venue.
+    execution_rows[10].update({"high": 100.2, "close": 100.0})
+    # These source-venue prices must not leak into execution returns.
+    signal_rows[11]["open"] = 999.0
+    signal_rows[12]["close"] = 999.0
+    execution_rows[11]["open"] = 100.0
+    execution_rows[12]["close"] = 102.0
 
     events = detect_price_only_events(
-        rows,
+        signal_rows,
+        execution_rows,
         symbol="BTC",
         lookback_bars=8,
         cooldown_bars=36,
@@ -51,6 +58,7 @@ def test_price_only_control_requires_full_maximum_horizon():
     rows[10].update({"high": 101.2, "close": 101.0})
     events = detect_price_only_events(
         rows,
+        rows,
         symbol="BTC",
         lookback_bars=8,
         cooldown_bars=36,
@@ -62,10 +70,10 @@ def test_price_only_control_requires_full_maximum_horizon():
 
 def test_price_only_detector_validates_cooldown_and_horizons():
     with pytest.raises(ValueError, match="cooldown"):
-        detect_price_only_events(_bars(), symbol="BTC", cooldown_bars=-1)
+        detect_price_only_events(_bars(), _bars(), symbol="BTC", cooldown_bars=-1)
     with pytest.raises(ValueError, match="strictly increasing"):
         detect_price_only_events(
-            _bars(), symbol="BTC", horizons_bars=(2, 2)
+            _bars(), _bars(), symbol="BTC", horizons_bars=(2, 2)
         )
 
 
@@ -139,3 +147,19 @@ def test_event_summaries_separate_each_market_and_exclude_hype():
     assert without_hype["net_moving_block_bootstrap_95pct"]["maker_maker"]["2"]["lower_95_bps"] == pytest.approx(
         without_hype["gross_moving_block_bootstrap_95pct"]["2"]["lower_95_bps"] - 4.0
     )
+
+
+
+def test_price_only_control_requires_timestamp_aligned_venues():
+    signal_rows = _bars()
+    execution_rows = _bars()
+    execution_rows[10]["open_time"] += 1
+    with pytest.raises(ValueError, match="timestamps do not align"):
+        detect_price_only_events(
+            signal_rows,
+            execution_rows,
+            symbol="BTC",
+            lookback_bars=8,
+            cooldown_bars=36,
+            horizons_bars=(2,),
+        )

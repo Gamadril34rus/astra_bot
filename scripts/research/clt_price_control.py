@@ -64,42 +64,50 @@ def load_candles(path: Path) -> list[dict[str, float | int]]:
 
 
 def detect_price_only_events(
-    rows: list[dict[str, float | int]],
+    signal_rows: list[dict[str, float | int]],
+    execution_rows: list[dict[str, float | int]],
     *,
     symbol: str,
     lookback_bars: int = DEFAULT_LOOKBACK,
     cooldown_bars: int = DEFAULT_COOLDOWN,
     horizons_bars: tuple[int, ...] = DEFAULT_HORIZONS,
 ) -> list[dict[str, Any]]:
-    """Break prior swing high/low, enter next open, and retain full max horizon."""
+    """Signal on source-venue swings; execute and mark returns on target-venue candles."""
     if lookback_bars < 2 or cooldown_bars < 0:
         raise ValueError("lookback must be >= 2 and cooldown must be >= 0")
     if not horizons_bars or any(value < 1 for value in horizons_bars):
         raise ValueError("horizons must contain positive bar counts")
     if tuple(sorted(set(horizons_bars))) != horizons_bars:
         raise ValueError("horizons must be strictly increasing and unique")
+    if len(signal_rows) != len(execution_rows):
+        raise ValueError("signal and execution candle counts do not match")
+    signal_times = [int(row["open_time"]) for row in signal_rows]
+    execution_times = [int(row["open_time"]) for row in execution_rows]
+    if signal_times != execution_times:
+        raise ValueError("signal and execution candle timestamps do not align")
+
     max_horizon = max(horizons_bars)
     events: list[dict[str, Any]] = []
     last_signal_index = -cooldown_bars - 1
 
-    for index in range(lookback_bars, len(rows) - max_horizon):
+    for index in range(lookback_bars, len(signal_rows) - max_horizon):
         if index - last_signal_index <= cooldown_bars:
             continue
-        prior = rows[index - lookback_bars:index]
+        prior = signal_rows[index - lookback_bars:index]
         prior_low = min(float(row["low"]) for row in prior)
         prior_high = max(float(row["high"]) for row in prior)
-        close = float(rows[index]["close"])
+        close = float(signal_rows[index]["close"])
         direction = -1 if close < prior_low else 1 if close > prior_high else 0
         if direction == 0:
             continue
 
-        entry_price = float(rows[index + 1]["open"])
+        entry_price = float(execution_rows[index + 1]["open"])
         if not math.isfinite(entry_price) or entry_price <= 0:
             raise ValueError("entry price must be finite and positive")
-        signal_ts = int(rows[index]["open_time"])
+        signal_ts = int(signal_rows[index]["open_time"])
         returns = {
             f"gross_bps_{horizon}": direction
-            * (float(rows[index + horizon]["close"]) / entry_price - 1.0)
+            * (float(execution_rows[index + horizon]["close"]) / entry_price - 1.0)
             * 10_000
             for horizon in horizons_bars
         }
@@ -111,7 +119,7 @@ def detect_price_only_events(
             "signal_ts_ms": signal_ts,
             "signal_date_utc": signal_date,
             "direction": direction,
-            "entry_ts_ms": int(rows[index + 1]["open_time"]),
+            "entry_ts_ms": int(execution_rows[index + 1]["open_time"]),
             "entry_price": entry_price,
             **returns,
         })
@@ -282,13 +290,15 @@ def build_report(
     last_date: date | None = None
 
     for symbol in symbols:
-        rows = load_candles(data_dir / f"{symbol}_USDT_15m.csv")
-        first = datetime.fromtimestamp(int(rows[0]["open_time"]) / 1000, UTC).date()
-        last = datetime.fromtimestamp(int(rows[-1]["open_time"]) / 1000, UTC).date()
+        signal_rows = load_candles(data_dir / f"{symbol}_HL_15m.csv")
+        execution_rows = load_candles(data_dir / f"{symbol}_USDT_15m.csv")
+        first = datetime.fromtimestamp(int(signal_rows[0]["open_time"]) / 1000, UTC).date()
+        last = datetime.fromtimestamp(int(signal_rows[-1]["open_time"]) / 1000, UTC).date()
         first_date = first if first_date is None else min(first_date, first)
         last_date = last if last_date is None else max(last_date, last)
         events = detect_price_only_events(
-            rows,
+            signal_rows,
+            execution_rows,
             symbol=symbol,
             lookback_bars=lookback_bars,
             cooldown_bars=cooldown_bars,
@@ -338,7 +348,8 @@ def build_report(
         "status": "PRICE_ONLY_SWING_BREAK_CONTROL",
         "window_start_utc": first_date.isoformat(),
         "window_end_utc_inclusive": last_date.isoformat(),
-        "signal_source": "BingX USDT-M 15m OHLC",
+        "signal_source": "Hyperliquid perpetual 15m OHLC",
+        "execution_source": "BingX USDT-M perpetual 15m OHLC",
         "lookback_bars": lookback_bars,
         "cooldown_bars": cooldown_bars,
         "entry": "next 15m candle open",
