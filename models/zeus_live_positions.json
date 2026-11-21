@@ -1,57 +1,5 @@
 {
   "positions": {
-    "HYPE-USDT|short": {
-      "symbol": "HYPE-USDT",
-      "side": "short",
-      "qty": "112.2363",
-      "stop": "59.9879520",
-      "tp": "56.098312053188780",
-      "entry": "60.048",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|HYPE-USDT|short|1795176000000",
-      "ts": 1795231944.841927,
-      "be_moved": true,
-      "initial_stop": "67.3278871760204",
-      "opened_at_ms": 1795202266321,
-      "tp_parity_v1": true,
-      "be_earned": true,
-      "tp_frac": "0.3",
-      "peak_high": "61.745",
-      "peak_low": "56.586",
-      "current_regime": "WEAK_BEAR_TREND",
-      "tp1": "56.098312053188780",
-      "initial_stop_v1": true,
-      "early_tp1": true,
-      "early_tp_repair_v1": true
-    },
-    "BTC-USDT|short": {
-      "symbol": "BTC-USDT",
-      "side": "short",
-      "qty": 0.1587,
-      "stop": "58453.48800",
-      "tp": "53002.286309119875",
-      "entry": "58512.0",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_channel_boundary|BTC-USDT|short|1795190400000",
-      "ts": 1795231946.1463475,
-      "be_moved": true,
-      "initial_stop": "62185.14246058675",
-      "opened_at_ms": 1795204973742,
-      "tp_parity_v1": true,
-      "be_earned": true,
-      "tp_frac": "0.3",
-      "peak_low": "56347.0",
-      "current_regime": "STRONG_BEAR_TREND",
-      "tp1": "56996.9808927359625",
-      "initial_stop_v1": true,
-      "early_tp1": true,
-      "early_tp_repair_v1": true,
-      "runner_tp_rr": 1.5,
-      "runner_tp_healed_v1": true,
-      "peak_high": "59213.3"
-    },
     "SOL-USDT|short": {
       "symbol": "SOL-USDT",
       "side": "short",
@@ -69,7 +17,7 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "tp_frac": "0.3",
-      "peak_low": "65.826",
+      "peak_low": "65.787",
       "current_regime": "STRONG_BEAR_TREND",
       "tp1": "66.008272845153090",
       "initial_stop_v1": true,
@@ -80,5 +28,5 @@
       "peak_high": "69.184"
     }
   },
-  "ts": 1795233773.199114
+  "ts": 1795234025.1495006
 }
