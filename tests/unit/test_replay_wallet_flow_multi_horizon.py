@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-
 from scripts.research.replay_wallet_flow_multi_horizon import (
     BAR,
     closed_context,
