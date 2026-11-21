@@ -272,3 +272,31 @@ All 11 qualifying buckets occurred in BTC. They were clustered in time: using a 
 Interpretation: the corrected sample does contain a small number of BTC inventory configurations consistent with the first two legs of the hypothesis. It does not show that large traders were absorbing retail liquidity, that a structural break followed, or that price then moved against the crowd. The evidence is sparse, BTC-concentrated and clustered; ETH/HYPE/SOL do not reproduce the pattern in this sample. This is neither a rejection nor validation of CLT, and it provides no profitability estimate.
 
 The next decisive test is to join these inventory candidate windows to the Hyperliquid source-price series, label a pre-registered structural break and post-break reversal, then compare against matched non-crowd windows and the direction-aware Hyperliquid-signal/BingX-execution price-only baseline. TWAP pagination/coverage and the non-representative wallet sample must be improved or explicitly bounded before any broad market claim. Do not promote or merge the strategy based on this feasibility pilot.
+
+## 2026-11-21 first complete source-price join: no valid CLT entries
+
+The research branch added a read-only Hyperliquid 15m candle collector and fetched the same 2026-10-03 00:00 UTC to 2026-11-09 00:00 UTC window as the inventory and BingX archives. Workflow run `44888633685`, artifact `14701236791`, returned 3,552 candles for each of BTC, ETH, SOL, HYPE and INJ. Every series has exact 15-minute continuity, from 2026-10-03 00:00 UTC through 2026-11-08 23:45 UTC, with zero missing or duplicate intervals. Hyperliquid source candles and BingX execution candles align on the same 3,552 timestamps for BTC; the collector artifact passed its isolated tests and lint, and the repository quality-gates run on this revision passed.
+
+The pre-existing inventory feasibility candidates were then joined to Hyperliquid source candles. A structure break was defined without tuning: within the next 12 completed 15m bars after the large opposite addition, a close must breach the prior eight completed Hyperliquid candles' low (after small-cohort LONG) or high (after small-cohort SHORT). The signal is observable only at that candle close; any hypothetical execution price is the next BingX 15m open. Continuation is checked strictly after the large-add bar, using net small-cohort inventory additions and distinct small-cohort wallets over those later bars. The required minimum remains three distinct small-cohort adders; it is not relaxed after seeing the result.
+
+| Large opposite-add time (UTC) | Setup | Large net add (USD) | Break within 12 bars? | Distinct continued small adders |
+|---|---|---:|---|---:|
+| 2026-10-14 14:00 | Crowd LONG / large SHORT | 428,132 | Yes, 14:45 | 0 |
+| 2026-10-14 15:00 | Crowd LONG / large SHORT | 30,145 | Yes, 16:00 | 0 |
+| 2026-11-02 14:30 | Crowd SHORT / large LONG | 1,548 | No | — |
+| 2026-11-02 15:15 | Crowd SHORT / large LONG | 554,688 | No | — |
+| 2026-11-04 17:30 | Crowd LONG / large SHORT | 681,192 | Yes, 20:00 | 1 |
+| 2026-11-04 23:45 | Crowd SHORT / large LONG | 3,752 | No | — |
+| 2026-11-05 15:30 | Crowd LONG / large SHORT | 2,969 | Yes, 16:00 | 0 |
+| 2026-11-05 15:45 | Crowd LONG / large SHORT | 1,809 | No | — |
+| 2026-11-05 17:30 | Crowd LONG / large SHORT | 196,511 | No | — |
+| 2026-11-05 18:30 | Crowd LONG / large SHORT | 237,610 | No | — |
+| 2026-11-05 19:15 | Crowd LONG / large SHORT | 262,616 | No | — |
+
+Result: 4 of 11 first-two-leg inventory candidates had the defined price break, but **0 of 11 completed the required post-large continuation by at least three distinct small-cohort wallets**. One of the four break cases had only one continued adder and net small-cohort inventory change of approximately -$15, i.e. not continued net accumulation. The other break cases had zero qualifying continued adders. Therefore the full causal CLT event model emits zero valid entries in this test archive, before any fee, spread, slippage or funding calculation.
+
+For transparency only, the four incomplete break cases were marked to BingX next-open execution prices. Their gross direction-adjusted means were -31.47, -17.11, -23.63, -30.26 and -22.34 bps at 30m, 1h, 2h, 4h and 9h. These are **not CLT trades**: all four fail the mandatory continuation condition, two occur in the same Oct 14 cluster, and no inferential confidence interval or profit-factor estimate is justified. They must not be used as a substitute event sample.
+
+### Verdict
+
+The current strict CLT formulation is **not demonstrated profitable and is not operationally viable on this sample**: it produces zero eligible trades. This is not proof that the underlying market hypothesis can never work, and it is not a statistically valid loss verdict because there are no valid entries. It is a clear rejection of the claim that the available 2026-10-03 to 2026-11-08 sample already supports this exact sequence. Do not relax the three-wallet continuation gate, retune thresholds on this test period, or promote the strategy to Zeus. A future attempt requires a prospectively frozen cohort and a longer untouched sample; only then can PF, expectancy, drawdown and fully costed returns be evaluated.
