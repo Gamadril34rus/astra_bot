@@ -5,7 +5,6 @@ from datetime import UTC, datetime, timedelta
 
 import scripts.research.clt_inventory_feasibility as inventory
 from scripts.research.clt_inventory_feasibility import (
-    wallet_sample_fingerprint,
     MAX_FILLS_PER_ADDRESS,
     count_net_add_wallets,
     order_timestamp_group,
@@ -15,6 +14,7 @@ from scripts.research.clt_inventory_feasibility import (
     select_wallets,
     split_fill_inventory,
     split_market_cohorts,
+    wallet_sample_fingerprint,
 )
 
 
