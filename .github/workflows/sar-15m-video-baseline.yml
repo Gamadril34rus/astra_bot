@@ -1,6 +1,12 @@
 name: SAR 15m video baseline research
 
 on:
+  pull_request:
+    branches: [master]
+    paths:
+      - "docs/research/sar_repro/sar_backtest_engine.py"
+      - "docs/research/sar_repro/test_sar_backtest_engine.py"
+      - ".github/workflows/sar-15m-video-baseline.yml"
   push:
     branches:
       - research/sar-15m-video-reproduction-current
