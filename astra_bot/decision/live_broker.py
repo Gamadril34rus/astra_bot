@@ -880,7 +880,11 @@ class LiveBroker:
         import time as _time
         from pathlib import Path as _Path
 
-        from astra_bot.decision.live_income_report import match_position_history
+        from astra_bot.decision.live_income_report import (
+            load_entry_events,
+            match_position_history,
+            select_entry_event,
+        )
         from astra_bot.decision.live_positions import load_positions, remove_plan
         from astra_bot.decision.live_tg_flags import try_claim
         from astra_bot.decision.zeus_heat import DEFAULT_HEAT_PATH, ZeusHeatGovernor
@@ -911,22 +915,38 @@ class LiveBroker:
         pending_cleanup: list[str] = []
         cancelled = 0
         now = _time.time()
+        entry_events_by_key = load_entry_events()
         position_history_cache: dict[str, list[dict[str, Any]]] = {}
         position_history_start_by_symbol: dict[str, int] = {}
         for history_plan in plans.values():
             history_symbol = str(history_plan.get("symbol") or "")
-            try:
-                history_opened = history_plan.get("opened_at_ms")
-                if history_opened is not None:
-                    history_open_ms = int(float(history_opened))
-                else:
-                    history_ts = float(history_plan.get("ts") or 0)
-                    if history_ts > 1e12:
-                        history_ts /= 1000.0
-                    history_open_ms = int(history_ts * 1000) if history_ts > 0 else 0
-            except (TypeError, ValueError, OverflowError):
-                history_open_ms = 0
-            if history_symbol and history_open_ms > 0:
+            history_signal_id = str(history_plan.get("signal_id") or "")
+            history_entry_events = entry_events_by_key.get(
+                (history_symbol, history_signal_id), []
+            )
+            history_entry_event = select_entry_event(
+                history_entry_events,
+                entry=history_plan.get("entry"),
+                qty=history_plan.get("qty"),
+            )
+            if len(history_entry_events) > 1 and history_entry_event is None:
+                continue
+            history_open_ms = (
+                int(history_entry_event["open_ms"]) if history_entry_event else None
+            )
+            if history_open_ms is None:
+                try:
+                    history_opened = history_plan.get("opened_at_ms")
+                    if history_opened is not None:
+                        history_open_ms = int(float(history_opened))
+                    else:
+                        history_ts = float(history_plan.get("ts") or 0)
+                        if history_ts > 1e12:
+                            history_ts /= 1000.0
+                        history_open_ms = int(history_ts * 1000) if history_ts > 0 else 0
+                except (TypeError, ValueError, OverflowError):
+                    history_open_ms = 0
+            if history_symbol and history_open_ms and history_open_ms > 0:
                 history_start = max(0, history_open_ms - 60_000)
                 position_history_start_by_symbol[history_symbol] = min(
                     history_start,
@@ -1023,6 +1043,23 @@ class LiveBroker:
                         start_ms = int((ts - 60) * 1000)
             except (TypeError, ValueError, OverflowError):
                 start_ms = None
+
+            plan_entry_events = entry_events_by_key.get(
+                (sym, str(plan.get("signal_id") or "")), []
+            )
+            entry_event = select_entry_event(
+                plan_entry_events,
+                entry=plan.get("entry"),
+                qty=plan.get("qty"),
+            )
+            entry_event_ambiguous = len(plan_entry_events) > 1 and entry_event is None
+            entry_open_ms = (
+                int(entry_event["open_ms"]) if entry_event else None
+            )
+            if entry_open_ms is not None:
+                # The immutable entry event wins over legacy plan timestamps that
+                # may have been populated later by a reconciliation upsert.
+                start_ms = max(0, int(entry_open_ms) - 60_000)
 
             fills: list = []
             try:
@@ -1157,7 +1194,17 @@ class LiveBroker:
             # Position History is a position-level fallback when fill and income
             # endpoints cannot identify the closed hedge leg. Match only one exact
             # symbol/side/open-time record; ambiguous history stays pending.
-            if pnl is None and start_ms is not None and hasattr(self.client, "get_position_history"):
+            if pnl is None and entry_event_ambiguous:
+                logger.warning(
+                    "sync_closed position_history %s: reused signal_id has ambiguous entry ledger; retain pending",
+                    sym,
+                )
+            if (
+                pnl is None
+                and not entry_event_ambiguous
+                and start_ms is not None
+                and hasattr(self.client, "get_position_history")
+            ):
                 try:
                     if sym not in position_history_cache:
                         history_start = position_history_start_by_symbol.get(sym, start_ms)
@@ -1172,7 +1219,11 @@ class LiveBroker:
                         position_history_cache[sym],
                         symbol=sym,
                         side=side,
-                        target_open_ms=int(start_ms) + 60_000,
+                        target_open_ms=(
+                            int(entry_open_ms)
+                            if entry_open_ms is not None
+                            else int(start_ms) + 60_000
+                        ),
                     )
                     if history_match is not None:
                         pnl = float(history_match["pnl"])

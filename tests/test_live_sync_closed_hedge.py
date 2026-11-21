@@ -344,6 +344,7 @@ async def test_sync_closed_plans_uses_position_history_when_fills_and_income_are
     monkeypatch.chdir(tmp_path)
     positions_path = tmp_path / "models" / "zeus_live_positions.json"
     opened_at_ms = 1_700_000_000_000
+    stale_plan_opened_at_ms = opened_at_ms + 3 * 60 * 60 * 1000
     save_positions(
         {
             plan_key("BTC-USDT", "long"): {
@@ -356,8 +357,8 @@ async def test_sync_closed_plans_uses_position_history_when_fills_and_income_are
                 "leverage": 3,
                 "pending_verify": False,
                 "signal_id": "btc-long",
-                "ts": opened_at_ms / 1000.0,
-                "opened_at_ms": opened_at_ms,
+                "ts": stale_plan_opened_at_ms / 1000.0,
+                "opened_at_ms": stale_plan_opened_at_ms,
                 "initial_stop": 98.0,
             }
         },
@@ -375,6 +376,23 @@ async def test_sync_closed_plans_uses_position_history_when_fills_and_income_are
         "totalFunding": "-0.1",
         "positionId": "position-1",
     }
+    trades_path = tmp_path / "models" / "zeus_live_trades.jsonl"
+    trades_path.write_text(
+        json.dumps(
+            {
+                "event": "entry",
+                "symbol": "BTC-USDT",
+                "side": "long",
+                "signal_id": "btc-long",
+                "ts": opened_at_ms / 1000.0,
+                "entry": 100.0,
+                "qty": 1.0,
+                "leverage": 3,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     client = SimpleNamespace(
         get_positions=AsyncMock(return_value=[]),
         get_open_orders=AsyncMock(return_value=[]),
@@ -416,6 +434,7 @@ async def test_sync_closed_plans_uses_position_history_when_fills_and_income_are
     assert result["pending_fill"] == []
     assert get_plan("BTC-USDT", positions_path, side="long") is None
     assert client.get_position_history.await_count == 1
+    assert client.get_position_history.await_args.kwargs["start_ms"] == opened_at_ms - 60_000
     assert len(cards) == 1
     assert cards[0]["exit_price"] == 99.5
     assert cards[0]["pnl"] == -2.1
