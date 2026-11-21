@@ -172,7 +172,7 @@ def _stats(frame: pd.DataFrame) -> dict[str, Any]:
     if frame.empty:
         return {"events": 0, "mean_net_base_pct": None}
     return {
-        "events": int(len(frame)),
+        "events": len(frame),
         "mean_gross_pct": float(frame["gross_short_return_pct"].mean()),
         "mean_funding_pct": float(frame["funding_return_pct"].mean()),
         "mean_net_base_pct": float(frame["net_base_pct"].mean()),
@@ -319,8 +319,8 @@ def replay(
             baseline_rows, bars, funding, cadence, symbol
         ))
         market_meta[market] = {
-            "bars": int(len(bars)),
-            "funding_events": int(len(funding)),
+            "bars": len(bars),
+            "funding_events": len(funding),
             "funding_cadence_hours": cadence,
             "candidate_entries": len(candidate_rows),
             "baseline_entries": len(baseline_rows),
