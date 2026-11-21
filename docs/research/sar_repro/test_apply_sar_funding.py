@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 
 import pandas as pd
-
 from docs.research.sar_repro.apply_sar_funding import apply_funding
 
 
