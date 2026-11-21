@@ -25,8 +25,8 @@ def _metrics(values: pd.Series) -> dict[str, Any]:
     losses = float(-clean.loc[clean < 0].sum())
     return {
         "trades": len(clean),
-        "mean_net_bps": float(clean.mean() * 100.0),
-        "median_net_bps": float(clean.median() * 100.0),
+        "mean_net_bps": float(clean.mean() * 10_000.0),
+        "median_net_bps": float(clean.median() * 10_000.0),
         "win_rate_pct": float((clean > 0).mean() * 100.0),
         "profit_factor": wins / losses if losses > 0 else None,
     }
@@ -99,7 +99,7 @@ def apply_funding(
                 continue
             rate_sum = float(inside["rate"].sum())
             sign = -1.0 if str(trade["side"]).lower() == "long" else 1.0
-            funding_pct = sign * rate_sum * 100.0
+            funding_pct = sign * rate_sum
             trades.at[idx, "funding_pnl_pct"] = funding_pct
             trades.at[idx, "funding_events"] = len(inside)
             trades.at[idx, "funding_covered"] = True
@@ -129,7 +129,7 @@ def apply_funding(
             "without_funding": _metrics(group["net_pnl_pct"]),
             "with_funding": _metrics(group["net_with_funding_pct"]),
             "mean_funding_bps": (
-                float(group["funding_pnl_pct"].mean() * 100.0)
+                float(group["funding_pnl_pct"].mean() * 10_000.0)
                 if not group.empty else None
             ),
         }
