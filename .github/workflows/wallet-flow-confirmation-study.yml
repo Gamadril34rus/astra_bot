@@ -1,0 +1,125 @@
+name: Hyperliquid wallet flow confirmation study
+
+on:
+  push:
+    branches: [research/wallet-flow-confirmation]
+    paths:
+      - "scripts/analyze_ironflow_wallet_confirmation.py"
+      - "tests/unit/test_analyze_ironflow_wallet_confirmation.py"
+      - "scripts/replay_wallet_flow_on_bingx.py"
+      - "tests/unit/test_replay_wallet_flow_on_bingx.py"
+      - "scripts/research/hyperliquid_cohort_direction_audit.py"
+      - "tests/unit/test_hyperliquid_cohort_direction_audit.py"
+      - "scripts/research/build_cohort_taker_sequences.py"
+      - "tests/unit/test_build_cohort_taker_sequences.py"
+      - "scripts/research/replay_wallet_flow_multi_horizon.py"
+      - "tests/unit/test_replay_wallet_flow_multi_horizon.py"
+      - ".github/workflows/wallet-flow-confirmation-study.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: wallet-flow-confirmation-study
+  cancel-in-progress: true
+
+jobs:
+  study:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.12"
+      - name: Install isolated research dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install duckdb pyarrow pandas pytest ruff
+      - name: Run unit tests and lint
+        run: |
+          python -m pytest \
+            tests/unit/test_analyze_ironflow_wallet_flow.py \
+            tests/unit/test_replay_wallet_flow_on_bingx.py \
+            tests/unit/test_hyperliquid_cohort_direction_audit.py \
+            tests/unit/test_build_cohort_taker_sequences.py \
+            tests/unit/test_replay_wallet_flow_multi_horizon.py \
+            -q --confcutdir=tests/unit
+          python -m ruff check \
+            scripts/analyze_ironflow_wallet_confirmation.py \
+            tests/unit/test_analyze_ironflow_wallet_flow.py \
+            scripts/replay_wallet_flow_on_bingx.py \
+            tests/unit/test_replay_wallet_flow_on_bingx.py \
+            scripts/research/hyperliquid_cohort_direction_audit.py \
+            tests/unit/test_hyperliquid_cohort_direction_audit.py \
+            scripts/research/build_cohort_taker_sequences.py \
+            tests/unit/test_build_cohort_taker_sequences.py \
+            scripts/research/replay_wallet_flow_multi_horizon.py \
+            tests/unit/test_replay_wallet_flow_multi_horizon.py
+      - name: Download immutable 37-day wallet-flow archive
+        uses: actions/download-artifact@v4
+        with:
+          name: hyperliquid-wallet-archive-research
+          run-id: 43250750091
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: evidence
+      - name: Download frozen BingX OHLC and funding archive
+        uses: actions/download-artifact@v4
+        with:
+          name: adaptive-bingx-perpetual-research
+          run-id: 42692378936
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: bingx_evidence
+      - name: Run market-level aggressive-flow and consensus study
+        run: |
+          python scripts/analyze_ironflow_wallet_confirmation.py \
+            --cohort-flow evidence/hyperliquid_wallet_flow/cohort_flow_15m.parquet \
+            --market-bars evidence/hyperliquid_wallet_archive/market_15m.parquet \
+            --out-dir reports/wallet_flow_confirmation
+      - name: Replay wallet-flow events on BingX OHLC and funding
+        run: |
+          python scripts/replay_wallet_flow_on_bingx.py \
+            --events reports/wallet_flow_confirmation/wallet_flow_confirmation_events.csv \
+            --bingx-dir bingx_evidence/data/bingx_usdm \
+            --out-dir reports/wallet_flow_bingx
+      - name: Replay the fixed flow signal at 30m to 9h horizons
+        run: |
+          python scripts/research/replay_wallet_flow_multi_horizon.py \
+            --events reports/wallet_flow_confirmation/wallet_flow_confirmation_events.csv \
+            --bingx-dir bingx_evidence/data/bingx_usdm \
+            --out-dir reports/wallet_flow_multi_horizon
+      - name: Download frozen wallet cohort manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: hyperliquid-wallet-archive-summary
+          run-id: 43250750091
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: manifest_evidence
+      - name: Build causal cohort taker execution sequences
+        run: |
+          python scripts/research/build_cohort_taker_sequences.py \
+            --trades evidence/hyperliquid_wallet_archive/wallet_trades.parquet \
+            --manifest manifest_evidence/hyperliquid_wallet_archive/wallet_archive_manifest.json \
+            --out-dir reports/taker_sequences
+      - name: Upload compact confirmation results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallet-flow-confirmation-${{ github.sha }}
+          path: |
+            reports/wallet_flow_confirmation/wallet_flow_confirmation_study.csv
+            reports/wallet_flow_confirmation/wallet_flow_confirmation_sides.csv
+            reports/wallet_flow_confirmation/wallet_flow_confirmation_events.csv
+            reports/wallet_flow_confirmation/wallet_flow_confirmation_summary.json
+            reports/wallet_flow_bingx/wallet_flow_bingx_all_events.csv
+            reports/wallet_flow_bingx/wallet_flow_bingx_candidate_events.csv
+            reports/wallet_flow_bingx/wallet_flow_bingx_regime_baseline.csv
+            reports/wallet_flow_bingx/wallet_flow_bingx_replay_summary.json
+            reports/wallet_flow_multi_horizon/wallet_flow_multi_horizon_events.csv
+            reports/wallet_flow_multi_horizon/wallet_flow_multi_horizon_summary.json
+            reports/taker_sequences/cohort_taker_sequences.csv
+            reports/taker_sequences/cohort_taker_sequence_summary.json
+          if-no-files-found: warn
+          retention-days: 90
