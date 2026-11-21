@@ -7,7 +7,7 @@
       "stop": "59.9879520",
       "tp": "56.098312053188780",
       "entry": "60.048",
-      "leverage": 5,
+      "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|HYPE-USDT|short|1795176000000",
       "ts": 1795231944.841927,
@@ -18,18 +18,21 @@
       "be_earned": true,
       "tp_frac": "0.3",
       "peak_high": "61.745",
-      "peak_low": "57.63",
+      "peak_low": "57.469",
       "current_regime": "WEAK_BEAR_TREND",
-      "tp1": "56.098312053188780"
+      "tp1": "56.098312053188780",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     },
     "BTC-USDT|short": {
       "symbol": "BTC-USDT",
       "side": "short",
-      "qty": "0.2268",
+      "qty": 0.1587,
       "stop": "58453.48800",
-      "tp": "56996.9808927359625",
+      "tp": "53002.286309119875",
       "entry": "58512.0",
-      "leverage": 5,
+      "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|BTC-USDT|short|1795190400000",
       "ts": 1795231946.1463475,
@@ -39,18 +42,23 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "tp_frac": "0.3",
-      "peak_low": "57231.9",
+      "peak_low": "57216.5",
       "current_regime": "STRONG_BEAR_TREND",
-      "tp1": "56996.9808927359625"
+      "tp1": "56996.9808927359625",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true,
+      "runner_tp_rr": 1.5,
+      "runner_tp_healed_v1": true
     },
     "SOL-USDT|short": {
       "symbol": "SOL-USDT",
       "side": "short",
-      "qty": "171.88",
+      "qty": 120.31,
       "stop": "68.0139180",
-      "tp": "66.008272845153090",
+      "tp": "60.92307615051030",
       "entry": "68.082",
-      "leverage": 5,
+      "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|SOL-USDT|short|1795190400000",
       "ts": 1795231947.4524825,
@@ -62,8 +70,13 @@
       "tp_frac": "0.3",
       "peak_low": "66.352",
       "current_regime": "STRONG_BEAR_TREND",
-      "tp1": "66.008272845153090"
+      "tp1": "66.008272845153090",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true,
+      "runner_tp_rr": 1.5,
+      "runner_tp_healed_v1": true
     }
   },
-  "ts": 1795231975.8375351
+  "ts": 1795232223.844981
 }
