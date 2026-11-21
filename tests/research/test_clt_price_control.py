@@ -6,6 +6,7 @@ import pytest
 from scripts.research.clt_price_control import (
     _percentile,
     _summarize_events,
+    _directional_summaries,
     detect_price_only_events,
     moving_block_confidence_intervals,
 )
@@ -191,3 +192,44 @@ def test_signal_timestamp_is_the_closed_bar_time_across_utc_midnight():
     assert events[0]["signal_ts_ms"] == expected_signal_close
     assert events[0]["entry_ts_ms"] == expected_signal_close
     assert events[0]["signal_date_utc"] == "2026-10-04"
+
+
+def test_directional_summaries_keep_long_short_and_1_5x_fee_stress_separate():
+    events = []
+    for day in range(10):
+        signal_date = (date(2026, 10, 1).fromordinal(
+            date(2026, 10, 1).toordinal() + day
+        )).isoformat()
+        events.append({
+            "direction": 1,
+            "signal_date_utc": signal_date,
+            "gross_bps_2": float(10 + day),
+        })
+        events.append({
+            "direction": -1,
+            "signal_date_utc": signal_date,
+            "gross_bps_2": float(-5 + day),
+        })
+
+    result = _directional_summaries(
+        events,
+        horizons_bars=(2,),
+        start_date=date(2026, 10, 1),
+        end_date=date(2026, 10, 10),
+        block_days=3,
+        resamples=500,
+        seed=1234,
+    )
+
+    assert result["long"]["events"] == 10
+    assert result["long"]["gross_mean_bps"]["2"] == pytest.approx(14.5)
+    assert result["long"]["net_mean_bps"]["taker_taker"]["2"] == pytest.approx(4.5)
+    assert result["long"]["fee_only_1_5x_taker_stress"]["round_trip_fee_bps"] == pytest.approx(15.0)
+    assert result["long"]["fee_only_1_5x_taker_stress"]["net_mean_bps"]["2"] == pytest.approx(-0.5)
+    assert result["short"]["events"] == 10
+    assert result["short"]["gross_mean_bps"]["2"] == pytest.approx(-0.5)
+    assert result["short"]["fee_only_1_5x_taker_stress"]["net_mean_bps"]["2"] == pytest.approx(-15.5)
+    stress_ci = result["short"]["fee_only_1_5x_taker_stress"]["moving_block_bootstrap_95pct"]["2"]
+    gross_ci = result["short"]["gross_moving_block_bootstrap_95pct"]["2"]
+    assert stress_ci["lower_95_bps"] == pytest.approx(gross_ci["lower_95_bps"] - 15.0)
+    assert stress_ci["upper_95_bps"] == pytest.approx(gross_ci["upper_95_bps"] - 15.0)
