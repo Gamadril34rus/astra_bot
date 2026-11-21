@@ -212,3 +212,6 @@ This indicates that the apparent HYPE control edge is directionally asymmetric a
 ## 2026-11-21 source-signal / execution-venue correction
 
 A methodology review found that the first price-only control implementation generated its swing-break signal from BingX candles, even though the intended CLT architecture reconstructs participant inventory and signal context on Hyperliquid, then executes on BingX. This was not a venue-matched baseline. The control now reads Hyperliquid 15m candles for prior swing levels and signal direction, and uses the exactly timestamp-aligned BingX next-open and exit-close prices for returns. It refuses any candle count or timestamp mismatch. The previous BingX-signal artifact and its HYPE directional diagnostics remain exploratory context only; they must not be used as the final benchmark against CLT. A fresh market-data workflow run is required to produce the corrected source-signal / execution-venue baseline.
+
+
+The venue-aligned control also timestamps each signal at the completed 15m candle close, not at the candle's opening timestamp. This keeps UTC day-block bootstrap assignment correct for signals whose candle crosses midnight. The next BingX execution candle must open at that exact signal-close boundary; otherwise the event is rejected.

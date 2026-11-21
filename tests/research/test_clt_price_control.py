@@ -163,3 +163,32 @@ def test_price_only_control_requires_timestamp_aligned_venues():
             cooldown_bars=36,
             horizons_bars=(2,),
         )
+
+
+def test_signal_timestamp_is_the_closed_bar_time_across_utc_midnight():
+    signal_rows = _bars()
+    execution_rows = _bars()
+    base = int(date(2026, 10, 3).toordinal())
+    # 21:15 UTC on Oct 3; row 10 opens at 23:45 and closes at midnight.
+    base_ms = 1_791_064_500_000
+    for index in range(len(signal_rows)):
+        signal_rows[index]["open_time"] = base_ms + index * 15 * 60_000
+        execution_rows[index]["open_time"] = base_ms + index * 15 * 60_000
+    signal_rows[10].update({"high": 101.2, "close": 101.0})
+    execution_rows[11]["open"] = 100.0
+    execution_rows[12]["close"] = 102.0
+
+    events = detect_price_only_events(
+        signal_rows,
+        execution_rows,
+        symbol="BTC",
+        lookback_bars=8,
+        cooldown_bars=36,
+        horizons_bars=(2,),
+    )
+
+    expected_signal_close = base_ms + 11 * 15 * 60_000
+    assert len(events) == 1
+    assert events[0]["signal_ts_ms"] == expected_signal_close
+    assert events[0]["entry_ts_ms"] == expected_signal_close
+    assert events[0]["signal_date_utc"] == "2026-10-04"

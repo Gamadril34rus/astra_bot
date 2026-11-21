@@ -105,7 +105,10 @@ def detect_price_only_events(
         entry_price = float(execution_rows[index + 1]["open"])
         if not math.isfinite(entry_price) or entry_price <= 0:
             raise ValueError("entry price must be finite and positive")
-        signal_ts = int(signal_rows[index]["open_time"])
+        # The signal becomes observable at candle close, which is the next bar open.
+        signal_ts = int(signal_rows[index]["open_time"]) + BAR_MS
+        if int(execution_rows[index + 1]["open_time"]) != signal_ts:
+            raise ValueError("next execution candle does not start at signal close")
         returns = {
             f"gross_bps_{horizon}": direction
             * (float(execution_rows[index + horizon]["close"]) / entry_price - 1.0)
@@ -293,8 +296,12 @@ def build_report(
     for symbol in symbols:
         signal_rows = load_candles(data_dir / f"{symbol}_HL_15m.csv")
         execution_rows = load_candles(data_dir / f"{symbol}_USDT_15m.csv")
-        first = datetime.fromtimestamp(int(signal_rows[0]["open_time"]) / 1000, UTC).date()
-        last = datetime.fromtimestamp(int(signal_rows[-1]["open_time"]) / 1000, UTC).date()
+        first = datetime.fromtimestamp(
+            (int(signal_rows[0]["open_time"]) + BAR_MS) / 1000, UTC
+        ).date()
+        last = datetime.fromtimestamp(
+            (int(signal_rows[-1]["open_time"]) + BAR_MS) / 1000, UTC
+        ).date()
         first_date = first if first_date is None else min(first_date, first)
         last_date = last if last_date is None else max(last_date, last)
         events = detect_price_only_events(
