@@ -179,3 +179,24 @@ The price-only control artifact now emits event counts, gross means, maker/maker
 ## 2026-11-21 inventory sample provenance and hard-page-cap guard
 
 The historical inventory report now records a SHA-256 fingerprint of the sorted selected wallet-address set. It does not expose addresses and does not freeze the public leaderboard sample, but it makes it possible to tell whether two runs used the same cohort before comparing their aggregates. The collector also fails closed when it exhausts its full five-page budget with a full final page, even if de-duplication leaves fewer than 10,000 unique fill keys. This prevents a theoretically truncated history from being treated as complete merely because the local unique-key count fell below the API ceiling. Both behaviours have isolated regression tests.
+
+
+## 2026-11-21 per-market price-control interpretation
+
+The refreshed artifact from cross-venue market-data run `44813460457` (code head `0d729f8c`) contains 415 price-only swing-break events across the five markets. Event counts were BTC 83, ETH 80, SOL 83, HYPE 84 and INJ 85. The pooled maker/maker mean after the fixed 4 bps round-trip fee was -0.41, +1.98, -1.28, -0.77 and -3.05 bps at 30m, 1h, 2h, 4h and 9h. The pooled taker/taker mean after 10 bps was negative at every horizon (-6.41, -4.02, -7.28, -6.77 and -9.05 bps). The pooled 95% moving-block intervals crossed zero at every horizon.
+
+The pooled result hides a strong market concentration. HYPE alone had maker/maker net means of +20.69, +32.20 and +32.41 bps at 1h, 2h and 4h; taker/taker means were +14.69, +26.20 and +26.41 bps. Its corresponding 95% block-bootstrap intervals remained above zero after both fee assumptions: maker/maker [10.38, 33.65], [18.54, 49.31], [10.39, 58.32] bps and taker/taker [4.38, 27.65], [12.54, 43.31], [4.39, 52.32] bps. HYPE's 30m and 9h intervals crossed zero. This is a candidate for a separate HYPE-only, strictly out-of-sample control, not evidence for CLT and not permission to promote the breakout rule.
+
+Removing HYPE leaves 331 events and weakens the pooled gross means to +2.75, +1.23, -5.78, -5.18 and -1.26 bps across 30m, 1h, 2h, 4h and 9h. Under maker/maker fees these become -1.25, -2.77, -9.78, -9.18 and -5.26 bps; under taker/taker fees, -7.25, -8.77, -15.78, -15.18 and -11.26 bps. The ex-HYPE bootstrap intervals cross zero at all horizons before fees, except the 2h taker/taker interval, whose upper bound is still negative. That last result is a warning about the control's generality, not a CLT signal.
+
+Market-level maker/maker net means (bps) were:
+
+| Market | 30m | 1h | 2h | 4h | 9h |
+|---|---:|---:|---:|---:|---:|
+| BTC | -6.28 | -5.88 | -10.83 | -6.65 | +9.27 |
+| ETH | -4.19 | -0.60 | +3.63 | +5.13 | +1.92 |
+| SOL | +0.16 | -2.37 | +1.99 | -0.10 | -0.50 |
+| HYPE | +2.88 | +20.69 | +32.20 | +32.41 | +5.62 |
+| INJ | +5.06 | -2.18 | -32.88 | -34.00 | -30.84 |
+
+These per-market estimates use the same 37-day archive and are exploratory multiple views. The fee model still excludes spread, slippage, market impact and funding; the account's actual commission tier is not known. The 84 HYPE events are not an independent holdout. Any follow-up must freeze the rule and evaluate a later, untouched period, report long and short directions separately, include realized funding timestamps and execution costs, and compare against the same-period no-signal baseline. Most importantly, this price-only control is a benchmark only: the CLT hypothesis still requires the corrected small/large wallet-inventory sequence and must not be inferred from candle breaks.
