@@ -34,7 +34,7 @@ Raw candles are included in the workflow artifact with SHA-256 checksums. The te
 - Raw per-trade profit factor: **0.441**.
 - Portfolio profit factor at 1% risk / 3% max open risk: **0.421**.
 
-The portfolio profile started at $5,000 and ended at $3.24, a **-99.935%** return with **-99.947%** maximum drawdown. The higher-risk profiles ended at approximately $0.071 (1.5% risk / 6% cap) and $0.0014 (2% risk / 8% cap). These are simulated risk profiles, not recommended settings.
+The earlier portfolio simulator printed $3.24 terminal equity and -99.947% drawdown for the 1% / 3% profile. **These figures are withdrawn as exchange-realistic performance claims**: the simulator does not model maintenance margin, liquidation/bankruptcy prices or full margin availability, and it does not replay funding cashflows into portfolio equity. See the independent audit note. Do not use those ending balances to forecast live account outcomes.
 
 | Market | Trades | Mean net bps | Raw PF |
 |---|---:|---:|---:|
@@ -48,7 +48,7 @@ Both directions lose: long PF 0.438, short PF 0.445.
 
 The frozen cost model is 5 bps taker fee per side plus 10 bps slippage per side: 30 bps round trip.
 
-The mean direction-adjusted price-only move before fees and slippage was only **+2.59 bps** per trade (price-only PF 1.093). After slippage, mean gross return was **-17.85 bps**; after taker fees, mean net was **-27.85 bps**. Even with zero slippage, the measured price-only edge is below the 10 bps round-trip taker fee. This is not merely a position-sizing problem.
+The mean direction-adjusted price-only move before fees and slippage was only **+2.15 bps** per trade (price-only PF 1.093). After slippage, mean gross return was **-17.85 bps**; after taker fees, mean net was **-27.85 bps**. Even with zero slippage, the measured price-only edge is below the 10 bps round-trip taker fee. This is not merely a position-sizing problem.
 
 ## Holding time
 
@@ -75,7 +75,7 @@ The funding adjustment is trade-level. The original portfolio sizing/equity prof
 
 ## Engine and execution caveat
 
-The engine identifies itself as `v4_mtm_batch_entries_interval_aware` and retains its upstream `re-audit required` status. The targeted review for this run confirmed that the signal uses completed prior candles, entries occur at the next open, stops use the prior completed SAR point, and gap/same-bar stop cases are covered by tests. This is not a substitute for a full independent audit of every portfolio-accounting path. The per-trade result is already decisively negative, so no parameter optimization was performed.
+The engine identifies itself as `v4_mtm_batch_entries_interval_aware` and retains its upstream `re-audit required` status. A separate replay matched all 2,311 archived trades on symbol, side, entry/exit timestamps and exit reason. The current test suite remains narrow; portfolio margin accounting is not fully validated. A fee-only sensitivity is decisive: with the published 0.05% BingX base taker fee per side and **zero slippage**, mean net is still -7.85 bps/trade and PF 0.775. The fixed 10 bps/side slippage is a stress assumption, not measured execution data. See `SAR_15M_INDEPENDENT_AUDIT_2026-11-21.md` for corrections and limits.
 
 ## Final decision
 
