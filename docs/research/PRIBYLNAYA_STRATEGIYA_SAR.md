@@ -108,3 +108,15 @@ risk 1.5% / 2% / 3% | cap 6% / 8% / 12%
 fee 0.05% + slip 0.1% per side
 reproduce: python sar_backtest_engine.py --start 5000 --interval 15m --limit-total 36000
 ```
+
+## 2026-11-21 final 15m reproduction result
+
+The fixed video baseline was tested on BingX 15m data over approximately 100 days (9,600 BTC bars, 9,599 ETH and SOL bars, no gaps). The public endpoint did not provide the requested 36,000 bars, so this is not a one-year test.
+
+The replay produced 2,311 trades, mean net -27.85 bps per trade, win rate 21.46%, raw trade PF 0.441, and portfolio PF 0.421 at 1% risk / 3% max open risk. Starting $5,000 ended at $3.24 with -99.947% maximum drawdown. BTC, ETH and SOL all lost; both long and short sides lost.
+
+Price-only mean was +2.59 bps per trade, below the 10 bps round-trip taker fee even before slippage. With 10 bps slippage per side and 5 bps taker fee per side, net mean was -27.85 bps. Funding-adjusted subset (2,046 fully covered trades) was -27.98 bps mean with PF 0.417; funding was negligible and did not rescue the strategy.
+
+Median holding time was 165 minutes; 96.67% of trades were held 30 minutes to 9 hours. Duration fits the intraday target, but expectancy does not.
+
+**Decision: reject the fixed SAR video baseline for BingX USDT-M perpetuals.** Do not tune this discovery period or connect it to Zeus. Full reproducible report: `docs/research/sar_repro/SAR_15M_VIDEO_BASELINE_RESULT_2026-11-21.md`. Workflow run `44910671263`, artifact `14709825927`.
