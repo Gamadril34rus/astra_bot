@@ -2,16 +2,7 @@ name: CLT cross-venue public market data
 
 on:
   workflow_dispatch:
-  push:
-    branches: [research/crowd-liquidity-trap]
-    paths:
-      - ".github/workflows/clt-bingx-market-data.yml"
-      - "scripts/research/clt_bingx_market_data.py"
-      - "tests/research/test_clt_bingx_market_data.py"
-      - "scripts/research/clt_venue_alignment.py"
-      - "tests/research/test_clt_venue_alignment.py"
-      - "scripts/research/clt_price_control.py"
-      - "tests/research/test_clt_price_control.py"
+
 
 permissions:
   contents: read
