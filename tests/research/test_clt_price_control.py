@@ -168,9 +168,8 @@ def test_price_only_control_requires_timestamp_aligned_venues():
 def test_signal_timestamp_is_the_closed_bar_time_across_utc_midnight():
     signal_rows = _bars()
     execution_rows = _bars()
-    base = int(date(2026, 10, 3).toordinal())
     # 21:15 UTC on Oct 3; row 10 opens at 23:45 and closes at midnight.
-    base_ms = 1_791_064_500_000
+    base_ms = 1_791_062_100_000
     for index in range(len(signal_rows)):
         signal_rows[index]["open_time"] = base_ms + index * 15 * 60_000
         execution_rows[index]["open_time"] = base_ms + index * 15 * 60_000
