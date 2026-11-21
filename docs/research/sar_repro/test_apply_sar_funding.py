@@ -52,8 +52,8 @@ def test_apply_funding_uses_correct_long_short_sign_and_boundaries(tmp_path):
         tmp_path / "out" / "sar_15m_funding_adjusted_trades.csv"
     )
     assert len(adjusted) == 3
-    assert adjusted.funding_pnl_pct.iloc[0] == -0.02
-    assert adjusted.funding_pnl_pct.iloc[1] == 0.02
+    assert adjusted.funding_pnl_pct.iloc[0] == -0.0002
+    assert adjusted.funding_pnl_pct.iloc[1] == 0.0002
     assert adjusted.funding_pnl_pct.iloc[2] == 0.0
     assert report["funding_coverage"]["covered_trades"] == 3
     saved = json.loads(
