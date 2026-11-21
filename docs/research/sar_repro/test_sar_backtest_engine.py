@@ -42,3 +42,36 @@ def test_gap_detection_uses_selected_candle_interval():
     result = engine.check_candle_gaps(df, interval_ms=900_000)
     assert result["gaps"] == 1
     assert result["max_gap_intervals"] == pytest.approx(2.0)
+
+
+def test_sar_reversal_clamps_new_short_sar_to_current_bar_high():
+    high = np.array([10.0, 11.0, 12.0, 15.0])
+    low = np.array([9.0, 10.0, 11.0, 9.0])
+    sar, trend = engine.parabolic_sar_series(high, low)
+    assert trend[2] == 1
+    assert trend[3] == -1
+    assert sar[3] == pytest.approx(15.0)
+
+
+def test_sar_reversal_clamps_new_long_sar_to_current_bar_low():
+    high = np.array([15.0, 14.0, 13.0, 16.0])
+    low = np.array([14.0, 13.0, 12.0, 10.0])
+    sar, trend = engine.parabolic_sar_series(high, low, init_trend=-1)
+    assert trend[2] == -1
+    assert trend[3] == 1
+    assert sar[3] == pytest.approx(10.0)
+
+
+def test_sar_equal_touch_reverses_instead_of_waiting_for_strict_penetration():
+    high = np.array([10.0, 11.0, 12.0, 13.0])
+    low = np.array([9.0, 10.0, 11.0, 9.1584])
+    sar, trend = engine.parabolic_sar_series(high, low)
+    assert sar[2] == pytest.approx(9.1584)
+    assert trend[3] == -1
+
+
+def test_sar_auto_initial_direction_uses_first_two_bar_directional_move():
+    high = np.array([10.0, 10.5, 10.8, 10.7])
+    low = np.array([9.0, 8.0, 8.2, 8.3])
+    _, trend = engine.parabolic_sar_series(high, low)
+    assert trend[1] == -1
