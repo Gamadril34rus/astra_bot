@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Reproducible price-only swing-break control for the CLT research archive.
 
-This is a benchmark, not the CLT strategy. Signals use only completed BingX
-15-minute candles; entry is the next candle open. Results are gross and
-fee-adjusted illustrations, before spread, slippage and funding.
+This is a benchmark, not the CLT strategy. Signals use completed Hyperliquid
+15-minute candles; entries and exits are priced on timestamp-aligned BingX
+candles. Results are gross and fee-adjusted illustrations, before spread,
+slippage and funding.
 """
 from __future__ import annotations
 
