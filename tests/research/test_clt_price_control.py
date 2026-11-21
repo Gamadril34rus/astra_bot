@@ -48,7 +48,7 @@ def test_price_only_break_enters_next_open_and_uses_directional_return():
 
     assert len(events) == 1
     assert events[0]["direction"] == 1
-    assert events[0]["entry_ts_ms"] == rows[11]["open_time"]
+    assert events[0]["entry_ts_ms"] == execution_rows[11]["open_time"]
     assert events[0]["entry_price"] == 100.0
     assert events[0]["gross_bps_2"] == pytest.approx(200.0)
 
