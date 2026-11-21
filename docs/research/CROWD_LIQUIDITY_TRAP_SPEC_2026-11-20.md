@@ -215,3 +215,26 @@ A methodology review found that the first price-only control implementation gene
 
 
 The venue-aligned control also timestamps each signal at the completed 15m candle close, not at the candle's opening timestamp. This keeps UTC day-block bootstrap assignment correct for signals whose candle crosses midnight. The next BingX execution candle must open at that exact signal-close boundary; otherwise the event is rejected.
+
+
+## 2026-11-21 corrected source-signal / execution-venue price control
+
+The final cross-venue artifact is workflow run `44880346384`, code head `337bfee1`. It uses Hyperliquid 15m candles to form the eight-bar swing-break signal and timestamp-aligned BingX USDT-M 15m candles for next-open entry and exit marks. The signal is timestamped at the completed source candle close, which must equal the next BingX candle open. The archive spans 2026-10-03 through 2026-11-09; the five markets contain 419 events: BTC 83, ETH 82, SOL 84, HYPE 84 and INJ 86.
+
+Pooled net mean returns (bps), with fixed round-trip fee assumptions, were:
+
+| Horizon | Maker/maker | Taker/taker |
+|---|---:|---:|
+| 30m | +3.88 | -2.12 |
+| 1h | +3.99 | -2.01 |
+| 2h | +1.11 | -4.89 |
+| 4h | +1.14 | -4.86 |
+| 9h | -7.97 | -13.97 |
+
+All pooled 95% three-day moving-block intervals cross zero before fees: [-0.02, 18.19], [-0.80, 19.33], [-7.84, 19.62], [-9.59, 20.88] and [-23.08, 12.60] bps. The corresponding taker/taker intervals are [-10.02, 8.19], [-10.80, 9.33], [-17.84, 9.62], [-19.59, 10.88] and [-33.08, 2.60] bps. Excluding HYPE leaves 335 events; maker/maker means are +3.82, +1.67, -2.32, -4.70 and -10.15 bps, while taker/taker means are -2.18, -4.33, -8.32, -10.70 and -16.15 bps.
+
+HYPE remains the most interesting market, but the effect is narrower than in the earlier, incorrectly BingX-signalled control. Its 84 events split evenly into 42 upside and 42 downside breaks. For upside breaks, maker/maker means at 1h/2h/4h were +19.17/+27.26/+38.86 bps with block-bootstrap intervals [+1.51,+37.21], [+3.62,+51.22], [+4.77,+77.05]. Taker/taker means were +13.17/+21.26/+32.86 bps, but their intervals crossed zero at all three horizons: [-4.49,+31.21], [-2.38,+45.22], [-1.23,+71.05]. Downside-break intervals crossed zero under both fee assumptions at all three horizons. Thus the only apparently robust slice is HYPE upside under maker fees.
+
+Critical execution caveat: the control enters at the next candle open, an immediate execution assumption. It cannot claim maker fees unless a resting-limit fill model proves those orders actually fill at the assumed price. Taker/taker is the more relevant conservative fee scenario for immediate execution, and even that excludes spread, slippage, market impact and funding. This short in-sample control therefore does not establish a robust executable price-only edge. It is a benchmark for the CLT event study, not a candidate promotion result.
+
+The previous run `44813460457` generated its swing signal from BingX candles and is superseded as a source-venue comparator. Use run `44880346384` for the Hyperliquid-signal/BingX-execution baseline. All results remain exploratory, with no untouched out-of-sample period.
