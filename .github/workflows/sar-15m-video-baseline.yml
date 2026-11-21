@@ -44,7 +44,7 @@ jobs:
             --start 5000 \
             --out sar_repro_15m_out \
             --interval 15m \
-            --limit-total 36000
+            --limit-total 9600
       - name: Upload raw candles and SAR replay artifacts
         uses: actions/upload-artifact@v4
         with:
