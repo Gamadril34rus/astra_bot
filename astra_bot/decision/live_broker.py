@@ -1577,6 +1577,9 @@ class LiveBroker:
 
         restored: list[str] = []
         restored_legs: list[str] = []
+        already_protected: list[str] = []
+        already_protected_legs: list[str] = []
+        tp_restored_legs: list[str] = []
         closed_naked: list[str] = []
         closed_legs: list[str] = []
         orphan_protected: list[str] = []
@@ -1678,6 +1681,7 @@ class LiveBroker:
                                     close_position=cp,
                                     client_order_id=unique_client_order_id(symbol, "r"),
                                 )
+                                tp_restored_legs.append(f"{symbol}|{side}")
                         except Exception as exc:
                             logger.warning(
                                 "restore_missing_stops: %s %s TP restore failed: %s",
@@ -1713,8 +1717,8 @@ class LiveBroker:
                                         pass
                                 warn_state[warn_key] = now
                                 warn_state_changed = True
-                    restored.append(symbol)
-                    restored_legs.append(f"{symbol}|{side}")
+                    already_protected.append(symbol)
+                    already_protected_legs.append(f"{symbol}|{side}")
                     continue
 
                 # A matching exchange STOP is valid protection without local metadata.
@@ -1927,6 +1931,9 @@ class LiveBroker:
         return {
             "restored": restored,
             "restored_legs": restored_legs,
+            "already_protected": already_protected,
+            "already_protected_legs": already_protected_legs,
+            "tp_restored_legs": tp_restored_legs,
             "closed_naked": closed_naked,
             "closed_legs": closed_legs,
             "orphan_protected": orphan_protected,
