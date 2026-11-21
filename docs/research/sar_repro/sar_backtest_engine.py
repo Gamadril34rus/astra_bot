@@ -249,7 +249,7 @@ def extract_trades(
     df: pd.DataFrame,
     symbol: str,
     min_prev: int = 0,
-    init_trend: int = 1,
+    init_trend: int | None = None,
     force_close_end: bool = True,
     warmup: int = WARMUP_BARS,
     interval_ms: int = INTERVAL_MS,
@@ -554,7 +554,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--start", type=float, default=5000.0)
     ap.add_argument("--out", type=str, default="sar_repro_out")
-    ap.add_argument("--init-trend", type=int, default=1)
+    ap.add_argument("--init-trend", type=int, choices=(-1, 1), default=None, help="optional forced initial trend for sensitivity checks; default infers from first two bars")
     ap.add_argument("--warmup", type=int, default=WARMUP_BARS)
     ap.add_argument("--interval", type=str, default="1h", help="BingX candle interval; video baseline is 15m")
     ap.add_argument("--limit-total", type=int, default=None, help="number of candles per symbol; defaults to ~1y for interval")
@@ -645,7 +645,7 @@ def main() -> None:
         "symbols": symbols,
         "interval": args.interval,
         "warmup_bars": args.warmup,
-        "sar": {"start": 0.02, "increment": 0.02, "max": 0.2, "init_trend": args.init_trend},
+        "sar": {"start": 0.02, "increment": 0.02, "max": 0.2, "init_trend": args.init_trend if args.init_trend is not None else "auto_from_first_two_bars"},
         "cost_model": {
             "taker_fee_per_side": TAKER,
             "slippage_per_side": SLIP,
