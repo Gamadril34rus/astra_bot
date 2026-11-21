@@ -142,61 +142,86 @@ def parabolic_sar_series(
     af_start: float = 0.02,
     af_step: float = 0.02,
     af_max: float = 0.2,
-    init_trend: int = 1,
+    init_trend: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
+    """Wilder PSAR with TA-Lib-compatible initialization and reversal clamps.
+
+    If init_trend is None, infer the initial direction from the first two bars.
+    An explicit +1/-1 is retained only for sensitivity testing.
+    """
+    high = np.asarray(high, dtype=float)
+    low = np.asarray(low, dtype=float)
     n = len(high)
     sar = np.full(n, np.nan)
     trend = np.zeros(n, dtype=int)
-    ep = np.full(n, np.nan)
-    af = np.full(n, np.nan)
-    trend[0] = 1 if init_trend >= 0 else -1
-    if trend[0] == 1:
-        sar[0] = low[0]
-        ep[0] = high[0]
+    if n < 2:
+        return sar, trend
+
+    if init_trend is None:
+        up_move = high[1] - high[0]
+        down_move = low[0] - low[1]
+        is_long = not (down_move > up_move and down_move > 0)
     else:
-        sar[0] = high[0]
-        ep[0] = low[0]
-    af[0] = af_start
+        is_long = init_trend >= 0
+
+    af = min(af_start, af_max)
+    if is_long:
+        ep = high[1]
+        current_sar = low[0]
+    else:
+        ep = low[1]
+        current_sar = high[0]
+
+    # TA-Lib's first output iteration treats bar 1 as both the previous
+    # and current range when constraining the next projected SAR.
     for i in range(1, n):
-        ps, pe, pa, pt = sar[i - 1], ep[i - 1], af[i - 1], trend[i - 1]
-        if pt == 1:
-            cand = ps + pa * (pe - ps)
-            cand = min(cand, low[i - 1])
-            if i >= 2:
-                cand = min(cand, low[i - 2])
-            if low[i] < cand:
-                trend[i] = -1
-                sar[i] = pe
-                ep[i] = low[i]
-                af[i] = af_start
-            else:
-                trend[i] = 1
-                sar[i] = cand
-                if high[i] > pe:
-                    ep[i] = high[i]
-                    af[i] = min(pa + af_step, af_max)
-                else:
-                    ep[i] = pe
-                    af[i] = pa
+        if i == 1:
+            prev_low = low[i]
+            prev_high = high[i]
         else:
-            cand = ps + pa * (pe - ps)
-            cand = max(cand, high[i - 1])
-            if i >= 2:
-                cand = max(cand, high[i - 2])
-            if high[i] > cand:
-                trend[i] = 1
-                sar[i] = pe
-                ep[i] = high[i]
-                af[i] = af_start
-            else:
+            prev_low = low[i - 1]
+            prev_high = high[i - 1]
+        current_low = low[i]
+        current_high = high[i]
+
+        if is_long:
+            if current_low <= current_sar:
+                is_long = False
+                current_sar = max(ep, prev_high, current_high)
+                sar[i] = current_sar
                 trend[i] = -1
-                sar[i] = cand
-                if low[i] < pe:
-                    ep[i] = low[i]
-                    af[i] = min(pa + af_step, af_max)
-                else:
-                    ep[i] = pe
-                    af[i] = pa
+                af = min(af_start, af_max)
+                ep = current_low
+                current_sar += af * (ep - current_sar)
+                current_sar = max(current_sar, prev_high, current_high)
+            else:
+                sar[i] = current_sar
+                trend[i] = 1
+                if current_high > ep:
+                    ep = current_high
+                    af = min(af + af_step, af_max)
+                current_sar += af * (ep - current_sar)
+                current_sar = min(current_sar, prev_low, current_low)
+        else:
+            if current_high >= current_sar:
+                is_long = True
+                current_sar = min(ep, prev_low, current_low)
+                sar[i] = current_sar
+                trend[i] = 1
+                af = min(af_start, af_max)
+                ep = current_high
+                current_sar += af * (ep - current_sar)
+                current_sar = min(current_sar, prev_low, current_low)
+            else:
+                sar[i] = current_sar
+                trend[i] = -1
+                if current_low < ep:
+                    ep = current_low
+                    af = min(af + af_step, af_max)
+                current_sar += af * (ep - current_sar)
+                current_sar = max(current_sar, prev_high, current_high)
+
+    trend[0] = trend[1]
     return sar, trend
 
 
