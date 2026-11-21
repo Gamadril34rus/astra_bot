@@ -24,11 +24,11 @@ Equal-market net returns are arithmetic means across BTC, ETH, SOL and HYPE, the
 
 | Hold | Candidate net mean | Matched baseline net mean | Difference | UTC-day cluster bootstrap 95% interval for difference |
 |---|---:|---:|---:|---:|
-| 30m | -0.052% | -0.093% | +0.041 pp | [-0.062, +0.150] pp |
+| 30m | -0.052% | -0.093% | +0.041 pp | [-0.061, +0.147] pp |
 | 1h | -0.015% | -0.085% | +0.070 pp | [-0.164, +0.312] pp |
-| 2h | +0.036% | -0.046% | +0.081 pp | [-0.244, +0.415] pp |
-| 4h | +0.072% | -0.037% | +0.109 pp | [-0.328, +0.601] pp |
-| 9h | +0.374% | +0.061% | +0.312 pp | [-0.384, +1.043] pp |
+| 2h | +0.036% | -0.046% | +0.081 pp | [-0.247, +0.414] pp |
+| 4h | +0.072% | -0.037% | +0.109 pp | [-0.330, +0.602] pp |
+| 9h | +0.374% | +0.061% | +0.312 pp | [-0.394, +1.044] pp |
 
 All five equal-market intervals cross zero. The aggregate rule therefore has no statistically supported excess over the matched price-only regime at any tested holding horizon.
 
@@ -59,7 +59,7 @@ Values are net percent; excess is candidate minus baseline in percentage points.
 | HYPE | 4h | +0.328 | +0.154 | +0.174 |
 | HYPE | 9h | +1.390 | +0.025 | +1.366 |
 
-The only strong slice is HYPE at 9h: eight events, seven distinct UTC dates, mean net +1.390% versus +0.025% for the matched baseline. Its 1.5x cost-stress mean is +1.301%. A separate HYPE-only day-cluster bootstrap gives a candidate-minus-baseline 95% interval of approximately [+0.359, +2.436] pp. However, HYPE's 30m, 1h, 2h and 4h excess intervals cross zero. The HYPE 9h result is a small discovery-sample slice, not an untouched holdout; one late-period event cannot validate it prospectively.
+The only strong slice is HYPE at 9h: eight events, seven distinct UTC dates, mean net +1.390% versus +0.025% for the matched baseline. Its 1.5x cost-stress mean is +1.301%. A separate HYPE-only day-cluster bootstrap gives a candidate-minus-baseline 95% interval of approximately [+0.352, +2.418] pp. However, HYPE's 30m, 1h, 2h and 4h excess intervals cross zero. The HYPE 9h result is a small discovery-sample slice, not an untouched holdout; one late-period event cannot validate it prospectively. The 20,000-resample UTC-day bootstrap interval for HYPE alone is approximately [+0.352, +2.418] pp.
 
 ## 3. Position-intent audit
 
@@ -87,3 +87,13 @@ BTC sell-side composition was also mixed: $12.76m Open Short versus $15.99m Clos
 ## 5. Next decisive research gate
 
 Before any further threshold tuning, reconstruct historical per-wallet position episodes for the same frozen cohort using the 37-day trade archive and the dated 2026-10-19 position/account-value anchor. For every candidate event, measure how much cohort sell notional was Open Short, Close Long, liquidation or unresolved, and do the same for buy notional. Keep only fully reconstructable wallet-market intervals. If historical position intent cannot be reconstructed, retain the signal only as net sell-side flow and require a prospectively frozen untouched BingX validation period. No thresholds may be tuned on the existing 37-day discovery archive.
+
+
+## Reproducibility record
+
+The multi-horizon workflow completed successfully on 2026-11-21:
+- Workflow run: `44908385287`.
+- Code revision: `0248a78ed527a5c240d452b0e24ff6db794924f8`.
+- Artifact: `14709206788`.
+- Isolated unit tests and Ruff passed before downloading the immutable wallet-flow and BingX archives.
+- The full analysis, original 9h replay, new 30m-to-9h replay, and taker-sequence builder all completed successfully.
