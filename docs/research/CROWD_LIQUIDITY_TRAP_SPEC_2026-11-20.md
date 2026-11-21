@@ -300,3 +300,35 @@ For transparency only, the four incomplete break cases were marked to BingX next
 ### Verdict
 
 The current strict CLT formulation is **not demonstrated profitable and is not operationally viable on this sample**: it produces zero eligible trades. This is not proof that the underlying market hypothesis can never work, and it is not a statistically valid loss verdict because there are no valid entries. It is a clear rejection of the claim that the available 2026-10-03 to 2026-11-08 sample already supports this exact sequence. Do not relax the three-wallet continuation gate, retune thresholds on this test period, or promote the strategy to Zeus. A future attempt requires a prospectively frozen cohort and a longer untouched sample; only then can PF, expectancy, drawdown and fully costed returns be evaluated.
+
+### 2026-11-21 independent bar-level audit and timing clarification
+
+The aggregate inventory CSV was independently re-read against the source Hyperliquid candles and BingX execution candles. The continuation gate is interpreted literally from the event contract: after the large-add bucket, at least one **strictly later completed 15m bucket before the structure-break candle** must contain net additions by at least three distinct small-cohort wallets in the crowd direction. The break candle itself is not counted as prior continuation because its intrabar ordering relative to the close/break is unknown. For candidates with no break, the same-bar participant maximum is measured over the full 12-bar confirmation window. The exported per-bucket `small_*_add_wallets` fields are already distinct-wallet counts within each bucket, so no cross-bucket identity union is needed for this literal same-bucket rule.
+
+| Large-add bucket UTC | Crowd direction | First opposing structure-break candle close UTC | Maximum distinct crowd adders in any eligible later pre-break/confirmation bucket |
+|---|---|---|---:|
+| 2026-10-14 14:00 | LONG | 14:45 | 0 |
+| 2026-10-14 15:00 | LONG | 16:00 | 0 |
+| 2026-11-02 14:30 | SHORT | None | 1 |
+| 2026-11-02 15:15 | SHORT | None | 1 |
+| 2026-11-04 17:30 | LONG | 20:00 | 1 |
+| 2026-11-04 23:45 | SHORT | None | 0 |
+| 2026-11-05 15:30 | LONG | 16:00 | 0 |
+| 2026-11-05 15:45 | LONG | None | 2 |
+| 2026-11-05 17:30 | LONG | None | 1 |
+| 2026-11-05 18:30 | LONG | None | 1 |
+| 2026-11-05 19:15 | LONG | None | 1 |
+
+This bar-level check confirms the hard maximum is two, so the zero-valid-entry conclusion does not depend on aggregating wallet identities across multiple bars. A correction to the earlier narrative: for the 2026-11-04 17:30 candidate, the small-cohort net LONG change strictly before the 20:00 break close is approximately +$11.33, not -$15.09. The latter includes the break candle's inventory change and must not be described as pre-break continuation. The participant count remains one, below the required three. This correction does not change the event verdict.
+
+The four price-break-only cases were also independently repriced from BingX next-open entry after the Hyperliquid break close. Direction-adjusted gross returns (bps; negative means price moved against the hypothesized CLT reversal) were:
+
+| Candidate UTC | 30m | 1h | 2h | 4h | 9h |
+|---|---:|---:|---:|---:|---:|
+| 2026-10-14 14:00 | -13.70 | +25.58 | -20.05 | +15.94 | +20.68 |
+| 2026-10-14 15:00 | -39.07 | -38.58 | -3.50 | -37.47 | -10.61 |
+| 2026-11-04 17:30 | -19.15 | -35.16 | -58.66 | -88.44 | -62.61 |
+| 2026-11-05 15:30 | -53.95 | -20.27 | -12.29 | -11.05 | -36.81 |
+| **Mean** | **-31.47** | **-17.11** | **-23.62** | **-30.26** | **-22.34** |
+
+These four cases remain failed/incomplete CLT setups, not eligible strategy trades. They are clustered, selected after observing the event filters, and too few for PF, confidence intervals or a standalone statistical loss claim. Their negative gross directional means nevertheless provide no positive price-response evidence for the proposed reversal after the first two inventory legs. Fees, spread, slippage, funding and impact are not deducted in this diagnostic.
