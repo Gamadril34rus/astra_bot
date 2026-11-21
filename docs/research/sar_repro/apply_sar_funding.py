@@ -145,6 +145,21 @@ def apply_funding(
             ),
         }
 
+    if covered.empty:
+        holding_time = {
+            "median": None,
+            "p90": None,
+            "share_30m_to_9h_pct": None,
+        }
+    else:
+        holding_time = {
+            "median": float(covered["hold_minutes"].median()),
+            "p90": float(covered["hold_minutes"].quantile(0.9)),
+            "share_30m_to_9h_pct": float(
+                covered["hold_minutes"].between(30, 540).mean() * 100.0
+            ),
+        }
+
     out_dir.mkdir(parents=True, exist_ok=True)
     csv_path = out_dir / "sar_15m_funding_adjusted_trades.csv"
     covered.to_csv(csv_path, index=False)
@@ -170,13 +185,7 @@ def apply_funding(
         },
         "by_symbol": by_symbol,
         "by_side": by_side,
-        "holding_time_minutes": {
-            "median": float(covered["hold_minutes"].median()),
-            "p90": float(covered["hold_minutes"].quantile(0.9)),
-            "share_30m_to_9h_pct": float(
-                covered["hold_minutes"].between(30, 540).mean() * 100.0
-            ),
-        },
+        "holding_time_minutes": holding_time,
         "outputs": {"trades_csv": str(csv_path)},
         "limitations": [
             "Funding archive ends before the latest 15m candle window; trades outside complete funding coverage are excluded.",
