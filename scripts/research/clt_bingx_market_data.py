@@ -1,0 +1,502 @@
+#!/usr/bin/env python3
+"""Download public BingX USDT-M 15m/1h candles and funding for CLT research."""
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import math
+import time
+from collections.abc import Callable
+from datetime import UTC, datetime
+from itertools import pairwise
+from pathlib import Path
+from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+
+BASE_URL = "https://open-api.bingx.com"
+SYMBOLS = ("BTC-USDT", "ETH-USDT", "SOL-USDT", "HYPE-USDT", "INJ-USDT")
+INTERVAL_MS = {"15m": 15 * 60_000, "1h": 60 * 60_000}
+PAGE_LIMIT = 1_000
+HYPERLIQUID_INFO_URL = "https://api.hyperliquid.xyz/info"
+HYPERLIQUID_MAX_CANDLES = 5_000
+
+
+def public_get(path: str, params: dict[str, Any], *, timeout: int = 20) -> Any:
+    query = urlencode(params)
+    request = Request(
+        f"{BASE_URL}{path}?{query}",
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "ASTRA-CLT-research/0.1",
+            "X-SOURCE-KEY": "BX-AI-SKILL",
+        },
+    )
+    for attempt in range(4):
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            if not isinstance(payload, dict):
+                raise RuntimeError(f"BingX public API returned an invalid response: {payload!r}")
+            if payload.get("code") == 100410 and attempt < 3:
+                time.sleep((5, 15, 30)[attempt])
+                continue
+            if payload.get("code") != 0:
+                raise RuntimeError(f"BingX public API returned an invalid response: {payload!r}")
+            return payload.get("data")
+        except HTTPError as exc:
+            if (exc.code != 429 and exc.code < 500) or attempt == 3:
+                detail = exc.read().decode("utf-8", errors="replace")
+                raise RuntimeError(f"BingX HTTP {exc.code}: {detail[:500]}") from exc
+            time.sleep((1, 2, 4)[attempt])
+        except (URLError, TimeoutError, json.JSONDecodeError) as exc:
+            if attempt == 3:
+                raise RuntimeError(f"BingX public request failed: {exc}") from exc
+            time.sleep((1, 2, 4)[attempt])
+    raise RuntimeError("BingX retry loop exhausted")
+
+
+def _optional_float(row: dict[str, Any], *keys: str) -> float | None:
+    for key in keys:
+        if row.get(key) not in (None, ""):
+            value = float(row[key])
+            if not math.isfinite(value):
+                raise RuntimeError(f"non-finite BingX kline field: {key}")
+            return value
+    return None
+
+
+def parse_kline(raw: Any, *, interval_ms: int) -> dict[str, float | int | None]:
+    """Accept both documented positional arrays and object-form swap kline rows."""
+    if isinstance(raw, dict):
+        timestamp_value = next(
+            (raw[key] for key in ("time", "openTime", "open_time") if raw.get(key) is not None),
+            None,
+        )
+        if timestamp_value is None:
+            raise RuntimeError("BingX kline row missing timestamp")
+        ts = int(timestamp_value)
+        open_price = float(raw["open"])
+        high = float(raw["high"])
+        low = float(raw["low"])
+        close = float(raw["close"])
+        volume = float(raw.get("volume") or 0.0)
+        close_time = int(
+            raw.get("closeTime") or raw.get("close_time") or ts + interval_ms - 1
+        )
+        quote_volume = _optional_float(raw, "quoteVolume", "quote_volume")
+        trade_count = _optional_float(raw, "trades", "tradeCount", "trade_count")
+        taker_base = _optional_float(raw, "takerBuyBaseVolume", "taker_buy_base")
+        taker_quote = _optional_float(raw, "takerBuyQuoteVolume", "taker_buy_quote")
+    elif isinstance(raw, list) and len(raw) >= 7:
+        ts = int(raw[0])
+        open_price, high, low, close, volume = (
+            float(raw[index]) for index in (1, 2, 3, 4, 5)
+        )
+        close_time = int(raw[6])
+        quote_volume = float(raw[7]) if len(raw) > 7 else None
+        trade_count = float(raw[8]) if len(raw) > 8 else None
+        taker_base = float(raw[9]) if len(raw) > 9 else None
+        taker_quote = float(raw[10]) if len(raw) > 10 else None
+    else:
+        raise RuntimeError("malformed BingX kline row")
+
+    required_values = (open_price, high, low, close, volume)
+    optional_values = (quote_volume, trade_count, taker_base, taker_quote)
+    if any(not math.isfinite(value) for value in required_values):
+        raise RuntimeError("non-finite BingX kline value")
+    if any(value is not None and not math.isfinite(value) for value in optional_values):
+        raise RuntimeError("non-finite optional BingX kline value")
+    if (
+        min(open_price, high, low, close) <= 0
+        or volume < 0
+        or high < low
+        or not low <= open_price <= high
+        or not low <= close <= high
+        or close_time < ts
+    ):
+        raise RuntimeError("invalid BingX OHLC")
+    return {
+        "open_time": ts,
+        "open": open_price,
+        "high": high,
+        "low": low,
+        "close": close,
+        "volume": volume,
+        "close_time": close_time,
+        "quote_volume": quote_volume,
+        "trade_count": trade_count,
+        "taker_buy_base": taker_base,
+        "taker_buy_quote": taker_quote,
+    }
+
+
+def hyperliquid_post(payload: dict[str, Any], *, timeout: int = 20) -> Any:
+    request = Request(
+        HYPERLIQUID_INFO_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "ASTRA-CLT-research/0.1",
+        },
+        method="POST",
+    )
+    for attempt in range(4):
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            if not isinstance(data, list):
+                raise RuntimeError(
+                    f"Hyperliquid candle API returned an invalid response: {data!r}"
+                )
+            return data
+        except HTTPError as exc:
+            if (exc.code != 429 and exc.code < 500) or attempt == 3:
+                detail = exc.read().decode("utf-8", errors="replace")
+                raise RuntimeError(
+                    f"Hyperliquid HTTP {exc.code}: {detail[:500]}"
+                ) from exc
+            time.sleep((1, 2, 4)[attempt])
+        except (URLError, TimeoutError, json.JSONDecodeError) as exc:
+            if attempt == 3:
+                raise RuntimeError(
+                    f"Hyperliquid public request failed: {exc}"
+                ) from exc
+            time.sleep((1, 2, 4)[attempt])
+    raise RuntimeError("Hyperliquid retry loop exhausted")
+
+
+def parse_hyperliquid_kline(
+    raw: Any, *, interval_ms: int
+) -> dict[str, float | int]:
+    if not isinstance(raw, dict):
+        raise RuntimeError("malformed Hyperliquid candle row")
+    try:
+        ts = int(raw["t"])
+        close_time = int(raw["T"])
+        open_price = float(raw["o"])
+        high = float(raw["h"])
+        low = float(raw["l"])
+        close = float(raw["c"])
+        volume = float(raw["v"])
+        trade_count = int(raw["n"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError("malformed Hyperliquid candle fields") from exc
+    values = (open_price, high, low, close, volume)
+    if any(not math.isfinite(value) for value in values):
+        raise RuntimeError("non-finite Hyperliquid candle value")
+    if (
+        min(open_price, high, low, close) <= 0
+        or volume < 0
+        or trade_count < 0
+        or high < low
+        or not low <= open_price <= high
+        or not low <= close <= high
+        or not ts <= close_time < ts + interval_ms
+    ):
+        raise RuntimeError("invalid Hyperliquid OHLC")
+    return {
+        "open_time": ts,
+        "open": open_price,
+        "high": high,
+        "low": low,
+        "close": close,
+        "volume": volume,
+        "close_time": close_time,
+        "trade_count": trade_count,
+    }
+
+
+def fetch_hyperliquid_klines(
+    fetch: Callable[[dict[str, Any]], Any],
+    *,
+    coin: str,
+    interval: str,
+    start_ms: int,
+    end_ms: int,
+) -> list[dict[str, float | int]]:
+    if interval not in INTERVAL_MS:
+        raise ValueError(f"unsupported Hyperliquid interval: {interval}")
+    if start_ms < 0 or end_ms <= start_ms:
+        raise ValueError("invalid Hyperliquid candle range")
+    interval_ms = INTERVAL_MS[interval]
+    requested_bars = (end_ms - start_ms + interval_ms - 1) // interval_ms
+    if requested_bars > HYPERLIQUID_MAX_CANDLES:
+        raise ValueError("Hyperliquid candle request exceeds 5,000-bar history limit")
+    data = fetch({
+        "type": "candleSnapshot",
+        "req": {
+            "coin": coin,
+            "interval": interval,
+            "startTime": start_ms,
+            "endTime": end_ms - 1,
+        },
+    })
+    if not isinstance(data, list):
+        raise RuntimeError(f"unexpected Hyperliquid response for {coin} {interval}")
+    rows: dict[int, dict[str, float | int]] = {}
+    for raw in data:
+        row = parse_hyperliquid_kline(raw, interval_ms=interval_ms)
+        ts = int(row["open_time"])
+        if start_ms <= ts < end_ms:
+            if ts in rows:
+                raise RuntimeError("duplicate Hyperliquid candle timestamp")
+            rows[ts] = row
+    return [rows[key] for key in sorted(rows)]
+
+
+class HyperliquidRateLimitedFetcher:
+    """Serialize public Hyperliquid Info API calls."""
+
+    def __init__(self, minimum_interval_seconds: float = 1.05):
+        self.minimum_interval_seconds = minimum_interval_seconds
+        self.last_call_monotonic: float | None = None
+
+    def __call__(self, payload: dict[str, Any]) -> Any:
+        if self.last_call_monotonic is not None:
+            elapsed = time.monotonic() - self.last_call_monotonic
+            delay = self.minimum_interval_seconds - elapsed
+            if delay > 0:
+                time.sleep(delay)
+        result = hyperliquid_post(payload)
+        self.last_call_monotonic = time.monotonic()
+        return result
+
+
+def fetch_klines(
+    fetch: Callable[[str, dict[str, Any]], Any],
+    *,
+    symbol: str,
+    interval: str,
+    start_ms: int,
+    end_ms: int,
+    limit: int = PAGE_LIMIT,
+    pause_seconds: float = 0.0,
+) -> list[dict[str, float | int]]:
+    if interval not in INTERVAL_MS:
+        raise ValueError(f"unsupported interval: {interval}")
+    if start_ms < 0 or end_ms <= start_ms or not 1 <= limit <= 1_440:
+        raise ValueError("invalid kline range or limit")
+    interval_ms = INTERVAL_MS[interval]
+    rows: dict[int, dict[str, float | int]] = {}
+    cursor = start_ms
+    while cursor < end_ms:
+        chunk_end = min(end_ms, cursor + limit * interval_ms)
+        data = fetch("/openApi/swap/v3/quote/klines", {
+            "symbol": symbol,
+            "interval": interval,
+            "startTime": cursor,
+            "endTime": chunk_end - 1,
+            "limit": limit,
+        })
+        if not isinstance(data, list):
+            raise RuntimeError(f"unexpected kline response for {symbol} {interval}")
+        for raw in data:
+            row = parse_kline(raw, interval_ms=interval_ms)
+            ts = int(row["open_time"])
+            if start_ms <= ts < end_ms:
+                rows[ts] = row
+        cursor = chunk_end
+        if cursor < end_ms:
+            time.sleep(pause_seconds)
+    ordered = [rows[key] for key in sorted(rows)]
+    previous = None
+    for row in ordered:
+        ts = int(row["open_time"])
+        if previous is not None and ts <= previous:
+            raise RuntimeError("duplicate or unordered BingX candles")
+        previous = ts
+    return ordered
+
+
+def fetch_funding(
+    fetch: Callable[[str, dict[str, Any]], Any],
+    *,
+    symbol: str,
+    start_ms: int,
+    end_ms: int,
+    pause_seconds: float = 1.05,
+) -> list[dict[str, float | int | str]]:
+    data = fetch("/openApi/swap/v2/quote/fundingRate", {
+        "symbol": symbol,
+        "startTime": start_ms,
+        "endTime": end_ms - 1,
+        "limit": 1_000,
+    })
+    if not isinstance(data, list):
+        raise RuntimeError(f"unexpected funding response for {symbol}")
+    rows = []
+    for item in data:
+        if not isinstance(item, dict):
+            raise RuntimeError("malformed funding row")
+        timestamp = int(item.get("fundingTime") or item.get("time") or 0)
+        rate = float(item["fundingRate"])
+        if not math.isfinite(rate):
+            raise RuntimeError("non-finite funding rate")
+        if start_ms <= timestamp < end_ms:
+            rows.append({
+                "symbol": symbol,
+                "funding_time": timestamp,
+                "funding_rate": rate,
+            })
+    rows.sort(key=lambda row: int(row["funding_time"]))
+    if pause_seconds:
+        time.sleep(pause_seconds)
+    return rows
+
+
+def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
+    if not rows:
+        path.write_text("", encoding="utf-8")
+        return
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+class RateLimitedFetcher:
+    """Serialize public market-data requests to at most one per second."""
+
+    def __init__(self, minimum_interval_seconds: float = 1.05):
+        self.minimum_interval_seconds = minimum_interval_seconds
+        self.last_call_monotonic: float | None = None
+
+    def __call__(self, path: str, params: dict[str, Any]) -> Any:
+        if self.last_call_monotonic is not None:
+            elapsed = time.monotonic() - self.last_call_monotonic
+            delay = self.minimum_interval_seconds - elapsed
+            if delay > 0:
+                time.sleep(delay)
+        result = public_get(path, params)
+        self.last_call_monotonic = time.monotonic()
+        return result
+
+
+def archive(
+    out_dir: Path,
+    *,
+    start: datetime,
+    end: datetime,
+    symbols: tuple[str, ...] = SYMBOLS,
+) -> dict[str, Any]:
+    if start.tzinfo is None or end.tzinfo is None or start >= end:
+        raise ValueError("start/end must be timezone-aware and start before end")
+    start_ms = int(start.timestamp() * 1000)
+    end_ms = int(end.timestamp() * 1000)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    report: dict[str, Any] = {
+        "venue": "BingX USDT-M Perpetual",
+        "window_start_utc": start.isoformat(),
+        "window_end_utc": end.isoformat(),
+        "symbols": {},
+        "hyperliquid": {},
+        "cross_venue_use": {
+            "Hyperliquid": "position-inventory signal and source-venue candle validation",
+            "BingX": "target execution prices and funding",
+        },
+        "auth": "public read-only endpoints; no API key",
+    }
+    fetcher = RateLimitedFetcher()
+    hyperliquid_fetcher = HyperliquidRateLimitedFetcher()
+    for symbol in symbols:
+        symbol_report = {}
+        for interval in ("15m", "1h"):
+            rows = fetch_klines(
+                fetcher,
+                symbol=symbol,
+                interval=interval,
+                start_ms=start_ms,
+                end_ms=end_ms,
+            )
+            path = out_dir / f"{symbol.replace('-', '_')}_{interval}.csv"
+            _write_csv(path, rows)
+            interval_ms = INTERVAL_MS[interval]
+            gaps = [
+                {"after": int(left["open_time"]), "before": int(right["open_time"])}
+                for left, right in pairwise(rows)
+                if int(right["open_time"]) - int(left["open_time"]) != interval_ms
+            ]
+            symbol_report[interval] = {
+                "rows": len(rows),
+                "gaps": len(gaps),
+                "first_open_time": rows[0]["open_time"] if rows else None,
+                "last_open_time": rows[-1]["open_time"] if rows else None,
+                "file": path.name,
+                "gap_examples": gaps[:10],
+            }
+        funding = fetch_funding(
+            fetcher,
+            symbol=symbol,
+            start_ms=start_ms,
+            end_ms=end_ms,
+        )
+        funding_path = out_dir / f"{symbol.replace('-', '_')}_funding.csv"
+        _write_csv(funding_path, funding)
+        symbol_report["funding"] = {
+            "rows": len(funding),
+            "file": funding_path.name,
+        }
+        report["symbols"][symbol] = symbol_report
+
+        coin = symbol.removesuffix("-USDT")
+        hyperliquid_report = {}
+        for interval in ("15m", "1h"):
+            hl_rows = fetch_hyperliquid_klines(
+                hyperliquid_fetcher,
+                coin=coin,
+                interval=interval,
+                start_ms=start_ms,
+                end_ms=end_ms,
+            )
+            hl_path = out_dir / f"{coin}_HL_{interval}.csv"
+            _write_csv(hl_path, hl_rows)
+            interval_ms = INTERVAL_MS[interval]
+            expected_bars = (end_ms - start_ms) // interval_ms
+            gaps = [
+                {"after": int(left["open_time"]), "before": int(right["open_time"])}
+                for left, right in pairwise(hl_rows)
+                if int(right["open_time"]) - int(left["open_time"]) != interval_ms
+            ]
+            if len(hl_rows) != expected_bars or gaps:
+                raise RuntimeError(
+                    f"incomplete Hyperliquid {coin} {interval} history: "
+                    f"{len(hl_rows)}/{expected_bars} bars, {len(gaps)} gaps"
+                )
+            hyperliquid_report[interval] = {
+                "rows": len(hl_rows),
+                "expected_rows": expected_bars,
+                "gaps": len(gaps),
+                "first_open_time": hl_rows[0]["open_time"] if hl_rows else None,
+                "last_open_time": hl_rows[-1]["open_time"] if hl_rows else None,
+                "file": hl_path.name,
+                "gap_examples": gaps[:10],
+            }
+        report["hyperliquid"][coin] = hyperliquid_report
+
+    (out_dir / "coverage.json").write_text(
+        json.dumps(report, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    print(json.dumps(report, ensure_ascii=False))
+    return report
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--out-dir", type=Path, default=Path("reports/clt_bingx_market_data"))
+    parser.add_argument("--start", default="2026-10-03T00:00:00+00:00")
+    parser.add_argument("--end", default="2026-11-09T00:00:00+00:00")
+    args = parser.parse_args()
+    archive(
+        args.out_dir,
+        start=datetime.fromisoformat(args.start).astimezone(UTC),
+        end=datetime.fromisoformat(args.end).astimezone(UTC),
+    )
+
+
+if __name__ == "__main__":
+    main()
