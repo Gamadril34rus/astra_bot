@@ -18,6 +18,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import time
 from collections import defaultdict
@@ -553,6 +554,10 @@ def main() -> None:
             "end": df["datetime"].iloc[-1].isoformat() if len(df) else None,
             "gaps": gaps,
         }
+        raw_path = out / f"{sym.replace('-', '')}_{args.interval}.csv"
+        df.to_csv(raw_path, index=False)
+        bars_meta[sym]["archive_file"] = raw_path.name
+        bars_meta[sym]["archive_sha256"] = hashlib.sha256(raw_path.read_bytes()).hexdigest()
         print(sym, bars_meta[sym])
         bars_by_symbol[sym] = df
         all_trades.extend(
@@ -620,6 +625,7 @@ def main() -> None:
             "slippage_per_side": SLIP,
             "cost_buffer": COST_BUFFER,
             "funding": 0,
+            "funding_status": "not included in this preliminary 15m screening run",
         },
         "start_equity": args.start,
         "bars": bars_meta,
