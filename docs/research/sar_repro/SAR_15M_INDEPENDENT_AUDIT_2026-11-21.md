@@ -1,55 +1,98 @@
-# SAR 15m baseline: independent audit corrections
+# SAR 15m baseline: independent audit and corrected replay
 
 **Date:** 2026-11-21  
-**Scope:** audit of workflow artifact `14709825927`, code `97bbd7411b0fed2071e8766ebec9bda0a52cfc98`.  
-**Status:** strategy baseline rejected on per-trade expectancy under standard BingX taker fees; portfolio equity curve is not approved for use.
+**Status:** corrected canonical replay completed; unfiltered baseline rejected under BingX standard taker fees.  
+**Scope:** BingX public 15m candles for BTC-USDT, ETH-USDT and SOL-USDT, workflow artifact `14710849082`, code `0cec06fa10cfeaa08da29794a0b63f180926d88d`.
 
-## 1. Independent artifact checks
+## 1. Defect found and corrected
 
-The three archived candle files were independently checked:
+The first SAR replay implementation was not fully equivalent to the standard Wilder / TA-Lib state machine:
 
-- BTC: 9,600 rows; ETH: 9,599; SOL: 9,599.
-- No duplicate timestamps, missing 15m intervals, invalid OHLC rows, or non-positive prices.
-- All three end at 2026-11-21 13:30 UTC. The archive spans approximately 100 days, not one year.
+1. On a reversal it set SAR to the previous extreme point but omitted the mandatory clamp to the previous and current candle range.
+2. It used strict crossing (`<` / `>`) instead of touch-inclusive reversal (`<=` / `>=`).
+3. It forced the initial trend long by default instead of inferring the initial direction from the first two bars.
 
-A separate replay implementation of the documented SAR state machine produced exactly 2,311 trades and matched the archived trade sequence on symbol, side, entry timestamp, exit timestamp and exit reason. The mean net return matched to floating-point precision: **-27.8456 bps/trade** under the frozen 5 bps/side taker fee plus 10 bps/side slippage model.
+These differences can change the SAR path and trade sequence. The earlier 2,311-trade replay is superseded and must not be treated as the canonical result.
 
-This confirms reproducibility of the current rule implementation, not that every modeling choice is correct.
+The engine was corrected to use TA-Lib-compatible initialization and reversal clamps. Explicit forced initial direction remains available only for sensitivity checks. Tests were added for both reversal clamps, equal-price touch, and initial-direction inference.
 
-## 2. Corrected price-only and fee sensitivity
+Reference implementation: TA-Lib SAR source code, including touch-inclusive reversal and reversal-range clamps: https://github.com/TA-Lib/ta-lib/blob/main/src/ta_func/ta_SAR.c
 
-The previous result document reported price-only mean **+2.59 bps**. Recalculation directly from the archived entry and exit mid-prices gives **+2.1538 bps/trade**, price-only PF **1.0767**, median **-16.79 bps**, and win rate **35.31%**. The +2.59 bps figure is withdrawn.
+## 2. Corrected archive validation and independent replay
 
-Applying the official base BingX Perpetual Futures taker rate of 0.05% per side, with **zero slippage**, gives:
+The corrected workflow fetched 9,602 candles per market before the final in-progress candle was removed from scoring. Final scored coverage:
 
-- Mean net: **-7.8461 bps/trade**.
-- PF: **0.7749**.
-- Win rate: **29.29%**.
+- BTC-USDT: 9,602 bars
+- ETH-USDT: 9,602 bars
+- SOL-USDT: 9,602 bars
+- Start: 2026-08-13 14:00 UTC
+- Last candle open: 2026-11-21 14:15 UTC
+- No duplicate timestamps, missing 15m intervals or invalid OHLC rows.
 
-At the published 0.02% maker rate on both sides, also with zero slippage, the mechanical sensitivity is mean **-1.8462 bps/trade** and PF **0.9399**. This is an optimistic sensitivity only: the tested next-open entry and stop execution are market/taker-like, not guaranteed maker fills.
+A separate replay of the corrected state machine matched all **2,319 trades** in the workflow artifact on symbol, side, entry timestamp, exit timestamp and exit reason. Mean net return matched to floating-point precision: **-27.8062 bps/trade** under the original stress model.
 
-The mean edge reaches break-even only below approximately **1.077 bps fee per side** if slippage is zero, or below approximately **1.077 bps slippage per side** if fees are zero. Thus the negative expectancy is not caused solely by the arbitrary 10 bps/side slippage assumption. It remains negative under the published base taker fee even with slippage removed.
+## 3. Corrected expectancy and cost sensitivity
 
-Official fee reference: BingX Perpetual Futures Fee Schedule, which lists 0.05% taker and 0.02% maker for the base tier: https://bingxservice.zendesk.com/hc/en-001/articles/11263240298255-Perpetual-Futures-Fee-Schedule
+From entry/exit mid-prices before costs:
 
-## 3. Important portfolio-simulation defect / limitation
+- Trades: **2,319**
+- Mean: **+2.1931 bps/trade**
+- Median: **-16.8433 bps**
+- Win rate: **35.23%**
+- Price-only PF: **1.0781**
 
-The prior report's compounded portfolio ending balance ($3.24 from $5,000) and -99.947% drawdown must **not** be treated as a verified live-account outcome.
+With the published BingX base perpetual taker fee of **0.05% per side** and **zero slippage**:
 
-The portfolio simulator sizes notional from stop distance and a fixed 30 bps cost buffer, but it does not implement exchange margin tiers, maintenance margin, liquidation/bankruptcy prices, or a full margin-availability check. It also does not replay funding cashflows through the portfolio equity curve. Its MTM curve marks on 15m closes, while intrabar stop execution time is only approximated by the candle close timestamp. These limitations make the final balance and drawdown unsuitable as an exchange-realistic portfolio result.
+- Mean net: **-7.8068 bps/trade**
+- Median: **-26.8349 bps**
+- Win rate: **29.24%**
+- PF: **0.7760**
 
-The per-trade return and PF calculations are separate from that compounding model and remain reproducible for the stated fill/fee assumptions.
+With the published 0.02% maker fee on both sides and zero slippage, a deliberately optimistic sensitivity gives mean **-1.8068 bps/trade**, PF **0.9412**. This is not the expected execution route: next-open market entries and triggered stop exits are taker-like, and maker fills are not guaranteed.
 
-## 4. Remaining limitations
+With the original 10 bps/side slippage stress assumption plus 5 bps/side taker fee:
 
-- Approximately 100 days of history only; no untouched out-of-sample period.
-- The strategy is a crypto-perpetual analogue of a video example shown on XAUUSD, not a direct XAUUSD reproduction.
-- The 10 bps/side slippage setting is a stress assumption, not measured market-impact data.
-- Funding was adjusted on 2,046/2,311 trades (88.53%); the remaining 265 are beyond the funding archive boundary. Funding contribution on the covered subset is negligible, but portfolio-level funding compounding was not rerun.
-- The source engine still labels itself `re-audit required`. Existing unit tests are narrow and do not constitute full validation of portfolio margin accounting.
+- Mean net: **-27.8062 bps/trade**
+- Median: **-46.8199 bps**
+- Win rate: **21.47%**
+- PF: **0.4424**
 
-## 5. Corrected decision
+Break-even is only about **1.097 bps fee per side** with zero slippage, or **1.097 bps slippage per side** with zero fees. The negative expectancy therefore does not depend solely on the arbitrary 10 bps/side slippage assumption: it remains negative under the published base taker fee after slippage is removed.
 
-**Reject this unfiltered SAR 0.02/0.02/0.20 15m baseline for BingX USDT-M perpetuals under standard taker execution.** The observed price-only edge is too small to cover even the published base taker fee with zero slippage. The conclusion is specific to this 100-day sample, three symbols, and the fixed video rule. It is not a claim that every possible SAR variant is unprofitable.
+Official BingX fee schedule: https://bingxservice.zendesk.com/hc/en-001/articles/11263240298255-Perpetual-Futures-Fee-Schedule
 
-Do not use the prior $3.24 terminal equity or -99.947% drawdown as a verified portfolio forecast. Do not connect this experiment to Zeus or merge it to master.
+Per-market price-only mean / PF and zero-slippage taker mean:
+
+| Market | Trades | Price-only mean | Price-only PF | Taker fee only mean |
+|---|---:|---:|---:|---:|
+| BTC-USDT | 780 | +1.45 bps | 1.068 | -8.55 bps |
+| ETH-USDT | 762 | +3.99 bps | 1.146 | -6.01 bps |
+| SOL-USDT | 777 | +1.18 bps | 1.033 | -8.82 bps |
+
+All three markets lose after the standard taker fee even with zero slippage.
+
+## 4. Funding
+
+Funding was applied to the subset fully covered by the frozen BingX funding archive:
+
+- Covered: **2,052 / 2,319 trades (88.49%)**
+- Excluded after archive boundary: 267 trades
+- Covered subset mean without funding: **-27.96 bps**
+- Covered subset mean with funding: **-28.02 bps**
+- Covered subset PF with funding: **0.4165**
+
+Funding is small and does not change the conclusion. The original portfolio equity curve was not rerun with funding cashflows.
+
+## 5. Portfolio-simulation limitation
+
+The earlier portfolio simulator's terminal equity and drawdown are **not approved as exchange-realistic performance claims**. It does not model maintenance-margin tiers, liquidation/bankruptcy prices, or full margin-availability checks; funding cashflows are not replayed through portfolio equity; intrabar stop timing is approximated at candle-close timestamps for the MTM curve. Do not use its printed terminal balance or drawdown as a live-account forecast.
+
+Per-trade expectancy and PF are separate from that compounding model and are reproducible under the stated fill/fee assumptions.
+
+## 6. Final decision
+
+**Reject the unfiltered video baseline, SAR 0.02 / 0.02 / 0.20 on BingX USDT-M perpetuals, under standard taker execution.** The corrected canonical implementation still produces a small positive pre-cost price move that is insufficient to cover even base taker fees with zero slippage.
+
+This conclusion is limited to the corrected 100-day discovery sample and these three symbols. There is no untouched out-of-sample period, and this is a crypto-perpetual analogue of a video example shown on XAUUSD. It is not a claim that every SAR variant is unprofitable.
+
+No parameter optimization was performed. No master merge, Zeus integration, or live changes.
