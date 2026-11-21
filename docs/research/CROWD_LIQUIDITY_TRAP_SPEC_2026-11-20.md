@@ -238,3 +238,10 @@ HYPE remains the most interesting market, but the effect is narrower than in the
 Critical execution caveat: the control enters at the next candle open, an immediate execution assumption. It cannot claim maker fees unless a resting-limit fill model proves those orders actually fill at the assumed price. Taker/taker is the more relevant conservative fee scenario for immediate execution, and even that excludes spread, slippage, market impact and funding. This short in-sample control therefore does not establish a robust executable price-only edge. It is a benchmark for the CLT event study, not a candidate promotion result.
 
 The previous run `44813460457` generated its swing signal from BingX candles and is superseded as a source-venue comparator. Use run `44880346384` for the Hyperliquid-signal/BingX-execution baseline. All results remain exploratory, with no untouched out-of-sample period.
+
+
+## 2026-11-21 direction-aware price-control output
+
+The reproducible price-only control now reports LONG and SHORT separately for each market, pooled, and ex-HYPE. Each direction retains its own event count, gross/fee-adjusted means and date-block confidence intervals; the two sides are never pooled inside a directional view.
+
+A 1.5x taker-fee-only sensitivity is emitted as a lower-bound fee stress (15 bps round trip using the published 5 bps/side base rate). It is **not** a full 1.5x execution-cost stress: spread, slippage, funding, market impact and the owner's actual fee tier remain unavailable. The report remains a price-only benchmark, not a CLT event study or promotion result.
