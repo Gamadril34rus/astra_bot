@@ -72,7 +72,7 @@ def test_sar_equal_touch_reverses_instead_of_waiting_for_strict_penetration():
 
 
 def test_sar_auto_initial_direction_uses_first_two_bar_directional_move():
-    high = np.array([10.0, 10.5, 10.8, 10.7])
+    high = np.array([10.0, 9.5, 9.4, 9.3])
     low = np.array([9.0, 8.0, 8.2, 8.3])
     _, trend = engine.parabolic_sar_series(high, low)
     assert trend[1] == -1
