@@ -69,10 +69,12 @@ def test_apply_funding_excludes_trades_without_complete_archive_window(tmp_path)
         pd.DataFrame({
             "funding_time": [
                 int(pd.Timestamp("2026-10-01T00:00:00Z").timestamp() * 1000),
+                int(pd.Timestamp("2026-10-01T08:00:00Z").timestamp() * 1000),
                 int(pd.Timestamp("2026-10-02T00:00:00Z").timestamp() * 1000),
-                int(pd.Timestamp("2026-10-03T00:00:00Z").timestamp() * 1000),
+                int(pd.Timestamp("2026-10-02T08:00:00Z").timestamp() * 1000),
+                int(pd.Timestamp("2026-10-02T16:00:00Z").timestamp() * 1000),
             ],
-            "rate": [0.0001, 0.0001, 0.0001],
+            "rate": [0.0001, 0.0001, 0.0001, 0.0001, 0.0001],
         }).to_csv(funding_dir / f"funding_{symbol}.csv", index=False)
     trades = pd.DataFrame([{
         "symbol": "BTC-USDT", "side": "long",
