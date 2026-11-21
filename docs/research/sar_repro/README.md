@@ -49,4 +49,8 @@ Default SAR 0.02/0.02/0.2 1h under bot costs still **PF_usd ~0.75** on ~1y (prel
 1. Re-audit v4  
 2. Freeze candles + funding  
 3. Unit tests risk/gap/long-short  
-4. Walk-forward + limited grid + OOS only after pass  
+4. Walk-forward + limited grid + OOS only after pass
+
+## 2026-11-21 BingX 15m history availability
+
+A one-year request for 36,000 15m candles returned only 9,600 BTC-USDT bars from the public BingX endpoint. The reproducible baseline therefore uses the observed 9,600-bar window (about 100 days), not a one-year claim. This is a coverage limitation, not a profitability result. The workflow freezes the raw candle CSVs and SHA-256 hashes so the shorter sample can be audited. A positive result on this window would still require an independent longer archive and funding integration before any strategy verdict.
