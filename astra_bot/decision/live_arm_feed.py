@@ -545,8 +545,33 @@ async def scan_symbol(
             logger.warning("arm feed: %s row map failed: %s", symbol, type(exc).__name__)
             return None
     # Proxy v1: ZEUS_RETEST_V1=shadow → journal only (no pending row / no live entry).
+    channel_diag: dict[str, Any] = {}
     try:
         diag = strat.diagnose(closed_series, current_price=live_price)
+        channel_diag = diag if isinstance(diag, dict) else {}
+        logger.info(
+            "arm feed channel diagnostic: symbol=%s stage=%s reject=%s "
+            "has_channel=%s pattern=%s direction=%s htf_bias=%s "
+            "width_pct=%s parallel_score=%s touch_hi=%s touch_lo=%s "
+            "near_hi=%s near_lo=%s bars_outside=%s retest_mode=%s "
+            "would_signal=%s",
+            symbol,
+            channel_diag.get("stage"),
+            channel_diag.get("reject_reason"),
+            channel_diag.get("has_channel"),
+            channel_diag.get("pattern"),
+            channel_diag.get("direction"),
+            channel_diag.get("htf_bias"),
+            channel_diag.get("width_pct"),
+            channel_diag.get("parallel_score"),
+            channel_diag.get("touch_hi"),
+            channel_diag.get("touch_lo"),
+            channel_diag.get("near_hi"),
+            channel_diag.get("near_lo"),
+            channel_diag.get("bars_outside"),
+            channel_diag.get("retest_mode"),
+            channel_diag.get("would_signal"),
+        )
         shadow = (diag or {}).get("shadow_retest")
         if shadow:
             logger.info(
@@ -603,6 +628,12 @@ async def scan_symbol(
         except Exception as exc:
             logger.warning("arm feed: %s breakdown 1h failed: %s", symbol, type(exc).__name__)
     if br is None:
+        logger.info(
+            "arm feed fallback diagnostic: symbol=%s channel_reject=%s "
+            "multi_top_4h=none multi_top_1h=none",
+            symbol,
+            channel_diag.get("reject_reason") or "no_channel_signal",
+        )
         return None
     now = time.time()
     row = {
