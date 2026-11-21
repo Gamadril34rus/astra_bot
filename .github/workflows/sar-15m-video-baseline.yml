@@ -6,6 +6,8 @@ on:
     paths:
       - "docs/research/sar_repro/sar_backtest_engine.py"
       - "docs/research/sar_repro/test_sar_backtest_engine.py"
+      - "docs/research/sar_repro/apply_sar_funding.py"
+      - "docs/research/sar_repro/test_apply_sar_funding.py"
       - ".github/workflows/sar-15m-video-baseline.yml"
   push:
     branches:
@@ -17,11 +19,12 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
   group: sar-15m-video-baseline
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   baseline:
@@ -35,9 +38,9 @@ jobs:
       - name: Install research dependencies
         run: python -m pip install numpy pandas requests pytest ruff
       - name: Test SAR engine and interval handling
-        run: python -m pytest docs/research/sar_repro/test_sar_backtest_engine.py -q
+        run: python -m pytest docs/research/sar_repro/test_sar_backtest_engine.py docs/research/sar_repro/test_apply_sar_funding.py -q
       - name: Lint SAR engine
-        run: python -m ruff check docs/research/sar_repro/sar_backtest_engine.py docs/research/sar_repro/test_sar_backtest_engine.py
+        run: python -m ruff check docs/research/sar_repro/sar_backtest_engine.py docs/research/sar_repro/test_sar_backtest_engine.py docs/research/sar_repro/apply_sar_funding.py docs/research/sar_repro/test_apply_sar_funding.py
       - name: Run frozen-rule 15m baseline on BingX
         run: |
           python docs/research/sar_repro/sar_backtest_engine.py \
@@ -45,6 +48,19 @@ jobs:
             --out sar_repro_15m_out \
             --interval 15m \
             --limit-total 9600
+      - name: Download frozen BingX funding archive
+        uses: actions/download-artifact@v4
+        with:
+          name: bingx-30m-funding
+          run-id: 42692378936
+          github-token: ${{ github.token }}
+          path: funding_archive
+      - name: Apply actual funding to SAR trades with complete archive coverage
+        run: |
+          python docs/research/sar_repro/apply_sar_funding.py \
+            --trades sar_repro_15m_out/trades_raw_signals.csv \
+            --funding-dir funding_archive/data/bingx_usdm \
+            --out-dir sar_repro_15m_out/funding_adjusted
       - name: Upload raw candles and SAR replay artifacts
         uses: actions/upload-artifact@v4
         with:
