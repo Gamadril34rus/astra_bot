@@ -535,7 +535,8 @@ def main() -> None:
     ap.add_argument("--limit-total", type=int, default=None, help="number of candles per symbol; defaults to ~1y for interval")
     args = ap.parse_args()
     interval_ms = interval_to_ms(args.interval)
-    limit_total = args.limit_total or (36_000 if args.interval == "15m" else 9_000)
+    # BingX public 15m history returned 9,600 bars in the 2026-11-21 archive probe.
+    limit_total = args.limit_total or (9_600 if args.interval == "15m" else 9_000)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
