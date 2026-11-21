@@ -174,3 +174,8 @@ The pooled price-only baseline is now reproducible by `scripts/research/clt_pric
 ## 2026-11-20 per-market uncertainty and leave-one-market-out control
 
 The price-only control artifact now emits event counts, gross means, maker/maker and taker/taker fee-adjusted means, three-day moving-block 95% intervals before fees, and intervals shifted by the same fixed round-trip fee assumptions for each market separately. It also emits the complete pooled summary excluding HYPE. All summaries use the same calendar date range, block length and random seed, so each resample uses the same sampled calendar blocks across the pooled, per-market and ex-HYPE views. These are descriptive multiple views of one archive, not five independent confirmatory tests. The JSON also keeps the original pooled fields for compatibility.
+
+
+## 2026-11-21 inventory sample provenance and hard-page-cap guard
+
+The historical inventory report now records a SHA-256 fingerprint of the sorted selected wallet-address set. It does not expose addresses and does not freeze the public leaderboard sample, but it makes it possible to tell whether two runs used the same cohort before comparing their aggregates. The collector also fails closed when it exhausts its full five-page budget with a full final page, even if de-duplication leaves fewer than 10,000 unique fill keys. This prevents a theoretically truncated history from being treated as complete merely because the local unique-key count fell below the API ceiling. Both behaviours have isolated regression tests.

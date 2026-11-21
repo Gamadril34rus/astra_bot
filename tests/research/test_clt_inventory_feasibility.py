@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 
 import scripts.research.clt_inventory_feasibility as inventory
 from scripts.research.clt_inventory_feasibility import (
+    wallet_sample_fingerprint,
     MAX_FILLS_PER_ADDRESS,
     count_net_add_wallets,
     order_timestamp_group,
@@ -508,3 +509,43 @@ def test_fetch_wallet_history_fails_closed_when_boundary_probe_is_capped(monkeyp
     assert stats["page_boundary_collision"] is True
     assert stats["boundary_collision_markets"] == ["BTC"]
     assert stats["boundary_recovered_markets"] == []
+
+
+
+def test_wallet_sample_fingerprint_is_stable_and_order_independent():
+    first = [
+        {"address": "0x" + "b" * 40},
+        {"address": "0x" + "a" * 40},
+    ]
+    second = list(reversed(first))
+    assert wallet_sample_fingerprint(first) == wallet_sample_fingerprint(second)
+    assert wallet_sample_fingerprint(first) != wallet_sample_fingerprint([
+        {"address": "0x" + "c" * 40},
+        {"address": "0x" + "a" * 40},
+    ])
+
+
+def test_fetch_wallet_history_marks_full_page_budget_as_capped(monkeypatch):
+    monkeypatch.setattr(inventory, "PAGE_SIZE", 2)
+    monkeypatch.setattr(inventory, "MAX_FILLS_PER_ADDRESS", 4)
+    monkeypatch.setattr(inventory.time, "sleep", lambda _: None)
+    first_page = [
+        {"time": 100, "tid": 1, "coin": "BTC"},
+        {"time": 100, "tid": 1, "coin": "BTC"},
+    ]
+    first_boundary = [{"time": 100, "tid": 1, "coin": "BTC"}]
+    second_page = [
+        {"time": 200, "tid": 2, "coin": "BTC"},
+        {"time": 200, "tid": 2, "coin": "BTC"},
+    ]
+    second_boundary = [{"time": 200, "tid": 2, "coin": "BTC"}]
+    calls = iter([first_page, first_boundary, second_page, second_boundary])
+    monkeypatch.setattr(inventory, "post_info", lambda payload: next(calls))
+
+    _rows, stats = inventory.fetch_wallet_history(
+        "0x" + "5" * 40, start_ms=0, end_ms=1_000
+    )
+
+    assert stats["pages"] == 2
+    assert stats["api_cap_reached"] is True
+    assert stats["twap_fills"] == 0

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 import statistics
@@ -169,11 +170,13 @@ def fetch_wallet_history(
     cursor = start_ms
     fills: dict[tuple[Any, ...], dict[str, Any]] = {}
     pages = 0
+    max_pages = math.ceil(MAX_FILLS_PER_ADDRESS / PAGE_SIZE)
+    last_page_full = False
     capped = False
     boundary_collision = False
     boundary_collision_markets: set[str] = set()
     boundary_recovered_markets: set[str] = set()
-    while pages < math.ceil(MAX_FILLS_PER_ADDRESS / PAGE_SIZE):
+    while pages < max_pages:
         page = post_info({
             "type": "userFillsByTime",
             "user": address,
@@ -182,6 +185,7 @@ def fetch_wallet_history(
             "aggregateByTime": False,
         })
         pages += 1
+        last_page_full = len(page) >= PAGE_SIZE
         for fill in page:
             fills[_fill_key(fill)] = fill
         weight = 20 + math.ceil(len(page) / 20)
@@ -236,7 +240,9 @@ def fetch_wallet_history(
         if len(fills) >= MAX_FILLS_PER_ADDRESS:
             capped = True
             break
-    if len(fills) >= MAX_FILLS_PER_ADDRESS:
+    if len(fills) >= MAX_FILLS_PER_ADDRESS or (
+        pages >= max_pages and last_page_full
+    ):
         capped = True
 
     twap_rows = []
@@ -532,6 +538,13 @@ def split_market_cohorts(
     }
 
 
+def wallet_sample_fingerprint(selected: list[dict[str, Any]]) -> str:
+    """Return a privacy-safe fingerprint of the selected address cohort."""
+    addresses = sorted(str(row["address"]).lower() for row in selected)
+    payload = "\n".join(addresses).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
 def audit(
     manifest_path: Path,
     out_dir: Path,
@@ -804,6 +817,7 @@ def audit(
         ),
         "counts": {
             "wallets_selected": len(selected),
+            "wallet_sample_sha256": wallet_sample_fingerprint(selected),
         "wallet_source": "hyperliquid_public_leaderboard" if selected and selected[0]["manifest_fills"] is None else "wallet_archive_manifest",
         "wallet_sampling": "deterministic monthly-volume deciles" if selected and selected[0]["manifest_fills"] is None else "lowest manifest fill counts",
             "wallets_with_core_market_fills": len({address for address, _ in wallet_market_fills}),
