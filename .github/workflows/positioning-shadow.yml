@@ -42,6 +42,20 @@ jobs:
           ref: ${{ github.sha }}
           path: source
 
+      - name: Guard initial history seed
+        if: github.event_name == 'workflow_dispatch' && inputs.initialize_history
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INITIATOR: ${{ github.actor }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" != "workflow_dispatch" || "$INITIATOR" != "$REPOSITORY_OWNER" ]]; then
+            echo "::error::Historical seed is restricted to workflow_dispatch by the repository owner."
+            exit 1
+          fi
+
       - name: Set up Python
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
         with:
