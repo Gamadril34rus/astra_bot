@@ -10,7 +10,25 @@
       "trade_ids": [],
       "ts": 1794829621.8909788,
       "last_notice_ts": 1795262847.9041283
+    },
+    {
+      "symbol": "BTC-USDT",
+      "side": "short",
+      "signal_id": "zeus_channel_boundary|BTC-USDT|short|1795320000000",
+      "since_ms": 1795341377567,
+      "reason": "выход",
+      "entry": 61204.8,
+      "qty": 0.4004,
+      "leverage": 6,
+      "stop": "61793.416",
+      "target": "60321.8760",
+      "closed_at": 1795342312.625692,
+      "trade_ids": [],
+      "ts": 1795342312.625692,
+      "card_sent": false,
+      "followup_sent": true,
+      "exit_price": 61046.6
     }
   ],
-  "ts": 1795342022.114412
+  "ts": 1795342359.7980568
 }
