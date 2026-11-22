@@ -27,22 +27,26 @@
     "BTC-USDT|short": {
       "symbol": "BTC-USDT",
       "side": "short",
-      "qty": "0.81723916",
-      "stop": "61793.416",
-      "tp": "60906.28280",
+      "qty": "0.4004",
+      "stop": "61204.8",
+      "tp": "60321.8760",
       "entry": "61204.8",
-      "leverage": 6,
+      "leverage": 5,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|BTC-USDT|short|1795320000000",
-      "ts": 1795341437.5674171,
-      "be_moved": false,
+      "ts": 1795341731.9905837,
+      "be_moved": true,
       "initial_stop": "61793.416",
-      "tp_frac": "0.3",
       "opened_at_ms": 1795341437567,
+      "tp_parity_v1": true,
+      "be_earned": true,
+      "tp_frac": "0.3",
+      "peak_low": "60823.1",
       "plan_qty": "0.81723916",
-      "qty_ratio": 1.0,
-      "tp1": "60906.28280"
+      "qty_ratio": 0.48994225876302844,
+      "tp1": "60906.28280",
+      "current_regime": "STRONG_BEAR_TREND"
     }
   },
-  "ts": 1795341437.567435
+  "ts": 1795341754.4769423
 }
