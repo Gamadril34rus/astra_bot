@@ -31,7 +31,7 @@
       "stop": "61204.8",
       "tp": "60321.8760",
       "entry": "61204.8",
-      "leverage": 5,
+      "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|BTC-USDT|short|1795320000000",
       "ts": 1795341731.9905837,
@@ -45,8 +45,11 @@
       "plan_qty": "0.81723916",
       "qty_ratio": 0.48994225876302844,
       "tp1": "60906.28280",
-      "current_regime": "STRONG_BEAR_TREND"
+      "current_regime": "STRONG_BEAR_TREND",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     }
   },
-  "ts": 1795341754.4769423
+  "ts": 1795342024.6389964
 }
