@@ -309,7 +309,6 @@ def write_week_loss_reset(ts: float | None = None, path: Path | None = None) -> 
     )
     return t
 
-
 def check_day_week_limits(
     equity: Decimal,
     path: Path = TRADES_PATH,
