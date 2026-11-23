@@ -4,7 +4,7 @@
       "symbol": "SOL-USDT",
       "side": "long",
       "qty": "99.07400248",
-      "stop": "73.32485714285714",
+      "stop": "74.81385714285715",
       "tp": "82.279548279910787",
       "entry": "76.888",
       "leverage": 6,
@@ -21,10 +21,29 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_high": "76.782",
+      "peak_high": "78.271",
       "be_earned": true,
       "current_regime": "RANGE"
+    },
+    "ETH-USDT|long": {
+      "symbol": "ETH-USDT",
+      "side": "long",
+      "qty": "5.28790621",
+      "stop": "1693.81558",
+      "tp": "1944.930094",
+      "entry": "1844.78",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_multi_top_breakdown|ETH-USDT|long|1795438800000",
+      "ts": 1795444051.1402109,
+      "be_moved": false,
+      "initial_stop": "1693.81558",
+      "tp_frac": "0.3",
+      "opened_at_ms": 1795444051140,
+      "plan_qty": "5.28790621",
+      "qty_ratio": 1.0,
+      "tp1": "1944.930094"
     }
   },
-  "ts": 1795443753.7510664
+  "ts": 1795444051.140226
 }
