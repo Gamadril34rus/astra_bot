@@ -29,7 +29,7 @@
       "symbol": "ETH-USDT",
       "side": "long",
       "qty": "5.28790621",
-      "stop": "1693.81558",
+      "stop": "1736.167142857143",
       "tp": "1944.930094",
       "entry": "1844.78",
       "leverage": 6,
@@ -42,8 +42,14 @@
       "opened_at_ms": 1795444051140,
       "plan_qty": "5.28790621",
       "qty_ratio": 1.0,
-      "tp1": "1944.930094"
+      "tp1": "1944.930094",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_high": "1827.91",
+      "migrate_stop_v1": true,
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1795444051.140226
+  "ts": 1795444368.2538419
 }
