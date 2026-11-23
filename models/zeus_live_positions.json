@@ -4,7 +4,7 @@
       "symbol": "INJ-USDT",
       "side": "long",
       "qty": "1353.69105843",
-      "stop": "5.963631589073134",
+      "stop": "6.022714285714286",
       "tp": "6.79356578491708970",
       "entry": "6.538",
       "leverage": 6,
@@ -17,8 +17,14 @@
       "opened_at_ms": 1795464163278,
       "plan_qty": "1353.69105843",
       "qty_ratio": 1.0,
-      "tp1": "6.79356578491708970"
+      "tp1": "6.79356578491708970",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_high": "6.508",
+      "be_earned": true,
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1795464163.2780874
+  "ts": 1795464447.9190526
 }
