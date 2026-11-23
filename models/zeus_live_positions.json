@@ -1,31 +1,5 @@
 {
   "positions": {
-    "INJ-USDT|long": {
-      "symbol": "INJ-USDT",
-      "side": "long",
-      "qty": 2354.0,
-      "stop": "6.4180760000000005",
-      "tp": "6.6542280000000015",
-      "entry": "6.300",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_multi_top_breakdown|INJ-USDT|long|1795417200000",
-      "ts": 1795428145.8159306,
-      "be_moved": true,
-      "initial_stop": "6.063847999999999",
-      "opened_at_ms": 1795420967433,
-      "tp_parity_v1": true,
-      "be_earned": true,
-      "tp_frac": "0.3",
-      "peak_high": "6.509",
-      "current_regime": "RANGE",
-      "tp1": "6.4585064000000007",
-      "initial_stop_v1": true,
-      "early_tp1": true,
-      "early_tp_repair_v1": true,
-      "runner_tp_rr": 1.5,
-      "runner_tp_healed_v1": true
-    },
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
       "side": "short",
@@ -53,5 +27,5 @@
       "current_regime": "RANGE"
     }
   },
-  "ts": 1795442277.5065296
+  "ts": 1795442626.4012249
 }
