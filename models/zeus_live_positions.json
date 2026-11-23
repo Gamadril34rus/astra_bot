@@ -1,4 +1,62 @@
 {
-  "positions": {},
-  "ts": 1795417942.1651406
+  "positions": {
+    "INJ-USDT|long": {
+      "symbol": "INJ-USDT",
+      "side": "long",
+      "qty": "3363.95981942",
+      "stop": "6.063847999999999",
+      "tp": "6.4585064000000007",
+      "entry": "6.300",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_multi_top_breakdown|INJ-USDT|long|1795417200000",
+      "ts": 1795420967.4339085,
+      "be_moved": false,
+      "initial_stop": "6.063847999999999",
+      "tp_frac": "0.3",
+      "opened_at_ms": 1795420967433,
+      "plan_qty": "3363.95981942",
+      "qty_ratio": 1.0,
+      "tp1": "6.4585064000000007"
+    },
+    "ETH-USDT|short": {
+      "symbol": "ETH-USDT",
+      "side": "short",
+      "qty": "29.04190747",
+      "stop": "1738.8665",
+      "tp": "1709.59845",
+      "entry": "1718.74",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|ETH-USDT|short|1795406400000",
+      "ts": 1795420975.127498,
+      "be_moved": false,
+      "initial_stop": "1738.8665",
+      "tp_frac": "0.3",
+      "opened_at_ms": 1795420975127,
+      "plan_qty": "29.04190747",
+      "qty_ratio": 1.0,
+      "tp1": "1709.59845"
+    },
+    "SOL-USDT|short": {
+      "symbol": "SOL-USDT",
+      "side": "short",
+      "qty": "693.94326319",
+      "stop": "72.77252000000001",
+      "tp": "71.547635999999993",
+      "entry": "72.055",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|SOL-USDT|short|1795406400000",
+      "ts": 1795420981.0964563,
+      "be_moved": false,
+      "initial_stop": "72.77252000000001",
+      "tp_frac": "0.3",
+      "opened_at_ms": 1795420981096,
+      "plan_qty": "693.94326319",
+      "qty_ratio": 1.0,
+      "tp1": "71.547635999999993"
+    }
+  },
+  "ts": 1795420981.096481
 }
