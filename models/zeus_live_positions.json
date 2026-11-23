@@ -17,7 +17,13 @@
       "opened_at_ms": 1795420967433,
       "plan_qty": "3363.95981942",
       "qty_ratio": 1.0,
-      "tp1": "6.4585064000000007"
+      "tp1": "6.4585064000000007",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_high": "6.286",
+      "be_earned": true,
+      "current_regime": "RANGE"
     },
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
@@ -36,13 +42,20 @@
       "opened_at_ms": 1795420975127,
       "plan_qty": "29.04190747",
       "qty_ratio": 1.0,
-      "tp1": "1709.59845"
+      "tp1": "1709.59845",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "1717.13",
+      "be_earned": true,
+      "migrate_stop_v1": true,
+      "current_regime": "RANGE"
     },
     "SOL-USDT|short": {
       "symbol": "SOL-USDT",
       "side": "short",
       "qty": "693.94326319",
-      "stop": "72.77252000000001",
+      "stop": "72.60128571428571",
       "tp": "71.547635999999993",
       "entry": "72.055",
       "leverage": 6,
@@ -55,8 +68,13 @@
       "opened_at_ms": 1795420981096,
       "plan_qty": "693.94326319",
       "qty_ratio": 1.0,
-      "tp1": "71.547635999999993"
+      "tp1": "71.547635999999993",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "72.116",
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1795420981.096481
+  "ts": 1795421240.0867264
 }
