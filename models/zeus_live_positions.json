@@ -4,10 +4,10 @@
       "symbol": "BTC-USDT",
       "side": "short",
       "qty": "0.5797",
-      "stop": "60297.44220",
+      "stop": "60204.30475",
       "tp": "59436.8285",
       "entry": "60357.8",
-      "leverage": 5,
+      "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|BTC-USDT|short|1795492800000",
       "ts": 1795510948.0961611,
@@ -17,18 +17,21 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "tp_frac": "0.3",
-      "peak_low": "59946.4",
+      "peak_low": "59906.2",
       "current_regime": "RANGE",
-      "tp1": "59945.5233"
+      "tp1": "59945.5233",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     },
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
       "side": "short",
       "qty": "20.588",
-      "stop": "1696.681620",
+      "stop": "1693.735099999999975",
       "tp": "1670.51059999999985",
       "entry": "1698.38",
-      "leverage": 5,
+      "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|ETH-USDT|short|1795492800000",
       "ts": 1795510950.0431077,
@@ -38,10 +41,13 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "tp_frac": "0.3",
-      "peak_low": "1686.01",
+      "peak_low": "1683.17",
       "current_regime": "RANGE",
       "tp1": "1688.06027999999993",
-      "migrate_stop_v1": true
+      "migrate_stop_v1": true,
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     },
     "INJ-USDT|short": {
       "symbol": "INJ-USDT",
@@ -50,7 +56,7 @@
       "stop": "6.1967970",
       "tp": "6.105410",
       "entry": "6.203",
-      "leverage": 5,
+      "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|INJ-USDT|short|1795492800000",
       "ts": 1795510950.9970567,
@@ -60,10 +66,13 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "tp_frac": "0.3",
-      "peak_low": "6.163",
+      "peak_low": "6.162",
       "current_regime": "RANGE",
-      "tp1": "6.162558"
+      "tp1": "6.162558",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     }
   },
-  "ts": 1795510964.482909
+  "ts": 1795511216.322457
 }
