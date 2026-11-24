@@ -5,6 +5,7 @@ ASTRA BOT — Trading Strategies
 from .adaptive_grid import AdaptiveGridStrategy
 from .base import BaseStrategy, Signal, StrategyConfig
 from .book_breakout import BookBreakoutConfig, BookBreakoutStrategy
+from .pattern_4h_retest import Pattern4hRetestConfig, Pattern4hRetestStrategy
 from .mean_reversion import MeanReversionStrategy
 from .momentum import MomentumStrategy
 from .multicurrency_mtf import MulticurrencyMTFConfig, MulticurrencyMTFStrategy
@@ -25,6 +26,8 @@ __all__ = [
     "BaseStrategy",
     "BookBreakoutConfig",
     "BookBreakoutStrategy",
+    "Pattern4hRetestConfig",
+    "Pattern4hRetestStrategy",
     "MeanReversionStrategy",
     "MomentumStrategy",
     "MulticurrencyMTFConfig",
