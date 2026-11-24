@@ -17,7 +17,6 @@ try:
     load_dotenv(PROJECT_ROOT / ".env")
 except ImportError:
     pass
-# Block 1.5: Error logging to logs/errors.log
 import traceback
 from datetime import UTC
 
@@ -26,6 +25,8 @@ from astra_bot.core import trading_schedule
 from astra_bot.core.instruments import TRADING_UNIVERSE, to_bingx
 from astra_bot.core.logger import setup_logging
 from astra_bot.decision.trading_engine import TradingEngine, TradingEngineConfig
+from astra_bot.decision.force_pattern_only import apply as _force_pattern_only
+_force_pattern_only()  # ONLY pattern_4h_retest — zoo offline
 from astra_bot.telegram.bot import create_telegram_bot
 
 
@@ -47,9 +48,8 @@ setup_logging(level=os.environ.get("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("bot_runner")
 LISTEN_SECONDS = int(os.environ.get("BOT_LISTEN_SECONDS", "200"))
 
+
 def _rotate_state() -> None:
-    """Прокачка торговых state-файлов в начале сессии (TZ §29):
-    Git не должен хранить бесконечную торговую БД."""
     try:
         from astra_bot.core.state_rotation import rotate_all
         rotate_all(PROJECT_ROOT / "models")
@@ -58,18 +58,12 @@ def _rotate_state() -> None:
 
 
 def make_telegram_notifier(bot):
-    """Отправляет карточки сделок как обычные сообщения, не как ASTRA ALERT.
-
-    Этот notifier используется только для карточек TradingEngine.
-    """
-
     async def _tg_notifier(text: str, severity: str = "info") -> None:
         if bot and hasattr(bot, "_send_to_admins"):
             try:
                 await bot._send_to_admins(text, severity=severity)
             except Exception as exc:
                 logger.warning("Trade notification send failed: %s", exc)
-
     return _tg_notifier
 
 
@@ -97,10 +91,9 @@ async def amain() -> int:
         logger.warning("BingX init failed (продолжаю в офлайн-режиме): %s", exc)
 
     from astra_bot.decision.shared_market_data import bind_shared_bingx_client
-
     bind_shared_bingx_client(bingx)
     candidates = tuple(to_bingx(s) for s in TRADING_UNIVERSE)
-    symbols = candidates  # fallback по умолчанию
+    symbols = candidates
     try:
         available = await bingx.get_instruments()
         if available:
@@ -113,59 +106,38 @@ async def amain() -> int:
             if filtered:
                 symbols = filtered
             else:
-                logger.warning("BingX вернул 0 торгуемых из нашего списка — fallback на статический универсум %d", len(candidates))
                 symbols = candidates
         else:
-            logger.warning("BingX get_instruments вернул пусто — fallback на статический универсум %d", len(candidates))
             symbols = candidates
     except Exception as exc:
-        logger.warning("BingX get_instruments failed, fallback на статический универсум: %s", exc)
+        logger.warning("BingX get_instruments failed: %s", exc)
         symbols = candidates
 
     if not symbols:
-        logger.error("No configured instruments — сессия без торговли, но без ошибки CI")
-        symbols = candidates
-        if not symbols:
-            try:
-                await bingx.close()
-            except Exception:
-                pass
-            return 0
+        logger.error("No configured instruments")
+        try:
+            await bingx.close()
+        except Exception:
+            pass
+        return 0
 
-    # Временное ограничение плеча эпохи-2 (первые ~2 недели после сброса
-    # 08.09.2026): чистые данные для калибровки EV/confidence важнее
-    # разброса от плеча. Поднять: ASTRA_LEVERAGE_MAX=100.
     try:
         _lev_max = max(1, int(os.environ.get("ASTRA_LEVERAGE_MAX", "3")))
     except ValueError:
         _lev_max = 3
-    logger.info("Paper контур: потолок плеча %dx (эпоха-2)", _lev_max)
+    logger.info("Paper контур: потолок плеча %dx", _lev_max)
 
     from decimal import Decimal as _Dec
     _eng_cfg = TradingEngineConfig(
         symbols=symbols,
         poll_interval_seconds=300,
         leverage_max=_lev_max,
-        risk_per_trade_pct=_Dec("0.015"),  # Pattern Balanced: 1.5% → ~5% on ~3R wins
+        risk_per_trade_pct=_Dec("0.015"),
     )
     engine = TradingEngine(exchange=bingx, config=_eng_cfg)
-    # Inject research strategy pattern_4h_retest into decision pipeline (DEMO).
-    try:
-        from astra_bot.strategies.pattern_4h_retest import Pattern4hRetestStrategy
-        _pipe = getattr(engine, "pipeline", None) or getattr(engine, "_pipeline", None)
-        if _pipe is not None and hasattr(_pipe, "strategies"):
-            _names = {getattr(s, "name", None) for s in _pipe.strategies}
-            if "pattern_4h_retest" not in _names:
-                _pipe.strategies.append(Pattern4hRetestStrategy())
-                logger.info("Injected Pattern4hRetestStrategy into pipeline")
-        else:
-            logger.warning("Pipeline not found for strategy inject — strategy still available for import")
-    except Exception as _inj_exc:
-        logger.warning("pattern_4h_retest inject failed: %s", _inj_exc)
     bot = await create_telegram_bot(bot_token=token, allowed_user_ids=allowed, admin_user_ids=admin_ids)
-
     engine._notifier = make_telegram_notifier(bot)
-    engine._trade_cards_enabled = True  # Этап 4: карточки сделок (осн. контур)
+    engine._trade_cards_enabled = True
 
     stop = asyncio.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -176,7 +148,7 @@ async def amain() -> int:
     try:
         await bot.start()
     except Exception as exc:
-        logger.warning("Telegram bot start failed (продолжаю без Telegram): %s", exc)
+        logger.warning("Telegram bot start failed: %s", exc)
 
     async def trade_loop():
         while not stop.is_set():
@@ -184,51 +156,6 @@ async def amain() -> int:
                 if trading_schedule.can_trade_now():
                     trading_schedule.tick()
                     await engine.step()
-                    try:
-                        import json as _json
-                        from datetime import datetime as _dt
-                        from pathlib import Path as _P
-
-                        from astra_bot.core.readiness import record_day
-
-                        today = _dt.now(UTC).date().isoformat()
-                        trades_today = wins_today = 0
-                        pnl_today = 0.0
-                        tp = _P(getattr(engine.config, "trades_path", "models/paper_trades.jsonl"))
-                        if tp.exists():
-                            for _line in tp.read_text(encoding="utf-8").splitlines():
-                                _line = _line.strip()
-                                if not _line:
-                                    continue
-                                try:
-                                    _t = _json.loads(_line)
-                                except Exception:
-                                    continue
-                                _closed = _t.get("closed_at") or 0
-                                try:
-                                    if isinstance(_closed, (int, float)) and _closed > 0:
-                                        _day = _dt.fromtimestamp(_closed / 1000, tz=UTC).date().isoformat()
-                                    elif isinstance(_closed, str) and _closed[:10]:
-                                        _day = _closed[:10]
-                                    else:
-                                        continue
-                                except Exception:
-                                    continue
-                                if _day != today:
-                                    continue
-                                trades_today += 1
-                                _p = float(_t.get("pnl") or 0.0)
-                                pnl_today += _p
-                                if _p > 0:
-                                    wins_today += 1
-                        record_day(
-                            trades=trades_today,
-                            wins=wins_today,
-                            pnl=pnl_today,
-                            equity_end=float(engine.broker.equity) if hasattr(engine, "broker") else 0.0,
-                        )
-                    except Exception as _e:
-                        logger.debug("readiness.record_day failed: %s", _e)
                 else:
                     logger.debug("Trading schedule paused")
             except Exception as exc:
