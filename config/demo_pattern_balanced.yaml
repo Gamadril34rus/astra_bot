@@ -1,0 +1,150 @@
+# ASTRA BOT — DEMO config: Pattern Balanced (4h signal → 15m/1h retest)
+# ============================================================
+# ONLY DEMO / paper. Do NOT use for REAL without separate owner approval.
+# Profile: середина — quality + moderate frequency.
+# Research: docs/research/pattern_4h_retest/
+# ============================================================
+
+system:
+  name: "ASTRA BOT"
+  version: "1.1.0-pattern-balanced"
+  environment: "paper"
+  paper_trading: true
+  trading_enabled: true
+
+market_data:
+  poll_interval_ms: 1000
+  websocket_reconnect_delay: 3
+  stale_data_timeout_seconds: 10
+  candle_timeframes:
+    - "15m"
+    - "30m"
+    - "1h"
+    - "4h"
+  max_candles_cache: 10000
+  orderbook_depth: 25
+
+trading:
+  instruments:
+    - "BTC-USDT"
+    - "ETH-USDT"
+    - "SOL-USDT"
+
+  strategies:
+    momentum:
+      enabled: false
+      weight: 0.0
+    mean_reversion:
+      enabled: false
+      weight: 0.0
+    book_breakout:
+      enabled: false
+      weight: 0.0
+    ts_momentum:
+      enabled: false
+      weight: 0.0
+    zeus_wedge_retest:
+      enabled: true
+      weight: 1.0
+
+  strategy_params:
+    pattern_balanced:
+      signal_tf: "4h"
+      entry_tf_priority:
+        - "15m"
+        - "30m"
+        - "1h"
+      patterns:
+        - "falling_wedge"
+        - "sym_triangle"
+        - "rising_wedge"
+        - "desc_triangle"
+      session_msk:
+        start: "16:00"
+        end: "06:00"
+      retest_frac_toward_stop: 0.25
+      max_wait_entry_bars_15m: 32
+      max_wait_entry_bars_1h: 12
+      time_stop_hours: 48
+      min_rr: 0.8
+      lookback_4h: 30
+      pivot_width: 2
+      flat_tolerance_pct: 0.6
+      converge_ratio_max: 0.75
+    zeus_wedge_retest:
+      preferred_timeframe: "4h"
+      enabled: true
+      min_rr: 1.5
+      min_stop_pct: 0.008
+      enable_true_breakout: true
+
+risk:
+  risk_per_trade: 0.015
+  daily_loss_limit: 0.05
+  weekly_loss_limit: 0.10
+  soft_drawdown: 0.10
+  hard_drawdown: 0.18
+  emergency_drawdown: 0.25
+  max_exposure_pct: 0.45
+  max_open_positions: 3
+  max_leverage: 3
+  high_volatility_multiplier: 0.5
+  extreme_volatility_threshold: 0.15
+  volatility_lookback: 20
+  correlation_limit: 0.7
+  drawdown_adaptation:
+    - drawdown: 0
+      risk_multiplier: 1.0
+    - drawdown: 0.05
+      risk_multiplier: 0.75
+    - drawdown: 0.10
+      risk_multiplier: 0.5
+    - drawdown: 0.15
+      risk_multiplier: 0.0
+
+ml:
+  enabled: false
+  auto_train: false
+  auto_deploy: false
+
+telegram:
+  bot_token: "${TELEGRAM_BOT_TOKEN:-}"
+  allowed_user_ids:
+    - "${TELEGRAM_USER_ID:-}"
+  enable_alerts: true
+
+exchanges:
+  bingx:
+    enabled: true
+    sandbox: true
+    api_key: "${BINGX_API_KEY}"
+    api_secret: "${BINGX_API_SECRET}"
+    contract_type: "linear"
+    base_url: "https://open-api.bingx.com"
+    trading_pairs:
+      - "BTC-USDT"
+      - "ETH-USDT"
+      - "SOL-USDT"
+    max_orders_per_minute: 20
+    max_orders_per_day: 200
+  okx:
+    enabled: false
+
+monitoring:
+  enable_metrics: true
+  metrics_port: 8000
+  log_level: "INFO"
+  log_file: "/tmp/astra_demo_pattern_balanced.log"
+
+priority_engines:
+  microstructure_flow:
+    enabled: false
+  liquidity_map:
+    enabled: false
+  liquidation_cascade:
+    enabled: false
+  portfolio_allocator:
+    enabled: true
+    allocation_method: "equal_risk"
+    max_portfolio_risk: 0.045
+    correlation_threshold: 0.7
