@@ -35,7 +35,7 @@
       "stop": "69.9962325",
       "tp": "70.897395",
       "entry": "69.816",
-      "leverage": 5,
+      "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|SOL-USDT|long|1795507200000",
       "ts": 1795528954.2173054,
@@ -49,8 +49,11 @@
       "current_regime": "RANGE",
       "plan_qty": "716.40422391",
       "qty_ratio": 0.49000269440636385,
-      "tp1": "70.281551"
+      "tp1": "70.281551",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     }
   },
-  "ts": 1795529011.303385
+  "ts": 1795529224.71592
 }
