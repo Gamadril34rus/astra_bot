@@ -17,7 +17,14 @@
       "opened_at_ms": 1795636977443,
       "plan_qty": "23.09854311",
       "qty_ratio": 1.0,
-      "tp1": "1678.880885"
+      "tp1": "1678.880885",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "1681.97",
+      "be_earned": true,
+      "migrate_stop_v1": true,
+      "current_regime": "RANGE"
     },
     "INJ-USDT|short": {
       "symbol": "INJ-USDT",
@@ -36,8 +43,14 @@
       "opened_at_ms": 1795636995161,
       "plan_qty": "6523.03568436",
       "qty_ratio": 1.0,
-      "tp1": "5.9421395"
+      "tp1": "5.9421395",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "5.963",
+      "be_earned": true,
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1795636995.161783
+  "ts": 1795637250.7852266
 }
