@@ -112,6 +112,52 @@ def test_restore_with_plan(tmp_path):
     asyncio.run(_())
 
 
+def test_restore_existing_protection_is_not_reported_as_restored(tmp_path):
+    async def _():
+        path = tmp_path / "pos.json"
+        upsert_plan(
+            "BTC-USDT",
+            side="short",
+            qty="0.01",
+            entry="100",
+            stop="110",
+            tp="90",
+            path=path,
+        )
+        pos = SimpleNamespace(
+            symbol="BTC-USDT",
+            quantity=Decimal("0.01"),
+            side="short",
+        )
+        stop = SimpleNamespace(
+            id="short-stop",
+            symbol="BTC-USDT",
+            order_type="stop_market",
+            side="buy",
+            position_side="short",
+            status="new",
+        )
+        tp = SimpleNamespace(
+            id="short-tp",
+            symbol="BTC-USDT",
+            order_type="take_profit_market",
+            side="buy",
+            position_side="short",
+            status="new",
+        )
+        client = MockClient(positions=[pos], orders=[stop, tp])
+        broker = LiveBroker(client)
+        result = await broker.restore_missing_stops(positions_path=path)
+
+        assert result["already_protected_legs"] == ["BTC-USDT|short"]
+        assert result["restored_legs"] == []
+        assert result["tp_restored_legs"] == []
+        assert not client.placed
+        assert not client.closed
+
+    asyncio.run(_())
+
+
 def test_restore_no_plan_closes(tmp_path):
     async def _():
         path = tmp_path / "pos.json"
