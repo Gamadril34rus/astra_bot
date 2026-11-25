@@ -34,7 +34,7 @@
       "stop": "1664.483850",
       "tp": "1623.860292",
       "entry": "1666.15",
-      "leverage": 5,
+      "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_multi_top_breakdown|ETH-USDT|short|1795536000000",
       "ts": 1795608152.9883301,
@@ -48,7 +48,10 @@
       "peak_low": "1628.26",
       "current_regime": "RANGE",
       "tp1": "1623.860292",
-      "migrate_stop_v1": true
+      "migrate_stop_v1": true,
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     },
     "SOL-USDT|short": {
       "symbol": "SOL-USDT",
@@ -101,5 +104,5 @@
       "early_tp_repair_v1": true
     }
   },
-  "ts": 1795608185.4127822
+  "ts": 1795608443.2633352
 }
