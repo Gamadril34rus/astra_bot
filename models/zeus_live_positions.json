@@ -17,12 +17,13 @@
       "tp_parity_v1": true,
       "be_earned": true,
       "tp_frac": "0.3",
-      "peak_low": "59.268",
+      "peak_low": "59.2",
       "current_regime": "RANGE",
       "tp1": "58.9284126",
       "initial_stop_v1": true,
       "early_tp1": true,
-      "early_tp_repair_v1": true
+      "early_tp_repair_v1": true,
+      "peak_high": "60.769"
     },
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
@@ -45,10 +46,11 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_low": "1670.84",
+      "peak_low": "1665.22",
       "be_earned": true,
       "migrate_stop_v1": true,
-      "current_regime": "RANGE"
+      "current_regime": "RANGE",
+      "peak_high": "1690.0"
     },
     "SOL-USDT|short": {
       "symbol": "SOL-USDT",
@@ -76,5 +78,5 @@
       "current_regime": "RANGE"
     }
   },
-  "ts": 1795564635.0346014
+  "ts": 1795564983.294792
 }
