@@ -86,7 +86,7 @@
       "stop": "59094.54630",
       "tp": "57315.7245",
       "entry": "59153.7",
-      "leverage": 5,
+      "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_multi_top_breakdown|BTC-USDT|short|1795568400000",
       "ts": 1795606333.6700246,
@@ -99,8 +99,11 @@
       "peak_high": "59391.6",
       "peak_low": "58495.6",
       "current_regime": "RANGE",
-      "tp1": "58461.02065"
+      "tp1": "58461.02065",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     }
   },
-  "ts": 1795606339.8539853
+  "ts": 1795606610.4665704
 }
