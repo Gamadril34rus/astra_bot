@@ -14,8 +14,8 @@
 | INJ_SLOT_RESERVE | `live_arm.py` | 2 свободных слота для major | 2 |
 | Cooldown входа | `live_arm.py` | 20 минут на strategy / symbol / side | 20 минут |
 | FRESH_MAX_SEC | `live_arm_wiring.py` | 2700 секунд (45 минут) | 2700 секунд |
-| Дневной / недельный убыток | `live_risk.py` | 4% / 6% от equity | VST experiment: автоматический day/week HALT отключён; ручная блокировка и защита позиций остаются |
-| Kill PF threshold | `live_risk.py` | HALT при n ≥ 5 и PF < 1 | VST experiment: PF auto-HALT отключён; аудит считает уникальные финальные выходы |
+| Дневной / недельный убыток | `live_risk.py` | 4% / 6% от equity | Автоматический HALT действует и в VST; обхода нет |
+| Kill PF threshold | `live_risk.py` | HALT при n ≥ 5 и PF < 1 | В VST действует тот же порог; окно — 20 последних подходящих exits после reset/epoch |
 | ZEUS_KILL_PF_WINDOW | `live_risk.py` + live workflow | 0 / пусто = cumulative | 20 последних подходящих exits после reset/epoch |
 | MAX_LEVERAGE | `LiveBrokerConfig` | 10 | `ZEUS_LIVE_MAX_LEVERAGE=10` |
 | Default leverage | `LiveBrokerConfig`, candidate | 5 до расчёта / override | Входы принудительно используют `ZEUS_LIVE_FORCE_LEVERAGE=6` |
@@ -72,7 +72,6 @@
 | `ZEUS_KILL_PF_WINDOW` | YAML | `20` |
 | `ZEUS_LIVE_EXIT_ENGINE`, `ZEUS_LIVE_TRAIL_POLICY` | YAML | `on`, `atr` |
 | `ZEUS_BE_TRIGGER_R`, `ZEUS_SESSION_PROFILE`, `ZEUS_TP1_RR` | YAML | `0.5`, `1`, `0.6` (BE/TP1 подчиняются профилю сессии, см. выше) |
-| `ZEUS_VST_DISABLE_PERFORMANCE_HALT` | YAML | `1` (только при подтверждённом VST endpoint) |
 | `ZEUS_STOP_PULL_PCT` | YAML | `0` |
 | `ZEUS_PF_SKIP_SCRATCHED` | YAML | `1` |
 | `ZEUS_MIN_STOP_PCT` | YAML | `0.01` |
@@ -86,7 +85,7 @@
 
 ## VST experimental mode
 
-В live workflow принудительно заданы ZEUS_VST=1 и ZEUS_MAINNET=0. ZEUS_VST_DISABLE_PERFORMANCE_HALT=1 отключает только автоматические дневной/недельный/PF HALT, и только когда сам созданный клиент подтверждает VST endpoint. Риск на сделку, плечо, MAX_OPEN, same-side/cluster caps, margin gates, ручная блокировка входов, ручной kill-switch и сопровождение/защита открытых позиций не отключаются. На mainnet этот override не действует. Старый файл PF HALT не удаляется и не сбрасывается; в VST он игнорируется только в этом явно разрешённом режиме.
+В live workflow принудительно заданы ZEUS_VST=1 и ZEUS_MAINNET=0. Автоматические дневной/недельный HALT и PF HALT действуют в VST без исключений. Сохранённый `kill_switch_state.json` учитывается при проверке входов; legacy-переменная `ZEUS_VST_DISABLE_PERFORMANCE_HALT` не поддерживается и не должна задаваться.
 
 PF и дневной/недельный PnL теперь считают только финальные event=exit строки. partial_fill не добавляется вторым разом: итоговый exit уже агрегирует realized PnL позиции. Повторные exit для одного trade_id схлопываются до последней записи.
 
