@@ -47,6 +47,7 @@ jobs:
           ARCHIVE_TIMEFRAMES: ${{ inputs.timeframes || '' }}
           INITIATOR: ${{ github.actor }}
           REPOSITORY_OWNER: ${{ github.repository_owner }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           if [[ -z "$ARCHIVE_MODE" ]]; then
@@ -61,9 +62,11 @@ jobs:
             echo "::error::Daily mode requires an existing manifest; run mode=initial as the repository owner first."
             exit 1
           fi
-          if [[ "$ARCHIVE_MODE" == "initial" && "$INITIATOR" != "$REPOSITORY_OWNER" ]]; then
-            echo "::error::Initial archive mode is restricted to workflow_dispatch by the repository owner."
-            exit 1
+          if [[ "$ARCHIVE_MODE" == "initial" ]]; then
+            if [[ "$EVENT_NAME" != "workflow_dispatch" || "$INITIATOR" != "$REPOSITORY_OWNER" ]]; then
+              echo "::error::Initial archive mode is restricted to workflow_dispatch by the repository owner."
+              exit 1
+            fi
           fi
           export PYTHONPATH="$GITHUB_WORKSPACE${PYTHONPATH:+:$PYTHONPATH}"
           python -c 'from astra_bot.adapters.bingx.client import BingXClient; print("archive imports OK")'
