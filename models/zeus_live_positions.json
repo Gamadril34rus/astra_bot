@@ -82,7 +82,7 @@
       "symbol": "BTC-USDT",
       "side": "short",
       "qty": "0.30399551",
-      "stop": "60379.017",
+      "stop": "60077.24285714286",
       "tp": "55841.3481",
       "entry": "57735.0",
       "leverage": 6,
@@ -95,8 +95,14 @@
       "opened_at_ms": 1795618072531,
       "plan_qty": "0.30399551",
       "qty_ratio": 1.0,
-      "tp1": "55841.3481"
+      "tp1": "55841.3481",
+      "initial_stop_v1": true,
+      "tp_parity_v1": true,
+      "early_tp1": true,
+      "peak_low": "57567.8",
+      "be_earned": true,
+      "current_regime": "RANGE"
     }
   },
-  "ts": 1795618072.5310802
+  "ts": 1795618356.1611097
 }
