@@ -28,9 +28,9 @@
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
       "side": "short",
-      "qty": "29.50392107",
+      "qty": 20.652,
       "stop": "1711.6369",
-      "tp": "1682.82717",
+      "tp": "1666.39465",
       "entry": "1693.54",
       "leverage": 6,
       "pending_verify": false,
@@ -41,7 +41,7 @@
       "tp_frac": "0.3",
       "opened_at_ms": 1795709004899,
       "plan_qty": "29.50392107",
-      "qty_ratio": 1.0,
+      "qty_ratio": 0.6999747576263429,
       "tp1": "1682.82717",
       "initial_stop_v1": true,
       "tp_parity_v1": true,
@@ -49,7 +49,9 @@
       "peak_low": "1683.98",
       "be_earned": true,
       "migrate_stop_v1": true,
-      "current_regime": "RANGE"
+      "current_regime": "RANGE",
+      "runner_tp_rr": 1.5,
+      "runner_tp_healed_v1": true
     },
     "INJ-USDT|short": {
       "symbol": "INJ-USDT",
@@ -78,5 +80,5 @@
       "early_tp_repair_v1": true
     }
   },
-  "ts": 1795711007.815675
+  "ts": 1795711349.523325
 }
