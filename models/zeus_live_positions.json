@@ -1,30 +1,5 @@
 {
   "positions": {
-    "HYPE-USDT|short": {
-      "symbol": "HYPE-USDT",
-      "side": "short",
-      "qty": "193.97464494",
-      "stop": "62.300352000000004",
-      "tp": "58.9286535999999972",
-      "entry": "60.179",
-      "leverage": 6,
-      "pending_verify": false,
-      "signal_id": "zeus_multi_top_breakdown|HYPE-USDT|short|1795701600000",
-      "ts": 1795705374.0808055,
-      "be_moved": false,
-      "initial_stop": "62.300352000000004",
-      "tp_frac": "0.3",
-      "opened_at_ms": 1795705374080,
-      "plan_qty": "193.97464494",
-      "qty_ratio": 1.0,
-      "tp1": "58.9286535999999972",
-      "initial_stop_v1": true,
-      "tp_parity_v1": true,
-      "early_tp1": true,
-      "peak_low": "59.884",
-      "be_earned": true,
-      "current_regime": "RANGE"
-    },
     "ETH-USDT|short": {
       "symbol": "ETH-USDT",
       "side": "short",
@@ -52,7 +27,26 @@
       "current_regime": "RANGE",
       "runner_tp_rr": 1.5,
       "runner_tp_healed_v1": true
+    },
+    "HYPE-USDT|short": {
+      "symbol": "HYPE-USDT",
+      "side": "short",
+      "qty": "808.538163",
+      "stop": "62.458400000000005",
+      "tp": "61.49987999999999725",
+      "entry": "61.812",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|HYPE-USDT|short|1795694400000",
+      "ts": 1795720061.1617253,
+      "be_moved": false,
+      "initial_stop": "62.458400000000005",
+      "tp_frac": "0.3",
+      "opened_at_ms": 1795720061161,
+      "plan_qty": "808.53816300",
+      "qty_ratio": 1.0,
+      "tp1": "61.49987999999999725"
     }
   },
-  "ts": 1795719734.7544577
+  "ts": 1795720061.1617477
 }
