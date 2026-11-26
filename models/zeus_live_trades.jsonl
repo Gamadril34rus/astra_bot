@@ -3658,3 +3658,4 @@
 {"event": "order_cancel", "symbol": "INJ-USDT", "order_id": "2125986026194821120", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795710737.912145, "environment": "VST"}
 {"event": "partial_fill", "symbol": "INJ-USDT", "side": "short", "qty": "4122.76753960", "exch_qty": "3960.000", "plan_qty": "8082.76753960", "price": null, "ts": 1795710738.4470544, "source": "be_catchup_qty_gap"}
 {"event": "order_cancel", "symbol": "INJ-USDT", "order_id": "2125991041974231040", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795710763.9860198, "environment": "VST"}
+{"event": "leverage_reconcile", "symbol": "INJ-USDT", "side": "short", "old_leverage": 5, "exchange_leverage": 6, "source": "bingx_position", "signal_id": "zeus_channel_boundary|INJ-USDT|short|1795694400000", "ts": 1795711001.1443887, "environment": "VST"}
