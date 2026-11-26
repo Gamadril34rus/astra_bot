@@ -54,28 +54,26 @@
     "INJ-USDT|short": {
       "symbol": "INJ-USDT",
       "side": "short",
-      "qty": "8082.7675396",
-      "stop": "6.24786",
-      "tp": "6.142698",
+      "qty": "3960.000",
+      "stop": "6.1680350",
+      "tp": "6.088210",
       "entry": "6.184",
-      "leverage": 6,
+      "leverage": 5,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|INJ-USDT|short|1795694400000",
-      "ts": 1795709542.5680563,
-      "be_moved": false,
+      "ts": 1795710738.4461627,
+      "be_moved": true,
       "initial_stop": "6.24786",
-      "tp_frac": "0.3",
       "opened_at_ms": 1795709542568,
-      "plan_qty": "8082.76753960",
-      "qty_ratio": 1.0,
-      "tp1": "6.142698",
-      "initial_stop_v1": true,
       "tp_parity_v1": true,
-      "early_tp1": true,
-      "peak_low": "6.164",
       "be_earned": true,
-      "current_regime": "RANGE"
+      "tp_frac": "0.3",
+      "peak_low": "6.128",
+      "current_regime": "RANGE",
+      "plan_qty": "8082.76753960",
+      "qty_ratio": 0.4899312000003371,
+      "tp1": "6.142698"
     }
   },
-  "ts": 1795710430.9780216
+  "ts": 1795710764.5163608
 }
