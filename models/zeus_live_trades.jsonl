@@ -3740,3 +3740,4 @@
 {"event": "restore_stop_failed", "symbol": "BTC-USDT", "side": "long", "error": "ExchangeError: BingX API error: The current system is busy, please try again later", "ts": 1795770264.524781, "environment": "VST"}
 {"event": "protect_place_failed", "ts": 1795770291.3518186, "symbol": "INJ-USDT", "kind": "stop_ensure", "stop_price": "6.306", "error": "ExchangeError: BingX API error: network timeout", "confirmed_reject": false, "environment": "VST"}
 {"event": "protect_place_failed", "ts": 1795770309.3409643, "symbol": "BTC-USDT", "kind": "stop_ensure", "stop_price": "59935.08571428571", "error": "ExchangeError: BingX API error: network timeout", "confirmed_reject": false, "environment": "VST"}
+{"event": "order_cancel", "symbol": "INJ-USDT", "order_id": "2126218618571677696", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795771609.4866672, "environment": "VST"}
