@@ -3732,3 +3732,7 @@
 {"event": "order_cancel", "symbol": "INJ-USDT", "order_id": "2126217602379898880", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795764996.415374, "environment": "VST"}
 {"event": "leverage_reconcile", "symbol": "INJ-USDT", "side": "long", "old_leverage": 5, "exchange_leverage": 6, "source": "bingx_position", "signal_id": "zeus_multi_top_breakdown|INJ-USDT|long|1795723200000", "ts": 1795765300.9169092, "environment": "VST"}
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2126198650199171072", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795766605.9785795, "environment": "VST"}
+{"event": "restore_stop_failed", "symbol": "INJ-USDT", "side": "long", "error": "ExchangeError: BingX API error: network timeout", "ts": 1795769881.1380422, "environment": "VST"}
+{"event": "restore_stop_failed", "symbol": "BTC-USDT", "side": "long", "error": "ExchangeError: BingX API error: network timeout", "ts": 1795769898.2517014, "environment": "VST"}
+{"event": "protect_place_failed", "ts": 1795769922.1603575, "symbol": "INJ-USDT", "kind": "stop_ensure", "stop_price": "6.306", "error": "ExchangeError: BingX API error: The current system is busy, please try again later", "confirmed_reject": false, "environment": "VST"}
+{"event": "protect_place_failed", "ts": 1795769939.3600075, "symbol": "BTC-USDT", "kind": "stop_ensure", "stop_price": "59935.08571428571", "error": "ExchangeError: BingX API error: network timeout", "confirmed_reject": false, "environment": "VST"}
