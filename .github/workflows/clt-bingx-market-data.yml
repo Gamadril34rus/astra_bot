@@ -1,0 +1,56 @@
+name: CLT cross-venue public market data
+
+on:
+  workflow_dispatch:
+
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clt-bingx-market-data
+  cancel-in-progress: false
+
+jobs:
+  public-market-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b
+        with:
+          python-version: "3.12"
+      - name: Install isolated test tools
+        run: python -m pip install pytest ruff
+      - name: Test public market-data pagination
+        run: python -m pytest tests/research/test_clt_bingx_market_data.py -q --confcutdir=tests/research
+      - name: Test price-only swing-break control
+        run: python -m pytest tests/research/test_clt_price_control.py -q --confcutdir=tests/research
+      - name: Lint public market-data collector
+        run: python -m ruff check scripts/research/clt_bingx_market_data.py tests/research/test_clt_bingx_market_data.py
+      - name: Lint price-only swing-break control
+        run: python -m ruff check scripts/research/clt_price_control.py tests/research/test_clt_price_control.py
+      - name: Download BingX and Hyperliquid 15m/1h candles plus BingX funding
+        run: |
+          python scripts/research/clt_bingx_market_data.py \
+            --out-dir reports/clt_bingx_market_data \
+            --start 2026-10-03T00:00:00+00:00 \
+            --end 2026-11-09T00:00:00+00:00
+      - name: Compare source-venue and execution-venue candles
+        run: |
+          python scripts/research/clt_venue_alignment.py \
+            --data-dir reports/clt_bingx_market_data \
+            --output reports/clt_bingx_market_data/venue_alignment.json
+      - name: Run reproducible price-only swing-break control
+        run: |
+          python scripts/research/clt_price_control.py \
+            --data-dir reports/clt_bingx_market_data \
+            --output reports/clt_bingx_market_data/price_control.json
+      - name: Upload read-only market-data artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clt-bingx-market-data-${{ github.sha }}
+          path: reports/clt_bingx_market_data/
+          if-no-files-found: warn
+          retention-days: 30
