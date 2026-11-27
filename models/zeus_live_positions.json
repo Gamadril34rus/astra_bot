@@ -7,7 +7,7 @@
       "stop": "6.3123060",
       "tp": "6.7725210",
       "entry": "6.306",
-      "leverage": 5,
+      "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_multi_top_breakdown|INJ-USDT|long|1795723200000",
       "ts": 1795764996.915506,
@@ -20,7 +20,10 @@
       "peak_high": "6.464",
       "peak_low": "6.184",
       "current_regime": "RANGE",
-      "tp1": "6.43725630"
+      "tp1": "6.43725630",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     },
     "BTC-USDT|long": {
       "symbol": "BTC-USDT",
@@ -48,5 +51,5 @@
       "be_earned": true
     }
   },
-  "ts": 1795764998.5728717
+  "ts": 1795765335.6372037
 }
