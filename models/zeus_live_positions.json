@@ -3,30 +3,24 @@
     "INJ-USDT|long": {
       "symbol": "INJ-USDT",
       "side": "long",
-      "qty": 866.0,
-      "stop": "6.0644285714285715",
+      "qty": "866.000",
+      "stop": "6.3123060",
       "tp": "6.7725210",
       "entry": "6.306",
-      "leverage": 6,
+      "leverage": 5,
       "pending_verify": false,
       "signal_id": "zeus_multi_top_breakdown|INJ-USDT|long|1795723200000",
-      "ts": 1795726968.3394053,
-      "be_moved": false,
+      "ts": 1795764996.915506,
+      "be_moved": true,
       "initial_stop": "5.994986",
-      "tp_frac": "0.3",
       "opened_at_ms": 1795726968339,
-      "plan_qty": "1237.64810795",
-      "qty_ratio": 0.6997142357648122,
-      "tp1": "6.43725630",
-      "initial_stop_v1": true,
       "tp_parity_v1": true,
-      "early_tp1": true,
-      "peak_high": "6.46",
       "be_earned": true,
+      "tp_frac": "0.3",
+      "peak_high": "6.464",
+      "peak_low": "6.184",
       "current_regime": "RANGE",
-      "runner_tp_rr": 1.5,
-      "runner_tp_healed_v1": true,
-      "peak_low": "6.184"
+      "tp1": "6.43725630"
     },
     "BTC-USDT|long": {
       "symbol": "BTC-USDT",
@@ -54,5 +48,5 @@
       "be_earned": true
     }
   },
-  "ts": 1795764754.7258062
+  "ts": 1795764998.5728717
 }
