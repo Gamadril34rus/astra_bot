@@ -4,8 +4,8 @@
       "symbol": "INJ-USDT",
       "side": "long",
       "qty": "1237.64810795",
-      "stop": "6.000142857142857",
-      "tp": "6.43725630",
+      "stop": "6.034428571428571",
+      "tp": "6.7725210",
       "entry": "6.306",
       "leverage": 6,
       "pending_verify": false,
@@ -21,9 +21,12 @@
       "initial_stop_v1": true,
       "tp_parity_v1": true,
       "early_tp1": true,
-      "peak_high": "6.403",
+      "peak_high": "6.43",
       "be_earned": true,
-      "current_regime": "RANGE"
+      "current_regime": "RANGE",
+      "runner_tp_rr": 1.5,
+      "runner_tp_healed_v1": true,
+      "peak_low": "6.184"
     },
     "BTC-USDT|long": {
       "symbol": "BTC-USDT",
@@ -51,5 +54,5 @@
       "be_earned": true
     }
   },
-  "ts": 1795751819.3944876
+  "ts": 1795752208.0413525
 }

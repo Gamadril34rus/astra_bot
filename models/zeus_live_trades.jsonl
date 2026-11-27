@@ -3720,3 +3720,4 @@
 {"event": "protect_place_failed", "ts": 1795750963.212936, "symbol": "INJ-USDT", "kind": "stop_ensure", "stop_price": "6.000142857142857", "error": "ExchangeError: BingX API error: Position SL order already exists", "confirmed_reject": false, "environment": "VST"}
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2126159670304923648", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795750967.9637458, "environment": "VST"}
 {"event": "protect_place_failed", "ts": 1795750979.4248714, "symbol": "BTC-USDT", "kind": "stop_ensure", "stop_price": "59760.6392", "error": "ExchangeError: BingX API error: network timeout", "confirmed_reject": false, "environment": "VST"}
+{"event": "order_cancel", "symbol": "INJ-USDT", "order_id": "2126144466133278720", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795752202.6560068, "environment": "VST"}
