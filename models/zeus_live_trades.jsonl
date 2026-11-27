@@ -3731,3 +3731,4 @@
 {"event": "order_cancel", "symbol": "INJ-USDT", "order_id": "2126213764533018624", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795764754.1415672, "environment": "VST"}
 {"event": "order_cancel", "symbol": "INJ-USDT", "order_id": "2126217602379898880", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795764996.415374, "environment": "VST"}
 {"event": "leverage_reconcile", "symbol": "INJ-USDT", "side": "long", "old_leverage": 5, "exchange_leverage": 6, "source": "bingx_position", "signal_id": "zeus_multi_top_breakdown|INJ-USDT|long|1795723200000", "ts": 1795765300.9169092, "environment": "VST"}
+{"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2126198650199171072", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795766605.9785795, "environment": "VST"}
