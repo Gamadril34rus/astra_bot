@@ -3721,3 +3721,4 @@
 {"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2126159670304923648", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795750967.9637458, "environment": "VST"}
 {"event": "protect_place_failed", "ts": 1795750979.4248714, "symbol": "BTC-USDT", "kind": "stop_ensure", "stop_price": "59760.6392", "error": "ExchangeError: BingX API error: network timeout", "confirmed_reject": false, "environment": "VST"}
 {"event": "order_cancel", "symbol": "INJ-USDT", "order_id": "2126144466133278720", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795752202.6560068, "environment": "VST"}
+{"event": "order_cancel", "symbol": "BTC-USDT", "order_id": "2126159813846589440", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795757545.3956687, "environment": "VST"}
