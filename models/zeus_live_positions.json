@@ -1,4 +1,62 @@
 {
-  "positions": {},
-  "ts": 1795790543.5362473
+  "positions": {
+    "BTC-USDT|short": {
+      "symbol": "BTC-USDT",
+      "side": "short",
+      "qty": "0.23567682",
+      "stop": "62306.865",
+      "tp": "56879.6745",
+      "entry": "59133.3",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_multi_top_breakdown|BTC-USDT|short|1795788000000",
+      "ts": 1795791750.5910668,
+      "be_moved": false,
+      "initial_stop": "62306.865",
+      "tp_frac": "0.3",
+      "opened_at_ms": 1795791750591,
+      "plan_qty": "0.23567682",
+      "qty_ratio": 1.0,
+      "tp1": "56879.6745"
+    },
+    "ETH-USDT|short": {
+      "symbol": "ETH-USDT",
+      "side": "short",
+      "qty": "6.77705038",
+      "stop": "1759.55208",
+      "tp": "1570.797544",
+      "entry": "1641.81",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_multi_top_breakdown|ETH-USDT|short|1795788000000",
+      "ts": 1795791756.076067,
+      "be_moved": false,
+      "initial_stop": "1759.55208",
+      "tp_frac": "0.3",
+      "opened_at_ms": 1795791756076,
+      "plan_qty": "6.77705038",
+      "qty_ratio": 1.0,
+      "tp1": "1570.797544"
+    },
+    "SOL-USDT|short": {
+      "symbol": "SOL-USDT",
+      "side": "short",
+      "qty": "222.88858533",
+      "stop": "74.08287",
+      "tp": "68.345591",
+      "entry": "70.664",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_multi_top_breakdown|SOL-USDT|short|1795788000000",
+      "ts": 1795791761.6888547,
+      "be_moved": false,
+      "initial_stop": "74.08287",
+      "tp_frac": "0.3",
+      "opened_at_ms": 1795791761688,
+      "plan_qty": "222.88858533",
+      "qty_ratio": 1.0,
+      "tp1": "68.345591"
+    }
+  },
+  "ts": 1795791761.6888752
 }
