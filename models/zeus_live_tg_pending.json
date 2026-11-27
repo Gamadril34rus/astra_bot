@@ -15,7 +15,37 @@
       "trade_ids": [],
       "ts": 1795442803.7262237,
       "last_notice_ts": 1795789331.1151342
+    },
+    {
+      "symbol": "BTC-USDT",
+      "side": "short",
+      "signal_id": "zeus_multi_top_breakdown|BTC-USDT|short|1795788000000",
+      "since_ms": 1795791690591,
+      "reason": "стоп",
+      "entry": 59133.3,
+      "qty": 0.23567682,
+      "leverage": 6,
+      "stop": "62306.865",
+      "target": "56879.6745",
+      "closed_at": 1795813625.9735181,
+      "trade_ids": [],
+      "ts": 1795813625.9735181
+    },
+    {
+      "symbol": "ETH-USDT",
+      "side": "short",
+      "signal_id": "zeus_multi_top_breakdown|ETH-USDT|short|1795788000000",
+      "since_ms": 1795791696076,
+      "reason": "стоп",
+      "entry": 1641.81,
+      "qty": 6.77705038,
+      "leverage": 6,
+      "stop": "1759.55208",
+      "target": "1570.797544",
+      "closed_at": 1795813625.9735181,
+      "trade_ids": [],
+      "ts": 1795813625.9735181
     }
   ],
-  "ts": 1795813423.2919426
+  "ts": 1795813698.7414849
 }
