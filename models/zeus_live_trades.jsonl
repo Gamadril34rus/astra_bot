@@ -3709,3 +3709,5 @@
 {"event": "order_cancel", "symbol": "INJ-USDT", "order_id": "2126059114991280128", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795746774.9074779, "environment": "VST"}
 {"event": "protect_place_failed", "ts": 1795747035.9430304, "symbol": "INJ-USDT", "kind": "stop_ensure", "stop_price": "5.999142857142857", "error": "ExchangeError: BingX API error: Position SL order already exists", "confirmed_reject": false, "environment": "VST"}
 {"event": "order_cancel", "symbol": "INJ-USDT", "order_id": "2126142193021837312", "type": "STOP", "reason": "already_exists_retry", "path": "move_stop", "ts": 1795747316.632634, "environment": "VST"}
+{"event": "restore_stop_failed", "symbol": "INJ-USDT", "side": "long", "error": "ExchangeError: BingX API error: Position SL order already exists", "ts": 1795747645.7622948, "environment": "VST"}
+{"event": "protect_place_failed", "ts": 1795747674.854372, "symbol": "INJ-USDT", "kind": "stop_ensure", "stop_price": "6.000142857142857", "error": "ExchangeError: BingX API error: network timeout", "confirmed_reject": false, "environment": "VST"}
