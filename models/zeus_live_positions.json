@@ -50,7 +50,26 @@
       "peak_high": "59800.7",
       "current_regime": "RANGE",
       "be_earned": true
+    },
+    "SOL-USDT|long": {
+      "symbol": "SOL-USDT",
+      "side": "long",
+      "qty": "704.7812359",
+      "stop": "70.23456",
+      "tp": "71.2632480",
+      "entry": "70.929",
+      "leverage": 6,
+      "pending_verify": false,
+      "signal_id": "zeus_channel_boundary|SOL-USDT|long|1795838400000",
+      "ts": 1795853864.0423858,
+      "be_moved": false,
+      "initial_stop": "70.23456",
+      "tp_frac": "0.3",
+      "opened_at_ms": 1795853864042,
+      "plan_qty": "704.78123590",
+      "qty_ratio": 1.0,
+      "tp1": "71.2632480"
     }
   },
-  "ts": 1795853516.0572093
+  "ts": 1795853864.0424109
 }
