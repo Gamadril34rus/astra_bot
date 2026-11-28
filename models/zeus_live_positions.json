@@ -58,7 +58,7 @@
       "stop": "70.9999290",
       "tp": "71.2632480",
       "entry": "70.929",
-      "leverage": 5,
+      "leverage": 6,
       "pending_verify": false,
       "signal_id": "zeus_channel_boundary|SOL-USDT|long|1795838400000",
       "ts": 1795854402.2237766,
@@ -70,8 +70,11 @@
       "tp_frac": "0.3",
       "peak_high": "71.185",
       "current_regime": "RANGE",
-      "tp1": "71.2632480"
+      "tp1": "71.2632480",
+      "initial_stop_v1": true,
+      "early_tp1": true,
+      "early_tp_repair_v1": true
     }
   },
-  "ts": 1795854404.0499997
+  "ts": 1795854752.3545055
 }
