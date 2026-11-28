@@ -27,6 +27,38 @@ def _verified_trade_environment() -> str | None:
     return None
 
 
+def _mfe_r_from_plan(plan: dict[str, Any], entry_price: Any, side: str) -> float | None:
+    """Derive exit MFE in R from persisted peaks when explicit telemetry is absent."""
+    try:
+        if plan.get("mfe_r") is not None:
+            value = Decimal(str(plan["mfe_r"]))
+        elif plan.get("mfe") is not None:
+            entry = Decimal(str(entry_price))
+            initial_stop = Decimal(str(plan.get("initial_stop") or plan.get("stop")))
+            risk = abs(entry - initial_stop)
+            if risk <= 0:
+                return None
+            peak = Decimal(str(plan["mfe"]))
+            value = (peak - entry) / risk if side == "long" else (entry - peak) / risk
+        else:
+            peak_key = "peak_high" if side == "long" else "peak_low"
+            peak_raw = plan.get(peak_key)
+            if peak_raw is None or entry_price is None:
+                return None
+            entry = Decimal(str(entry_price))
+            initial_stop = Decimal(str(plan.get("initial_stop") or plan.get("stop")))
+            risk = abs(entry - initial_stop)
+            if risk <= 0:
+                return None
+            peak = Decimal(str(peak_raw))
+            value = (peak - entry) / risk if side == "long" else (entry - peak) / risk
+        if not value.is_finite():
+            return None
+        return round(float(value), 4)
+    except (TypeError, ValueError, ArithmeticError):
+        return None
+
+
 def append_live_trade(row: dict[str, Any], path: Path | None = None) -> None:
     """Append one exit/entry row with verified environment provenance when available."""
     p = path or Path("models/zeus_live_trades.jsonl")
@@ -1451,20 +1483,7 @@ class LiveBroker:
                     init_stop_f = float(init_stop_v) if init_stop_v is not None else None
                 except (TypeError, ValueError):
                     init_stop_f = None
-                mfe_r_v = None
-                try:
-                    if plan.get("mfe_r") is not None:
-                        mfe_r_v = round(float(plan["mfe_r"]), 4)
-                    elif plan.get("mfe") is not None and entry_px is not None and init_stop_f is not None:
-                        risk_abs = abs(float(entry_px) - float(init_stop_f))
-                        if risk_abs > 0:
-                            mfe_px = float(plan["mfe"])
-                            if side == "long":
-                                mfe_r_v = round((mfe_px - float(entry_px)) / risk_abs, 4)
-                            else:
-                                mfe_r_v = round((float(entry_px) - mfe_px) / risk_abs, 4)
-                except (TypeError, ValueError, ZeroDivisionError):
-                    mfe_r_v = None
+                mfe_r_v = _mfe_r_from_plan(plan, entry_px, side)
                 trade_row = {
                     "event": "exit",
                     "symbol": sym,
