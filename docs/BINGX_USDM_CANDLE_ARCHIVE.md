@@ -6,8 +6,11 @@ BingXClient. It is perpetual-futures OHLCV, not Binance spot candles.
 ## Scope
 
 - Symbols: BTC-USDT, ETH-USDT, SOL-USDT, HYPE-USDT, INJ-USDT.
-- Default timeframes: 5m, 15m, 1h, 4h, 1d. These match the active Zeus decision
-  path: 5m micro-confirmation, 15m entry, 1h direction, 4h structure, 1d context.
+- Default archive timeframes: 5m, 15m, 1h, 4h, 1d. This is the downloader's
+  historical research coverage set, not the active live signal stack. The current
+  live VST feed uses closed 4h candles for `channel_boundary`; `multi_top_breakdown`
+  evaluates 4h structure and falls back to 1h when 4h is silent. Do not interpret
+  5m/15m archive coverage as active 5m/15m signal trading.
 - 1m is supported by the downloader as an explicit workflow-dispatch override,
   but is not in the default archive: it appears in the generic project candle
   config, not the active Zeus decision timeframe tuple, and multiplies history
