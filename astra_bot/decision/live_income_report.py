@@ -437,8 +437,10 @@ def patch_trade_exit_pnl(
     path: Path = TRADES_PATH,
     exit_price: float | None = None,
     position_id: str | None = None,
+    entry: Any = None,
+    qty: Any = None,
 ) -> bool:
-    """Patch matching exit row. Never deletes. Skip income_confirmed/corrected."""
+    """Patch one unconfirmed exit row; never fan one PnL out across reused signal IDs."""
     if not path.exists():
         return False
     try:
@@ -446,56 +448,57 @@ def patch_trade_exit_pnl(
     except Exception as exc:
         logger.warning("patch_trade load: %s", type(exc).__name__)
         return False
+
     sid = str(signal_id or "")
-    changed = False
-    out: list[str] = []
-    now = time.time()
-    for line in lines:
+    candidates: list[tuple[int, dict[str, Any]]] = []
+    for index, line in enumerate(lines):
         if not line.strip():
             continue
         try:
             row = json.loads(line)
         except json.JSONDecodeError:
-            out.append(line)
             continue
-        if str(row.get("event") or "") != "exit":
-            out.append(line)
+        if (
+            str(row.get("event") or "") != "exit"
+            or str(row.get("symbol") or "") != symbol
+            or (sid and str(row.get("signal_id") or "") != sid)
+        ):
             continue
-        if str(row.get("symbol") or "") != symbol:
-            out.append(line)
+        source = str(row.get("pnl_source") or "")
+        if source in ("income_confirmed", "income_corrected", "position_history"):
             continue
-        if sid and str(row.get("signal_id") or "") != sid:
-            out.append(line)
-            continue
-        src = str(row.get("pnl_source") or "")
-        if src in ("income_confirmed", "income_corrected", "position_history"):
-            out.append(line)
-            continue
-        # patch null / pending_dogon / weak income*
-        if row.get("pnl") is not None and src not in (
+        if row.get("pnl") is not None and source not in (
             "pending_dogon",
             "income",
             "income_backfill",
         ):
-            out.append(line)
             continue
-        row["pnl"] = round(float(pnl), 4)
-        row["fees"] = float(fees)
-        row["funding_fee"] = float(funding)
-        row["pnl_source"] = pnl_source
-        if exit_price is not None:
-            row["exit"] = round(float(exit_price), 8)
-            row["exit_price"] = round(float(exit_price), 8)
-        if position_id is not None:
-            row["position_id"] = str(position_id)
-        row["corrected_ts"] = now
-        out.append(json.dumps(row, ensure_ascii=False, separators=(",", ":")))
-        changed = True
-    if not changed:
+        candidates.append((index, row))
+
+    selected = _select_exit_row_by_context(
+        [row for _, row in candidates],
+        entry=entry,
+        qty=qty,
+    )
+    if selected is None:
         return False
+    selected_index = next(index for index, row in candidates if row is selected)
+    selected["pnl"] = round(float(pnl), 4)
+    selected["fees"] = float(fees)
+    selected["funding_fee"] = float(funding)
+    selected["pnl_source"] = pnl_source
+    if exit_price is not None:
+        selected["exit"] = round(float(exit_price), 8)
+        selected["exit_price"] = round(float(exit_price), 8)
+    if position_id is not None:
+        selected["position_id"] = str(position_id)
+    selected["corrected_ts"] = time.time()
+    lines[selected_index] = json.dumps(
+        selected, ensure_ascii=False, separators=(",", ":")
+    )
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        body = "\n".join(out)
+        body = "\n".join(lines)
         if body:
             body += "\n"
         path.write_text(body, encoding="utf-8")
@@ -509,12 +512,15 @@ def _find_confirmed_exit_row(
     symbol: str,
     signal_id: str | None,
     path: Path = TRADES_PATH,
+    *,
+    entry: Any = None,
+    qty: Any = None,
 ) -> dict[str, Any] | None:
-    """Find an already exchange-confirmed exit for this exact signal."""
+    """Find one confirmed exit row for this exact signal and entry context."""
     sid = str(signal_id or "")
     if not sid or not path.exists():
         return None
-    match: dict[str, Any] | None = None
+    matches: list[dict[str, Any]] = []
     try:
         for line in path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
@@ -538,10 +544,405 @@ def _find_confirmed_exit_row(
                     "fills",
                 }
             ):
-                match = row
+                matches.append(row)
     except Exception as exc:
         logger.warning("confirmed exit lookup %s: %s", symbol, type(exc).__name__)
-    return match
+    return _select_exit_row_by_context(matches, entry=entry, qty=qty)
+
+
+def _float_or_none(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if number > 0 else None
+
+
+def load_entry_events(
+    path: Path = TRADES_PATH,
+) -> dict[tuple[str, str], list[dict[str, Any]]]:
+    """Load execution timestamps and sizing from immutable entry ledger events."""
+    result: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    if not path.exists():
+        return result
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if str(row.get("event") or "") != "entry":
+                continue
+            symbol = str(row.get("symbol") or "")
+            signal_id = str(row.get("signal_id") or "")
+            if not symbol or not signal_id:
+                continue
+            opened_ms = _row_time_ms({"time": row.get("ts")})
+            if opened_ms is None:
+                opened_ms = _row_time_ms({"time": row.get("opened_at_ms")})
+            if opened_ms is None:
+                continue
+            event = {
+                "open_ms": opened_ms,
+                "entry": _float_or_none(
+                    row.get("fill_price") or row.get("entry") or row.get("plan_entry")
+                ),
+                "qty": _float_or_none(row.get("qty")),
+            }
+            result.setdefault((symbol, signal_id), []).append(event)
+    except Exception as exc:
+        logger.warning("entry event lookup: %s", type(exc).__name__)
+    for events in result.values():
+        events.sort(key=lambda event: int(event["open_ms"]))
+    return result
+
+
+def select_entry_event(
+    events: list[dict[str, Any]],
+    *,
+    entry: Any = None,
+    qty: Any = None,
+) -> dict[str, Any] | None:
+    """Select one immutable entry event by price/size; ambiguity stays unresolved."""
+    candidates = list(events or [])
+    if not candidates:
+        return None
+
+    entry_target = _float_or_none(entry)
+    if entry_target is not None:
+        price_matches = [
+            event
+            for event in candidates
+            if event.get("entry") is not None
+            and abs(float(event["entry"]) - entry_target) / entry_target <= 0.005
+        ]
+        if price_matches:
+            candidates = price_matches
+
+    qty_target = _float_or_none(qty)
+    if qty_target is not None:
+        qty_matches = [
+            event
+            for event in candidates
+            if event.get("qty") is not None
+            and abs(float(event["qty"]) - qty_target) / qty_target <= 0.05
+        ]
+        if qty_matches:
+            candidates = qty_matches
+
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def _select_exit_row_by_context(
+    rows: list[dict[str, Any]],
+    *,
+    entry: Any = None,
+    qty: Any = None,
+) -> dict[str, Any] | None:
+    candidates = list(rows or [])
+    if not candidates:
+        return None
+
+    entry_target = _float_or_none(entry)
+    if entry_target is not None:
+        comparable = [
+            row for row in candidates
+            if _float_or_none(row.get("entry") or row.get("entry_price")) is not None
+        ]
+        if comparable:
+            matches = [
+                row for row in comparable
+                if abs(
+                    float(row.get("entry") or row.get("entry_price")) - entry_target
+                ) / entry_target <= 0.005
+            ]
+            if not matches:
+                return None
+            candidates = matches
+
+    qty_target = _float_or_none(qty)
+    if qty_target is not None:
+        comparable = [
+            row for row in candidates if _float_or_none(row.get("qty")) is not None
+        ]
+        if comparable:
+            matches = [
+                row for row in comparable
+                if abs(float(row["qty"]) - qty_target) / qty_target <= 0.05
+            ]
+            if not matches:
+                return None
+            candidates = matches
+
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def backfill_unqueued_exit_rows(
+    *,
+    trades_path: Path = TRADES_PATH,
+    pending_path: Path = PENDING_PATH,
+    flags_path: Path = Path("models/zeus_live_tg_flags.json"),
+    entry_events_by_key: dict[tuple[str, str], list[dict[str, Any]]] | None = None,
+    now: float | None = None,
+    max_age_days: int = 13,
+) -> dict[str, int]:
+    """Requeue recent exits missing PnL or close price, using exact entry context."""
+    from astra_bot.decision.live_tg_flags import already_sent
+
+    now_ts = float(now if now is not None else time.time())
+    now_ms = int(now_ts * 1000)
+    entry_events = (
+        entry_events_by_key
+        if entry_events_by_key is not None
+        else load_entry_events(trades_path)
+    )
+    pending = load_pending(pending_path)
+    try:
+        lines = trades_path.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        return {"added": 0, "updated": 0, "ambiguous": 0, "expired": 0}
+    except Exception as exc:
+        logger.warning("orphan exit backfill load: %s", type(exc).__name__)
+        return {"added": 0, "updated": 0, "ambiguous": 0, "expired": 0}
+
+    stats = {"added": 0, "updated": 0, "ambiguous": 0, "expired": 0}
+    max_age_ms = max(1, int(max_age_days)) * 24 * 3600 * 1000
+    changed = False
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if str(row.get("event") or "") != "exit":
+            continue
+        if row.get("tg_card_sent") and row.get("tg_followup_sent"):
+            continue
+        if row.get("pnl") is not None and (
+            row.get("exit_price") is not None or row.get("exit") is not None
+        ):
+            continue
+
+        symbol = str(row.get("symbol") or "")
+        side = str(row.get("side") or "").strip().lower()
+        signal_id = str(row.get("signal_id") or "")
+        if not symbol or not side or not signal_id:
+            continue
+        entry_events_for_row = entry_events.get((symbol, signal_id), [])
+        entry_event = select_entry_event(
+            entry_events_for_row,
+            entry=row.get("entry") or row.get("entry_price"),
+            qty=row.get("qty"),
+        )
+        if entry_event is None:
+            stats["ambiguous"] += 1
+            continue
+        entry_open_ms = int(entry_event["open_ms"])
+        if entry_open_ms < now_ms - max_age_ms:
+            stats["expired"] += 1
+            continue
+        if entry_open_ms > now_ms + 60_000:
+            stats["ambiguous"] += 1
+            continue
+
+        since_ms = max(0, entry_open_ms - 60_000)
+        entry_price = row.get("entry") or row.get("entry_price") or entry_event.get("entry")
+        qty = row.get("qty") or entry_event.get("qty")
+        exit_price = row.get("exit_price")
+        if exit_price is None:
+            exit_price = row.get("exit")
+        raw_reason = str(row.get("reason") or row.get("exit_reason") or "")
+        reason = (
+            "закрытие по биржевой истории"
+            if raw_reason.strip().lower() in {"", "no_fills", "unknown"}
+            else raw_reason
+        )
+        trade_ids = row.get("trade_ids")
+        if not isinstance(trade_ids, list):
+            trade_ids = []
+        flag_sent = (
+            already_sent(symbol, "exit", signal_id, flags_path)
+            if len(entry_events_for_row) <= 1
+            else False
+        )
+
+        match_index = None
+        for index, existing in enumerate(pending):
+            if (
+                str(existing.get("symbol") or "") != symbol
+                or str(existing.get("signal_id") or "") != signal_id
+            ):
+                continue
+            old_entry = _float_or_none(existing.get("entry"))
+            new_entry = _float_or_none(entry_price)
+            entry_match = False
+            if old_entry is not None and new_entry is not None:
+                if abs(old_entry - new_entry) / new_entry > 0.005:
+                    continue
+                entry_match = True
+
+            old_qty = _float_or_none(existing.get("qty"))
+            new_qty = _float_or_none(qty)
+            qty_match = False
+            if old_qty is not None and new_qty is not None:
+                if abs(old_qty - new_qty) / new_qty > 0.05:
+                    continue
+                qty_match = True
+
+            if not entry_match and not qty_match:
+                try:
+                    old_since = int(float(existing.get("since_ms") or 0))
+                except (TypeError, ValueError, OverflowError):
+                    old_since = 0
+                if abs(old_since - since_ms) > 120_000:
+                    continue
+            match_index = index
+            break
+
+        if match_index is not None:
+            existing = dict(pending[match_index])
+            item_changed = False
+            try:
+                old_since = int(float(existing.get("since_ms") or 0))
+            except (TypeError, ValueError, OverflowError):
+                old_since = 0
+            try:
+                old_opened_ms = int(float(existing.get("opened_at_ms") or 0))
+            except (TypeError, ValueError, OverflowError):
+                old_opened_ms = 0
+            if old_since != since_ms or old_opened_ms != entry_open_ms:
+                existing["since_ms"] = since_ms
+                existing["opened_at_ms"] = entry_open_ms
+                item_changed = True
+            for key, value in (
+                ("entry", entry_price),
+                ("qty", qty),
+                ("exit_price", exit_price),
+                ("reason", reason),
+                ("trade_ids", trade_ids),
+            ):
+                if key == "trade_ids":
+                    should_fill = bool(value) and not existing.get(key)
+                else:
+                    should_fill = value is not None and not existing.get(key)
+                if should_fill:
+                    existing[key] = value
+                    item_changed = True
+            if row.get("tg_card_sent") and not existing.get("card_sent"):
+                existing["card_sent"] = True
+                item_changed = True
+            if (
+                (row.get("tg_followup_sent") or flag_sent)
+                and not existing.get("followup_sent")
+            ):
+                existing["followup_sent"] = True
+                item_changed = True
+            if item_changed:
+                existing["ts"] = now_ts
+                pending[match_index] = existing
+                stats["updated"] += 1
+                changed = True
+            continue
+
+        pending.append(
+            {
+                "symbol": symbol,
+                "side": side,
+                "signal_id": signal_id,
+                "since_ms": since_ms,
+                "opened_at_ms": entry_open_ms,
+                "reason": reason,
+                "entry": entry_price,
+                "qty": qty,
+                "trade_ids": trade_ids,
+                "exit_price": exit_price,
+                "ts": now_ts,
+                "card_sent": bool(row.get("tg_card_sent")),
+                "followup_sent": bool(row.get("tg_followup_sent") or flag_sent),
+            }
+        )
+        stats["added"] += 1
+        changed = True
+
+    if changed:
+        save_pending(pending, pending_path)
+    if stats["added"] or stats["updated"] or stats["expired"]:
+        logger.info(
+            "orphan exit backfill added=%d updated=%d ambiguous=%d expired=%d",
+            stats["added"],
+            stats["updated"],
+            stats["ambiguous"],
+            stats["expired"],
+        )
+    elif stats["ambiguous"]:
+        logger.debug(
+            "orphan exit backfill skipped %d ambiguous rows",
+            stats["ambiguous"],
+        )
+    return stats
+
+
+def mark_exit_delivery(
+    item: dict[str, Any],
+    *,
+    path: Path = TRADES_PATH,
+    card_sent: bool | None = None,
+    followup_sent: bool | None = None,
+) -> bool:
+    """Persist Telegram delivery state on the one matching exit ledger row."""
+    if not path.exists():
+        return False
+    symbol = str(item.get("symbol") or "")
+    signal_id = str(item.get("signal_id") or "")
+    if not symbol or not signal_id:
+        return False
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except Exception as exc:
+        logger.warning("tg delivery ledger load: %s", type(exc).__name__)
+        return False
+    candidates: list[tuple[int, dict[str, Any]]] = []
+    for index, line in enumerate(lines):
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if (
+            str(row.get("event") or "") == "exit"
+            and str(row.get("symbol") or "") == symbol
+            and str(row.get("signal_id") or "") == signal_id
+        ):
+            candidates.append((index, row))
+    selected = _select_exit_row_by_context(
+        [row for _, row in candidates],
+        entry=item.get("entry"),
+        qty=item.get("qty"),
+    )
+    if selected is None:
+        return False
+    selected_index = next(index for index, row in candidates if row is selected)
+    if card_sent is not None:
+        selected["tg_card_sent"] = bool(card_sent)
+        if card_sent:
+            selected["tg_card_sent_ts"] = time.time()
+    if followup_sent is not None:
+        selected["tg_followup_sent"] = bool(followup_sent)
+        if followup_sent:
+            selected["tg_followup_sent_ts"] = time.time()
+    lines[selected_index] = json.dumps(
+        selected, ensure_ascii=False, separators=(",", ":")
+    )
+    try:
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except Exception as exc:
+        logger.warning("tg delivery ledger save: %s", type(exc).__name__)
+        return False
+    return True
 
 
 def match_position_history(
@@ -695,19 +1096,26 @@ async def _deliver_pending_exit_followup(
     item: dict[str, Any], *, pnl: float, message: str,
     send_tg: Any, trades_path: Path,
 ) -> tuple[dict[str, Any], bool]:
-    """Deliver card + exact text once each; retain the queue if card delivery fails."""
+    """Deliver card + exact text once each; missing card metadata stays queued."""
     updated = dict(item)
     if not updated.get("card_sent"):
         card_result = await _send_pending_exit_card(
             updated, pnl, trades_path=trades_path,
         )
-        # Legacy pending rows may not contain enough entry metadata. Do not
-        # fabricate a chart; preserve the historical text-only completion.
         if card_result is None:
-            updated["card_sent"] = True
+            updated["card_sent"] = False
             updated["card_skipped_missing_metadata"] = True
         elif card_result:
             updated["card_sent"] = True
+            updated.pop("card_skipped_missing_metadata", None)
+            mark_exit_delivery(
+                updated,
+                path=trades_path,
+                card_sent=True,
+                followup_sent=bool(updated.get("followup_sent")),
+            )
+        else:
+            updated["card_sent"] = False
 
     if not updated.get("followup_sent"):
         if send_tg is None:
@@ -715,10 +1123,16 @@ async def _deliver_pending_exit_followup(
         try:
             await send_tg(message)
             updated["followup_sent"] = True
+            mark_exit_delivery(
+                updated,
+                path=trades_path,
+                card_sent=bool(updated.get("card_sent")),
+                followup_sent=True,
+            )
         except Exception as exc:
             logger.warning("dogon followup TG %s: %s", updated.get("symbol"), type(exc).__name__)
             return updated, False
-    return updated, bool(updated.get("card_sent"))
+    return updated, bool(updated.get("card_sent") and updated.get("followup_sent"))
 
 
 async def resolve_pending_dogon(
@@ -727,33 +1141,82 @@ async def resolve_pending_dogon(
     *,
     path: Path = PENDING_PATH,
     trades_path: Path = TRADES_PATH,
+    flags_path: Path = Path("models/zeus_live_tg_flags.json"),
     now: float | None = None,
+    max_items: int = 5,
 ) -> int:
     """Resolve pending exits from confirmed ledger/income; never discard silently."""
+    now_ts = float(now if now is not None else time.time())
+    entry_events_by_key = load_entry_events(trades_path)
+    backfill_unqueued_exit_rows(
+        trades_path=trades_path,
+        pending_path=path,
+        flags_path=flags_path,
+        entry_events_by_key=entry_events_by_key,
+        now=now_ts,
+    )
     items = load_pending(path)
     if not items:
         return 0
-    now_ts = float(now if now is not None else time.time())
-    remaining: list[dict[str, Any]] = []
+
+    def _pending_sort_key(item: dict[str, Any]) -> int:
+        try:
+            return int(float(item.get("since_ms") or 0))
+        except (TypeError, ValueError, OverflowError):
+            return 0
+
+    items.sort(key=_pending_sort_key)
+    batch_limit = max(1, int(max_items))
+    batch = items[:batch_limit]
+    remaining: list[dict[str, Any]] = list(items[len(batch):])
     sent = 0
     position_history_cache: dict[str, list[dict[str, Any]]] = {}
     position_history_start_by_symbol: dict[str, int] = {}
-    for queued in items:
+    for queued in batch:
         queued_symbol = str(queued.get("symbol") or "")
+        queued_signal_id = str(queued.get("signal_id") or "")
+        queued_entry_events = entry_events_by_key.get(
+            (queued_symbol, queued_signal_id), []
+        )
+        entry_event = select_entry_event(
+            queued_entry_events,
+            entry=queued.get("entry"),
+            qty=queued.get("qty"),
+        )
+        if len(queued_entry_events) > 1 and entry_event is None:
+            continue
+        entry_open_ms = int(entry_event["open_ms"]) if entry_event else None
         try:
             queued_since = int(float(queued.get("since_ms") or 0))
         except (TypeError, ValueError):
             queued_since = 0
-        if queued_symbol and queued_since > 0:
+        candidate_starts = [value for value in (
+            queued_since,
+            max(0, entry_open_ms - 60_000) if entry_open_ms is not None else 0,
+        ) if value > 0]
+        if queued_symbol and candidate_starts:
+            candidate_start = min(candidate_starts)
             position_history_start_by_symbol[queued_symbol] = min(
-                queued_since,
-                position_history_start_by_symbol.get(queued_symbol, queued_since),
+                candidate_start,
+                position_history_start_by_symbol.get(queued_symbol, candidate_start),
             )
-    for item in items:
+    for item in batch:
         sym = str(item.get("symbol") or "")
         side = str(item.get("side") or "").strip().lower()
         sid = item.get("signal_id")
         since_ms = item.get("since_ms")
+        item_entry_events = entry_events_by_key.get(
+            (sym, str(sid) if sid is not None else ""), []
+        )
+        entry_event = select_entry_event(
+            item_entry_events,
+            entry=item.get("entry"),
+            qty=item.get("qty"),
+        )
+        entry_event_ambiguous = len(item_entry_events) > 1 and entry_event is None
+        entry_open_ms = int(entry_event["open_ms"]) if entry_event else None
+        entry_price = item.get("entry") or (entry_event.get("entry") if entry_event else None)
+        entry_qty = item.get("qty") or (entry_event.get("qty") if entry_event else None)
         reason = str(item.get("reason") or "стоп")
         try:
             est_f = float(item["est"]) if item.get("est") is not None else None
@@ -774,8 +1237,13 @@ async def resolve_pending_dogon(
         # The independent income-backfill worker may already have resolved this
         # exact exit row. Consume that confirmed ledger result instead of polling
         # an ambiguous symbol-wide income endpoint forever.
+        exit_price = item.get("exit_price")
         confirmed_row = _find_confirmed_exit_row(
-            sym, str(sid) if sid is not None else None, trades_path
+            sym,
+            str(sid) if sid is not None else None,
+            trades_path,
+            entry=entry_price,
+            qty=entry_qty,
         )
         if confirmed_row is not None:
             source = str(confirmed_row.get("pnl_source") or "")
@@ -810,9 +1278,21 @@ async def resolve_pending_dogon(
                     funding=funding,
                     fees=fees,
                 )
+            confirmed_exit_price = (
+                confirmed_row.get("exit_price")
+                if confirmed_row.get("exit_price") is not None
+                else confirmed_row.get("exit")
+            )
+            # A confirmed ledger row is enough to stop polling income again.
+            # The exit card may derive its price from PnL when entry/qty/leverage
+            # are available; otherwise keep the card pending without losing text.
             updated_item = dict(item)
-            if not updated_item.get("exit_price") and confirmed_row.get("exit_price") is not None:
-                updated_item["exit_price"] = confirmed_row.get("exit_price")
+            if not updated_item.get("entry") and entry_price is not None:
+                updated_item["entry"] = entry_price
+            if not updated_item.get("qty") and entry_qty is not None:
+                updated_item["qty"] = entry_qty
+            if not updated_item.get("exit_price") and confirmed_exit_price is not None:
+                updated_item["exit_price"] = float(confirmed_exit_price)
             updated, delivered = await _deliver_pending_exit_followup(
                 updated_item, pnl=amount, message=msg, send_tg=send_tg,
                 trades_path=trades_path,
@@ -823,11 +1303,19 @@ async def resolve_pending_dogon(
                 remaining.append(updated)
             continue
 
+        income_since_ms = since_ms
+        if entry_open_ms is not None:
+            income_since_ms = max(0, int(entry_open_ms) - 60_000)
+        elif since_ms is not None:
+            try:
+                income_since_ms = int(float(since_ms))
+            except (TypeError, ValueError, OverflowError):
+                income_since_ms = None
         try:
             agg = await exit_net_from_client(
                 client,
                 sym,
-                since_ms,
+                income_since_ms,
                 position_side=side,
                 trade_ids=item.get("trade_ids"),
             )
@@ -838,19 +1326,32 @@ async def resolve_pending_dogon(
         rp = abs(float(agg.get("pnl") or 0))
         has = bool(agg.get("has_realized"))
         confirmed = has and (est_f is None or est_f <= 0 or rp >= DOGON_CONFIRM_FRAC * est_f)
+        exit_price = agg.get("exit_price") or exit_price
+
+        if not confirmed and entry_event_ambiguous:
+            logger.warning(
+                "dogon position_history %s: reused signal_id has ambiguous entry ledger; retain pending",
+                sym,
+            )
 
         # BingX Position History is a separate, position-level source. It can
         # resolve exits when fill history is empty and income rows lack hedge-side
         # identifiers. Match only one exact symbol/side/open-time record.
         if (
-            not confirmed
-            and since_ms is not None
+            (not confirmed or exit_price is None)
+            and not entry_event_ambiguous
+            and (since_ms is not None or entry_open_ms is not None)
             and hasattr(client, "get_position_history")
         ):
             try:
-                since_value = int(float(since_ms))
+                since_value = int(float(since_ms)) if since_ms is not None else 0
                 if sym not in position_history_cache:
-                    history_start = position_history_start_by_symbol.get(sym, since_value)
+                    fallback_start = (
+                        max(0, entry_open_ms - 60_000)
+                        if entry_open_ms is not None
+                        else since_value
+                    )
+                    history_start = position_history_start_by_symbol.get(sym, fallback_start)
                     history_end = int(now_ts * 1000)
                     history_start = max(
                         history_start,
@@ -863,7 +1364,11 @@ async def resolve_pending_dogon(
                         page_index=0,
                         page_size=100,
                     )
-                target_open_ms = int(float(item.get("opened_at_ms") or (since_value + 60_000)))
+                target_open_ms = int(
+                    entry_open_ms
+                    or item.get("opened_at_ms")
+                    or (since_value + 60_000)
+                )
                 history = match_position_history(
                     position_history_cache[sym],
                     symbol=sym,
@@ -892,6 +1397,8 @@ async def resolve_pending_dogon(
                         if history.get("position_id") is not None
                         else None
                     ),
+                    entry=entry_price,
+                    qty=entry_qty,
                     path=trades_path,
                 )
                 if not patched:
@@ -910,6 +1417,10 @@ async def resolve_pending_dogon(
                     fees=fees,
                 )
                 updated_item = dict(item)
+                if entry_price is not None:
+                    updated_item["entry"] = entry_price
+                if entry_qty is not None:
+                    updated_item["qty"] = entry_qty
                 if exit_price is not None:
                     updated_item["exit_price"] = float(exit_price)
                 updated, delivered = await _deliver_pending_exit_followup(
@@ -966,6 +1477,8 @@ async def resolve_pending_dogon(
                     fees=float(agg.get("fees") or 0),
                     funding=float(agg.get("funding") or 0),
                     pnl_source="income_confirmed",
+                    entry=entry_price,
+                    qty=entry_qty,
                     path=trades_path,
                 )
             except Exception as exc:

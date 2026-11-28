@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 
+import pytest
 from astra_bot.decision.live_income_report import (
     aggregate_income,
     claim_funding_event,
@@ -376,7 +377,8 @@ def test_pending_dogon_resolves_ambiguous_income_from_position_history(tmp_path,
     pending_path = tmp_path / "pending.json"
     trades_path = tmp_path / "trades.jsonl"
     opened_at_ms = 1_700_000_000_000
-    since_ms = opened_at_ms - 60_000
+    # Legacy plan timestamp was populated hours after the actual entry.
+    since_ms = opened_at_ms + 3 * 60 * 60 * 1000
     enqueue_pending(
         {
             "symbol": "BTC-USDT",
@@ -394,28 +396,38 @@ def test_pending_dogon_resolves_ambiguous_income_from_position_history(tmp_path,
         },
         path=pending_path,
     )
+    entry_row = {
+        "event": "entry",
+        "symbol": "BTC-USDT",
+        "side": "long",
+        "signal_id": "signal-long",
+        "ts": opened_at_ms / 1000.0,
+        "entry": 100.0,
+        "qty": 1.0,
+        "leverage": 3.0,
+    }
+    exit_row = {
+        "event": "exit",
+        "symbol": "BTC-USDT",
+        "side": "long",
+        "signal_id": "signal-long",
+        "entry": 100.0,
+        "exit": None,
+        "pnl": None,
+        "pnl_source": "pending_dogon",
+    }
     trades_path.write_text(
-        json.dumps(
-            {
-                "event": "exit",
-                "symbol": "BTC-USDT",
-                "side": "long",
-                "signal_id": "signal-long",
-                "entry": 100.0,
-                "exit": None,
-                "pnl": None,
-                "pnl_source": "pending_dogon",
-            }
-        )
-        + "\n",
+        json.dumps(entry_row) + "\n" + json.dumps(exit_row) + "\n",
         encoding="utf-8",
     )
 
     class Client:
         def __init__(self):
             self.history_calls = 0
+            self.income_start_ms = None
 
         async def get_realized_income(self, symbol, start_ms=None):
+            self.income_start_ms = start_ms
             return [
                 {
                     "incomeType": "REALIZED_PNL",
@@ -429,7 +441,7 @@ def test_pending_dogon_resolves_ambiguous_income_from_position_history(tmp_path,
         ):
             self.history_calls += 1
             assert symbol == "BTC-USDT"
-            assert start_ms == since_ms
+            assert start_ms == opened_at_ms - 60_000
             return [
                 {
                     "symbol": "BTC-USDT",
@@ -464,6 +476,7 @@ def test_pending_dogon_resolves_ambiguous_income_from_position_history(tmp_path,
 
     assert result == 1
     assert client.history_calls == 1
+    assert client.income_start_ms == opened_at_ms - 60_000
     assert load_pending(pending_path) == []
     assert len(delivered) == 1
     item, pnl, message = delivered[0]
@@ -471,7 +484,11 @@ def test_pending_dogon_resolves_ambiguous_income_from_position_history(tmp_path,
     assert pnl == -2.1
     assert "Position History" in message
 
-    row = json.loads(trades_path.read_text(encoding="utf-8").splitlines()[0])
+    rows = [
+        json.loads(line)
+        for line in trades_path.read_text(encoding="utf-8").splitlines()
+    ]
+    row = next(item for item in rows if item.get("event") == "exit")
     assert row["pnl_source"] == "position_history"
     assert row["pnl"] == -2.1
     assert row["fees"] == -0.1
@@ -479,3 +496,291 @@ def test_pending_dogon_resolves_ambiguous_income_from_position_history(tmp_path,
     assert row["exit"] == 99.5
     assert row["exit_price"] == 99.5
     assert row["position_id"] == "position-1"
+
+
+def test_reused_signal_id_entry_events_are_selected_by_entry_context(tmp_path):
+    from astra_bot.decision.live_income_report import (
+        load_entry_events,
+        select_entry_event,
+    )
+
+    path = tmp_path / "trades.jsonl"
+    path.write_text(
+        "\n".join(
+            json.dumps(row)
+            for row in (
+                {
+                    "event": "entry",
+                    "symbol": "HYPE-USDT",
+                    "side": "short",
+                    "signal_id": "reused-signal",
+                    "ts": 1_700_000_000.0,
+                    "fill_price": "79.378",
+                    "qty": "146.23651020",
+                },
+                {
+                    "event": "entry",
+                    "symbol": "HYPE-USDT",
+                    "side": "short",
+                    "signal_id": "reused-signal",
+                    "ts": 1_700_001_140.0,
+                    "fill_price": "79.925",
+                    "qty": "80.78161181",
+                },
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    events = load_entry_events(path)[("HYPE-USDT", "reused-signal")]
+    selected = select_entry_event(
+        events,
+        entry=79.925,
+        qty=80.78161181,
+    )
+    assert selected is not None
+    assert selected["open_ms"] == 1_700_001_140_000
+    assert select_entry_event(events) is None
+
+
+def test_patch_trade_exit_pnl_updates_only_matching_reused_signal_exit(tmp_path):
+    from astra_bot.decision.live_income_report import patch_trade_exit_pnl
+
+    path = tmp_path / "trades.jsonl"
+    first = {
+        "event": "exit",
+        "symbol": "HYPE-USDT",
+        "side": "short",
+        "signal_id": "reused-signal",
+        "entry": 79.378,
+        "qty": 146.2365102,
+        "pnl": None,
+        "pnl_source": "pending_dogon",
+    }
+    second = {
+        "event": "exit",
+        "symbol": "HYPE-USDT",
+        "side": "short",
+        "signal_id": "reused-signal",
+        "entry": 79.925,
+        "qty": 80.78161181,
+        "pnl": None,
+        "pnl_source": "pending_dogon",
+    }
+    path.write_text(
+        json.dumps(first) + "\n" + json.dumps(second) + "\n",
+        encoding="utf-8",
+    )
+
+    assert patch_trade_exit_pnl(
+        symbol="HYPE-USDT",
+        signal_id="reused-signal",
+        pnl=-11.9234,
+        fees=-0.05,
+        funding=0.0,
+        pnl_source="position_history",
+        path=path,
+        entry=79.925,
+        qty=80.78161181,
+    )
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    assert rows[0]["pnl"] is None
+    assert rows[0]["pnl_source"] == "pending_dogon"
+    assert rows[1]["pnl"] == -11.9234
+    assert rows[1]["pnl_source"] == "position_history"
+
+
+def test_confirmed_exit_lookup_disambiguates_reused_signal_id(tmp_path):
+    from astra_bot.decision.live_income_report import _find_confirmed_exit_row
+
+    path = tmp_path / "trades.jsonl"
+    path.write_text(
+        "\n".join(
+            json.dumps(row)
+            for row in (
+                {
+                    "event": "exit",
+                    "symbol": "HYPE-USDT",
+                    "side": "short",
+                    "signal_id": "reused-signal",
+                    "entry": 79.378,
+                    "qty": 146.2365102,
+                    "pnl": -116.3273,
+                    "pnl_source": "income",
+                },
+                {
+                    "event": "exit",
+                    "symbol": "HYPE-USDT",
+                    "side": "short",
+                    "signal_id": "reused-signal",
+                    "entry": 79.925,
+                    "qty": 80.78161181,
+                    "pnl": -11.9234,
+                    "pnl_source": "income",
+                },
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    row = _find_confirmed_exit_row(
+        "HYPE-USDT",
+        "reused-signal",
+        path,
+        entry=79.925,
+        qty=80.78161181,
+    )
+    assert row is not None
+    assert row["entry"] == 79.925
+    assert row["pnl"] == -11.9234
+
+
+def test_backfill_unqueued_exits_is_idempotent_and_repairs_stale_pending(tmp_path):
+    from astra_bot.decision.live_income_report import (
+        backfill_unqueued_exit_rows,
+        load_pending,
+        save_pending,
+    )
+
+    trades_path = tmp_path / "trades.jsonl"
+    pending_path = tmp_path / "pending.json"
+    flags_path = tmp_path / "tg_flags.json"
+    flags_path.write_text(json.dumps({"flags": {}}), encoding="utf-8")
+
+    btc_open_ms = 1_700_000_000_000
+    eth_open_ms = 1_700_000_200_000
+    rows = [
+        {
+            "event": "entry",
+            "symbol": "BTC-USDT",
+            "side": "long",
+            "signal_id": "btc-orphan",
+            "ts": btc_open_ms / 1000.0,
+            "fill_price": 100.0,
+            "qty": 1.0,
+            "leverage": 3,
+        },
+        {
+            "event": "exit",
+            "symbol": "BTC-USDT",
+            "side": "long",
+            "signal_id": "btc-orphan",
+            "ts": btc_open_ms / 1000.0 + 100,
+            "entry": 100.0,
+            "exit": None,
+            "pnl": None,
+            "exit_reason": "no_fills",
+        },
+        {
+            "event": "entry",
+            "symbol": "ETH-USDT",
+            "side": "short",
+            "signal_id": "eth-stale",
+            "ts": eth_open_ms / 1000.0,
+            "fill_price": 200.0,
+            "qty": 2.0,
+            "leverage": 3,
+        },
+        {
+            "event": "exit",
+            "symbol": "ETH-USDT",
+            "side": "short",
+            "signal_id": "eth-stale",
+            "ts": eth_open_ms / 1000.0 + 100,
+            "entry": 200.0,
+            "exit": None,
+            "pnl": 5.0,
+            "pnl_source": "income_backfill",
+        },
+    ]
+    trades_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+    save_pending(
+        [
+            {
+                "symbol": "ETH-USDT",
+                "side": "short",
+                "signal_id": "eth-stale",
+                "since_ms": eth_open_ms + 3 * 60 * 60 * 1000,
+                "entry": 200.0,
+                "ts": eth_open_ms / 1000.0,
+            }
+        ],
+        pending_path,
+    )
+
+    stats = backfill_unqueued_exit_rows(
+        trades_path=trades_path,
+        pending_path=pending_path,
+        flags_path=flags_path,
+        now=1_700_000_500.0,
+    )
+    assert stats == {"added": 1, "updated": 1, "ambiguous": 0, "expired": 0}
+    items = load_pending(pending_path)
+    assert len(items) == 2
+    by_signal = {item["signal_id"]: item for item in items}
+    assert by_signal["btc-orphan"]["since_ms"] == btc_open_ms - 60_000
+    assert by_signal["btc-orphan"]["qty"] == 1.0
+    assert by_signal["eth-stale"]["since_ms"] == eth_open_ms - 60_000
+    assert by_signal["eth-stale"]["opened_at_ms"] == eth_open_ms
+    assert by_signal["eth-stale"]["qty"] == 2.0
+    assert by_signal["eth-stale"]["ts"] == 1_700_000_500.0
+
+    second = backfill_unqueued_exit_rows(
+        trades_path=trades_path,
+        pending_path=pending_path,
+        flags_path=flags_path,
+        now=1_700_000_600.0,
+    )
+    assert second == {"added": 0, "updated": 0, "ambiguous": 0, "expired": 0}
+    assert len(load_pending(pending_path)) == 2
+
+
+@pytest.mark.asyncio
+async def test_missing_exit_card_metadata_keeps_pending_item(tmp_path):
+    from astra_bot.decision.live_income_report import _deliver_pending_exit_followup
+
+    trades_path = tmp_path / "trades.jsonl"
+    trades_path.write_text(
+        json.dumps(
+            {
+                "event": "entry",
+                "symbol": "BTC-USDT",
+                "side": "long",
+                "signal_id": "missing-exit-price",
+                "ts": 1_700_000_000.0,
+                "entry": 100.0,
+                "qty": 1.0,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    sent = []
+
+    async def send_tg(message):
+        sent.append(message)
+
+    item = {
+        "symbol": "BTC-USDT",
+        "side": "long",
+        "signal_id": "missing-exit-price",
+        "entry": 100.0,
+        "qty": 1.0,
+        "exit_price": None,
+    }
+    updated, delivered = await _deliver_pending_exit_followup(
+        item,
+        pnl=1.0,
+        message="exit follow-up",
+        send_tg=send_tg,
+        trades_path=trades_path,
+    )
+    assert delivered is False
+    assert updated["card_sent"] is False
+    assert updated["card_skipped_missing_metadata"] is True
+    assert updated["followup_sent"] is True
+    assert sent == ["exit follow-up"]
