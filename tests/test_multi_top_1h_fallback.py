@@ -224,3 +224,63 @@ async def test_confirmed_break_reclaimed_before_execution_is_rejected(monkeypatc
     monkeypatch.setattr("astra_bot.decision.live_arm_feed._channel_strategy", lambda: Silent())
     row = await scan_symbol(MagicMock(), "BTC-USDT", strategy=Silent())
     assert row is None
+
+
+@pytest.mark.asyncio
+async def test_silent_scan_logs_channel_reject_and_fallback_reason(
+    monkeypatch, caplog,
+):
+    import logging
+
+    bars_4h = [
+        SimpleNamespace(
+            open=100.0, high=101.0, low=99.0, close=100.0,
+            open_time=1_700_000_000_000 + i * 14_400_000,
+        )
+        for i in range(40)
+    ]
+    bars_1h = [
+        SimpleNamespace(
+            open=100.0, high=101.0, low=99.0, close=100.0,
+            open_time=1_700_000_000_000 + i * 3_600_000,
+        )
+        for i in range(40)
+    ]
+
+    async def fake_candles(client, symbol, *, timeframe="4h", limit=120):
+        return bars_4h if timeframe == "4h" else bars_1h
+
+    class Silent:
+        async def evaluate(self, symbol, series, current_price=None):
+            return None
+
+        def diagnose(self, series, current_price=None):
+            return {
+                "stage": "pattern",
+                "reject_reason": "few_touches",
+                "has_channel": False,
+                "htf_bias": "down",
+                "touch_hi": 1,
+                "touch_lo": 2,
+                "would_signal": False,
+            }
+
+    monkeypatch.setattr(
+        "astra_bot.decision.live_arm_feed.fetch_candles", fake_candles
+    )
+    monkeypatch.setattr(
+        "astra_bot.decision.live_arm_feed._channel_strategy", lambda: Silent()
+    )
+    monkeypatch.setattr(
+        "astra_bot.decision.live_arm_feed.detect_breakdown_from_ohlc",
+        lambda *args, **kwargs: None,
+    )
+    caplog.set_level(logging.INFO, logger="astra_bot.decision.live_arm_feed")
+
+    row = await scan_symbol(MagicMock(), "BTC-USDT", strategy=Silent())
+
+    assert row is None
+    assert "arm feed channel diagnostic" in caplog.text
+    assert "reject=few_touches" in caplog.text
+    assert "arm feed fallback diagnostic" in caplog.text
+    assert "multi_top_4h=none multi_top_1h=none" in caplog.text
