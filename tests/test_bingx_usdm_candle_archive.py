@@ -278,7 +278,9 @@ def test_archive_workflow_guards_run_before_archive_import_or_download() -> None
 
     assert "INITIATOR: ${{ github.actor }}" in workflow
     assert "REPOSITORY_OWNER: ${{ github.repository_owner }}" in workflow
-    assert 'if [[ "$ARCHIVE_MODE" == "initial" && "$INITIATOR" != "$REPOSITORY_OWNER" ]]; then' in workflow
+    assert "EVENT_NAME: ${{ github.event_name }}" in workflow
+    assert 'if [[ "$ARCHIVE_MODE" == "initial" ]]; then' in workflow
+    assert 'if [[ "$EVENT_NAME" != "workflow_dispatch" || "$INITIATOR" != "$REPOSITORY_OWNER" ]]; then' in workflow
     assert 'if [[ "$ARCHIVE_MODE" == "daily" && ! -f data/bingx_usdm/manifest.json ]]; then' in workflow
 
     import_index = workflow.index("python -c 'from astra_bot.adapters.bingx.client")
